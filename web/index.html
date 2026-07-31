@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guess the Road</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; height: 100vh; display: flex; flex-direction: column;
+         background: #111; color: #eee;
+         font: 15px/1.4 ui-sans-serif, system-ui, sans-serif; }
+  header { display: flex; align-items: baseline; gap: 1rem; padding: .6rem 1rem;
+           border-bottom: 1px solid #333; }
+  header h1 { font-size: 1rem; font-weight: 600; margin: 0; letter-spacing: .02em; }
+  header .spacer { flex: 1; }
+  header .stat { font-variant-numeric: tabular-nums; color: #aaa; }
+  header .stat b { color: #eee; }
+  main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
+  #photo { background: #000 center/contain no-repeat; }
+  #map { height: 100%; background: #222; }
+  footer { display: flex; align-items: center; gap: 1rem; padding: .6rem 1rem;
+           border-top: 1px solid #333; min-height: 3.2rem; }
+  button { font: inherit; padding: .45rem 1.1rem; border-radius: 6px;
+           border: 1px solid #555; background: #eee; color: #111; cursor: pointer; }
+  button:disabled { background: #333; color: #777; cursor: default; }
+  #result { flex: 1; color: #bbb; }
+  #result b { color: #eee; }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Guess the Road</h1>
+  <span class="stat">Round <b id="roundNum">1</b>/<b id="roundTot">5</b></span>
+  <span class="stat">Score <b id="score">0</b></span>
+  <span class="spacer"></span>
+  <span class="stat">dashcam footage, 2018</span>
+</header>
+<main>
+  <div id="photo"></div>
+  <div id="map"></div>
+</main>
+<footer>
+  <button id="go" disabled>Drop a pin to guess</button>
+  <span id="result">Somewhere in the United States. Where?</span>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const ROUNDS_PER_GAME = 5;
+// GeoGuessr's curve: full marks near-exact, ~0 across the continent.
+// 4500 km is roughly the width of the playable area (the lower 48).
+const MAP_SIZE_KM = 4500;
+
+function haversineKm(a, b) {
+  const R = 6371, rad = d => d * Math.PI / 180;
+  const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 +
+            Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+const scoreFor = km => Math.round(5000 * Math.exp(-10 * km / MAP_SIZE_KM));
+
+const map = L.map('map', { worldCopyJump: false }).setView([39.5, -98.5], 4);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 18, attribution: '&copy; OpenStreetMap'
+}).addTo(map);
+
+const el = id => document.getElementById(id);
+const photo = el('photo'), go = el('go'), result = el('result');
+
+let pool = [], game = [], idx = 0, total = 0, guess = null, marks = [];
+
+function clearMarks() { marks.forEach(m => map.removeLayer(m)); marks = []; }
+
+map.on('click', e => {
+  if (go.dataset.phase === 'next') return;
+  if (guess) map.removeLayer(guess);
+  guess = L.marker(e.latlng).addTo(map);
+  go.disabled = false;
+  go.textContent = 'Guess';
+});
+
+function startRound() {
+  const r = game[idx];
+  photo.style.backgroundImage = `url("${r.image}")`;
+  el('roundNum').textContent = idx + 1;
+  clearMarks();
+  if (guess) { map.removeLayer(guess); guess = null; }
+  map.setView([39.5, -98.5], 4);
+  go.disabled = true;
+  go.textContent = 'Drop a pin to guess';
+  go.dataset.phase = 'guess';
+  result.textContent = 'Somewhere in the United States. Where?';
+}
+
+function reveal() {
+  const r = game[idx], truth = L.latLng(r.lat, r.lng);
+  const km = haversineKm(guess.getLatLng(), truth);
+  const pts = scoreFor(km);
+  total += pts;
+  el('score').textContent = total.toLocaleString();
+
+  const pin = L.circleMarker(truth, { radius: 8, color: '#4ade80', fillOpacity: .9 }).addTo(map);
+  const line = L.polyline([guess.getLatLng(), truth], { color: '#4ade80', dashArray: '5 6' }).addTo(map);
+  marks.push(pin, line);
+  map.fitBounds(line.getBounds(), { padding: [50, 50], maxZoom: 9 });
+
+  const miles = Math.round(km * 0.621371);
+  result.innerHTML = `<b>${r.state}</b>, ${r.filmed} &mdash; you were off by
+    <b>${miles.toLocaleString()} mi</b> for <b>${pts.toLocaleString()}</b> points.`;
+
+  go.dataset.phase = 'next';
+  go.textContent = idx + 1 < game.length ? 'Next round' : 'Play again';
+}
+
+go.addEventListener('click', () => {
+  if (go.dataset.phase === 'guess') return reveal();
+  if (idx + 1 < game.length) { idx++; startRound(); }
+  else newGame();
+});
+
+function newGame() {
+  game = [...pool].sort(() => Math.random() - 0.5).slice(0, ROUNDS_PER_GAME);
+  el('roundTot').textContent = game.length;
+  idx = 0; total = 0;
+  el('score').textContent = '0';
+  startRound();
+}
+
+fetch('rounds.json')
+  .then(r => r.json())
+  .then(data => { pool = data; newGame(); })
+  .catch(() => { result.textContent = 'No rounds.json yet — run make_rounds.py first.'; });
+</script>
+</body>
+</html>
