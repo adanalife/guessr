@@ -31,6 +31,11 @@ tasks:
     cmds:
       - python3 -m http.server -d web {{.PORT}}
 
+  test:
+    desc: Run the daily-round draw test (no corpus or database needed)
+    cmds:
+      - node test_daily.js
+
   build:
     desc: Generate a fresh round set and validate it
     cmds:

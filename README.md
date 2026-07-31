@@ -3,6 +3,9 @@
 GeoGuessr, but every round is a frame from the A Dana Life dashcam corpus —
 a year of driving the United States in 2018.
 
+Five rounds a day, the same five for everyone, with a spoiler-free share string
+at the end. Practice rounds are unlimited.
+
 The game is static files. `make_rounds.py` does all the work up front (query the
 corpus metadata, extract frames, write a manifest); `web/` is then a plain
 directory anyone can serve or drop on a CDN. No backend, no API keys — the map
@@ -13,6 +16,7 @@ is Leaflet over OpenStreetMap tiles.
 ```sh
 task rounds   # needs the corpus mounted + kubectl access to the tripbot DB
 task check    # validates the round set
+task test     # daily-round draw; needs neither
 task serve    # http://localhost:8000
 ```
 
@@ -32,6 +36,36 @@ pre-commit install   # wires up both the file hooks and the commit-msg check
 Commits and PR titles follow [Conventional Commits](https://www.conventionalcommits.org).
 PRs squash-merge, so the PR title becomes the subject in history and is what
 release-please reads to compute the next version.
+
+## The daily round
+
+Everyone playing on the same calendar day draws the same five rounds. There is
+no server deciding that: the draw is seeded from the day number, so every client
+computes the same set independently. The day turns over at the player's own
+local midnight.
+
+The share string is the Wordle shape — a square per round, banded by score, with
+no locations in it:
+
+```
+Guess the Road #1
+🟩🟨🟩⬜🟧
+18,204 / 25,000
+```
+
+Finishing writes the day to `localStorage`, so today's round can't be replayed
+for a better result. Practice mode draws at random and is unlimited.
+
+`test_daily.js` covers the draw, because it fails invisibly: if it stops being
+deterministic, every player simply gets different rounds, nothing errors, and
+the share string quietly stops meaning anything. The test pins determinism,
+independence from the order `rounds.json` was written in, and that a DST
+boundary doesn't skip or repeat a day number.
+
+The pool needs to stay comfortably larger than five times however many days you
+want before rounds repeat; `task check` reports that number. Regenerating
+`rounds.json` reshuffles future dailies, since the draw depends on which rounds
+exist — worth doing between days rather than mid-day.
 
 ## How rounds are chosen
 
@@ -95,4 +129,7 @@ game still runs, it's just trivially cheatable.
   game from easy to hard.
 - **Video rounds.** A few seconds of motion beats a still, and motion is the
   whole character of the source material.
-- **A daily round**, shared by everyone, so scores are comparable.
+- **A leaderboard.** Needs scoring moved server-side first: `rounds.json`
+  currently ships the truth coordinates to the browser, so any score a client
+  reports is unverifiable. The fix is for the client to post its guess and the
+  server to hold the answers and return the score.
