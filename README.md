@@ -18,6 +18,44 @@ python3 -m http.server -d web 8000
 
 Then open <http://localhost:8000>.
 
+## How rounds are chosen
+
+Sampling clips uniformly produces a lot of anonymous interstate, where even a
+perfect guess is luck. So candidates are scored first, using the SigLIP2
+`frame_embeddings` that already back the `!find` command.
+
+The question the score asks is **"do visually similar frames come from nearby
+places?"** For each candidate, take its 25 nearest neighbours in embedding space
+and measure the median great-circle distance from the candidate's true location
+to theirs. A tight cluster means the image carries real location signal; a
+median in the thousands of kilometres means the look is generic.
+
+It discriminates sharply. In one 150-clip pool the best-scoring frames were a
+street corner in San Francisco's Mission District and a Yellowstone campground
+(0 km); the worst were a divided highway in Louisiana (1,606 km) and a backlit
+freeway in New York (1,492 km) — both of which could be almost anywhere.
+
+Two things the implementation has to get right:
+
+- **Exclude the same day.** Consecutive clips are the next few minutes of the
+  same road: near-identical and a mile apart. Left in, every clip scores as
+  perfectly locatable. Date is a rough proxy for "the same drive."
+- **Use iterative scan.** The day filter is applied during the HNSW scan, so
+  without `hnsw.iterative_scan` a candidate whose neighbourhood is mostly
+  same-day comes back with a handful of neighbours, sometimes zero, and its
+  median is noise. It's also about 5x faster than the exhaustive fallback.
+
+Rounds are then *sampled* from the better-scoring half rather than taken
+strictly best-first, which drops the featureless rounds while keeping the set
+varied. `--keep-fraction` is the knob.
+
+**Known limitation:** the score measures locatability *within this corpus*. A
+landmark visited on exactly one day has its real visual matches excluded along
+with the rest of that day, so it can score as generic and be dropped — a false
+negative on what would be a great round. Frequently-visited areas don't have
+this problem. Reading the mean cosine distance alongside the geographic spread
+would catch it, since a one-off landmark has no close visual neighbours at all.
+
 ## How a round is built
 
 `videos` carries a lat/lng and a reverse-geocoded state per clip, and
@@ -37,10 +75,9 @@ game still runs, it's just trivially cheatable.
 - **Per-frame ground truth.** The HUD holds exact coords for the frame being
   shown, which is finer than the clip-level lat/lng scored against today.
   Reading it means OCR'ing the strip before cropping it.
-- **Round difficulty.** Sampling is uniform over clips, so the distribution
-  follows the trip itself — California and Wyoming dominate, and a fair number
-  of rounds are featureless interstate. Scoring frames by how distinctive they
-  are would make for better rounds.
+- **A difficulty rating per round.** `median_km` is already in the manifest and
+  is a reasonable proxy — it just isn't surfaced in the UI or used to order a
+  game from easy to hard.
 - **Video rounds.** A few seconds of motion beats a still, and motion is the
   whole character of the source material.
 - **A daily round**, shared by everyone, so scores are comparable.

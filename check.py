@@ -60,9 +60,19 @@ def main() -> int:
         assert LAT_RANGE[0] < r["lat"] < LAT_RANGE[1], f"lat out of range: {r}"
         assert LNG_RANGE[0] < r["lng"] < LNG_RANGE[1], f"lng out of range: {r}"
         assert r["state"] and r["filmed"], f"missing label: {r}"
+        assert r.get("median_km") is not None and r["median_km"] >= 0, (
+            f"missing locatability score: {r}"
+        )
 
     states = {r["state"] for r in rounds}
+    spread = sorted(r["median_km"] for r in rounds)
     print(f"ok: {len(rounds)} rounds, {len(states)} states, all frames HUD-cropped")
+    # Worth eyeballing: the corpus tops out past 4000 km, so a max anywhere near
+    # that means the locatability filter stopped biting.
+    print(
+        f"    locatability (median neighbour km): best {spread[0]:g}, "
+        f"median {spread[len(spread) // 2]:g}, worst {spread[-1]:g}"
+    )
     return 0
 
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Build a round set for the guessing game.
 
-Samples clips from the dashcam corpus, extracts one frame each, and writes
-web/rounds.json + web/frames/*.jpg. Everything downstream is static files.
+Samples clips from the dashcam corpus, scores each one for how locatable it is,
+extracts a frame from the good ones, and writes web/rounds.json +
+web/frames/*.jpg. Everything downstream is static files.
 
 Ground truth is the clip-level lat/lng in `videos`. The dashcam also burns
 per-frame coords into the HUD, which would be a finer-grained truth if it were
@@ -25,24 +26,73 @@ WEB = Path(__file__).parent / "web"
 # the text baseline sits around y=1075, so 70px clears it with room to spare.
 HUD_STRIP_PX = 70
 
-QUERY = """
-SELECT DISTINCT ON (v.id) v.slug, f.ts_sec, v.lat, v.lng, v.state, v.date_filmed
-FROM videos v
-JOIN frame_embeddings f ON f.video_id = v.id
-WHERE v.lat <> 0 AND v.lng <> 0 AND v.state IS NOT NULL AND NOT v.flagged
-  AND f.ts_sec > 15
-ORDER BY v.id, random()
+# Scoring: a frame is a good round if visually similar frames come from nearby
+# places. Take each candidate's nearest neighbours in SigLIP2 embedding space and
+# measure how far their true locations sit from the candidate's. A tight cluster
+# means the image carries real location signal; neighbours scattered across the
+# continent mean it's anonymous interstate that could be anywhere.
+#
+# Same-day frames are excluded because consecutive clips are the next few minutes
+# of the same road -- near-identical and a mile apart, so including them scores
+# every clip as perfectly locatable. Date is a rough proxy for "the same drive".
+#
+# Iterative scan matters: the day filter is applied during the HNSW scan, so
+# without it a candidate whose neighbourhood is mostly same-day returns only a
+# handful of rows (sometimes zero) and its median is noise. It is also ~5x faster
+# here than letting the scan fall back to exhaustive.
+SCORE_SQL = """
+SET hnsw.ef_search = 100;
+SET hnsw.iterative_scan = relaxed_order;
+SET hnsw.max_scan_tuples = 40000;
+
+WITH picked AS (
+  SELECT id, slug, lat, lng, state, date_filmed
+  FROM videos
+  WHERE lat <> 0 AND lng <> 0 AND state IS NOT NULL AND NOT flagged
+  ORDER BY random()
+  LIMIT :pool
+),
+cand AS (
+  SELECT DISTINCT ON (p.id)
+         p.id AS vid, p.slug, p.lat, p.lng, p.state, p.date_filmed,
+         f.embedding, f.ts_sec
+  FROM picked p
+  JOIN frame_embeddings f ON f.video_id = p.id
+  WHERE f.ts_sec > 15
+  ORDER BY p.id, random()
+)
+SELECT c.slug, c.ts_sec, c.lat, c.lng, c.state, c.date_filmed,
+       nb.median_km, nb.n
+FROM cand c
+CROSS JOIN LATERAL (
+  SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY km) AS median_km,
+         count(*) AS n
+  FROM (
+    SELECT 2*6371*asin(sqrt(
+             power(sin(radians(v2.lat - c.lat)/2), 2) +
+             cos(radians(c.lat))*cos(radians(v2.lat))*
+             power(sin(radians(v2.lng - c.lng)/2), 2))) AS km
+    FROM frame_embeddings f2
+    JOIN videos v2 ON v2.id = f2.video_id
+    WHERE v2.lat <> 0
+      AND v2.date_filmed::date <> c.date_filmed::date
+    ORDER BY f2.embedding <=> c.embedding
+    LIMIT :k
+  ) neighbours
+) nb
+ORDER BY nb.median_km NULLS LAST;
 """
 
 
-def fetch_candidates(namespace: str) -> list[dict]:
-    """Read corpus metadata out of the tripbot Postgres via kubectl exec."""
+def score_candidates(namespace: str, pool: int, k: int) -> list[dict]:
+    """Score a random pool of clips for locatability. Best (tightest) first."""
     out = subprocess.run(
         [
             "kubectl",
             "-n",
             namespace,
             "exec",
+            "-i",
             "postgres-0",
             "--",
             "psql",
@@ -53,9 +103,18 @@ def fetch_candidates(namespace: str) -> list[dict]:
             "-At",
             "-F",
             "\t",
-            "-c",
-            QUERY,
+            # ON_ERROR_STOP because psql otherwise exits 0 on a SQL error, which
+            # arrives here as an empty result and reads as "no clips matched".
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-v",
+            f"pool={pool}",
+            "-v",
+            f"k={k}",
+            "-f",
+            "-",
         ],
+        input=SCORE_SQL,
         capture_output=True,
         text=True,
         check=True,
@@ -63,7 +122,12 @@ def fetch_candidates(namespace: str) -> list[dict]:
 
     rows = []
     for line in out.splitlines():
-        slug, ts, lat, lng, state, filmed = line.split("\t")
+        parts = line.split("\t")
+        if len(parts) != 8:  # skip the SET acknowledgements
+            continue
+        slug, ts, lat, lng, state, filmed, median_km, n = parts
+        if not median_km or int(n) < k:
+            continue  # too few neighbours survived the filter to trust the median
         rows.append(
             {
                 "slug": slug,
@@ -72,6 +136,7 @@ def fetch_candidates(namespace: str) -> list[dict]:
                 "lng": float(lng),
                 "state": state,
                 "filmed": filmed[:10],
+                "median_km": round(float(median_km), 1),
             }
         )
     return rows
@@ -110,7 +175,16 @@ def extract_frame(row: dict, dest: Path, width: int) -> bool:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("-n", "--count", type=int, default=60, help="rounds to generate")
+    ap.add_argument("-n", "--count", type=int, default=60, help="rounds to keep")
+    ap.add_argument("--pool", type=int, default=400, help="clips to score")
+    ap.add_argument("-k", "--neighbours", type=int, default=25)
+    ap.add_argument(
+        "--keep-fraction",
+        type=float,
+        default=0.5,
+        help="fraction of the scored pool to sample from, best-scoring first. "
+        "Sampling rather than taking the top N keeps the rounds varied.",
+    )
     ap.add_argument("--width", type=int, default=1280, help="output frame width")
     ap.add_argument("--namespace", default="stage-1-data")
     ap.add_argument("--seed", type=int, default=None)
@@ -122,12 +196,18 @@ def main() -> None:
         shutil.rmtree(frames)
     frames.mkdir(parents=True)
 
-    candidates = fetch_candidates(args.namespace)
-    random.shuffle(candidates)
-    print(f"{len(candidates)} clips eligible; extracting {args.count}")
+    scored = score_candidates(args.namespace, args.pool, args.neighbours)
+    keep = max(args.count, int(len(scored) * args.keep_fraction))
+    eligible = scored[:keep]
+    cutoff = eligible[-1]["median_km"] if eligible else 0
+    print(
+        f"scored {len(scored)} clips; keeping the {len(eligible)} most locatable "
+        f"(median neighbour distance <= {cutoff:g} km)"
+    )
 
+    random.shuffle(eligible)
     rounds = []
-    for row in candidates:
+    for row in eligible:
         if len(rounds) >= args.count:
             break
         name = f"{row['slug']}.jpg"
@@ -141,9 +221,13 @@ def main() -> None:
                 "lng": row["lng"],
                 "state": row["state"],
                 "filmed": row["filmed"],
+                "median_km": row["median_km"],
             }
         )
-        print(f"  {len(rounds):3d}/{args.count} {row['slug']} {row['state']}")
+        print(
+            f"  {len(rounds):3d}/{args.count} {row['slug']} "
+            f"{row['state']} ({row['median_km']:g} km)"
+        )
 
     (WEB / "rounds.json").write_text(json.dumps(rounds, indent=1))
     states = {r["state"] for r in rounds}

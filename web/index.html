@@ -8,7 +8,8 @@
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
-  body { margin: 0; height: 100vh; display: flex; flex-direction: column;
+  /* dvh so iOS Safari's collapsing chrome doesn't clip the footer. */
+  body { margin: 0; height: 100vh; height: 100dvh; display: flex; flex-direction: column;
          background: #111; color: #eee;
          font: 15px/1.4 ui-sans-serif, system-ui, sans-serif; }
   header { display: flex; align-items: baseline; gap: 1rem; padding: .6rem 1rem;
