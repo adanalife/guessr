@@ -1,0 +1,38 @@
+# Taskfile for the guessing game.
+#
+# The game is static files. `rounds` does all the work up front — it needs the
+# dashcam corpus mounted and kubectl access to the tripbot Postgres — and
+# everything after that is a plain directory of HTML, JS and JPEGs.
+
+version: '3'
+
+vars:
+  PORT: '{{.PORT | default "8000"}}'
+
+tasks:
+  default:
+    cmds:
+      - task --list
+    silent: true
+
+  rounds:
+    desc: Build a round set (scores clips for locatability, extracts frames)
+    cmds:
+      - python3 make_rounds.py {{.CLI_ARGS}}
+
+  check:
+    desc: Validate the generated round set
+    cmds:
+      - python3 check.py
+
+  serve:
+    desc: Serve the game locally on $PORT (binds all interfaces, so a phone on
+      the tailnet can reach it)
+    cmds:
+      - python3 -m http.server -d web {{.PORT}}
+
+  build:
+    desc: Generate a fresh round set and validate it
+    cmds:
+      - task: rounds
+      - task: check

@@ -1,3 +1,9 @@
+# Generated round sets. The frames are extracted from the dashcam corpus and
+# the manifest is rebuilt by make_rounds.py, so neither belongs in git.
 web/frames/
 web/rounds.json
+
 __pycache__/
+.venv/
+.DS_Store
+.ruff_cache/

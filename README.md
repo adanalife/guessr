@@ -11,12 +11,27 @@ is Leaflet over OpenStreetMap tiles.
 ## Play locally
 
 ```sh
-python3 make_rounds.py -n 60   # needs the NAS mounted + kubectl access
-python3 check.py               # validates the round set
-python3 -m http.server -d web 8000
+task rounds   # needs the corpus mounted + kubectl access to the tripbot DB
+task check    # validates the round set
+task serve    # http://localhost:8000
 ```
 
-Then open <http://localhost:8000>.
+`task serve` binds all interfaces, so a phone on the tailnet can reach it at
+`http://<this-machine>:8000`. Round generation is the only step with
+dependencies; `web/` on its own is a static directory anyone can host.
+
+Nothing in `web/` is committed except `index.html` — the frames are extracted
+from the dashcam corpus and the manifest is rebuilt, so both are gitignored.
+
+## Development
+
+```sh
+pre-commit install   # wires up both the file hooks and the commit-msg check
+```
+
+Commits and PR titles follow [Conventional Commits](https://www.conventionalcommits.org).
+PRs squash-merge, so the PR title becomes the subject in history and is what
+release-please reads to compute the next version.
 
 ## How rounds are chosen
 

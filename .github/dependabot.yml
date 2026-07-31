@@ -1,0 +1,8 @@
+version: 2
+updates:
+  # Keeps the workflow action pins current; the repo has no package manifest
+  # (the scripts are stdlib-only), so there is no second ecosystem to watch.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

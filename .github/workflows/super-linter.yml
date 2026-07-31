@@ -1,0 +1,44 @@
+---
+name: super-linter
+
+# Per-PR lint coverage comes from pre-commit (pre-commit.yml); super-linter runs
+# as a weekly whole-codebase sweep instead of on every PR/push. Because it never
+# gates a merge, it is left close to default on purpose — a noisy first run is
+# information, and pre-disabling validators speculatively is how a sweep quietly
+# stops covering anything.
+on:
+  schedule:
+    - cron: '19 9 * * 2' # Tuesdays 09:19 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Run Linters
+    runs-on: ubuntu-latest
+    # 30 rather than the usual 15 for lint jobs: the weekly sweep lints the
+    # whole codebase, not a PR diff.
+    timeout-minutes: 30
+
+    steps:
+      # fetch-depth: 0 is required by super-linter v6+: it diffs against
+      # the default branch (main) to figure out which files changed,
+      # which means main has to be present in the local checkout.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: run-linters
+        uses: super-linter/super-linter@v8.7.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # weekly sweep: lint everything, not just files changed vs main
+          VALIDATE_ALL_CODEBASE: true
+          ENABLE_GITHUB_PULL_REQUEST_SUMMARY_COMMENT: false
+          # Biome wants to reformat release-please's own manifest/config JSON,
+          # which release-please then rewrites on its next run. Disabled across
+          # the release-please repos in the fleet for the same reason.
+          VALIDATE_BIOME_FORMAT: false
+          # Copy-paste detection is noise on a codebase this small.
+          VALIDATE_JSCPD: false
