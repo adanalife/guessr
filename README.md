@@ -98,12 +98,41 @@ Rounds are then *sampled* from the better-scoring half rather than taken
 strictly best-first, which drops the featureless rounds while keeping the set
 varied. `--keep-fraction` is the knob.
 
-**Known limitation:** the score measures locatability *within this corpus*. A
-landmark visited on exactly one day has its real visual matches excluded along
-with the rest of that day, so it can score as generic and be dropped — a false
-negative on what would be a great round. Frequently-visited areas don't have
-this problem. Reading the mean cosine distance alongside the geographic spread
-would catch it, since a one-off landmark has no close visual neighbours at all.
+### The second signal: distinctiveness
+
+Geographic spread alone rewards a frame it shouldn't. Empty two-lane blacktop,
+fog and open sky come back with a tight neighbour cluster — not because the
+image carries location signal, but because the corpus drove that same road on
+several other days, so its near-identical twins really are all in one place. The
+score says *locatable*; a human player has nothing to work with.
+
+The same neighbours separate the two cases for free, as the **mean cosine
+distance** to them: near-duplicates sit low, a frame with no visual twin
+anywhere in the corpus sits high. It is close to independent of the geographic
+spread (Spearman ρ ≈ 0.19 over a 400-clip pool), so it is real extra
+information rather than the same measurement twice.
+
+So the bottom slice of the pool by mean cosine distance is discarded before
+ranking. `--drop-generic` is the knob (default `0.15`); the cut is a percentile
+rather than an absolute distance, so it survives a change of corpus or embedding
+model. On a 400-clip pool that drops about 40 of the ~200 clips the geographic
+score would have kept, and admits about 10 in their place.
+
+Sorting the kept set by this signal is the clearest way to see what it does. At
+the top: a ferry deck, a signed visitor centre, a harbour full of boats, a
+grocery storefront. At the bottom: five near-identical shots of empty Wyoming
+highway, a foggy field, and a frame that is mostly cloud.
+
+**Known limitation, unchanged:** the score still measures locatability *within
+this corpus*. A landmark visited on exactly one day has its real visual matches
+excluded along with the rest of that day, so it can score as generic and be
+dropped. Rescuing those by their high cosine distance was the original reason to
+compute it, and the frames say don't: the highest-cosine clips the geographic
+filter had dropped are a mix — a downtown skyline and a picket-fence New England
+street worth keeping, but also a rain-blurred windshield, a parking-lot wall and
+two frames that are nine-tenths sky. Distinctive and *guessable* are not the same
+thing, and there is no evidence yet for a rule that separates them. Frequently
+visited areas don't have the problem at all.
 
 ## How a round is built
 
