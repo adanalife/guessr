@@ -14,12 +14,16 @@ on:
 permissions:
   contents: read
 
-# Two merges close together would race, and the older deploy finishing last
-# would leave staging on stale content. (Tag-triggered release.yml is NOT
-# guarded — every release must ship.)
+# Serialise, don't cancel. Two merges close together would otherwise race, and
+# the older deploy finishing last would leave staging on stale content — but
+# cancelling has the same failure with a worse shape: merge a few PRs inside a
+# minute and GitHub cancels the whole burst, tail included, so staging sits on
+# an old commit with no failed run to notice and nothing left to re-run.
+# Queueing converges on the newest merge, and a 30-second upload isn't worth
+# optimising away. (Tag-triggered release.yml is unguarded — releases must ship.)
 concurrency:
   group: staging-deploy
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -31,12 +35,7 @@ jobs:
       # build it is. Staging is not a release, so it names the commit.
       - name: Stamp the build
         run: |
-          printf '{"label":"main@%s","url":"%s"}\n' \
-            "${GITHUB_SHA::7}" \
-            "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA" \
-            > web/version.json
-          # There is no CHANGELOG.md until the first release PR merges.
-          cp CHANGELOG.md web/ 2>/dev/null || :
+          printf '{"label":"main@%s"}\n' "${GITHUB_SHA::7}" > web/version.json
       # No build step: web/ is the site, round set included. `wrangler pages
       # deploy` uploads only the files whose hashes Cloudflare doesn't already
       # hold, so the 27 MB of frames transfers once, not on every deploy.

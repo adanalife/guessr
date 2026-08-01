@@ -9,6 +9,7 @@ eval(fs.readFileSync(`${__dirname}/web/daily.js`, 'utf8'));
 
 const pool = Array.from({ length: 60 }, (_, i) => ({
   image: `frames/clip_${String(i).padStart(3, '0')}.jpg`,
+  median_km: (i * 37) % 250,
 }));
 
 // Same day, same rounds -- the property the whole share mechanic rests on.
@@ -43,4 +44,32 @@ assert.strictEqual(dayNumber(new Date(2026, 6, 31)), 1, 'epoch should be day 1')
 // Time of day must not matter -- only the calendar date.
 assert.strictEqual(dayNumber(new Date(2026, 6, 31, 23, 59)), dayNumber(new Date(2026, 6, 31, 0, 1)));
 
+// A game ramps easy to hard.
+const ramped = rampEasyToHard(dailyRounds(pool, 12, 5));
+assert.deepStrictEqual(
+  ramped.map(r => r.median_km),
+  [...ramped.map(r => r.median_km)].sort((a, b) => a - b),
+  'game is not ordered easy to hard',
+);
+
+// Ramping must not change *which* rounds are in the game, or the daily set
+// stops being the same five for everyone.
+const drawn = dailyRounds(pool, 12, 5).map(r => r.image);
+assert.deepStrictEqual([...ramped.map(r => r.image)].sort(), [...drawn].sort());
+
+// Ramping is a copy, not an in-place sort of the caller's array.
+const original = dailyRounds(pool, 12, 5);
+const before = original.map(r => r.image);
+rampEasyToHard(original);
+assert.deepStrictEqual(original.map(r => r.image), before, 'rampEasyToHard mutated its input');
+
+// The bands are monotonic in median_km and cover the whole range.
+assert.strictEqual(difficulty({ median_km: 0 }), 1);
+assert.strictEqual(difficulty({ median_km: 31.9 }), 1);
+assert.strictEqual(difficulty({ median_km: 32 }), 2);
+assert.strictEqual(difficulty({ median_km: 119.9 }), 2);
+assert.strictEqual(difficulty({ median_km: 120 }), 3);
+assert.strictEqual(difficulty({ median_km: 5000 }), 3);
+
 console.log('ok: daily draw is deterministic, order-independent, and DST-safe');
+console.log('ok: games ramp easy to hard without changing the draw');

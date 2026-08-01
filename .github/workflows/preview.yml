@@ -50,12 +50,10 @@ jobs:
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          printf '{"label":"PR #%s@%s","url":"%s"}\n' \
+          printf '{"label":"PR #%s@%s"}\n' \
             "${{ github.event.pull_request.number }}" \
             "${HEAD_SHA::7}" \
-            "${{ github.event.pull_request.html_url }}" \
             > web/version.json
-          cp CHANGELOG.md web/
       # No build step: web/ is the site, round set included. `wrangler pages
       # deploy` uploads only the files whose hashes Cloudflare doesn't already
       # hold, so the frames transfer once across all previews, not per deploy.
