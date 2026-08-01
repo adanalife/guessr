@@ -1,0 +1,31 @@
+// Local-development config, and only that. `task dev` and `task
+// answers:local:push` pass it with an explicit --config; nothing else reads it.
+//
+// The deliberate part is the filename. Wrangler auto-loads wrangler.toml /
+// wrangler.json / wrangler.jsonc, so a config under any of those names would also
+// apply to `wrangler pages deploy` in staging.yml and release.yml — which take
+// their project name on the command line and get their real D1 binding from the
+// Pages project itself (declared in infra's terraform). This name is invisible to
+// them.
+//
+// It exists because `wrangler d1 execute` resolves a database by binding or name
+// from a config file and has no way to be handed one on the command line.
+// `wrangler pages dev` is the opposite — it refuses --config outright and wants
+// --d1 BINDING=ID — so `task dev` passes the flag instead of reading this.
+//
+// The one thing that has to line up is the id: --local keys its sqlite file under
+// .wrangler/ by database_id, so `task dev`'s --d1 ANSWERS=<id> and the id below
+// must match or the seeded rows land in a database the dev server never opens.
+{
+  "name": "guessr-local",
+  "pages_build_output_dir": "web",
+  "d1_databases": [
+    {
+      "binding": "ANSWERS",
+      "database_name": "guessr-answers-local",
+      // Not a real Cloudflare database id — --local never talks to Cloudflare.
+      // The deployed databases are bound by terraform, not from here.
+      "database_id": "guessr-answers-local"
+    }
+  ]
+}

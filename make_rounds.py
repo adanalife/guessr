@@ -3,7 +3,13 @@
 
 Samples clips from the dashcam corpus, scores each one for how locatable it is,
 extracts a frame from the good ones, and writes web/rounds.json +
-web/frames/*.jpg. Everything downstream is static files.
+web/frames/*.jpg -- the files the browser gets -- plus answers.json and
+answers.sql outside web/, which hold the coordinates and never ship.
+
+The split is the point: a manifest carrying the true lat/lng lets any player read
+the answer out of devtools, so the coords go to D1 instead (`task
+answers:{stage,prod}:push`) and functions/api/score.js is what turns a guess into
+points. Nothing under web/ says where a frame was taken.
 
 A run builds into web/.staging and only moves the result into place once check.py
 passes on it. The round set under web/ is tracked and every merge to main deploys
@@ -225,7 +231,50 @@ def extract_frame(row: dict, dest: Path, width: int) -> bool:
     return proc.returncode == 0 and dest.exists() and dest.stat().st_size > 0
 
 
-def swap_in(staging: Path, web: Path) -> None:
+def answers_sql(answers: list[dict]) -> str:
+    """The seed script for D1's answers table.
+
+    INSERT OR REPLACE rather than DELETE-then-INSERT: a regeneration replaces the
+    rows it shares and leaves the rest, so there is no window where the table is
+    empty and a push that dies halfway leaves every round still scorable. Old rows
+    for retired frames cost nothing -- rounds.json is what decides which rounds are
+    playable.
+    """
+    values = ",\n".join(
+        "  ('{}', {}, {}, '{}', '{}')".format(
+            a["image"].replace("'", "''"),
+            a["lat"],
+            a["lng"],
+            a["state"].replace("'", "''"),
+            a["filmed"].replace("'", "''"),
+        )
+        for a in answers
+    )
+    return (
+        "CREATE TABLE IF NOT EXISTS answers (\n"
+        "  image TEXT PRIMARY KEY,\n"
+        "  lat REAL NOT NULL,\n"
+        "  lng REAL NOT NULL,\n"
+        "  state TEXT NOT NULL,\n"
+        "  filmed TEXT NOT NULL\n"
+        ");\n"
+        "INSERT OR REPLACE INTO answers (image, lat, lng, state, filmed) VALUES\n"
+        f"{values};\n"
+    )
+
+
+def write_answers(answers: list[dict], dest: Path) -> None:
+    """Write the coords as JSON and as a D1 seed script, together.
+
+    ponytail: two files holding the same data, which is normally a drift smell --
+    but nothing writes one without the other, and they earn their keep separately.
+    check.py asserts against the JSON; wrangler eats the SQL.
+    """
+    (dest / "answers.json").write_text(json.dumps(answers, indent=1) + "\n")
+    (dest / "answers.sql").write_text(answers_sql(answers))
+
+
+def swap_in(staging: Path, web: Path, root: Path | None = None) -> None:
     """Move a validated round set into place, keeping the old one until the last step.
 
     Renames rather than copies, so the served set is never half-written. A stale
@@ -235,9 +284,23 @@ def swap_in(staging: Path, web: Path) -> None:
     the live frames aside and only then discovering there is nothing to replace them
     with would take the game down, which is the failure this whole path exists to
     prevent.
+
+    The answers land in `root` (the repo, gitignored) rather than under `web`, which
+    is the whole deployed surface -- a coords file inside it would be fetchable.
     """
-    if not (staging / "frames").is_dir() or not (staging / "rounds.json").is_file():
+    root = root if root is not None else web.parent
+    required = (
+        staging / "rounds.json",
+        staging / "answers.json",
+        staging / "answers.sql",
+    )
+    if not (staging / "frames").is_dir() or not all(f.is_file() for f in required):
         raise FileNotFoundError(f"{staging} is not a complete round set; nothing moved")
+
+    # Answers first: they sit outside web/, so getting them into place costs the
+    # served game nothing if a later step fails.
+    for name in ("answers.json", "answers.sql"):
+        os.replace(staging / name, root / name)
 
     old = web / "frames.old"
     shutil.rmtree(old, ignore_errors=True)
@@ -313,7 +376,7 @@ def main() -> int:
     )
 
     random.shuffle(eligible)
-    rounds = []
+    rounds, answers = [], []
     for row in eligible:
         if len(rounds) >= args.count:
             break
@@ -321,15 +384,25 @@ def main() -> int:
         if not extract_frame(row, frames / name, args.width):
             print(f"  skip {row['slug']} (unreadable)")
             continue
+        image = f"frames/{name}"
+        # What the browser gets. The two scores stay -- median_km drives the
+        # difficulty rating and the easy-to-hard ramp, and neither score says
+        # anything about *where* the frame is.
         rounds.append(
             {
-                "image": f"frames/{name}",
+                "image": image,
+                "median_km": row["median_km"],
+                "mean_cos": row["mean_cos"],
+            }
+        )
+        # What it does not.
+        answers.append(
+            {
+                "image": image,
                 "lat": row["lat"],
                 "lng": row["lng"],
                 "state": row["state"],
                 "filmed": row["filmed"],
-                "median_km": row["median_km"],
-                "mean_cos": row["mean_cos"],
             }
         )
         print(
@@ -340,7 +413,8 @@ def main() -> int:
     # Trailing newline: rounds.json is committed, and end-of-file-fixer rewrites
     # it on every commit without one.
     (STAGING / "rounds.json").write_text(json.dumps(rounds, indent=1) + "\n")
-    states = {r["state"] for r in rounds}
+    write_answers(answers, STAGING)
+    states = {a["state"] for a in answers}
     print(f"\nstaged {len(rounds)} rounds across {len(states)} states")
 
     validate = subprocess.run(
@@ -355,6 +429,12 @@ def main() -> int:
 
     swap_in(STAGING, WEB)
     print(f"swapped into {WEB}")
+    # The new rounds score nothing until their coords reach D1, and a deploy of
+    # this set without the push serves every round as "unknown round".
+    print(
+        "\nnext: task answers:stage:push (and answers:prod:push) to seed the new "
+        "coords into D1 -- until then these rounds cannot be scored"
+    )
     return 0
 
 
