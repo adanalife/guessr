@@ -261,7 +261,9 @@ def main() -> None:
             f"{row['state']} ({row['median_km']:g} km, cos {row['mean_cos']:g})"
         )
 
-    (WEB / "rounds.json").write_text(json.dumps(rounds, indent=1))
+    # Trailing newline: rounds.json is committed, and end-of-file-fixer rewrites
+    # it on every commit without one.
+    (WEB / "rounds.json").write_text(json.dumps(rounds, indent=1) + "\n")
     states = {r["state"] for r in rounds}
     print(f"\nwrote {len(rounds)} rounds across {len(states)} states")
 
