@@ -26,22 +26,29 @@ dependencies; `web/` on its own is a static directory anyone can host.
 
 ## Deploying
 
-Two tiers, two Cloudflare Pages projects:
+Three tiers, two Cloudflare Pages projects:
 
 | | URL | Deploys when | Workflow |
 |---|---|---|---|
+| preview | a `*.pages.dev` branch alias, posted as a PR comment | every pull request | `preview.yml` |
 | staging | [stage.guessr.dana.lol](https://stage.guessr.dana.lol) | every merge to `main` | `staging.yml` |
 | production | [guessr.dana.lol](https://guessr.dana.lol) | a `vX.Y.Z` tag ships | `release.yml` |
 
-So `main` is always live *somewhere* to look at, and the game people play only
-moves when a release goes out. Cutting one means merging the standing
-`chore(main): release X.Y.Z` PR — release-please tags it and dispatches
-`release.yml` at the tag. Nothing else promotes to production.
+So every change is visible before it merges, `main` is always live *somewhere*
+to look at, and the game people play only moves when a release goes out.
+Cutting one means merging the standing `chore(main): release X.Y.Z` PR —
+release-please tags it and dispatches `release.yml` at the tag. Nothing else
+promotes to production.
 
-Both deploys stamp `web/version.json` and copy `CHANGELOG.md` in beside it, so
-the About panel can name the running build and show what changed — the tag on
-production, `main@<sha>` on staging. Neither file is committed, so a locally
-served copy just shows no version.
+Previews share the staging Pages project, on a per-branch alias that leaves its
+production alias (`stage.guessr.dana.lol`) alone. A PR from a fork or from
+Dependabot gets no preview: GitHub withholds the Cloudflare token from those
+runs, so the job skips rather than failing.
+
+All three deploys stamp `web/version.json` and copy `CHANGELOG.md` in beside
+it, so the About panel can name the running build and show what changed — the
+tag on production, `main@<sha>` on staging, `PR #<n>@<sha>` on a preview.
+Neither file is committed, so a locally served copy just shows no version.
 
 The Pages projects and the DNS records are terraform, in the `infra` repo under
 `terraform/prod-1/cloudflare-pages-guessr.tf` and `terraform/core/route53.tf`.

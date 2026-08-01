@@ -1,0 +1,90 @@
+name: preview
+# A URL to look at before merging, one per pull request.
+#
+# The Pages projects are Direct Upload, which gets none of the automatic
+# preview deploys the Cloudflare→GitHub integration provides — so without this
+# workflow the earliest a change can be seen is after it lands on staging,
+# which is to say after it is merged. Nearly every change here is visual (a
+# regenerated round set is 27 MB of JPEGs no diff view can show), so a
+# reviewable URL is the review.
+#
+# The deploy goes into the *staging* Pages project on a branch alias, not a
+# third project: an alias is free, and adding a project is terraform in the
+# infra repo. Only the project's production branch ("main") serves
+# stage.guessr.dana.lol, so a per-branch alias can't disturb it.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  # The sticky comment edits the PR conversation in place.
+  pull-requests: write
+
+# A force-push should supersede its own earlier deploy rather than race it —
+# whichever upload finished last would otherwise be what the alias serves.
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # GitHub withholds repo secrets from fork-triggered and Dependabot-triggered
+    # runs, so CLOUDFLARE_API_TOKEN would arrive blank and wrangler would fail
+    # red on a PR whose author can do nothing about it. Skipping the whole job
+    # reports neutral instead. The fix is NOT pull_request_target: that runs
+    # with secrets against unreviewed head code in a public repo. A fork PR
+    # gets its preview once a maintainer pushes the branch here.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository
+      && github.actor != 'dependabot[bot]'
+    steps:
+      - uses: actions/checkout@v7
+      # web/version.json is what the page's About panel reads to say which
+      # build it is. A preview names the PR and its head commit, so a stale
+      # tab is obvious. GITHUB_SHA on a pull_request event is the ephemeral
+      # merge commit, hence the head sha from the event payload instead.
+      - name: Stamp the build
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          printf '{"label":"PR #%s@%s","url":"%s"}\n' \
+            "${{ github.event.pull_request.number }}" \
+            "${HEAD_SHA::7}" \
+            "${{ github.event.pull_request.html_url }}" \
+            > web/version.json
+          cp CHANGELOG.md web/
+      # No build step: web/ is the site, round set included. `wrangler pages
+      # deploy` uploads only the files whose hashes Cloudflare doesn't already
+      # hold, so the frames transfer once across all previews, not per deploy.
+      - name: Deploy to Cloudflare Pages (preview alias)
+        id: deploy
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # Pass the branch through the environment rather than interpolating it
+          # into the script, so a crafted branch name can't inject shell.
+          HEAD_REF: ${{ github.head_ref }}
+        # Read the alias out of wrangler's own output. Cloudflare truncates a
+        # branch alias to 28 characters and rewrites the slashes, so a URL
+        # built by concatenating the branch name is wrong for most branches
+        # here. An empty capture fails the step rather than posting a comment
+        # with a blank link.
+        run: |
+          set -o pipefail
+          npx wrangler pages deploy web/ \
+            --project-name adanalife-guessr-staging \
+            --branch "$HEAD_REF" | tee wrangler.out
+          alias=$(grep 'alias URL:' wrangler.out | grep -oE 'https://[^[:space:]]+' | tail -1)
+          test -n "$alias"
+          echo "alias=$alias" >> "$GITHUB_OUTPUT"
+      - name: Sticky preview URL comment
+        uses: marocchino/sticky-pull-request-comment@v3
+        with:
+          # A stable header makes the action edit its previous comment instead
+          # of adding one per push.
+          header: cf-preview
+          message: |
+            🔭 **Preview:** ${{ steps.deploy.outputs.alias }}
