@@ -61,8 +61,9 @@ The Pages projects and the DNS records are terraform, in the `infra` repo under
 `terraform/prod-1/cloudflare-pages-guessr.tf` and `terraform/core/route53.tf`.
 
 `web/` holds `index.html`, its scripts (`daily.js`, `zoom.js`,
-`changelog.js`), the icon and share-card assets (`favicon.svg`,
-`apple-touch-icon.png`, `og.jpg`), and the round set — `rounds.json` plus ~300
+`changelog.js`), `manifest.json`, the icon and share-card assets (`favicon.svg`,
+`apple-touch-icon.png`, `icon-512.png`, `og.jpg`), and the round set —
+`rounds.json` plus ~300
 frames under `frames/`. The round set is committed even though `task rounds`
 regenerates it, because regenerating needs the corpus mounted and database
 access and the deploy has neither. Regenerating rewrites about 27 MB of JPEGs,
@@ -89,6 +90,22 @@ rsvg-convert -w 124 -h 124 web/favicon.svg -o /tmp/mark.png
 magick -size 180x180 xc:'#111111' /tmp/mark.png -gravity center -composite \
   -depth 8 -strip PNG32:web/apple-touch-icon.png
 ```
+
+`manifest.json` is what makes an installed copy open standalone — its own
+window, no URL bar — instead of in browser chrome. `icon-512.png` is the icon
+it points at, same mark on the same background:
+
+```sh
+rsvg-convert -w 352 -h 352 web/favicon.svg -o /tmp/mark.png
+magick -size 512x512 xc:'#111111' /tmp/mark.png -gravity center -composite \
+  -depth 8 -strip PNG32:web/icon-512.png
+```
+
+It's declared `maskable`, so Android crops it to the platform's icon shape
+rather than shrinking it into a white tile. That crop can take the outer 10%
+on each side, which is why the mark occupies ~69% of the canvas and not more.
+There is no service worker and no offline mode — installing gets the window
+and the icon, nothing else.
 
 `og.jpg` is the link preview, and the link preview is the whole distribution
 mechanism: this game spreads by people pasting a URL. It's a hand-picked frame

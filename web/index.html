@@ -9,6 +9,10 @@
 <!-- iOS home-screen icon: PNG only, and it ignores transparency, so this one
      carries the page background rather than an alpha channel. -->
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<!-- iOS labels a home-screen icon from <title>, which is too long for it. -->
+<meta name="apple-mobile-web-app-title" content="Guessr">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#111111">
 
 <!-- Absolute og:image URLs: scrapers don't all resolve relative ones. -->
 <meta property="og:type" content="website">

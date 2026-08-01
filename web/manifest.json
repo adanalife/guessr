@@ -1,0 +1,23 @@
+{
+  "name": "Guessr — GeoGuessr with dashcam footage",
+  "short_name": "Guessr",
+  "description": "Five rounds a day from a year of driving the United States. Where is this?",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#111111",
+  "theme_color": "#111111",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
