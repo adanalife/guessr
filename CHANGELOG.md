@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.1](https://github.com/adanalife/guessr/compare/v0.5.0...v0.5.1) (2026-08-01)
+
+
+### Bug Fixes
+
+* **daily:** stop a backwards clock re-opening a played-out day ([#35](https://github.com/adanalife/guessr/issues/35)) ([c1dad83](https://github.com/adanalife/guessr/commit/c1dad83f0013b9ffdef1778a72792bcc8e7ed840))
+* **web:** pan the zoomed frame on Firefox ([#34](https://github.com/adanalife/guessr/issues/34)) ([e1841aa](https://github.com/adanalife/guessr/commit/e1841aa2af3d3625463f386ae7ae2ad6fb7fb0a9))
+
 ## [0.5.0](https://github.com/adanalife/guessr/compare/v0.4.0...v0.5.0) (2026-08-01)
 
 
