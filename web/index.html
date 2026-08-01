@@ -63,7 +63,7 @@ const MAP_SIZE_KM = 4500;
 const MAX_ROUND_SCORE = 5000;
 // Records the day you last finished, so today's round can't be replayed for a
 // better share string. The daily draw itself lives in daily.js.
-const STORE_KEY = 'gtr-daily';
+const STORE_KEY = 'guessr-daily';
 
 function haversineKm(a, b) {
   const R = 6371, rad = d => d * Math.PI / 180;
@@ -140,7 +140,7 @@ function reveal() {
 
 function shareText(day, res, sum) {
   return [
-    `Guess the Road #${day}`,
+    `Guessr #${day}`,
     res.map(squareFor).join(''),
     `${sum.toLocaleString()} / ${(res.length * MAX_ROUND_SCORE).toLocaleString()}`,
     location.origin,

@@ -48,7 +48,7 @@ The share string is the Wordle shape — a square per round, banded by score, wi
 no locations in it:
 
 ```
-Guess the Road #1
+Guessr #1
 🟩🟨🟩⬜🟧
 18,204 / 25,000
 ```
