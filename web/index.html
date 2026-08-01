@@ -24,6 +24,10 @@
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
+  /* An explicit `display` beats the UA stylesheet's `[hidden] { display: none }`,
+     so anything laid out with flex or grid stays on screen while hidden. Several
+     things here toggle `hidden` between game phases; this makes that work. */
+  [hidden] { display: none !important; }
   /* dvh so iOS Safari's collapsing chrome doesn't clip the footer. */
   body { margin: 0; height: 100vh; height: 100dvh; display: flex; flex-direction: column;
          background: #111; color: #eee;
@@ -88,6 +92,22 @@
                     font: 18px/30px ui-sans-serif, system-ui, sans-serif; }
   #zoomctl button + button { border-top: 1px solid #ccc; }
   #zoomctl button:hover { background: #f4f4f4; }
+  /* The end-of-game contact sheet, in the pane the frame vacates. auto-fit so
+     one rule covers the tall half-window pane and a phone's short one. */
+  #sheet { position: absolute; inset: 0; overflow-y: auto; padding: .5rem;
+           display: grid; gap: .5rem; align-content: center;
+           grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  #sheet figure { position: relative; margin: 0; line-height: 0; }
+  #sheet img { width: 100%; display: block; border-radius: 4px; }
+  /* Same number and same band colour as the pin on the map, which is the only
+     thing tying a thumbnail to the answer it belongs to. */
+  #sheet figcaption { position: absolute; top: 4px; left: 4px;
+                      display: flex; align-items: center; gap: .3rem;
+                      padding: 2px 6px 2px 2px; border-radius: 999px;
+                      background: #000a; color: #eee; line-height: 1;
+                      font: 600 11px ui-sans-serif, system-ui, sans-serif; }
+  #sheet .n { width: 18px; height: 18px; border-radius: 50%; color: #111;
+              text-align: center; font: 700 11px/18px ui-sans-serif, system-ui, sans-serif; }
   #map { height: 100%; background: #222; }
   /* End-of-game pins. A bare className replaces Leaflet's own div-icon styling
      (white square, grey border) rather than layering on top of it. */
@@ -162,6 +182,7 @@
               aria-label="Zoom in">+</button>
       <button id="zout" title="Zoom out" aria-label="Zoom out">&minus;</button>
     </div>
+    <div id="sheet" hidden></div>
   </div>
   <div id="map"></div>
 </main>
@@ -186,9 +207,9 @@ const MAX_ROUND_SCORE = 5000;
 // better share string. The daily draw itself lives in daily.js.
 const STORE_KEY = 'guessr-daily';
 // Every round ever played, oldest first, for the all-time map. Each entry is
-// [guessLat, guessLng, truthLat, truthLng, points] — an array rather than an
-// object because there are hundreds of them and the keys would be most of the
-// bytes.
+// [guessLat, guessLng, truthLat, truthLng, points, wasDaily] — an array rather
+// than an object because there are hundreds of them and the keys would be most
+// of the bytes.
 const HISTORY_KEY = 'guessr-history';
 // Oldest rounds fall off past this. It bounds three things at once: what
 // localStorage holds, how many Leaflet layers the all-time map creates (three
@@ -374,6 +395,7 @@ function startRound() {
   go.disabled = true;
   go.textContent = 'Drop a pin to guess';
   go.dataset.phase = 'guess';
+  el('sheet').hidden = true;
   shareBtn.hidden = true;
   practiceBtn.hidden = true;
   historyBtn.hidden = true;
@@ -391,7 +413,8 @@ function reveal() {
   // 4dp is ~11 m, far finer than a guess or a clip-level truth, and keeps a
   // few hundred rounds of history to a handful of kilobytes.
   const round4 = n => Math.round(n * 1e4) / 1e4;
-  recordHistory([round4(at.lat), round4(at.lng), round4(r.lat), round4(r.lng), pts]);
+  recordHistory([round4(at.lat), round4(at.lng), round4(r.lat), round4(r.lng), pts,
+                 mode === 'daily' ? 1 : 0]);
   el('score').textContent = total.toLocaleString();
 
   const pin = L.circleMarker(truth, { radius: 8, color: '#4ade80', fillOpacity: .9 }).addTo(map);
@@ -434,8 +457,8 @@ function showSummary(rounds, played, res) {
     if (!from) return;
     const truth = [r.lat, r.lng], colour = bandFor(res[i]).colour;
     marks.push(
-      L.polyline([from, truth], { color: colour, weight: 2, dashArray: '5 6' }).addTo(map),
-      L.circleMarker(from, { radius: 4, color: colour, fillOpacity: .9 }).addTo(map),
+      L.polyline([from, truth], { color: colour, weight: 4, dashArray: '6 7' }).addTo(map),
+      L.circleMarker(from, { radius: 5, color: colour, weight: 3, fillOpacity: .9 }).addTo(map),
       // Numbered rather than a tooltip: five identical pins are unreadable, and
       // a hover target is no use to the half of players on a phone.
       L.marker(truth, {
@@ -460,16 +483,20 @@ function showSummary(rounds, played, res) {
   return seen.length > 0;
 }
 
-// Every round ever played, on one map. Unlike the per-game summary this has no
-// numbered pins and no fit-to-bounds surprise: at a few hundred rounds the
-// shape of where the van went is the point, not any individual guess.
+// Every round ever played, on one map. Colour here means which game a round
+// came from, not how well it scored — across a few hundred rounds "how much of
+// this is the daily" is the question the map can answer and the per-round band
+// isn't. The band still owns the colour everywhere it means something: the
+// share string and the end-of-game map.
+const DAILY_COLOUR = '#4ade80', PRACTICE_COLOUR = '#7dd3fc';
+
 function showHistory() {
   clearMarks();
   if (guess) { map.removeLayer(guess); guess = null; }
 
   const rounds = loadHistory();
-  rounds.forEach(([glat, glng, tlat, tlng, pts]) => {
-    const colour = bandFor(pts).colour;
+  rounds.forEach(([glat, glng, tlat, tlng, , wasDaily]) => {
+    const colour = wasDaily ? DAILY_COLOUR : PRACTICE_COLOUR;
     marks.push(
       L.polyline([[glat, glng], [tlat, tlng]],
         { color: colour, weight: 1, opacity: .5 }).addTo(map),
@@ -480,9 +507,13 @@ function showHistory() {
 
   map.fitBounds(L.latLngBounds(rounds.map(([, , tlat, tlng]) => [tlat, tlng])),
     { padding: [40, 40], animate: false });
-  const best = rounds.filter(r => bandFor(r[4]) === BANDS[0]).length;
-  result.innerHTML = `<b>${rounds.length}</b> rounds played, ${best} of them
-    within spitting distance. Each line runs from your guess to the truth.`;
+  // Rounds recorded before the mode was stored have no flag and read as
+  // practice, which is what most of them were.
+  const daily = rounds.filter(r => r[5]).length;
+  result.innerHTML = `<b>${rounds.length}</b> rounds &mdash;
+    <b style="color:${DAILY_COLOUR}">${daily} daily</b>,
+    <b style="color:${PRACTICE_COLOUR}">${rounds.length - daily} practice</b>.
+    Each line runs from your guess to the truth.`;
 }
 
 function loadHistory() {
@@ -501,6 +532,24 @@ function recordHistory(entry) {
   return rounds.length;
 }
 
+// The frame pane goes black when a game ends, which throws away half the
+// screen at the one moment a player wants to look back at what they were
+// shown. Fill it with all five, numbered and banded to match the pins on the
+// map — that number is the only thing tying a thumbnail to its answer.
+function showSheet(rounds, res) {
+  const sheet = el('sheet');
+  sheet.innerHTML = rounds.map((r, i) => `
+    <figure>
+      <img src="${r.image}" loading="lazy"
+           alt="Round ${i + 1}, ${r.state} ${r.filmed}">
+      <figcaption>
+        <span class="n" style="background:${bandFor(res[i]).colour}">${i + 1}</span>
+        ${r.state} &middot; ${res[i].toLocaleString()}
+      </figcaption>
+    </figure>`).join('');
+  sheet.hidden = false;
+}
+
 function scoreLine(res, sum) {
   return `<span class="squares">${res.map(squareFor).join('')}</span>
     <b>${sum.toLocaleString()}</b> / ${(res.length * MAX_ROUND_SCORE).toLocaleString()}`;
@@ -517,6 +566,7 @@ function finish() {
   }
   setFrame(null);
   showDifficulty(null);
+  showSheet(game, results);
   showSummary(game, guesses, results);
   result.innerHTML = scoreLine(results, total);
   practiceBtn.hidden = false;
@@ -546,14 +596,13 @@ function showFinished(saved) {
   practiceBtn.hidden = false;
   practiceBtn.textContent = 'Practice rounds';
 
-  // Redraw the end-of-game map from the saved guesses. The rounds themselves
-  // aren't stored — the draw is deterministic, so replaying it for the saved
-  // day reconstructs exactly the board that was played. A save written before
-  // guesses were recorded has none, and simply gets no map.
-  if (saved.guesses) {
-    showSummary(rampEasyToHard(dailyRounds(pool, saved.day, ROUNDS_PER_GAME)),
-                saved.guesses, saved.results);
-  }
+  // Rebuild the board from the saved day. The rounds themselves aren't stored —
+  // the draw is deterministic, so replaying it reconstructs exactly what was
+  // played. The guesses are stored, and a save written before that shipped has
+  // none: it still gets the contact sheet, just no lines on the map.
+  const rounds = rampEasyToHard(dailyRounds(pool, saved.day, ROUNDS_PER_GAME));
+  showSheet(rounds, saved.results);
+  if (saved.guesses) showSummary(rounds, saved.guesses, saved.results);
   offerHistory();
   result.innerHTML = `Today's round is done &mdash;
     ${scoreLine(saved.results, saved.total)}. Come back tomorrow, or play
