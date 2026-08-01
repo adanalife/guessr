@@ -36,7 +36,7 @@
   header .spacer { flex: 1; }
   header .stat { font-variant-numeric: tabular-nums; color: #aaa; }
   header .stat b { color: #eee; }
-  header #difficulty { letter-spacing: .15em; }
+  header #difficultyDots { letter-spacing: .15em; }
   /* <details> rather than a dialog: it collapses natively, needs no script, and
      is keyboard-operable for free. The panel is absolute so opening it overlays
      the game instead of reflowing the header. */
@@ -87,10 +87,12 @@
   <h1>Guessr</h1>
   <span class="stat" id="label">Daily</span>
   <span class="stat">Round <b id="roundNum">1</b>/<b id="roundTot">5</b></span>
-  <!-- Dots rather than a word: "Hard" next to a round reads as a ready-made
-       excuse for a bad guess. role=img with an aria-label so a screen reader
-       gets the rating instead of spelling out the glyphs. -->
-  <span class="stat" id="difficulty" role="img" hidden></span>
+  <!-- The label names the axis; the dots carry the rating. Dots rather than a
+       word for the rating itself, because "Hard" next to a round reads as a
+       ready-made excuse for a bad guess. role=img with an aria-label so a
+       screen reader gets the rating instead of spelling out the glyphs -- the
+       label sits outside that span so it isn't announced twice. -->
+  <span class="stat" id="difficulty" hidden>Difficulty <b id="difficultyDots" role="img"></b></span>
   <span class="stat">Score <b id="score">0</b></span>
   <span class="spacer"></span>
   <details id="about" class="stat">
@@ -279,12 +281,12 @@ map.on('click', e => {
 });
 
 function showDifficulty(round) {
-  const dots = el('difficulty');
-  dots.hidden = !round;
+  el('difficulty').hidden = !round;
   if (!round) return;
   const level = difficulty(round);
+  const dots = el('difficultyDots');
   dots.textContent = '●'.repeat(level) + '○'.repeat(DIFFICULTY_LEVELS - level);
-  dots.setAttribute('aria-label', `Difficulty ${level} of ${DIFFICULTY_LEVELS}`);
+  dots.setAttribute('aria-label', `${level} of ${DIFFICULTY_LEVELS}`);
 }
 
 function startRound() {
