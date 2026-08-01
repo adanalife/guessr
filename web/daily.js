@@ -53,6 +53,21 @@ function dailyRounds(pool, day, n) {
   return pick(stable, n, mulberry32(hashSeed(`day-${day}`)));
 }
 
+// The day the page plays, which only ever moves forwards. dayNumber() reads the
+// player's local calendar date, so anything that lowers it -- flying west across
+// a timezone, a manual clock change, a device that comes back with the wrong
+// date -- would otherwise re-open a day already played out. The stored record's
+// day is the highest ever reached, so clamping to it is the whole gate; a day
+// that has genuinely arrived is larger and passes straight through.
+//
+// Known ceiling: a clock set far into the future strands the player on that day
+// even after it is corrected. Recovering means clearing saved state, which is
+// the same answer as for any other corrupt record, and a wrong-future clock is
+// rarer than the westward flight this exists for.
+function effectiveDay(saved, now = new Date()) {
+  return Math.max(dayNumber(now), saved ? saved.day : 0);
+}
+
 // What a stored daily record means for the page. No record, or one from an
 // earlier day, means today is unplayed; a same-day record holding every round is
 // done; a shorter same-day one is a game to pick back up.
