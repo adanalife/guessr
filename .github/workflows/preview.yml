@@ -50,7 +50,7 @@ jobs:
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          printf '{"label":"PR #%s@%s"}\n' \
+          printf '{"label":"PR #%s@%s","tier":"preview"}\n' \
             "${{ github.event.pull_request.number }}" \
             "${HEAD_SHA::7}" \
             > web/version.json
