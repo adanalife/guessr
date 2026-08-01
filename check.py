@@ -12,7 +12,7 @@ bottom and the game is silently ruined. A 16:9 frame means the crop didn't run.
 """
 
 import json
-import subprocess
+import struct
 import sys
 from pathlib import Path
 
@@ -24,25 +24,30 @@ LAT_RANGE, LNG_RANGE = (24.0, 49.5), (-125.0, -66.0)
 
 
 def dimensions(path: Path) -> tuple[int, int]:
-    out = subprocess.run(
-        [
-            "ffprobe",
-            "-v",
-            "error",
-            "-select_streams",
-            "v:0",
-            "-show_entries",
-            "stream=width,height",
-            "-of",
-            "csv=p=0:s=x",
-            str(path),
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
-    w, h = out.split("x")
-    return int(w), int(h)
+    """Width and height, read straight out of the JPEG header.
+
+    A frame is a JPEG and its size is in the first few hundred bytes, so this
+    reads it rather than shelling out to ffprobe 300 times. ffmpeg is still
+    what *extracts* the frames -- it's just no longer needed to validate them,
+    which is the whole toolchain CI used to install.
+
+    Any malformed file raises rather than returning a plausible size: a wrong
+    answer here would pass an uncropped frame with the coordinates still on it.
+    """
+    with path.open("rb") as f:
+        assert f.read(2) == b"\xff\xd8", f"not a JPEG: {path}"
+        while True:
+            header = f.read(4)
+            assert len(header) == 4, f"ran off the end of {path} before its size"
+            marker, size = struct.unpack(">HH", header)
+            assert marker >> 8 == 0xFF, f"lost sync in {path} at {f.tell()}"
+            # SOF0..SOF15 carry the dimensions; the three in that range that
+            # aren't frame headers (DHT, JPG, DAC) do not.
+            if 0xFFC0 <= marker <= 0xFFCF and marker not in (0xFFC4, 0xFFC8, 0xFFCC):
+                # Segment body: 1 byte of precision, then height, then width.
+                height, width = struct.unpack(">HH", f.read(5)[1:])
+                return width, height
+            f.seek(size - 2, 1)
 
 
 def main() -> int:
