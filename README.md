@@ -1,4 +1,4 @@
-# Guess the Road
+# Guessr
 
 GeoGuessr, but every round is a frame from the A Dana Life dashcam corpus —
 a year of driving the United States in 2018.
