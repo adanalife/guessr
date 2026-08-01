@@ -44,3 +44,12 @@ jobs:
         uses: amannn/action-semantic-pull-request@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The daily-round draw. Node-only and sub-second — no corpus, no database
+      # — which is why it belongs here as a step rather than in its own job.
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .tool-versions
+      - name: Daily-round draw
+        run: node test_daily.js

@@ -21,19 +21,22 @@
   main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
   #photo { background: #000 center/contain no-repeat; }
   #map { height: 100%; background: #222; }
-  footer { display: flex; align-items: center; gap: 1rem; padding: .6rem 1rem;
-           border-top: 1px solid #333; min-height: 3.2rem; }
+  footer { display: flex; align-items: center; gap: .6rem; padding: .6rem 1rem;
+           border-top: 1px solid #333; min-height: 3.2rem; flex-wrap: wrap; }
   button { font: inherit; padding: .45rem 1.1rem; border-radius: 6px;
            border: 1px solid #555; background: #eee; color: #111; cursor: pointer; }
   button:disabled { background: #333; color: #777; cursor: default; }
-  #result { flex: 1; color: #bbb; }
+  button.secondary { background: transparent; color: #bbb; }
+  #result { flex: 1; min-width: 14rem; color: #bbb; }
   #result b { color: #eee; }
+  .squares { letter-spacing: .1em; }
   @media (max-width: 800px) { main { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } }
 </style>
 </head>
 <body>
 <header>
   <h1>Guessr</h1>
+  <span class="stat" id="label">Daily</span>
   <span class="stat">Round <b id="roundNum">1</b>/<b id="roundTot">5</b></span>
   <span class="stat">Score <b id="score">0</b></span>
   <span class="spacer"></span>
@@ -45,15 +48,22 @@
 </main>
 <footer>
   <button id="go" disabled>Drop a pin to guess</button>
+  <button id="share" class="secondary" hidden>Share</button>
+  <button id="practice" class="secondary" hidden>Practice</button>
   <span id="result">Somewhere in the United States. Where?</span>
 </footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="daily.js"></script>
 <script>
 const ROUNDS_PER_GAME = 5;
 // GeoGuessr's curve: full marks near-exact, ~0 across the continent.
 // 4500 km is roughly the width of the playable area (the lower 48).
 const MAP_SIZE_KM = 4500;
+const MAX_ROUND_SCORE = 5000;
+// Records the day you last finished, so today's round can't be replayed for a
+// better share string. The daily draw itself lives in daily.js.
+const STORE_KEY = 'guessr-daily';
 
 function haversineKm(a, b) {
   const R = 6371, rad = d => d * Math.PI / 180;
@@ -63,7 +73,10 @@ function haversineKm(a, b) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-const scoreFor = km => Math.round(5000 * Math.exp(-10 * km / MAP_SIZE_KM));
+const scoreFor = km => Math.round(MAX_ROUND_SCORE * Math.exp(-10 * km / MAP_SIZE_KM));
+
+const squareFor = pts =>
+  pts >= 4000 ? '🟩' : pts >= 2500 ? '🟨' : pts >= 1000 ? '🟧' : '⬜';
 
 const map = L.map('map', { worldCopyJump: false }).setView([39.5, -98.5], 4);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -72,13 +85,15 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 const el = id => document.getElementById(id);
 const photo = el('photo'), go = el('go'), result = el('result');
+const shareBtn = el('share'), practiceBtn = el('practice');
 
 let pool = [], game = [], idx = 0, total = 0, guess = null, marks = [];
+let mode = 'daily', results = [];
 
 function clearMarks() { marks.forEach(m => map.removeLayer(m)); marks = []; }
 
 map.on('click', e => {
-  if (go.dataset.phase === 'next') return;
+  if (go.dataset.phase !== 'guess') return;
   if (guess) map.removeLayer(guess);
   guess = L.marker(e.latlng).addTo(map);
   go.disabled = false;
@@ -92,9 +107,12 @@ function startRound() {
   clearMarks();
   if (guess) { map.removeLayer(guess); guess = null; }
   map.setView([39.5, -98.5], 4);
+  go.hidden = false;
   go.disabled = true;
   go.textContent = 'Drop a pin to guess';
   go.dataset.phase = 'guess';
+  shareBtn.hidden = true;
+  practiceBtn.hidden = true;
   result.textContent = 'Somewhere in the United States. Where?';
 }
 
@@ -103,6 +121,7 @@ function reveal() {
   const km = haversineKm(guess.getLatLng(), truth);
   const pts = scoreFor(km);
   total += pts;
+  results.push(pts);
   el('score').textContent = total.toLocaleString();
 
   const pin = L.circleMarker(truth, { radius: 8, color: '#4ade80', fillOpacity: .9 }).addTo(map);
@@ -115,26 +134,99 @@ function reveal() {
     <b>${miles.toLocaleString()} mi</b> for <b>${pts.toLocaleString()}</b> points.`;
 
   go.dataset.phase = 'next';
-  go.textContent = idx + 1 < game.length ? 'Next round' : 'Play again';
+  if (idx + 1 < game.length) go.textContent = 'Next round';
+  else finish();
+}
+
+function shareText(day, res, sum) {
+  return [
+    `Guessr #${day}`,
+    res.map(squareFor).join(''),
+    `${sum.toLocaleString()} / ${(res.length * MAX_ROUND_SCORE).toLocaleString()}`,
+    location.origin,
+  ].join('\n');
+}
+
+function finish() {
+  if (mode === 'daily') {
+    localStorage.setItem(STORE_KEY, JSON.stringify({ day: dayNumber(), results, total }));
+    go.hidden = true;
+    shareBtn.hidden = false;
+  } else {
+    go.textContent = 'Play again';
+  }
+  practiceBtn.hidden = false;
+  practiceBtn.textContent = mode === 'daily' ? 'Practice rounds' : "Back to today's";
+}
+
+function showFinished(saved) {
+  mode = 'daily';
+  total = saved.total;
+  results = saved.results;
+  el('label').textContent = `Daily #${saved.day}`;
+  el('roundNum').textContent = saved.results.length;
+  el('roundTot').textContent = saved.results.length;
+  el('score').textContent = saved.total.toLocaleString();
+  photo.style.backgroundImage = '';
+  go.hidden = true;
+  shareBtn.hidden = false;
+  practiceBtn.hidden = false;
+  practiceBtn.textContent = 'Practice rounds';
+  result.innerHTML = `Today's round is done &mdash;
+    <span class="squares">${saved.results.map(squareFor).join('')}</span>
+    <b>${saved.total.toLocaleString()}</b>. Come back tomorrow, or play practice rounds.`;
 }
 
 go.addEventListener('click', () => {
   if (go.dataset.phase === 'guess') return reveal();
   if (idx + 1 < game.length) { idx++; startRound(); }
-  else newGame();
+  else newGame(mode);
 });
 
-function newGame() {
-  game = [...pool].sort(() => Math.random() - 0.5).slice(0, ROUNDS_PER_GAME);
+shareBtn.addEventListener('click', async () => {
+  const text = shareText(dayNumber(), results, total);
+  try {
+    await navigator.clipboard.writeText(text);
+    shareBtn.textContent = 'Copied';
+    setTimeout(() => { shareBtn.textContent = 'Share'; }, 1500);
+  } catch {
+    // The clipboard API needs a secure context, which a plain-http LAN or
+    // tailnet address is not. Fall back to something selectable.
+    window.prompt('Copy your result:', text);
+  }
+});
+
+practiceBtn.addEventListener('click', () => {
+  if (mode === 'daily') return newGame('practice');
+  const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+  if (saved && saved.day === dayNumber()) return showFinished(saved);
+  newGame('daily');
+});
+
+function newGame(which) {
+  mode = which;
+  const day = dayNumber();
+  if (mode === 'daily') {
+    game = dailyRounds(pool, day, ROUNDS_PER_GAME);
+    el('label').textContent = `Daily #${day}`;
+  } else {
+    game = pick(pool, ROUNDS_PER_GAME, Math.random);
+    el('label').textContent = 'Practice';
+  }
   el('roundTot').textContent = game.length;
-  idx = 0; total = 0;
+  idx = 0; total = 0; results = [];
   el('score').textContent = '0';
   startRound();
 }
 
 fetch('rounds.json')
   .then(r => r.json())
-  .then(data => { pool = data; newGame(); })
+  .then(data => {
+    pool = data;
+    const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+    if (saved && saved.day === dayNumber()) showFinished(saved);
+    else newGame('daily');
+  })
   .catch(() => { result.textContent = 'No rounds.json yet — run make_rounds.py first.'; });
 </script>
 </body>
