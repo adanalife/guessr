@@ -1,5 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- A map pin in the same green the share string's 🟩 band uses. -->
-  <path fill="#6aaa64" d="M16 1C9.4 1 4 6.4 4 13c0 8.2 12 18 12 18s12-9.8 12-18C28 6.4 22.6 1 16 1z"/>
-  <circle cx="16" cy="13" r="4.4" fill="#111"/>
+  <!-- The adanalife mark — ring, centre dot, bead on the upper-right shoulder —
+       with the ring drawn out to a map pin's point. Green matches the 🟩 band
+       in the share string. -->
+  <path fill="none" stroke="#6aaa64" stroke-width="3" stroke-linejoin="round"
+        d="M6.1 12.6 C6.1 19.4 16 27 16 29.5 C16 27 25.9 19.4 25.9 12.6 A9.9 9.9 0 1 0 6.1 12.6 Z"/>
+  <circle cx="16" cy="12.6" r="3.3" fill="#6aaa64"/>
+  <circle cx="23" cy="5.6" r="3" fill="#6aaa64"/>
 </svg>
