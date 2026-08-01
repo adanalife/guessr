@@ -57,6 +57,8 @@
   #about p { color: #bbb; }
   #about a { color: #7dd3fc; }
   #about .links { display: flex; flex-wrap: wrap; gap: .3rem 1rem; }
+  #about .links svg { width: 1em; height: 1em; vertical-align: -.13em;
+                      margin-right: .35em; fill: currentColor; }
   #build { border-top: 1px solid #333; padding-top: .6rem; margin-bottom: 0;
            color: #888; font-size: .9em; }
   /* Sized down from the footer's action buttons: this belongs to the build
@@ -135,8 +137,14 @@
         chat bot runs the same game against the live feed: type !guess to call
         where the van is right now.</p>
       <p class="links">
-        <a href="https://youtube.com/@adanalife_/live">Watch on YouTube</a>
-        <a href="https://twitch.tv/adanalife_">Guess in realtime on Twitch</a>
+        <!-- Inline brand marks (simple-icons paths) rather than an icon font or
+             a sprite: two glyphs aren't worth a request, and aria-hidden keeps
+             them out of the accessibility tree since the link text already
+             names the platform. -->
+        <a href="https://youtube.com/@adanalife_/live"><svg viewBox="0 0 24 24"
+          aria-hidden="true"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>Watch on YouTube</a>
+        <a href="https://twitch.tv/adanalife_"><svg viewBox="0 0 24 24"
+          aria-hidden="true"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>Guess in realtime on Twitch</a>
         <a href="https://dana.lol">Read the blog</a>
         <a href="https://github.com/adanalife/guessr">How it works</a>
       </p>
