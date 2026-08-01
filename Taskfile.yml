@@ -1,13 +1,21 @@
 # Taskfile for the guessing game.
 #
-# The game is static files. `rounds` does all the work up front — it needs the
-# dashcam corpus mounted and kubectl access to the tripbot Postgres — and
-# everything after that is a plain directory of HTML, JS and JPEGs.
+# The game is static files plus one endpoint. `rounds` does all the work up
+# front — it needs the dashcam corpus mounted and kubectl access to the tripbot
+# Postgres — and what it produces is a directory of HTML, JS and JPEGs (web/,
+# deployed) and the answer coords (answers.json / answers.sql, never deployed
+# and never committed; `answers:*:push` sends them to D1 instead).
+#
+# So there are two ways to run it locally: `serve` for anything that isn't
+# scoring, and `dev` when a guess has to actually come back with points.
 
 version: '3'
 
 vars:
   PORT: '{{.PORT | default "8000"}}'
+  # The local D1 wrangler keeps under .wrangler/, seeded from answers.sql. Not
+  # the deployed database — `answers:{stage,prod}:push` target those by name.
+  LOCAL_DB: 'guessr-answers-local'
 
 tasks:
   default:
@@ -26,17 +34,49 @@ tasks:
       - python3 check.py
 
   serve:
-    desc: Serve the game locally on $PORT (binds all interfaces, so a phone on
-      the tailnet can reach it)
+    desc: Serve the static game on $PORT (binds all interfaces, so a phone on
+      the tailnet can reach it). Guessing does not score — use `dev` for that
     cmds:
       - python3 -m http.server -d web {{.PORT}}
 
+  dev:
+    desc: Run the game with scoring, against a local D1 seeded from answers.sql
+    deps: [answers:local:push]
+    cmds:
+      - npx wrangler pages dev web/ --port {{.PORT}} --d1 ANSWERS={{.LOCAL_DB}}
+
+  answers:local:push:
+    desc: Seed answers.sql into the local D1 that `dev` binds
+    cmds:
+      - npx wrangler d1 execute {{.LOCAL_DB}} --local --file answers.sql --yes
+
+  # The coords, into the deployed databases. Separate targets per environment
+  # rather than one with a flag, so nothing reaches production by defaulting
+  # there. Both need CLOUDFLARE_API_TOKEN.
+  answers:stage:push:
+    desc: Seed answers.sql into the staging D1
+    cmds:
+      - task: _answers:push
+        vars: {DB: adanalife-guessr-answers-staging}
+
+  answers:prod:push:
+    desc: Seed answers.sql into the production D1
+    cmds:
+      - task: _answers:push
+        vars: {DB: adanalife-guessr-answers}
+
+  _answers:push:
+    internal: true
+    cmds:
+      - npx wrangler d1 execute {{.DB}} --remote --file answers.sql --yes
+
   test:
     desc: Run the tests that need no corpus or database (daily draw, frame zoom,
-      frame dimensions, round-set swap, seeding)
+      scoring, frame dimensions, round-set swap, seeding)
     cmds:
       - node test_daily.js
       - node test_zoom.js
+      - node test_score.mjs
       - python3 test_check.py
       - python3 test_swap.py
       - python3 test_seed.py

@@ -9,9 +9,20 @@
 web/.staging/
 web/frames.old/
 
+# The answers. make_rounds.py writes these next to the round set rather than
+# inside web/, because web/ is the entire deployed surface — a coords file in
+# there would just be fetchable. They reach production through D1
+# (`task answers:{stage,prod}:push`), never through git: this is a public repo,
+# and a committed answer key is the same leak as a manifest full of coordinates.
+answers.json
+answers.sql
+
 # Stamped into the deploy by staging.yml / release.yml — which build this is,
 # and the changelog to go with it. Generated per deploy, never committed.
 web/version.json
+
+# `task dev`'s local D1 and wrangler's scratch state.
+.wrangler/
 
 __pycache__/
 .venv/

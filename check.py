@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 """Validate a generated round set. Run after make_rounds.py.
 
-Takes the directory holding rounds.json and frames/, defaulting to web/.
-make_rounds.py runs it against its staging directory and only swaps that set into
-web/ if it passes, so these assertions are what stands between a bad generation
-and the served game.
+Takes the directory holding rounds.json, answers.json and frames/, defaulting to
+web/ (where a swapped-in set keeps its manifest; make_rounds.py runs this against
+its staging directory, where the answers still sit alongside). Only a set that
+passes gets swapped into web/, so these assertions are what stands between a bad
+generation and the served game.
 
 The check that matters is the aspect ratio: if the HUD crop ever stops applying,
 every frame ships with the answer ("W71.606763 N42.822437") printed across the
 bottom and the game is silently ruined. A 16:9 frame means the crop didn't run.
+
+The second one is the split: rounds.json is served to the browser and must carry
+no coordinates, and every round in it needs an answer to score against. A round
+with no answer is unplayable (the API 404s it); a coordinate in the manifest hands
+the answer to the player.
 """
 
 import json
@@ -58,6 +64,17 @@ def main() -> int:
         f"only {len(rounds)} rounds; a daily game needs {ROUNDS_PER_GAME}"
     )
 
+    # A staged set keeps its answers alongside; a swapped-in one has them at the
+    # repo root, outside the deployed directory. Neither is committed -- they are
+    # the answers -- so CI checks the manifest alone and the cross-check below runs
+    # where it can actually bite: on the machine that just generated a set, before
+    # make_rounds.py swaps it in.
+    answers = {}
+    for candidate in (web / "answers.json", web.parent / "answers.json"):
+        if candidate.is_file():
+            answers = {a["image"]: a for a in json.loads(candidate.read_text())}
+            break
+
     seen = set()
     for r in rounds:
         img = web / r["image"]
@@ -72,15 +89,34 @@ def main() -> int:
             f"apply, so the coordinates are still burned into the frame"
         )
 
-        assert LAT_RANGE[0] < r["lat"] < LAT_RANGE[1], f"lat out of range: {r}"
-        assert LNG_RANGE[0] < r["lng"] < LNG_RANGE[1], f"lng out of range: {r}"
-        assert r["state"] and r["filmed"], f"missing label: {r}"
+        # The manifest is public. A coordinate in it is the answer, handed over.
+        leaked = {"lat", "lng", "state", "filmed"} & r.keys()
+        assert not leaked, (
+            f"{r['image']}: rounds.json is served -- it must not carry {sorted(leaked)}"
+        )
+
         assert r.get("median_km") is not None and r["median_km"] >= 0, (
             f"missing locatability score: {r}"
         )
         assert r.get("mean_cos"), f"missing distinctiveness score: {r}"
 
-    states = {r["state"] for r in rounds}
+        if not answers:
+            continue
+        a = answers.get(r["image"])
+        assert a, f"no answer for {r['image']} -- the API would 404 the round"
+        assert LAT_RANGE[0] < a["lat"] < LAT_RANGE[1], f"lat out of range: {a}"
+        assert LNG_RANGE[0] < a["lng"] < LNG_RANGE[1], f"lng out of range: {a}"
+        assert a["state"] and a["filmed"], f"missing label: {a}"
+
+    if not answers:
+        print(
+            f"ok: {len(rounds)} rounds, all frames HUD-cropped, no coordinates in "
+            f"the served manifest"
+        )
+        print("    (no answers.json here, so the answer cross-check was skipped)")
+        return 0
+
+    states = {answers[r["image"]]["state"] for r in rounds}
     spread = sorted(r["median_km"] for r in rounds)
     print(f"ok: {len(rounds)} rounds, {len(states)} states, all frames HUD-cropped")
     print(

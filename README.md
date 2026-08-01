@@ -6,23 +6,35 @@ a year of driving the United States in 2018.
 Five rounds a day, the same five for everyone, with a spoiler-free share string
 at the end. Practice rounds are unlimited.
 
-The game is static files. `make_rounds.py` does all the work up front (query the
-corpus metadata, extract frames, write a manifest); `web/` is then a plain
-directory anyone can serve or drop on a CDN. No backend, no API keys — the map
-is Leaflet over OpenStreetMap tiles.
+The game is static files plus one endpoint. `make_rounds.py` does all the work up
+front (query the corpus metadata, extract frames, write a manifest); `web/` is
+then a plain directory of HTML, JS and JPEGs. The map is Leaflet over
+OpenStreetMap tiles.
+
+The endpoint is `POST /api/score`, a Cloudflare Pages Function, and it exists
+because the answers can't ship to the browser. `web/rounds.json` names each
+round's frame and how hard it is, and nothing else — the coordinates live in a D1
+database the client can't read, so a player learns where a frame was taken only
+by committing a guess and getting the score back.
 
 ## Play locally
 
 ```sh
 task rounds   # needs the corpus mounted + kubectl access to the tripbot DB
 task check    # validates the round set
-task test     # daily draw + round-set swap; needs neither
-task serve    # http://localhost:8000
+task test     # daily draw, scoring, round-set swap; needs neither
+task dev      # http://localhost:8000, with scoring
+task serve    # http://localhost:8000, static only — guesses don't score
 ```
 
-`task serve` binds all interfaces, so a phone on the tailnet can reach it at
-`http://<this-machine>:8000`. Round generation is the only step with
-dependencies; `web/` on its own is a static directory anyone can host.
+`task dev` runs `wrangler pages dev` against a local D1 seeded from
+`answers.sql`, so guessing works end to end. `task serve` is a plain
+`http.server` for everything else — layout, zoom, the About panel — and is
+enough for most UI work; a guess in it fails with "could not reach the scorer".
+Both bind all interfaces, so a phone on the tailnet can reach them at
+`http://<this-machine>:8000`.
+
+Round generation is the only step with real dependencies.
 
 ## Deploying
 
@@ -67,6 +79,38 @@ The Pages projects and the DNS records are terraform, in the `infra` repo under
 because regenerating needs the corpus mounted and database access and the
 deploy has neither. Regenerating rewrites about 27 MB of JPEGs, so do it
 deliberately.
+
+`functions/` holds the scoring endpoint. It is not served: Pages routes
+`functions/api/score.js` to `/api/score`, and `_scoring.mjs` is skipped by the
+router (leading underscore) so the handler can import it.
+
+### The answers
+
+`task rounds` writes two files *outside* `web/`, and neither is committed:
+`answers.json` (every round's lat/lng/state/date) and `answers.sql` (the same
+thing as a D1 seed script). `web/` is the entire deployed surface, so anything in
+there is fetchable; and this is a public repo, so a committed answer key is the
+same leak as a manifest full of coordinates.
+
+They reach the deployed game through D1:
+
+```sh
+task answers:stage:push   # adanalife-guessr-answers-staging
+task answers:prod:push    # adanalife-guessr-answers
+```
+
+**A regenerated round set is unplayable until that push runs** — every guess
+comes back "unknown round", because the frames deployed are ones the answers
+table has never heard of. `task rounds` prints the reminder on the way out.
+
+The databases are terraform, in `infra` alongside the Pages projects, and each
+tier has its own so a regeneration on one doesn't strand the other.
+
+One thing this does *not* buy yet: the round sets published before scoring moved
+server-side had their coordinates in `rounds.json`, and that file is in this
+repo's git history. Until the set is regenerated, the answers are still one
+`git log` away for anyone who looks — so the endpoint is the mechanism, not yet
+the guarantee. A leaderboard needs the regeneration first.
 
 Because that set is tracked, a regeneration rewrites ~300 files of tracked
 content and the next merge deploys the result — so **a generation that fails
@@ -231,7 +275,9 @@ game still runs, it's just trivially cheatable.
   Reading it means OCR'ing the strip before cropping it.
 - **Video rounds.** A few seconds of motion beats a still, and motion is the
   whole character of the source material.
-- **A leaderboard.** Needs scoring moved server-side first: `rounds.json`
-  currently ships the truth coordinates to the browser, so any score a client
-  reports is unverifiable. The fix is for the client to post its guess and the
-  server to hold the answers and return the score.
+- **A leaderboard.** Scoring is server-side now, which was the prerequisite, but
+  two things still stand in the way: the coordinates for the current round set
+  are in this repo's git history (see *The answers* above), and `/api/score` is
+  stateless, so nothing stops a client scoring the same round twice and keeping
+  the better number. Both are fixed by the same work — a regenerated set, and a
+  per-player, per-round record in the D1 table a leaderboard needs anyway.

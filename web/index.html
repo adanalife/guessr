@@ -176,9 +176,9 @@
 <script src="zoom.js"></script>
 <script>
 const ROUNDS_PER_GAME = 5;
-// GeoGuessr's curve: full marks near-exact, ~0 across the continent.
-// 4500 km is roughly the width of the playable area (the lower 48).
-const MAP_SIZE_KM = 4500;
+// Only the share line's denominator. The scoring itself is server-side, and
+// functions/_scoring.mjs owns the real value -- rounds.json ships no
+// coordinates, so the browser has nothing to score with.
 const MAX_ROUND_SCORE = 5000;
 // Records the day you last finished, so today's round can't be replayed for a
 // better share string. The daily draw itself lives in daily.js.
@@ -188,15 +188,18 @@ const STORE_KEY = 'guessr-daily';
 // — a result shared off localhost or a preview deploy still sends people here.
 const HOME_URL = 'https://guessr.dana.lol';
 
-function haversineKm(a, b) {
-  const R = 6371, rad = d => d * Math.PI / 180;
-  const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
-  const h = Math.sin(dLat / 2) ** 2 +
-            Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
+// Scoring is a round trip to functions/api/score.js, which holds the answers. The
+// response is also where the truth coordinates come from -- so a player learns
+// where the frame was only by committing a guess first.
+async function scoreGuess(image, latlng) {
+  const res = await fetch('api/score', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ image, lat: latlng.lat, lng: latlng.lng }),
+  });
+  if (!res.ok) throw new Error(`scoring failed: ${res.status}`);
+  return res.json();
 }
-
-const scoreFor = km => Math.round(MAX_ROUND_SCORE * Math.exp(-10 * km / MAP_SIZE_KM));
 
 const squareFor = pts =>
   pts >= 4000 ? '🟩' : pts >= 2500 ? '🟨' : pts >= 1000 ? '🟧' : '⬜';
@@ -358,23 +361,46 @@ function startRound() {
   result.textContent = 'Somewhere in the United States. Where?';
 }
 
-function reveal() {
-  const r = game[idx], truth = L.latLng(r.lat, r.lng);
-  const km = haversineKm(guess.getLatLng(), truth);
-  const pts = scoreFor(km);
+async function reveal() {
+  const r = game[idx];
+  // The button is the only progress indicator: the request is one indexed lookup,
+  // so on a working connection this flickers rather than reads.
+  go.disabled = true;
+  go.textContent = 'Scoring…';
+  // Off the guess phase for the duration, so a map click mid-flight can't move
+  // the pin out from under the answer being scored.
+  go.dataset.phase = 'scoring';
+  const at = guess.getLatLng();
+
+  let scored;
+  try {
+    scored = await scoreGuess(r.image, at);
+  } catch {
+    // Back to guessing with the pin still where it was -- losing a round to a
+    // dropped request would be worse than the retry.
+    go.dataset.phase = 'guess';
+    go.disabled = false;
+    go.textContent = 'Guess';
+    result.textContent = 'Could not reach the scorer. Try that guess again.';
+    return;
+  }
+
+  const truth = L.latLng(scored.lat, scored.lng);
+  const { km, points: pts } = scored;
   total += pts;
   results.push(pts);
   el('score').textContent = total.toLocaleString();
 
   const pin = L.circleMarker(truth, { radius: 8, color: '#4ade80', fillOpacity: .9 }).addTo(map);
-  const line = L.polyline([guess.getLatLng(), truth], { color: '#4ade80', dashArray: '5 6' }).addTo(map);
+  const line = L.polyline([at, truth], { color: '#4ade80', dashArray: '5 6' }).addTo(map);
   marks.push(pin, line);
   map.fitBounds(line.getBounds(), { padding: [50, 50], maxZoom: 9 });
 
   const miles = Math.round(km * 0.621371);
-  result.innerHTML = `<b>${r.state}</b>, ${r.filmed} &mdash; you were off by
+  result.innerHTML = `<b>${scored.state}</b>, ${scored.filmed} &mdash; you were off by
     <b>${miles.toLocaleString()} mi</b> for <b>${pts.toLocaleString()}</b> points.`;
 
+  go.disabled = false;
   go.dataset.phase = 'next';
   if (idx + 1 < game.length) go.textContent = 'Next round';
   else finish();
