@@ -52,7 +52,13 @@ tasks:
 
   # The coords, into the deployed databases. Separate targets per environment
   # rather than one with a flag, so nothing reaches production by defaulting
-  # there. Both need CLOUDFLARE_API_TOKEN.
+  # there.
+  #
+  # Both need Cloudflare auth, which a fresh shell has not got — `wrangler
+  # whoami` says so, and without it these fail on an auth error that doesn't
+  # mention how to fix it. Cheapest fix is `npx wrangler login` once (OAuth,
+  # remembered and refreshed); the terraform token in SSM works too if a
+  # non-interactive shell ever needs it, since it carries D1:Edit.
   answers:stage:push:
     desc: Seed answers.sql into the staging D1
     cmds:
