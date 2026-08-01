@@ -20,11 +20,16 @@ the answer to the player.
 import json
 import struct
 import sys
+from collections import Counter
 from pathlib import Path
 
 WEB = Path(__file__).parent / "web"
 ROUNDS_PER_GAME = 5  # must match web/index.html
 UNCROPPED_ASPECT = 16 / 9  # 1.778 -- what a frame looks like with the HUD still on it
+# Difficulty-band cutoffs in median_km, matching EASY_KM/HARD_KM in web/daily.js.
+# The page rates every round against these, so a set whose scores all land on one
+# side of them shows the same dots on every round and the rating means nothing.
+EASY_KM, HARD_KM = 32.0, 120.0
 # Lower 48, generously bounded.
 LAT_RANGE, LNG_RANGE = (24.0, 49.5), (-125.0, -66.0)
 
@@ -54,6 +59,11 @@ def dimensions(path: Path) -> tuple[int, int]:
                 height, width = struct.unpack(">HH", f.read(5)[1:])
                 return width, height
             f.seek(size - 2, 1)
+
+
+def band(median_km: float) -> int:
+    """1 (easiest) to 3 (hardest) -- the same reading as difficulty() in daily.js."""
+    return 1 if median_km < EASY_KM else 2 if median_km < HARD_KM else 3
 
 
 def main() -> int:
@@ -108,11 +118,28 @@ def main() -> int:
         assert LNG_RANGE[0] < a["lng"] < LNG_RANGE[1], f"lng out of range: {a}"
         assert a["state"] and a["filmed"], f"missing label: {a}"
 
+    # The cutoffs are the terciles of one particular set, so a regeneration that
+    # skewed could empty a band -- which shows up in play only as every round
+    # wearing identical dots. median_km stays in the served manifest, so this
+    # bites whether or not the answers are alongside.
+    bands = Counter(band(r["median_km"]) for r in rounds)
+    for level in (1, 2, 3):
+        assert bands[level], (
+            f"no rounds in difficulty band {level} of 3 -- every game would show "
+            f"the same rating, so the cutoffs ({EASY_KM:g} / {HARD_KM:g} km) want "
+            f"recomputing for this set"
+        )
+    band_line = (
+        f"    difficulty bands: {bands[1]} easy, {bands[2]} medium, {bands[3]} hard "
+        f"(under {EASY_KM:g} / under {HARD_KM:g} km)"
+    )
+
     if not answers:
         print(
             f"ok: {len(rounds)} rounds, all frames HUD-cropped, no coordinates in "
             f"the served manifest"
         )
+        print(band_line)
         print("    (no answers.json here, so the answer cross-check was skipped)")
         return 0
 
@@ -129,6 +156,7 @@ def main() -> int:
         f"    locatability (median neighbour km): best {spread[0]:g}, "
         f"median {spread[len(spread) // 2]:g}, worst {spread[-1]:g}"
     )
+    print(band_line)
     # The other half of the score: a low mean cosine distance means the frame has
     # near-identical twins elsewhere in the corpus, i.e. road a human can't place.
     cos = sorted(r["mean_cos"] for r in rounds)
