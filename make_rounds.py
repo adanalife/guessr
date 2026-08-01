@@ -17,6 +17,7 @@ only a couple of miles, so clip coords are close enough to score against.
 """
 
 import argparse
+import hashlib
 import json
 import os
 import random
@@ -101,7 +102,40 @@ ORDER BY nb.median_km NULLS LAST;
 """
 
 
-def score_candidates(namespace: str, pool: int, k: int) -> list[dict]:
+def pg_seed(seed: int) -> float:
+    """Map an arbitrary integer onto the [-1.0, 1.0] double `setseed` accepts.
+
+    Hashed rather than scaled so the small seeds a human actually types (1, 2,
+    42) land far apart in the range instead of a rounding error from each other.
+    sha256 rather than `hash()` because this has to agree with itself across
+    processes, and Python salts string hashing per interpreter.
+    """
+    digest = hashlib.sha256(str(seed).encode()).digest()
+    return int.from_bytes(digest[:8], "big") / 2**63 - 1.0
+
+
+def score_sql(seed: int | None) -> str:
+    """The scoring query, with its pool draw pinned when a seed is given.
+
+    Postgres seeds its own PRNG per session, so seeding Python leaves the two
+    `ORDER BY random()` clauses in SCORE_SQL free to draw a different pool every
+    run. `setseed` pins them, and has to travel in the same session -- i.e. the
+    same psql invocation -- as the query it applies to. Both clauses draw from
+    that one session generator, so the second depends on the first; they sit in a
+    single statement, so the order is fixed and the pair stays reproducible.
+
+    Only against an unchanged corpus, though: adding a row to `videos` or
+    `frame_embeddings` changes which clips the same sequence of random values
+    picks out.
+    """
+    if seed is None:
+        return SCORE_SQL
+    return f"SELECT setseed({pg_seed(seed)!r});\n{SCORE_SQL}"
+
+
+def score_candidates(
+    namespace: str, pool: int, k: int, seed: int | None = None
+) -> list[dict]:
     """Score a random pool of clips for locatability. Best (tightest) first."""
     out = subprocess.run(
         [
@@ -131,7 +165,7 @@ def score_candidates(namespace: str, pool: int, k: int) -> list[dict]:
             "-f",
             "-",
         ],
-        input=SCORE_SQL,
+        input=score_sql(seed),
         capture_output=True,
         text=True,
         check=True,
@@ -140,7 +174,7 @@ def score_candidates(namespace: str, pool: int, k: int) -> list[dict]:
     rows = []
     for line in out.splitlines():
         parts = line.split("\t")
-        if len(parts) != 9:  # skip the SET acknowledgements
+        if len(parts) != 9:  # skip the SET / setseed acknowledgements
             continue
         slug, ts, lat, lng, state, filmed, median_km, n, mean_cos = parts
         if not median_km or int(n) < k:
@@ -239,7 +273,15 @@ def main() -> int:
     )
     ap.add_argument("--width", type=int, default=1280, help="output frame width")
     ap.add_argument("--namespace", default="stage-1-data")
-    ap.add_argument("--seed", type=int, default=None)
+    ap.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="pin both the database's pool draw and the Python shuffle, so the "
+        "same seed rebuilds the same round set -- but only from an unchanged "
+        "corpus, since new clips change what the same draw selects. Without a "
+        "seed every run draws a fresh pool.",
+    )
     args = ap.parse_args()
 
     random.seed(args.seed)
@@ -247,7 +289,7 @@ def main() -> int:
     frames = STAGING / "frames"
     frames.mkdir(parents=True)
 
-    scored = score_candidates(args.namespace, args.pool, args.neighbours)
+    scored = score_candidates(args.namespace, args.pool, args.neighbours, args.seed)
     # Cut the visually generic clips by percentile rather than an absolute cosine
     # distance, so the filter stays honest if the corpus or the embedding model
     # changes. ponytail: the pool is a few hundred rows, so sorting it twice is free.
