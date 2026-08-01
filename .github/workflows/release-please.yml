@@ -3,10 +3,10 @@ name: release-please
 # main (version + CHANGELOG computed from conventional commits). Merging that
 # PR creates the vX.Y.Z tag + GitHub Release.
 #
-# There is no release.yml to dispatch yet: nothing here is deployed, so a tag is
-# just a marked point in the CHANGELOG. The reason release-please is wired up
-# before a deploy target exists is that it accumulates the changelog from the
-# first commit, and that history can't be reconstructed later.
+# Nothing is dispatched at the tag, unlike the sibling repos. Deploys are
+# driven by main (deploy.yml), not by a version — a single Cloudflare Pages
+# project with no staging tier has nothing for a release gate to hold back. A
+# tag marks a point in the CHANGELOG.
 on:
   push:
     branches:
