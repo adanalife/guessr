@@ -48,7 +48,18 @@
                   padding: .2rem 1rem 1rem; box-shadow: 0 10px 30px #000c; }
   #about p { color: #bbb; }
   #about a { color: #7dd3fc; }
-  #about .links { display: flex; flex-wrap: wrap; gap: .3rem 1rem; margin-bottom: 0; }
+  #about .links { display: flex; flex-wrap: wrap; gap: .3rem 1rem; }
+  /* The changelog can run long once a few releases are in, so it scrolls
+     inside the panel rather than pushing it off the bottom of the screen. */
+  #whatsnew { border-top: 1px solid #333; padding-top: .6rem; }
+  #whatsnew summary { color: #888; font-size: .9em; }
+  #changelog { max-height: 14rem; overflow-y: auto; margin-top: .4rem;
+               color: #bbb; font-size: .9em; }
+  #changelog h4 { font-size: 1em; margin: .8rem 0 .2rem; color: #eee; }
+  #changelog h5 { font-size: .95em; margin: .5rem 0 .1rem; color: #999;
+                  font-weight: 400; }
+  #changelog .bullet { margin-left: .9rem; text-indent: -.9rem; }
+  #changelog .bullet::before { content: '• '; color: #666; }
   main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
   /* touch-action: none so a pinch zooms the frame instead of the page. Leaflet
      owns its own gestures next door; the two panes never see each other's. */
@@ -93,6 +104,12 @@
         <a href="https://dana.lol">Read the blog</a>
         <a href="https://github.com/adanalife/guessr">How it works</a>
       </p>
+      <!-- Both the version and the changelog are stamped in at deploy time, so
+           this whole block stays hidden when the directory is served locally. -->
+      <details id="whatsnew" hidden>
+        <summary>Running <a id="version"></a> — what's new</summary>
+        <div id="changelog"></div>
+      </details>
     </div>
   </details>
 </header>
@@ -110,6 +127,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="daily.js"></script>
 <script src="zoom.js"></script>
+<script src="changelog.js"></script>
 <script>
 const ROUNDS_PER_GAME = 5;
 // GeoGuessr's curve: full marks near-exact, ~0 across the continent.
@@ -367,6 +385,28 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') about.open = false;
+});
+
+// version.json and CHANGELOG.md are written into web/ by whichever workflow
+// deployed this copy — staging names the commit, a release names the tag. A
+// locally served directory has neither, and shows no version at all.
+const whatsnew = el('whatsnew'), changelog = el('changelog');
+fetch('version.json')
+  .then(r => r.json())
+  .then(v => {
+    Object.assign(el('version'), { textContent: v.label, href: v.url });
+    whatsnew.hidden = false;
+  })
+  .catch(() => {});
+
+// Fetched on first open rather than up front: most players never open the
+// panel, and the changelog only grows.
+whatsnew.addEventListener('toggle', () => {
+  if (!whatsnew.open || changelog.innerHTML) return;
+  fetch('CHANGELOG.md')
+    .then(r => r.text())
+    .then(md => { changelog.innerHTML = renderChangelog(md); })
+    .catch(() => { changelog.textContent = 'No changelog in this build.'; });
 });
 
 function newGame(which) {

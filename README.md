@@ -26,14 +26,28 @@ dependencies; `web/` on its own is a static directory anyone can host.
 
 ## Deploying
 
-Live at **[guessr.dana.lol](https://guessr.dana.lol)**. Every merge to `main`
-deploys `web/` to Cloudflare Pages (`.github/workflows/deploy.yml`); there is no
-staging tier and no release gate, because the game is static files with nothing
-to corrupt. The Pages project and the DNS record are terraform, in the `infra`
-repo under `terraform/prod-1/cloudflare-pages-guessr.tf` and
-`terraform/core/route53.tf`.
+Two tiers, two Cloudflare Pages projects:
 
-`web/` holds `index.html`, `daily.js`, the two share-card assets (`og.jpg`,
+| | URL | Deploys when | Workflow |
+|---|---|---|---|
+| staging | [stage.guessr.dana.lol](https://stage.guessr.dana.lol) | every merge to `main` | `staging.yml` |
+| production | [guessr.dana.lol](https://guessr.dana.lol) | a `vX.Y.Z` tag ships | `release.yml` |
+
+So `main` is always live *somewhere* to look at, and the game people play only
+moves when a release goes out. Cutting one means merging the standing
+`chore(main): release X.Y.Z` PR — release-please tags it and dispatches
+`release.yml` at the tag. Nothing else promotes to production.
+
+Both deploys stamp `web/version.json` and copy `CHANGELOG.md` in beside it, so
+the About panel can name the running build and show what changed — the tag on
+production, `main@<sha>` on staging. Neither file is committed, so a locally
+served copy just shows no version.
+
+The Pages projects and the DNS records are terraform, in the `infra` repo under
+`terraform/prod-1/cloudflare-pages-guessr.tf` and `terraform/core/route53.tf`.
+
+`web/` holds `index.html`, its scripts (`daily.js`, `zoom.js`,
+`changelog.js`), the two share-card assets (`og.jpg`,
 `favicon.svg`), and the round set — `rounds.json` plus ~300 frames under
 `frames/`. The round set is committed even though `task rounds` regenerates it,
 because regenerating needs the corpus mounted and database access and the
