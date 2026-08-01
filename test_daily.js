@@ -44,6 +44,20 @@ assert.strictEqual(dayNumber(new Date(2026, 6, 31)), 1, 'epoch should be day 1')
 // Time of day must not matter -- only the calendar date.
 assert.strictEqual(dayNumber(new Date(2026, 6, 31, 23, 59)), dayNumber(new Date(2026, 6, 31, 0, 1)));
 
+// The three readings of a stored record. A same-day record short of the full
+// count must resume, not read as finished -- saving progress every round is what
+// stops an abandoned run from being replayed with the answers known, and it only
+// works if a partial record is told apart from a complete one.
+assert.strictEqual(dailyState(null, 5, 5), 'unplayed');
+assert.strictEqual(dailyState({ day: 4, results: [1, 2, 3, 4, 5] }, 5, 5), 'unplayed');
+assert.strictEqual(dailyState({ day: 5, results: [] }, 5, 5), 'unfinished');
+assert.strictEqual(dailyState({ day: 5, results: [1, 2] }, 5, 5), 'unfinished');
+assert.strictEqual(dailyState({ day: 5, results: [1, 2, 3, 4] }, 5, 5), 'unfinished');
+assert.strictEqual(dailyState({ day: 5, results: [1, 2, 3, 4, 5] }, 5, 5), 'finished');
+// A record longer than the current round count is still finished, so shrinking
+// ROUNDS_PER_GAME cannot reopen a day someone already played out.
+assert.strictEqual(dailyState({ day: 5, results: [1, 2, 3, 4, 5, 6] }, 5, 5), 'finished');
+
 // A game ramps easy to hard.
 const ramped = rampEasyToHard(dailyRounds(pool, 12, 5));
 assert.deepStrictEqual(
@@ -73,3 +87,4 @@ assert.strictEqual(difficulty({ median_km: 5000 }), 3);
 
 console.log('ok: daily draw is deterministic, order-independent, and DST-safe');
 console.log('ok: games ramp easy to hard without changing the draw');
+console.log('ok: a partial day resumes, a played-out day stays played out');
