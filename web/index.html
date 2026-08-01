@@ -89,6 +89,12 @@
   #zoomctl button + button { border-top: 1px solid #ccc; }
   #zoomctl button:hover { background: #f4f4f4; }
   #map { height: 100%; background: #222; }
+  /* End-of-game pins. A bare className replaces Leaflet's own div-icon styling
+     (white square, grey border) rather than layering on top of it. */
+  .pin span { display: block; width: 22px; height: 22px; box-sizing: border-box;
+              border: 2px solid #111; border-radius: 50%; color: #111;
+              text-align: center;
+              font: 700 12px/18px ui-sans-serif, system-ui, sans-serif; }
   footer { display: flex; align-items: center; gap: .6rem; padding: .6rem 1rem;
            border-top: 1px solid #333; min-height: 3.2rem; flex-wrap: wrap; }
   button { font: inherit; padding: .45rem 1.1rem; border-radius: 6px;
@@ -163,6 +169,7 @@
   <button id="go" disabled>Drop a pin to guess</button>
   <button id="share" class="secondary" hidden>Share</button>
   <button id="practice" class="secondary" hidden>Practice</button>
+  <button id="history" class="secondary" hidden>All my guesses</button>
   <span id="result">Somewhere in the United States. Where?</span>
 </footer>
 
@@ -178,6 +185,16 @@ const MAX_ROUND_SCORE = 5000;
 // Records the day you last finished, so today's round can't be replayed for a
 // better share string. The daily draw itself lives in daily.js.
 const STORE_KEY = 'guessr-daily';
+// Every round ever played, oldest first, for the all-time map. Each entry is
+// [guessLat, guessLng, truthLat, truthLng, points] — an array rather than an
+// object because there are hundreds of them and the keys would be most of the
+// bytes.
+const HISTORY_KEY = 'guessr-history';
+// Oldest rounds fall off past this. It bounds three things at once: what
+// localStorage holds, how many Leaflet layers the all-time map creates (three
+// per round), and how legible the result is — past a few hundred lines the map
+// is a smear rather than a record.
+const MAX_HISTORY = 250;
 // The share string is pasted where the link outlives the session that made it,
 // so it names the canonical host rather than wherever this copy is served from
 // — a result shared off localhost or a preview deploy still sends people here.
@@ -193,8 +210,17 @@ function haversineKm(a, b) {
 
 const scoreFor = km => Math.round(MAX_ROUND_SCORE * Math.exp(-10 * km / MAP_SIZE_KM));
 
-const squareFor = pts =>
-  pts >= 4000 ? '🟩' : pts >= 2500 ? '🟨' : pts >= 1000 ? '🟧' : '⬜';
+// Score bands, ordered best first. One table so a round's square in the share
+// string and its line on the end-of-game map are always the same colour.
+const BANDS = [
+  { min: 4000, square: '🟩', colour: '#4ade80' },
+  { min: 2500, square: '🟨', colour: '#facc15' },
+  { min: 1000, square: '🟧', colour: '#fb923c' },
+  { min: 0, square: '⬜', colour: '#9ca3af' },
+];
+
+const bandFor = pts => BANDS.find(b => pts >= b.min);
+const squareFor = pts => bandFor(pts).square;
 
 const map = L.map('map', { worldCopyJump: false }).setView([39.5, -98.5], 4);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -203,7 +229,7 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 const el = id => document.getElementById(id);
 const photo = el('photo'), go = el('go'), result = el('result');
-const shareBtn = el('share'), practiceBtn = el('practice');
+const shareBtn = el('share'), practiceBtn = el('practice'), historyBtn = el('history');
 
 // The frame is an <img> under a transform rather than a background-image, so a
 // player can zoom in: a road sign or a storefront name is often legible in the
@@ -315,7 +341,7 @@ photo.addEventListener('pointerup', releasePointer);
 photo.addEventListener('pointercancel', releasePointer);
 
 let pool = [], game = [], idx = 0, total = 0, guess = null, marks = [];
-let mode = 'daily', results = [];
+let mode = 'daily', results = [], guesses = [];
 
 function clearMarks() { marks.forEach(m => map.removeLayer(m)); marks = []; }
 
@@ -350,6 +376,7 @@ function startRound() {
   go.dataset.phase = 'guess';
   shareBtn.hidden = true;
   practiceBtn.hidden = true;
+  historyBtn.hidden = true;
   result.textContent = 'Somewhere in the United States. Where?';
 }
 
@@ -359,20 +386,29 @@ function reveal() {
   const pts = scoreFor(km);
   total += pts;
   results.push(pts);
+  const at = guess.getLatLng();
+  guesses.push([at.lat, at.lng]);
+  // 4dp is ~11 m, far finer than a guess or a clip-level truth, and keeps a
+  // few hundred rounds of history to a handful of kilobytes.
+  const round4 = n => Math.round(n * 1e4) / 1e4;
+  recordHistory([round4(at.lat), round4(at.lng), round4(r.lat), round4(r.lng), pts]);
   el('score').textContent = total.toLocaleString();
 
   const pin = L.circleMarker(truth, { radius: 8, color: '#4ade80', fillOpacity: .9 }).addTo(map);
   const line = L.polyline([guess.getLatLng(), truth], { color: '#4ade80', dashArray: '5 6' }).addTo(map);
   marks.push(pin, line);
-  map.fitBounds(line.getBounds(), { padding: [50, 50], maxZoom: 9 });
+  // Not on the last round: finish() replaces this view with the whole board a
+  // moment later, and this animation would land after that fit and undo it.
+  const last = idx + 1 >= game.length;
+  if (!last) map.fitBounds(line.getBounds(), { padding: [50, 50], maxZoom: 9 });
 
   const miles = Math.round(km * 0.621371);
   result.innerHTML = `<b>${r.state}</b>, ${r.filmed} &mdash; you were off by
     <b>${miles.toLocaleString()} mi</b> for <b>${pts.toLocaleString()}</b> points.`;
 
   go.dataset.phase = 'next';
-  if (idx + 1 < game.length) go.textContent = 'Next round';
-  else finish();
+  if (last) finish();
+  else go.textContent = 'Next round';
 }
 
 function shareText(day, res, sum) {
@@ -384,16 +420,115 @@ function shareText(day, res, sum) {
   ].join('\n');
 }
 
+// The end-of-game map: all five rounds at once, each guess joined to its truth
+// in the colour of its square, so the board reads the way the share string
+// does. This is the screen worth screenshotting, and per-round it is the only
+// place the five answers are ever visible together.
+function showSummary(rounds, played, res) {
+  clearMarks();
+  if (guess) { map.removeLayer(guess); guess = null; }
+
+  const seen = [];
+  rounds.forEach((r, i) => {
+    const from = played[i];
+    if (!from) return;
+    const truth = [r.lat, r.lng], colour = bandFor(res[i]).colour;
+    marks.push(
+      L.polyline([from, truth], { color: colour, weight: 2, dashArray: '5 6' }).addTo(map),
+      L.circleMarker(from, { radius: 4, color: colour, fillOpacity: .9 }).addTo(map),
+      // Numbered rather than a tooltip: five identical pins are unreadable, and
+      // a hover target is no use to the half of players on a phone.
+      L.marker(truth, {
+        icon: L.divIcon({
+          className: 'pin',
+          html: `<span style="background:${colour}">${i + 1}</span>`,
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
+        }),
+      }).addTo(map).bindTooltip(`${r.state}, ${r.filmed} — ${res[i].toLocaleString()}`),
+    );
+    seen.push(from, truth);
+  });
+
+  // animate: false on both whole-board fits. They replace the view outright
+  // rather than nudging it, and a Leaflet zoom animation that is still in
+  // flight lands *after* a later setView and silently undoes it — so an
+  // animated fit here loses to whatever the previous screen was doing.
+  if (seen.length) {
+    map.fitBounds(L.latLngBounds(seen), { padding: [40, 40], animate: false });
+  }
+  return seen.length > 0;
+}
+
+// Every round ever played, on one map. Unlike the per-game summary this has no
+// numbered pins and no fit-to-bounds surprise: at a few hundred rounds the
+// shape of where the van went is the point, not any individual guess.
+function showHistory() {
+  clearMarks();
+  if (guess) { map.removeLayer(guess); guess = null; }
+
+  const rounds = loadHistory();
+  rounds.forEach(([glat, glng, tlat, tlng, pts]) => {
+    const colour = bandFor(pts).colour;
+    marks.push(
+      L.polyline([[glat, glng], [tlat, tlng]],
+        { color: colour, weight: 1, opacity: .5 }).addTo(map),
+      L.circleMarker([tlat, tlng],
+        { radius: 3, color: colour, weight: 1, fillOpacity: .9 }).addTo(map),
+    );
+  });
+
+  map.fitBounds(L.latLngBounds(rounds.map(([, , tlat, tlng]) => [tlat, tlng])),
+    { padding: [40, 40], animate: false });
+  const best = rounds.filter(r => bandFor(r[4]) === BANDS[0]).length;
+  result.innerHTML = `<b>${rounds.length}</b> rounds played, ${best} of them
+    within spitting distance. Each line runs from your guess to the truth.`;
+}
+
+function loadHistory() {
+  try {
+    return JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
+  } catch {
+    return [];
+  }
+}
+
+function recordHistory(entry) {
+  const rounds = [...loadHistory(), entry].slice(-MAX_HISTORY);
+  // A full or disabled localStorage must not break the round in progress; the
+  // all-time map is the only thing that suffers.
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(rounds)); } catch { /* skip */ }
+  return rounds.length;
+}
+
+function scoreLine(res, sum) {
+  return `<span class="squares">${res.map(squareFor).join('')}</span>
+    <b>${sum.toLocaleString()}</b> / ${(res.length * MAX_ROUND_SCORE).toLocaleString()}`;
+}
+
 function finish() {
   if (mode === 'daily') {
-    localStorage.setItem(STORE_KEY, JSON.stringify({ day: dayNumber(), results, total }));
+    localStorage.setItem(STORE_KEY,
+      JSON.stringify({ day: dayNumber(), results, total, guesses }));
     go.hidden = true;
     shareBtn.hidden = false;
   } else {
     go.textContent = 'Play again';
   }
+  setFrame(null);
+  showDifficulty(null);
+  showSummary(game, guesses, results);
+  result.innerHTML = scoreLine(results, total);
   practiceBtn.hidden = false;
   practiceBtn.textContent = mode === 'daily' ? 'Practice rounds' : "Back to today's";
+  offerHistory();
+}
+
+// The all-time map is worth offering once there is more on it than the game
+// just played, and only between games — during a round it would paint the
+// answers over the board.
+function offerHistory() {
+  historyBtn.hidden = loadHistory().length <= ROUNDS_PER_GAME;
 }
 
 function showFinished(saved) {
@@ -410,9 +545,19 @@ function showFinished(saved) {
   shareBtn.hidden = false;
   practiceBtn.hidden = false;
   practiceBtn.textContent = 'Practice rounds';
+
+  // Redraw the end-of-game map from the saved guesses. The rounds themselves
+  // aren't stored — the draw is deterministic, so replaying it for the saved
+  // day reconstructs exactly the board that was played. A save written before
+  // guesses were recorded has none, and simply gets no map.
+  if (saved.guesses) {
+    showSummary(rampEasyToHard(dailyRounds(pool, saved.day, ROUNDS_PER_GAME)),
+                saved.guesses, saved.results);
+  }
+  offerHistory();
   result.innerHTML = `Today's round is done &mdash;
-    <span class="squares">${saved.results.map(squareFor).join('')}</span>
-    <b>${saved.total.toLocaleString()}</b>. Come back tomorrow, or play practice rounds.`;
+    ${scoreLine(saved.results, saved.total)}. Come back tomorrow, or play
+    practice rounds.`;
 }
 
 go.addEventListener('click', () => {
@@ -440,6 +585,8 @@ practiceBtn.addEventListener('click', () => {
   if (saved && saved.day === dayNumber()) return showFinished(saved);
   newGame('daily');
 });
+
+historyBtn.addEventListener('click', showHistory);
 
 // <details> stays open until it is toggled again, and the panel sits over the
 // top-right of the map — so dismiss it the two ways an overlay is expected to
@@ -514,7 +661,7 @@ function newGame(which) {
   // daily set for a given day is untouched.
   game = rampEasyToHard(game);
   el('roundTot').textContent = game.length;
-  idx = 0; total = 0; results = [];
+  idx = 0; total = 0; results = []; guesses = [];
   el('score').textContent = '0';
   startRound();
 }
