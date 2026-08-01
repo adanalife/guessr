@@ -50,16 +50,23 @@ it, so the About panel can name the running build and show what changed — the
 tag on production, `main@<sha>` on staging, `PR #<n>@<sha>` on a preview.
 Neither file is committed, so a locally served copy just shows no version.
 
+`version.json` also carries the `tier` that deployed it, which is what puts a
+**Reset saved state** button in the About panel everywhere except production.
+The intro dialog, the About dot and the daily result are each once-per-browser,
+so testing any of them a second time otherwise means clearing site data by hand.
+Reset drops every `guessr-`prefixed key and reloads. A locally served copy has
+no `version.json` at all and gets the button too.
+
 The Pages projects and the DNS records are terraform, in the `infra` repo under
 `terraform/prod-1/cloudflare-pages-guessr.tf` and `terraform/core/route53.tf`.
 
 `web/` holds `index.html`, its scripts (`daily.js`, `zoom.js`,
-`changelog.js`), the two share-card assets (`og.jpg`,
-`favicon.svg`), and the round set — `rounds.json` plus ~300 frames under
-`frames/`. The round set is committed even though `task rounds` regenerates it,
-because regenerating needs the corpus mounted and database access and the
-deploy has neither. Regenerating rewrites about 27 MB of JPEGs, so do it
-deliberately.
+`changelog.js`), the icon and share-card assets (`favicon.svg`,
+`apple-touch-icon.png`, `og.jpg`), and the round set — `rounds.json` plus ~300
+frames under `frames/`. The round set is committed even though `task rounds`
+regenerates it, because regenerating needs the corpus mounted and database
+access and the deploy has neither. Regenerating rewrites about 27 MB of JPEGs,
+so do it deliberately.
 
 Because that set is tracked, a regeneration rewrites ~300 files of tracked
 content and the next merge deploys the result — so **a generation that fails
@@ -69,11 +76,28 @@ the corpus unmounted or the database unreachable leaves the working tree exactly
 as it was rather than deleting the frames it was about to replace, and the
 rejected set is left in `web/.staging` to look at.
 
-`og.jpg` is the link preview, and the link preview is the whole distribution
-mechanism: this game spreads by people pasting a URL. It's a hand-picked frame
-with the title set over it, made once and committed:
+`favicon.svg` is the map pin, drawn as the adanalife mark — ring, centre dot,
+bead on the upper-right shoulder — with the ring pulled down to a point, so it
+reads as both. It's the source every other icon derives from.
+
+`apple-touch-icon.png` is that mark for the iOS home screen. Safari wants a PNG
+there and ignores its alpha, so the background is baked in rather than left
+transparent:
 
 ```sh
+rsvg-convert -w 124 -h 124 web/favicon.svg -o /tmp/mark.png
+magick -size 180x180 xc:'#111111' /tmp/mark.png -gravity center -composite \
+  -depth 8 -strip PNG32:web/apple-touch-icon.png
+```
+
+`og.jpg` is the link preview, and the link preview is the whole distribution
+mechanism: this game spreads by people pasting a URL. It's a hand-picked frame
+with the title and the mark set over it, made once and committed:
+
+```sh
+rsvg-convert -w 110 -h 110 web/favicon.svg -o /tmp/mark.png
+magick /tmp/mark.png -channel RGB -fill white -colorize 100 +channel /tmp/mark-white.png
+
 magick web/frames/<frame>.jpg \
   -gravity North -crop 1280x672+0+0 +repage -resize 1200x630! \
   \( -size 1200x300 -define gradient:vector='0,0 0,300' \
@@ -83,11 +107,22 @@ magick web/frames/<frame>.jpg \
   -font Helvetica -pointsize 36 -fill '#dfe6ea' \
   -annotate +64+168 'GeoGuessr, but every round is a dashcam frame' \
   -annotate +64+214 'from a year of driving the United States' \
+  /tmp/mark-white.png -gravity NorthEast -geometry +60+46 -composite \
   -quality 88 -strip web/og.jpg
 ```
 
+The mark is white here rather than its green: over a sunlit frame the green
+sinks into whatever foliage is behind it, and white matches the title.
+
 Swapping the frame means re-running that and updating `og:image:alt`. Keep it
 1200x630 — that's the aspect every scraper crops to.
+
+**The committed card predates the current round set.** Its frame — a San
+Francisco intersection — was drawn from a set that has since been regenerated,
+and no frame under `frames/` matches it any more, so the recipe above builds a
+*new* card rather than reproducing the committed one. Anything that has to
+change on the existing card gets composited onto it directly until the frame is
+reselected.
 
 ## Development
 

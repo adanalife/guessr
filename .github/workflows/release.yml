@@ -26,7 +26,7 @@ jobs:
       # shipping a copy, so there is nothing else to stamp.
       - name: Stamp the build
         run: |
-          printf '{"label":"%s"}\n' "$GITHUB_REF_NAME" > web/version.json
+          printf '{"label":"%s","tier":"production"}\n' "$GITHUB_REF_NAME" > web/version.json
       - name: Deploy to Cloudflare Pages (production)
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
