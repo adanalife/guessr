@@ -24,9 +24,21 @@ task serve    # http://localhost:8000
 `http://<this-machine>:8000`. Round generation is the only step with
 dependencies; `web/` on its own is a static directory anyone can host.
 
-`web/` holds `index.html`, `daily.js`, and the two share-card assets
-(`og.jpg`, `favicon.svg`). The round frames and `rounds.json` are not committed —
-they're extracted from the dashcam corpus and rebuilt, so both are gitignored.
+## Deploying
+
+Live at **[guessr.dana.lol](https://guessr.dana.lol)**. Every merge to `main`
+deploys `web/` to Cloudflare Pages (`.github/workflows/deploy.yml`); there is no
+staging tier and no release gate, because the game is static files with nothing
+to corrupt. The Pages project and the DNS record are terraform, in the `infra`
+repo under `terraform/prod-1/cloudflare-pages-guessr.tf` and
+`terraform/core/route53.tf`.
+
+`web/` holds `index.html`, `daily.js`, the two share-card assets (`og.jpg`,
+`favicon.svg`), and the round set — `rounds.json` plus ~300 frames under
+`frames/`. The round set is committed even though `task rounds` regenerates it,
+because regenerating needs the corpus mounted and database access and the
+deploy has neither. Regenerating rewrites about 27 MB of JPEGs, so do it
+deliberately.
 
 `og.jpg` is the link preview, and the link preview is the whole distribution
 mechanism: this game spreads by people pasting a URL. It's a hand-picked frame

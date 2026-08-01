@@ -53,3 +53,12 @@ jobs:
           node-version-file: .tool-versions
       - name: Daily-round draw
         run: node test_daily.js
+
+      # The round set is committed and every main merge deploys it, so a bad
+      # regeneration ships. check.py is the guard that matters: a 16:9 frame
+      # means the HUD crop didn't run and the answer is printed on the image.
+      # ffprobe is how it reads dimensions and isn't on the runner image.
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Validate the round set
+        run: python3 check.py

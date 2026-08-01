@@ -1,0 +1,2702 @@
+[
+ {
+  "image": "frames/2018_1101_161244_004_opt.jpg",
+  "lat": 36.53691,
+  "lng": -121.150228,
+  "state": "California",
+  "filmed": "2018-11-01",
+  "median_km": 6.1,
+  "mean_cos": 0.0574
+ },
+ {
+  "image": "frames/2018_0516_151300_012_opt.jpg",
+  "lat": 44.8803865,
+  "lng": -110.733903,
+  "state": "Wyoming",
+  "filmed": "2018-05-16",
+  "median_km": 48.1,
+  "mean_cos": 0.0502
+ },
+ {
+  "image": "frames/2018_1017_220136_001_opt.jpg",
+  "lat": 34.118116,
+  "lng": -118.596891,
+  "state": "California",
+  "filmed": "2018-10-17",
+  "median_km": 22.5,
+  "mean_cos": 0.0656
+ },
+ {
+  "image": "frames/2018_1015_204720_011_opt.jpg",
+  "lat": 33.920398,
+  "lng": -118.082373,
+  "state": "California",
+  "filmed": "2018-10-15",
+  "median_km": 47.4,
+  "mean_cos": 0.0757
+ },
+ {
+  "image": "frames/2018_0824_170517_007_opt.jpg",
+  "lat": 43.8708584,
+  "lng": -69.818994,
+  "state": "Maine",
+  "filmed": "2018-08-24",
+  "median_km": 156.0,
+  "mean_cos": 0.0516
+ },
+ {
+  "image": "frames/2018_0513_132618_029_opt.jpg",
+  "lat": 43.76425,
+  "lng": -110.710221,
+  "state": "Wyoming",
+  "filmed": "2018-05-13",
+  "median_km": 94.3,
+  "mean_cos": 0.0736
+ },
+ {
+  "image": "frames/2018_0731_210557_030_opt.jpg",
+  "lat": 41.612329,
+  "lng": -70.622469,
+  "state": "Massachusetts",
+  "filmed": "2018-07-31",
+  "median_km": 1.0,
+  "mean_cos": 0.0676
+ },
+ {
+  "image": "frames/2018_0609_173214_005_opt.jpg",
+  "lat": 41.771989,
+  "lng": -72.596541,
+  "state": "Connecticut",
+  "filmed": "2018-06-09",
+  "median_km": 128.4,
+  "mean_cos": 0.0591
+ },
+ {
+  "image": "frames/2018_0517_005321_015_opt.jpg",
+  "lat": 44.860018,
+  "lng": -110.736133,
+  "state": "Wyoming",
+  "filmed": "2018-05-17",
+  "median_km": 6.1,
+  "mean_cos": 0.1089
+ },
+ {
+  "image": "frames/2018_1010_002207_041_opt.jpg",
+  "lat": 35.288692,
+  "lng": -116.038688,
+  "state": "California",
+  "filmed": "2018-10-10",
+  "median_km": 85.9,
+  "mean_cos": 0.0604
+ },
+ {
+  "image": "frames/2018_1015_183819_004_opt.jpg",
+  "lat": 33.948295,
+  "lng": -117.359876,
+  "state": "California",
+  "filmed": "2018-10-15",
+  "median_km": 10.7,
+  "mean_cos": 0.0879
+ },
+ {
+  "image": "frames/2018_0513_123817_013_opt.jpg",
+  "lat": 43.394954,
+  "lng": -110.748389,
+  "state": "Wyoming",
+  "filmed": "2018-05-13",
+  "median_km": 131.7,
+  "mean_cos": 0.0679
+ },
+ {
+  "image": "frames/2018_0825_183548_008_opt.jpg",
+  "lat": 44.364144,
+  "lng": -68.332422,
+  "state": "Maine",
+  "filmed": "2018-08-25",
+  "median_km": 141.5,
+  "mean_cos": 0.0682
+ },
+ {
+  "image": "frames/2018_0522_221517_017_opt.jpg",
+  "lat": 42.138594,
+  "lng": -87.785807,
+  "state": "Illinois",
+  "filmed": "2018-05-22",
+  "median_km": 50.8,
+  "mean_cos": 0.0758
+ },
+ {
+  "image": "frames/2018_1120_221421_002_opt.jpg",
+  "lat": 37.73621,
+  "lng": -122.095508,
+  "state": "California",
+  "filmed": "2018-11-20",
+  "median_km": 160.0,
+  "mean_cos": 0.0589
+ },
+ {
+  "image": "frames/2018_0815_185728_007_opt.jpg",
+  "lat": 43.912699,
+  "lng": -69.981201,
+  "state": "Maine",
+  "filmed": "2018-08-15",
+  "median_km": 142.3,
+  "mean_cos": 0.099
+ },
+ {
+  "image": "frames/2018_0917_130853_037_opt.jpg",
+  "lat": 42.422005,
+  "lng": -71.067269,
+  "state": "Massachusetts",
+  "filmed": "2018-09-17",
+  "median_km": 10.9,
+  "mean_cos": 0.0745
+ },
+ {
+  "image": "frames/2018_1010_161205_013_opt.jpg",
+  "lat": 34.521293,
+  "lng": -117.319417,
+  "state": "California",
+  "filmed": "2018-10-10",
+  "median_km": 117.7,
+  "mean_cos": 0.0621
+ },
+ {
+  "image": "frames/2018_1010_161505_014_opt.jpg",
+  "lat": 34.476034,
+  "lng": -117.341992,
+  "state": "California",
+  "filmed": "2018-10-10",
+  "median_km": 71.0,
+  "mean_cos": 0.08
+ },
+ {
+  "image": "frames/2018_0809_170154_006_opt.jpg",
+  "lat": 43.627669604,
+  "lng": -72.284578,
+  "state": "New Hampshire",
+  "filmed": "2018-08-09",
+  "median_km": 190.5,
+  "mean_cos": 0.0517
+ },
+ {
+  "image": "frames/2018_0918_162208_002_opt.jpg",
+  "lat": 42.334725,
+  "lng": -71.257088,
+  "state": "Massachusetts",
+  "filmed": "2018-09-18",
+  "median_km": 34.1,
+  "mean_cos": 0.0818
+ },
+ {
+  "image": "frames/2018_1206_235335_011_opt.jpg",
+  "lat": 38.036869,
+  "lng": -122.536686,
+  "state": "California",
+  "filmed": "2018-12-06",
+  "median_km": 14.1,
+  "mean_cos": 0.0748
+ },
+ {
+  "image": "frames/2018_0517_232850_001_opt.jpg",
+  "lat": 44.494791,
+  "lng": -108.055892,
+  "state": "Wyoming",
+  "filmed": "2018-05-17",
+  "median_km": 93.5,
+  "mean_cos": 0.0708
+ },
+ {
+  "image": "frames/2018_0701_183326_024_opt.jpg",
+  "lat": 41.780984,
+  "lng": -70.721851,
+  "state": "Massachusetts",
+  "filmed": "2018-07-01",
+  "median_km": 23.1,
+  "mean_cos": 0.0514
+ },
+ {
+  "image": "frames/2018_0815_174709_009_opt.jpg",
+  "lat": 43.948649,
+  "lng": -70.147013,
+  "state": "Maine",
+  "filmed": "2018-08-15",
+  "median_km": 197.8,
+  "mean_cos": 0.081
+ },
+ {
+  "image": "frames/2018_0531_205912_012_opt.jpg",
+  "lat": 41.843123,
+  "lng": -87.631331,
+  "state": "Illinois",
+  "filmed": "2018-05-31",
+  "median_km": 144.8,
+  "mean_cos": 0.1116
+ },
+ {
+  "image": "frames/2018_1031_155533_003_opt.jpg",
+  "lat": 35.269873,
+  "lng": -120.672754,
+  "state": "California",
+  "filmed": "2018-10-31",
+  "median_km": 119.8,
+  "mean_cos": 0.0697
+ },
+ {
+  "image": "frames/2018_0910_141104_002_opt.jpg",
+  "lat": 42.723893,
+  "lng": -71.449691,
+  "state": "New Hampshire",
+  "filmed": "2018-09-10",
+  "median_km": 120.0,
+  "mean_cos": 0.0565
+ },
+ {
+  "image": "frames/2018_1009_002612_054_RO_opt.jpg",
+  "lat": 35.1555095,
+  "lng": -109.5009525,
+  "state": "Arizona",
+  "filmed": "2018-10-09",
+  "median_km": 150.2,
+  "mean_cos": 0.0593
+ },
+ {
+  "image": "frames/2018_0609_181414_019_opt.jpg",
+  "lat": 41.88986933333333,
+  "lng": -72.10400633333333,
+  "state": "Connecticut",
+  "filmed": "2018-06-09",
+  "median_km": 175.1,
+  "mean_cos": 0.0686
+ },
+ {
+  "image": "frames/2018_1014_212740_003_opt.jpg",
+  "lat": 33.939026,
+  "lng": -117.244889,
+  "state": "California",
+  "filmed": "2018-10-14",
+  "median_km": 8.3,
+  "mean_cos": 0.0693
+ },
+ {
+  "image": "frames/2018_1206_181249_010_opt.jpg",
+  "lat": 37.800891,
+  "lng": -122.426172,
+  "state": "California",
+  "filmed": "2018-12-06",
+  "median_km": 3.3,
+  "mean_cos": 0.0883
+ },
+ {
+  "image": "frames/2018_1006_221039_002_opt.jpg",
+  "lat": 32.945239,
+  "lng": -96.692269,
+  "state": "Texas",
+  "filmed": "2018-10-06",
+  "median_km": 6.5,
+  "mean_cos": 0.0751
+ },
+ {
+  "image": "frames/2018_0522_201318_008_opt.jpg",
+  "lat": 43.02716948703704,
+  "lng": -88.06170196111111,
+  "state": "Wisconsin",
+  "filmed": "2018-05-22",
+  "median_km": 143.6,
+  "mean_cos": 0.078
+ },
+ {
+  "image": "frames/2018_0809_143015_009_opt.jpg",
+  "lat": 43.483764666666666,
+  "lng": -72.442065,
+  "state": "Vermont",
+  "filmed": "2018-08-09",
+  "median_km": 68.9,
+  "mean_cos": 0.0529
+ },
+ {
+  "image": "frames/2018_0611_165858_010_opt.jpg",
+  "lat": 41.745027500000006,
+  "lng": -70.9518315,
+  "state": "Massachusetts",
+  "filmed": "2018-06-11",
+  "median_km": 28.4,
+  "mean_cos": 0.0744
+ },
+ {
+  "image": "frames/2018_0701_191526_038_opt.jpg",
+  "lat": 41.5207387,
+  "lng": -70.668392,
+  "state": "Massachusetts",
+  "filmed": "2018-07-01",
+  "median_km": 24.8,
+  "mean_cos": 0.0768
+ },
+ {
+  "image": "frames/2018_1206_184248_020_opt.jpg",
+  "lat": 38.071729,
+  "lng": -122.539762,
+  "state": "California",
+  "filmed": "2018-12-06",
+  "median_km": 88.9,
+  "mean_cos": 0.0658
+ },
+ {
+  "image": "frames/2018_0809_141515_004_opt.jpg",
+  "lat": 43.400859,
+  "lng": -72.5425535,
+  "state": "Vermont",
+  "filmed": "2018-08-09",
+  "median_km": 47.0,
+  "mean_cos": 0.0608
+ },
+ {
+  "image": "frames/2018_0518_011652_037_opt.jpg",
+  "lat": 44.886971,
+  "lng": -107.249447,
+  "state": "Wyoming",
+  "filmed": "2018-05-18",
+  "median_km": 95.6,
+  "mean_cos": 0.0535
+ },
+ {
+  "image": "frames/2018_0517_002321_005_opt.jpg",
+  "lat": 45.02238,
+  "lng": -110.698779,
+  "state": "Montana",
+  "filmed": "2018-05-17",
+  "median_km": 5.6,
+  "mean_cos": 0.0642
+ },
+ {
+  "image": "frames/2018_0830_225945_003_opt.jpg",
+  "lat": 44.235376,
+  "lng": -68.319198,
+  "state": "Maine",
+  "filmed": "2018-08-30",
+  "median_km": 38.9,
+  "mean_cos": 0.0769
+ },
+ {
+  "image": "frames/2018_0811_160616_030_opt.jpg",
+  "lat": 44.269645,
+  "lng": -72.630046,
+  "state": "Vermont",
+  "filmed": "2018-08-11",
+  "median_km": 76.7,
+  "mean_cos": 0.0942
+ },
+ {
+  "image": "frames/2018_1101_174258_001_b_opt.jpg",
+  "lat": 37.007487,
+  "lng": -121.555762,
+  "state": "California",
+  "filmed": "2018-11-01",
+  "median_km": 110.0,
+  "mean_cos": 0.0768
+ },
+ {
+  "image": "frames/2018_0805_194351_002_opt.jpg",
+  "lat": 42.493799,
+  "lng": -71.463143,
+  "state": "Massachusetts",
+  "filmed": "2018-08-05",
+  "median_km": 142.0,
+  "mean_cos": 0.0508
+ },
+ {
+  "image": "frames/2018_0902_164348_009_opt.jpg",
+  "lat": 44.338517,
+  "lng": -71.526058,
+  "state": "New Hampshire",
+  "filmed": "2018-09-02",
+  "median_km": 69.2,
+  "mean_cos": 0.0551
+ },
+ {
+  "image": "frames/2018_1121_203313_013_opt.jpg",
+  "lat": 37.699699,
+  "lng": -122.021712,
+  "state": "California",
+  "filmed": "2018-11-21",
+  "median_km": 13.8,
+  "mean_cos": 0.0835
+ },
+ {
+  "image": "frames/2018_0924_130132_006_opt.jpg",
+  "lat": 35.563822,
+  "lng": -83.331543,
+  "state": "North Carolina",
+  "filmed": "2018-09-24",
+  "median_km": 15.1,
+  "mean_cos": 0.0579
+ },
+ {
+  "image": "frames/2018_0814_172139_020_opt.jpg",
+  "lat": 44.430347,
+  "lng": -72.22063,
+  "state": "Vermont",
+  "filmed": "2018-08-14",
+  "median_km": 116.5,
+  "mean_cos": 0.0569
+ },
+ {
+  "image": "frames/2018_0731_190549_004_opt.jpg",
+  "lat": 41.416048,
+  "lng": -70.56663,
+  "state": "Massachusetts",
+  "filmed": "2018-07-31",
+  "median_km": 17.3,
+  "mean_cos": 0.0784
+ },
+ {
+  "image": "frames/2018_0824_215612_002_opt.jpg",
+  "lat": 44.10376,
+  "lng": -69.109098,
+  "state": "Maine",
+  "filmed": "2018-08-24",
+  "median_km": 65.7,
+  "mean_cos": 0.094
+ },
+ {
+  "image": "frames/2018_0919_224410_015_opt.jpg",
+  "lat": 39.623157,
+  "lng": -77.608586,
+  "state": "Maryland",
+  "filmed": "2018-09-19",
+  "median_km": 19.8,
+  "mean_cos": 0.0723
+ },
+ {
+  "image": "frames/2018_1206_235935_013_opt.jpg",
+  "lat": 37.954089,
+  "lng": -122.508464,
+  "state": "California",
+  "filmed": "2018-12-06",
+  "median_km": 4.8,
+  "mean_cos": 0.0632
+ },
+ {
+  "image": "frames/2018_1024_001247_002_opt.jpg",
+  "lat": 34.244405,
+  "lng": -119.256852,
+  "state": "California",
+  "filmed": "2018-10-24",
+  "median_km": 172.2,
+  "mean_cos": 0.0611
+ },
+ {
+  "image": "frames/2018_0602_235526_049_opt.jpg",
+  "lat": 42.546029,
+  "lng": -79.174797,
+  "state": "New York",
+  "filmed": "2018-06-02",
+  "median_km": 15.2,
+  "mean_cos": 0.0552
+ },
+ {
+  "image": "frames/2018_0515_224213_007_opt.jpg",
+  "lat": 44.529061,
+  "lng": -110.836312,
+  "state": "Wyoming",
+  "filmed": "2018-05-15",
+  "median_km": 49.9,
+  "mean_cos": 0.0871
+ },
+ {
+  "image": "frames/2018_0811_152416_016_opt.jpg",
+  "lat": 43.751959627095886,
+  "lng": -72.4291378616116,
+  "state": "Vermont",
+  "filmed": "2018-08-11",
+  "median_km": 97.3,
+  "mean_cos": 0.0607
+ },
+ {
+  "image": "frames/2018_0517_180648_018_opt.jpg",
+  "lat": 44.661719,
+  "lng": -110.464062,
+  "state": "Wyoming",
+  "filmed": "2018-05-17",
+  "median_km": 3.4,
+  "mean_cos": 0.0776
+ },
+ {
+  "image": "frames/2018_0514_180852_002_opt.jpg",
+  "lat": 44.427433,
+  "lng": -110.578402,
+  "state": "Wyoming",
+  "filmed": "2018-05-14",
+  "median_km": 25.9,
+  "mean_cos": 0.0912
+ },
+ {
+  "image": "frames/2018_0605_235957_032_opt.jpg",
+  "lat": 42.186914,
+  "lng": -75.710742,
+  "state": "New York",
+  "filmed": "2018-06-05",
+  "median_km": 21.9,
+  "mean_cos": 0.0584
+ },
+ {
+  "image": "frames/2018_1015_205320_013_opt.jpg",
+  "lat": 33.979822,
+  "lng": -118.125212,
+  "state": "California",
+  "filmed": "2018-10-15",
+  "median_km": 95.4,
+  "mean_cos": 0.0911
+ },
+ {
+  "image": "frames/2018_0918_205252_013_opt.jpg",
+  "lat": 41.071395,
+  "lng": -73.904744,
+  "state": "New York",
+  "filmed": "2018-09-18",
+  "median_km": 57.3,
+  "mean_cos": 0.0734
+ },
+ {
+  "image": "frames/2018_0917_120552_016_opt.jpg",
+  "lat": 42.777417,
+  "lng": -71.494751,
+  "state": "New Hampshire",
+  "filmed": "2018-09-17",
+  "median_km": 185.1,
+  "mean_cos": 0.0567
+ },
+ {
+  "image": "frames/2018_0601_210918_013_opt.jpg",
+  "lat": 42.229887,
+  "lng": -83.399931,
+  "state": "Michigan",
+  "filmed": "2018-06-01",
+  "median_km": 184.4,
+  "mean_cos": 0.0565
+ },
+ {
+  "image": "frames/2018_1018_001617_005_opt.jpg",
+  "lat": 34.440548,
+  "lng": -119.754183,
+  "state": "California",
+  "filmed": "2018-10-18",
+  "median_km": 34.9,
+  "mean_cos": 0.0565
+ },
+ {
+  "image": "frames/2018_1006_221339_003_opt.jpg",
+  "lat": 32.945121,
+  "lng": -96.665007,
+  "state": "Texas",
+  "filmed": "2018-10-06",
+  "median_km": 5.9,
+  "mean_cos": 0.0794
+ },
+ {
+  "image": "frames/2018_0825_172237_025_opt.jpg",
+  "lat": 44.541064,
+  "lng": -68.425057,
+  "state": "Maine",
+  "filmed": "2018-08-25",
+  "median_km": 55.8,
+  "mean_cos": 0.0714
+ },
+ {
+  "image": "frames/2018_0701_210625_075_opt.jpg",
+  "lat": 41.421118,
+  "lng": -70.552059,
+  "state": "Massachusetts",
+  "filmed": "2018-07-01",
+  "median_km": 5.2,
+  "mean_cos": 0.1222
+ },
+ {
+  "image": "frames/2018_0925_223818_068_opt.jpg",
+  "lat": 32.930412,
+  "lng": -96.7,
+  "state": "Texas",
+  "filmed": "2018-09-25",
+  "median_km": 46.9,
+  "mean_cos": 0.0752
+ },
+ {
+  "image": "frames/2018_0904_123612_003_opt.jpg",
+  "lat": 44.375098,
+  "lng": -72.031966,
+  "state": "Vermont",
+  "filmed": "2018-09-04",
+  "median_km": 139.3,
+  "mean_cos": 0.0626
+ },
+ {
+  "image": "frames/2018_1113_235505_010_opt.jpg",
+  "lat": 37.774231,
+  "lng": -122.423975,
+  "state": "California",
+  "filmed": "2018-11-13",
+  "median_km": 0.7,
+  "mean_cos": 0.092
+ },
+ {
+  "image": "frames/2018_0518_154821_005_opt.jpg",
+  "lat": 44.790283,
+  "lng": -106.947794,
+  "state": "Wyoming",
+  "filmed": "2018-05-18",
+  "median_km": 170.2,
+  "mean_cos": 0.0879
+ },
+ {
+  "image": "frames/2018_1120_231132_006_opt.jpg",
+  "lat": 37.742879,
+  "lng": -122.09375,
+  "state": "California",
+  "filmed": "2018-11-20",
+  "median_km": 162.3,
+  "mean_cos": 0.0843
+ },
+ {
+  "image": "frames/2018_0831_141127_016_opt.jpg",
+  "lat": 44.540002,
+  "lng": -68.424731,
+  "state": "Maine",
+  "filmed": "2018-08-31",
+  "median_km": 144.9,
+  "mean_cos": 0.0909
+ },
+ {
+  "image": "frames/2018_0917_170330_005_opt.jpg",
+  "lat": 42.381453,
+  "lng": -71.077393,
+  "state": "Massachusetts",
+  "filmed": "2018-09-17",
+  "median_km": 4.5,
+  "mean_cos": 0.1375
+ },
+ {
+  "image": "frames/2018_1014_220145_003_opt.jpg",
+  "lat": 33.938892,
+  "lng": -117.18042,
+  "state": "California",
+  "filmed": "2018-10-14",
+  "median_km": 185.5,
+  "mean_cos": 0.0547
+ },
+ {
+  "image": "frames/2018_1207_003235_024_opt.jpg",
+  "lat": 37.775708,
+  "lng": -122.447396,
+  "state": "California",
+  "filmed": "2018-12-07",
+  "median_km": 1.3,
+  "mean_cos": 0.0628
+ },
+ {
+  "image": "frames/2018_0517_010933_004_opt.jpg",
+  "lat": 44.81429,
+  "lng": -110.729525,
+  "state": "Wyoming",
+  "filmed": "2018-05-17",
+  "median_km": 3.5,
+  "mean_cos": 0.0801
+ },
+ {
+  "image": "frames/2018_0516_155201_025_opt.jpg",
+  "lat": 44.821842,
+  "lng": -110.728369,
+  "state": "Wyoming",
+  "filmed": "2018-05-16",
+  "median_km": 17.9,
+  "mean_cos": 0.0833
+ },
+ {
+  "image": "frames/2018_0814_172739_022_opt.jpg",
+  "lat": 44.408618,
+  "lng": -72.194604,
+  "state": "Vermont",
+  "filmed": "2018-08-14",
+  "median_km": 77.8,
+  "mean_cos": 0.0568
+ },
+ {
+  "image": "frames/2018_1023_140741_002_opt.jpg",
+  "lat": 34.507678,
+  "lng": -119.794694,
+  "state": "California",
+  "filmed": "2018-10-23",
+  "median_km": 1.1,
+  "mean_cos": 0.0738
+ },
+ {
+  "image": "frames/2018_0517_001721_003_opt.jpg",
+  "lat": 45.029224,
+  "lng": -110.708268,
+  "state": "Montana",
+  "filmed": "2018-05-17",
+  "median_km": 6.5,
+  "mean_cos": 0.0776
+ },
+ {
+  "image": "frames/2018_1120_211355_011_opt.jpg",
+  "lat": 37.789644,
+  "lng": -122.387288,
+  "state": "California",
+  "filmed": "2018-11-20",
+  "median_km": 2.1,
+  "mean_cos": 0.0546
+ },
+ {
+  "image": "frames/2018_0514_164858_018_opt.jpg",
+  "lat": 44.26805,
+  "lng": -110.63348,
+  "state": "Wyoming",
+  "filmed": "2018-05-14",
+  "median_km": 42.4,
+  "mean_cos": 0.0619
+ },
+ {
+  "image": "frames/2018_0831_213027_004_opt.jpg",
+  "lat": 43.834652,
+  "lng": -69.81381,
+  "state": "Maine",
+  "filmed": "2018-08-31",
+  "median_km": 83.2,
+  "mean_cos": 0.056
+ },
+ {
+  "image": "frames/2018_0517_000040_005_opt.jpg",
+  "lat": 44.994507,
+  "lng": -110.693604,
+  "state": "Montana",
+  "filmed": "2018-05-17",
+  "median_km": 2.5,
+  "mean_cos": 0.0863
+ },
+ {
+  "image": "frames/2018_1005_182320_003_opt.jpg",
+  "lat": 32.998946,
+  "lng": -96.699707,
+  "state": "Texas",
+  "filmed": "2018-10-05",
+  "median_km": 167.0,
+  "mean_cos": 0.102
+ },
+ {
+  "image": "frames/2018_0514_230601_019_opt.jpg",
+  "lat": 44.649585,
+  "lng": -110.846761,
+  "state": "Wyoming",
+  "filmed": "2018-05-14",
+  "median_km": 12.1,
+  "mean_cos": 0.0506
+ },
+ {
+  "image": "frames/2018_0910_125802_001_opt.jpg",
+  "lat": 42.3058,
+  "lng": -71.183618,
+  "state": "Massachusetts",
+  "filmed": "2018-09-10",
+  "median_km": 107.5,
+  "mean_cos": 0.0639
+ },
+ {
+  "image": "frames/2018_1120_213455_018_opt.jpg",
+  "lat": 37.8051354,
+  "lng": -122.168704,
+  "state": "California",
+  "filmed": "2018-11-20",
+  "median_km": 10.1,
+  "mean_cos": 0.0498
+ },
+ {
+  "image": "frames/2018_0805_201052_011_opt.jpg",
+  "lat": 42.541341,
+  "lng": -71.88894,
+  "state": "Massachusetts",
+  "filmed": "2018-08-05",
+  "median_km": 115.0,
+  "mean_cos": 0.0655
+ },
+ {
+  "image": "frames/2018_0605_235057_029_opt.jpg",
+  "lat": 42.169974,
+  "lng": -75.87522,
+  "state": "New York",
+  "filmed": "2018-06-05",
+  "median_km": 44.5,
+  "mean_cos": 0.049
+ },
+ {
+  "image": "frames/2018_0918_154002_001_a_opt.jpg",
+  "lat": 42.361906,
+  "lng": -71.171533,
+  "state": "Massachusetts",
+  "filmed": "2018-09-18",
+  "median_km": 10.3,
+  "mean_cos": 0.0893
+ },
+ {
+  "image": "frames/2018_0517_231117_017_opt.jpg",
+  "lat": 44.509399,
+  "lng": -108.129069,
+  "state": "Wyoming",
+  "filmed": "2018-05-17",
+  "median_km": 207.8,
+  "mean_cos": 0.0673
+ },
+ {
+  "image": "frames/2018_0603_201231_044_opt.jpg",
+  "lat": 42.6956627,
+  "lng": -77.940999,
+  "state": "New York",
+  "filmed": "2018-06-03",
+  "median_km": 11.9,
+  "mean_cos": 0.0853
+ },
+ {
+  "image": "frames/2018_0513_015252_029_opt.jpg",
+  "lat": 42.785002,
+  "lng": -110.050488,
+  "state": "Wyoming",
+  "filmed": "2018-05-13",
+  "median_km": 212.3,
+  "mean_cos": 0.0535
+ },
+ {
+  "image": "frames/2018_0512_235121_032_opt.jpg",
+  "lat": 41.360701,
+  "lng": -110.680664,
+  "state": "Wyoming",
+  "filmed": "2018-05-12",
+  "median_km": 33.5,
+  "mean_cos": 0.053
+ },
+ {
+  "image": "frames/2018_0811_153016_018_opt.jpg",
+  "lat": 43.79168903047091,
+  "lng": -72.50012746260387,
+  "state": "Vermont",
+  "filmed": "2018-08-11",
+  "median_km": 82.3,
+  "mean_cos": 0.0559
+ },
+ {
+  "image": "frames/2018_0824_203733_016_opt.jpg",
+  "lat": 44.100545,
+  "lng": -69.391536,
+  "state": "Maine",
+  "filmed": "2018-08-24",
+  "median_km": 106.5,
+  "mean_cos": 0.07
+ },
+ {
+  "image": "frames/2018_1113_234605_007_opt.jpg",
+  "lat": 37.78088,
+  "lng": -122.39847,
+  "state": "California",
+  "filmed": "2018-11-13",
+  "median_km": 2.1,
+  "mean_cos": 0.0914
+ },
+ {
+  "image": "frames/2018_1206_182149_013_opt.jpg",
+  "lat": 37.8021,
+  "lng": -122.459587,
+  "state": "California",
+  "filmed": "2018-12-06",
+  "median_km": 3.7,
+  "mean_cos": 0.0632
+ },
+ {
+  "image": "frames/2018_1211_202246_003_opt.jpg",
+  "lat": 37.831673,
+  "lng": -122.267155,
+  "state": "California",
+  "filmed": "2018-12-11",
+  "median_km": 21.0,
+  "mean_cos": 0.0647
+ },
+ {
+  "image": "frames/2018_0923_121325_007_opt.jpg",
+  "lat": 35.492126,
+  "lng": -83.179948,
+  "state": "North Carolina",
+  "filmed": "2018-09-23",
+  "median_km": 23.8,
+  "mean_cos": 0.0554
+ },
+ {
+  "image": "frames/2018_0517_194303_011_opt.jpg",
+  "lat": 44.4713734,
+  "lng": -110.0921644,
+  "state": "Wyoming",
+  "filmed": "2018-05-17",
+  "median_km": 71.0,
+  "mean_cos": 0.0563
+ },
+ {
+  "image": "frames/2018_0910_134233_016_opt.jpg",
+  "lat": 42.643384,
+  "lng": -71.415291,
+  "state": "Massachusetts",
+  "filmed": "2018-09-10",
+  "median_km": 120.1,
+  "mean_cos": 0.0575
+ },
+ {
+  "image": "frames/2018_0518_005552_030_opt.jpg",
+  "lat": 44.80498,
+  "lng": -107.319189,
+  "state": "Wyoming",
+  "filmed": "2018-05-18",
+  "median_km": 131.0,
+  "mean_cos": 0.0697
+ },
+ {
+  "image": "frames/2018_1017_210826_002_opt.jpg",
+  "lat": 34.154036,
+  "lng": -118.150685,
+  "state": "California",
+  "filmed": "2018-10-17",
+  "median_km": 47.7,
+  "mean_cos": 0.09
+ },
+ {
+  "image": "frames/2018_1113_200246_003_opt.jpg",
+  "lat": 37.774491,
+  "lng": -122.426302,
+  "state": "California",
+  "filmed": "2018-11-13",
+  "median_km": 0.9,
+  "mean_cos": 0.0601
+ },
+ {
+  "image": "frames/2018_1015_180646_008_opt.jpg",
+  "lat": 33.885669,
+  "lng": -117.287614,
+  "state": "California",
+  "filmed": "2018-10-15",
+  "median_km": 7.1,
+  "mean_cos": 0.0559
+ },
+ {
+  "image": "frames/2018_0701_173926_006_opt.jpg",
+  "lat": 42.3276,
+  "lng": -71.22214174999999,
+  "state": "Massachusetts",
+  "filmed": "2018-07-01",
+  "median_km": 218.5,
+  "mean_cos": 0.082
+ },
+ {
+  "image": "frames/2018_0516_144000_001_opt.jpg",
+  "lat": 44.644442,
+  "lng": -110.863867,
+  "state": "Wyoming",
+  "filmed": "2018-05-16",
+  "median_km": 0.2,
+  "mean_cos": 0.0794
+ },
+ {
+  "image": "frames/2018_0514_153506_005_opt.jpg",
+  "lat": 43.8938555,
+  "lng": -110.596053,
+  "state": "Wyoming",
+  "filmed": "2018-05-14",
+  "median_km": 12.7,
+  "mean_cos": 0.0585
+ },
+ {
+  "image": "frames/2018_0825_171637_023_opt.jpg",
+  "lat": 44.539575,
+  "lng": -68.473511,
+  "state": "Maine",
+  "filmed": "2018-08-25",
+  "median_km": 169.8,
+  "mean_cos": 0.0513
+ },
+ {
+  "image": "frames/2018_1007_225530_010_opt.jpg",
+  "lat": 34.380701,
+  "lng": -100.058431,
+  "state": "Texas",
+  "filmed": "2018-10-07",
+  "median_km": 198.2,
+  "mean_cos": 0.0528
+ },
+ {
+  "image": "frames/2018_1014_215845_002_opt.jpg",
+  "lat": 33.940967,
+  "lng": -117.233203,
+  "state": "California",
+  "filmed": "2018-10-14",
+  "median_km": 148.0,
+  "mean_cos": 0.0599
+ },
+ {
+  "image": "frames/2018_0814_170638_015_opt.jpg",
+  "lat": 44.519592,
+  "lng": -72.385832,
+  "state": "Vermont",
+  "filmed": "2018-08-14",
+  "median_km": 97.7,
+  "mean_cos": 0.0749
+ },
+ {
+  "image": "frames/2018_1017_222124_002_opt.jpg",
+  "lat": 34.185055,
+  "lng": -118.597607,
+  "state": "California",
+  "filmed": "2018-10-17",
+  "median_km": 128.5,
+  "mean_cos": 0.0977
+ },
+ {
+  "image": "frames/2018_1008_144119_005_opt.jpg",
+  "lat": 35.191549,
+  "lng": -101.884863,
+  "state": "Texas",
+  "filmed": "2018-10-08",
+  "median_km": 184.4,
+  "mean_cos": 0.0923
+ },
+ {
+  "image": "frames/2018_0917_121753_020_opt.jpg",
+  "lat": 42.630876,
+  "lng": -71.404484,
+  "state": "Massachusetts",
+  "filmed": "2018-09-17",
+  "median_km": 22.6,
+  "mean_cos": 0.0576
+ },
+ {
+  "image": "frames/2018_0516_160401_029_opt.jpg",
+  "lat": 44.893896,
+  "lng": -110.734017,
+  "state": "Wyoming",
+  "filmed": "2018-05-16",
+  "median_km": 122.6,
+  "mean_cos": 0.0683
+ },
+ {
+  "image": "frames/2018_0809_194522_021_opt.jpg",
+  "lat": 43.41177889042996,
+  "lng": -72.56507996116504,
+  "state": "Vermont",
+  "filmed": "2018-08-09",
+  "median_km": 91.1,
+  "mean_cos": 0.0498
+ },
+ {
+  "image": "frames/2018_0516_224951_004_opt.jpg",
+  "lat": 44.941781,
+  "lng": -110.636637,
+  "state": "Wyoming",
+  "filmed": "2018-05-16",
+  "median_km": 37.8,
+  "mean_cos": 0.0997
+ },
+ {
+  "image": "frames/2018_0811_161816_034_opt.jpg",
+  "lat": 44.34716,
+  "lng": -72.767952,
+  "state": "Vermont",
+  "filmed": "2018-08-11",
+  "median_km": 92.4,
+  "mean_cos": 0.0601
+ },
+ {
+  "image": "frames/2018_0514_172459_030_opt.jpg",
+  "lat": 44.413086,
+  "lng": -110.577539,
+  "state": "Wyoming",
+  "filmed": "2018-05-14",
+  "median_km": 36.2,
+  "mean_cos": 0.0852
+ },
+ {
+  "image": "frames/2018_0731_220857_051_RO_opt.jpg",
+  "lat": 42.080213240997224,
+  "lng": -70.74659740443214,
+  "state": "Massachusetts",
+  "filmed": "2018-07-31",
+  "median_km": 157.3,
+  "mean_cos": 0.0485
+ },
+ {
+  "image": "frames/2018_0805_215852_047_opt.jpg",
+  "lat": 43.385295,
+  "lng": -72.605957,
+  "state": "Vermont",
+  "filmed": "2018-08-05",
+  "median_km": 205.7,
+  "mean_cos": 0.0825
+ },
+ {
+  "image": "frames/2018_1012_205435_029_opt.jpg",
+  "lat": 33.8689491,
+  "lng": -117.754687,
+  "state": "California",
+  "filmed": "2018-10-12",
+  "median_km": 26.9,
+  "mean_cos": 0.0618
+ },
+ {
+  "image": "frames/2018_1031_171334_029_opt.jpg",
+  "lat": 36.256971,
+  "lng": -121.08693,
+  "state": "California",
+  "filmed": "2018-10-31",
+  "median_km": 57.2,
+  "mean_cos": 0.0536
+ },
+ {
+  "image": "frames/2018_0918_185509_053_opt.jpg",
+  "lat": 41.295679,
+  "lng": -72.763127,
+  "state": "Connecticut",
+  "filmed": "2018-09-18",
+  "median_km": 191.1,
+  "mean_cos": 0.0657
+ },
+ {
+  "image": "frames/2018_0824_200433_005_RO_opt.jpg",
+  "lat": 43.972115,
+  "lng": -69.71536449999999,
+  "state": "Maine",
+  "filmed": "2018-08-24",
+  "median_km": 112.8,
+  "mean_cos": 0.0683
+ },
+ {
+  "image": "frames/2018_1005_181742_001_opt.jpg",
+  "lat": 33.00955,
+  "lng": -96.708529,
+  "state": "Texas",
+  "filmed": "2018-10-05",
+  "median_km": 7.0,
+  "mean_cos": 0.0826
+ },
+ {
+  "image": "frames/2018_0925_124552_008_opt.jpg",
+  "lat": 32.291557,
+  "lng": -89.768701,
+  "state": "Mississippi",
+  "filmed": "2018-09-25",
+  "median_km": 183.4,
+  "mean_cos": 0.0542
+ },
+ {
+  "image": "frames/2018_0605_223556_004_opt.jpg",
+  "lat": 42.161515,
+  "lng": -77.101766,
+  "state": "New York",
+  "filmed": "2018-06-05",
+  "median_km": 158.5,
+  "mean_cos": 0.0597
+ },
+ {
+  "image": "frames/2018_0815_170134_035_opt.jpg",
+  "lat": 43.91202,
+  "lng": -70.2346555,
+  "state": "Maine",
+  "filmed": "2018-08-15",
+  "median_km": 163.1,
+  "mean_cos": 0.0496
+ },
+ {
+  "image": "frames/2018_0609_190214_035_opt.jpg",
+  "lat": 41.817285,
+  "lng": -71.499113,
+  "state": "Rhode Island",
+  "filmed": "2018-06-09",
+  "median_km": 81.9,
+  "mean_cos": 0.0645
+ },
+ {
+  "image": "frames/2018_1031_211257_001_opt.jpg",
+  "lat": 36.491858,
+  "lng": -121.145589,
+  "state": "California",
+  "filmed": "2018-10-31",
+  "median_km": 2.1,
+  "mean_cos": 0.0953
+ },
+ {
+  "image": "frames/2018_0701_211526_078_opt.jpg",
+  "lat": 41.389591,
+  "lng": -70.510319,
+  "state": "Massachusetts",
+  "filmed": "2018-07-01",
+  "median_km": 0.2,
+  "mean_cos": 0.0832
+ },
+ {
+  "image": "frames/2018_1101_144605_003_opt.jpg",
+  "lat": 36.480981,
+  "lng": -121.159001,
+  "state": "California",
+  "filmed": "2018-11-01",
+  "median_km": 1.1,
+  "mean_cos": 0.0534
+ },
+ {
+  "image": "frames/2018_0513_133218_031_opt.jpg",
+  "lat": 43.798389,
+  "lng": -110.659782,
+  "state": "Wyoming",
+  "filmed": "2018-05-13",
+  "median_km": 87.7,
+  "mean_cos": 0.0646
+ },
+ {
+  "image": "frames/2018_1010_154205_003_opt.jpg",
+  "lat": 34.886926,
+  "lng": -116.997982,
+  "state": "California",
+  "filmed": "2018-10-10",
+  "median_km": 162.5,
+  "mean_cos": 0.0693
+ },
+ {
+  "image": "frames/2018_0917_115952_014_opt.jpg",
+  "lat": 42.795003,
+  "lng": -71.526839,
+  "state": "New Hampshire",
+  "filmed": "2018-09-17",
+  "median_km": 198.6,
+  "mean_cos": 0.086
+ },
+ {
+  "image": "frames/2018_0517_012433_009_opt.jpg",
+  "lat": 44.72561,
+  "lng": -110.696989,
+  "state": "Wyoming",
+  "filmed": "2018-05-17",
+  "median_km": 26.8,
+  "mean_cos": 0.0518
+ },
+ {
+  "image": "frames/2018_0902_145847_019_opt.jpg",
+  "lat": 44.156543,
+  "lng": -70.350871,
+  "state": "Maine",
+  "filmed": "2018-09-02",
+  "median_km": 48.8,
+  "mean_cos": 0.0499
+ },
+ {
+  "image": "frames/2018_0731_190849_005_opt.jpg",
+  "lat": 41.427551,
+  "lng": -70.587441,
+  "state": "Massachusetts",
+  "filmed": "2018-07-31",
+  "median_km": 111.4,
+  "mean_cos": 0.0807
+ },
+ {
+  "image": "frames/2018_0701_191226_037_opt.jpg",
+  "lat": 41.523407,
+  "lng": -70.667187,
+  "state": "Massachusetts",
+  "filmed": "2018-07-01",
+  "median_km": 24.9,
+  "mean_cos": 0.117
+ },
+ {
+  "image": "frames/2018_0831_135027_009_opt.jpg",
+  "lat": 44.396118,
+  "lng": -68.35015050000001,
+  "state": "Maine",
+  "filmed": "2018-08-31",
+  "median_km": 137.3,
+  "mean_cos": 0.0511
+ },
+ {
+  "image": "frames/2018_0731_222057_055_b_opt.jpg",
+  "lat": 42.1073796,
+  "lng": -70.770679,
+  "state": "Massachusetts",
+  "filmed": "2018-07-31",
+  "median_km": 215.3,
+  "mean_cos": 0.0684
+ },
+ {
+  "image": "frames/2018_0902_170148_015_opt.jpg",
+  "lat": 44.279744,
+  "lng": -71.696126,
+  "state": "New Hampshire",
+  "filmed": "2018-09-02",
+  "median_km": 109.2,
+  "mean_cos": 0.051
+ },
+ {
+  "image": "frames/2018_0517_192803_006_opt.jpg",
+  "lat": 44.508032,
+  "lng": -110.248747,
+  "state": "Wyoming",
+  "filmed": "2018-05-17",
+  "median_km": 39.9,
+  "mean_cos": 0.062
+ },
+ {
+  "image": "frames/2018_1009_231306_018_opt.jpg",
+  "lat": 35.965027,
+  "lng": -115.174707,
+  "state": "Nevada",
+  "filmed": "2018-10-09",
+  "median_km": 102.4,
+  "mean_cos": 0.0713
+ },
+ {
+  "image": "frames/2018_1124_192435_008_opt.jpg",
+  "lat": 37.716398,
+  "lng": -122.186768,
+  "state": "California",
+  "filmed": "2018-11-24",
+  "median_km": 215.1,
+  "mean_cos": 0.0917
+ },
+ {
+  "image": "frames/2018_0518_004952_028_opt.jpg",
+  "lat": 44.805534,
+  "lng": -107.33457,
+  "state": "Wyoming",
+  "filmed": "2018-05-18",
+  "median_km": 37.7,
+  "mean_cos": 0.0773
+ },
+ {
+  "image": "frames/2018_0514_194129_003_opt.jpg",
+  "lat": 44.644474,
+  "lng": -110.457796,
+  "state": "Wyoming",
+  "filmed": "2018-05-14",
+  "median_km": 15.5,
+  "mean_cos": 0.0778
+ },
+ {
+  "image": "frames/2018_0518_000751_014_opt.jpg",
+  "lat": 44.584766,
+  "lng": -107.598421,
+  "state": "Wyoming",
+  "filmed": "2018-05-18",
+  "median_km": 13.4,
+  "mean_cos": 0.0611
+ },
+ {
+  "image": "frames/2018_0802_155933_003_opt.jpg",
+  "lat": 42.3096017,
+  "lng": -71.062549,
+  "state": "Massachusetts",
+  "filmed": "2018-08-02",
+  "median_km": 13.3,
+  "mean_cos": 0.101
+ },
+ {
+  "image": "frames/2018_0517_002621_006_opt.jpg",
+  "lat": 45.00533,
+  "lng": -110.692318,
+  "state": "Montana",
+  "filmed": "2018-05-17",
+  "median_km": 3.7,
+  "mean_cos": 0.0716
+ },
+ {
+  "image": "frames/2018_1017_225124_012_opt.jpg",
+  "lat": 34.212215,
+  "lng": -119.003011,
+  "state": "California",
+  "filmed": "2018-10-17",
+  "median_km": 60.3,
+  "mean_cos": 0.0497
+ },
+ {
+  "image": "frames/2018_0516_154301_022_opt.jpg",
+  "lat": 44.804899,
+  "lng": -110.737646,
+  "state": "Wyoming",
+  "filmed": "2018-05-16",
+  "median_km": 1.2,
+  "mean_cos": 0.0981
+ },
+ {
+  "image": "frames/2018_0815_154934_011_opt.jpg",
+  "lat": 43.968595,
+  "lng": -70.916992,
+  "state": "Maine",
+  "filmed": "2018-08-15",
+  "median_km": 160.9,
+  "mean_cos": 0.0514
+ },
+ {
+  "image": "frames/2018_0605_222956_002_opt.jpg",
+  "lat": 42.2232647,
+  "lng": -77.18103,
+  "state": "New York",
+  "filmed": "2018-06-05",
+  "median_km": 168.7,
+  "mean_cos": 0.0548
+ },
+ {
+  "image": "frames/2018_1014_084348_006_opt.jpg",
+  "lat": 33.91012,
+  "lng": -117.230485,
+  "state": "California",
+  "filmed": "2018-10-14",
+  "median_km": 111.9,
+  "mean_cos": 0.0623
+ },
+ {
+  "image": "frames/2018_0513_130818_023_opt.jpg",
+  "lat": 43.666781,
+  "lng": -110.721436,
+  "state": "Wyoming",
+  "filmed": "2018-05-13",
+  "median_km": 99.0,
+  "mean_cos": 0.0506
+ },
+ {
+  "image": "frames/2018_0514_180551_001_opt.jpg",
+  "lat": 44.415446,
+  "lng": -110.574528,
+  "state": "Wyoming",
+  "filmed": "2018-05-14",
+  "median_km": 36.0,
+  "mean_cos": 0.1079
+ },
+ {
+  "image": "frames/2018_0805_213452_039_opt.jpg",
+  "lat": 43.213306,
+  "lng": -72.538273,
+  "state": "Vermont",
+  "filmed": "2018-08-05",
+  "median_km": 149.7,
+  "mean_cos": 0.0586
+ },
+ {
+  "image": "frames/2018_0815_152834_004_opt.jpg",
+  "lat": 44.029248,
+  "lng": -71.112508,
+  "state": "New Hampshire",
+  "filmed": "2018-08-15",
+  "median_km": 136.8,
+  "mean_cos": 0.0545
+ },
+ {
+  "image": "frames/2018_0516_172455_007_opt.jpg",
+  "lat": 44.96945,
+  "lng": -110.701953,
+  "state": "Wyoming",
+  "filmed": "2018-05-16",
+  "median_km": 96.3,
+  "mean_cos": 0.1251
+ },
+ {
+  "image": "frames/2018_0512_234521_030_RO_opt.jpg",
+  "lat": 41.2965945,
+  "lng": -110.766447,
+  "state": "Wyoming",
+  "filmed": "2018-05-12",
+  "median_km": 61.7,
+  "mean_cos": 0.0769
+ },
+ {
+  "image": "frames/2018_0514_001156_006_opt.jpg",
+  "lat": 43.823758999999995,
+  "lng": -110.62509,
+  "state": "Wyoming",
+  "filmed": "2018-05-14",
+  "median_km": 100.5,
+  "mean_cos": 0.058
+ },
+ {
+  "image": "frames/2018_0805_190825_004_opt.jpg",
+  "lat": 42.388639,
+  "lng": -71.192383,
+  "state": "Massachusetts",
+  "filmed": "2018-08-05",
+  "median_km": 105.7,
+  "mean_cos": 0.075
+ },
+ {
+  "image": "frames/2018_0609_174714_010_opt.jpg",
+  "lat": 41.881763444,
+  "lng": -72.307699,
+  "state": "Connecticut",
+  "filmed": "2018-06-09",
+  "median_km": 106.1,
+  "mean_cos": 0.055
+ },
+ {
+  "image": "frames/2018_1017_222424_003_opt.jpg",
+  "lat": 34.17334,
+  "lng": -118.598291,
+  "state": "California",
+  "filmed": "2018-10-17",
+  "median_km": 86.2,
+  "mean_cos": 0.0569
+ },
+ {
+  "image": "frames/2018_0917_115352_012_opt.jpg",
+  "lat": 42.803638,
+  "lng": -71.560335,
+  "state": "New Hampshire",
+  "filmed": "2018-09-17",
+  "median_km": 45.2,
+  "mean_cos": 0.0785
+ },
+ {
+  "image": "frames/2018_0805_192325_009_opt.jpg",
+  "lat": 42.4959245,
+  "lng": -71.38252,
+  "state": "Massachusetts",
+  "filmed": "2018-08-05",
+  "median_km": 66.6,
+  "mean_cos": 0.0719
+ },
+ {
+  "image": "frames/2018_0519_163059_034_opt.jpg",
+  "lat": 43.885409,
+  "lng": -103.60262,
+  "state": "South Dakota",
+  "filmed": "2018-05-19",
+  "median_km": 117.4,
+  "mean_cos": 0.0799
+ },
+ {
+  "image": "frames/2018_0603_200312_040_opt.jpg",
+  "lat": 42.694173,
+  "lng": -77.958057,
+  "state": "New York",
+  "filmed": "2018-06-03",
+  "median_km": 6.4,
+  "mean_cos": 0.1008
+ },
+ {
+  "image": "frames/2018_0814_180939_036_opt.jpg",
+  "lat": 44.280282,
+  "lng": -71.686247,
+  "state": "New Hampshire",
+  "filmed": "2018-08-14",
+  "median_km": 154.5,
+  "mean_cos": 0.0936
+ },
+ {
+  "image": "frames/2018_0918_162808_004_opt.jpg",
+  "lat": 42.270003,
+  "lng": -71.200252,
+  "state": "Massachusetts",
+  "filmed": "2018-09-18",
+  "median_km": 39.4,
+  "mean_cos": 0.0675
+ },
+ {
+  "image": "frames/2018_0605_150057_008_opt.jpg",
+  "lat": 42.617179,
+  "lng": -77.996997,
+  "state": "New York",
+  "filmed": "2018-06-05",
+  "median_km": 9.5,
+  "mean_cos": 0.0738
+ },
+ {
+  "image": "frames/2018_0609_194414_049_opt.jpg",
+  "lat": 41.716431,
+  "lng": -70.940015,
+  "state": "Massachusetts",
+  "filmed": "2018-06-09",
+  "median_km": 194.3,
+  "mean_cos": 0.0709
+ },
+ {
+  "image": "frames/2018_1024_005747_017_opt.jpg",
+  "lat": 34.503768,
+  "lng": -119.805339,
+  "state": "California",
+  "filmed": "2018-10-24",
+  "median_km": 115.0,
+  "mean_cos": 0.0569
+ },
+ {
+  "image": "frames/2018_0925_000730_036_opt.jpg",
+  "lat": 32.342497,
+  "lng": -88.926595,
+  "state": "Mississippi",
+  "filmed": "2018-09-25",
+  "median_km": 15.2,
+  "mean_cos": 0.0508
+ },
+ {
+  "image": "frames/2018_0924_134756_009_opt.jpg",
+  "lat": 35.401152,
+  "lng": -83.291585,
+  "state": "North Carolina",
+  "filmed": "2018-09-24",
+  "median_km": 30.7,
+  "mean_cos": 0.0664
+ },
+ {
+  "image": "frames/2018_0831_140527_014_opt.jpg",
+  "lat": 44.519165,
+  "lng": -68.395858,
+  "state": "Maine",
+  "filmed": "2018-08-31",
+  "median_km": 144.8,
+  "mean_cos": 0.0789
+ },
+ {
+  "image": "frames/2018_0823_162258_003_opt.jpg",
+  "lat": 43.857959,
+  "lng": -69.811401,
+  "state": "Maine",
+  "filmed": "2018-08-23",
+  "median_km": 72.3,
+  "mean_cos": 0.088
+ },
+ {
+  "image": "frames/2018_0601_004902_008_opt.jpg",
+  "lat": 42.283073,
+  "lng": -84.853337,
+  "state": "Michigan",
+  "filmed": "2018-06-01",
+  "median_km": 142.6,
+  "mean_cos": 0.0616
+ },
+ {
+  "image": "frames/2018_1007_182820_013_opt.jpg",
+  "lat": 32.838721,
+  "lng": -97.190788,
+  "state": "Texas",
+  "filmed": "2018-10-07",
+  "median_km": 70.9,
+  "mean_cos": 0.0596
+ },
+ {
+  "image": "frames/2018_1017_004419_029_opt.jpg",
+  "lat": 34.154598,
+  "lng": -118.315299,
+  "state": "California",
+  "filmed": "2018-10-17",
+  "median_km": 16.7,
+  "mean_cos": 0.0511
+ },
+ {
+  "image": "frames/2018_0831_192319_017_opt.jpg",
+  "lat": 44.000098,
+  "lng": -69.644832,
+  "state": "Maine",
+  "filmed": "2018-08-31",
+  "median_km": 119.8,
+  "mean_cos": 0.1372
+ },
+ {
+  "image": "frames/2018_1120_204429_001_opt.jpg",
+  "lat": 37.772831,
+  "lng": -122.439421,
+  "state": "California",
+  "filmed": "2018-11-20",
+  "median_km": 0.4,
+  "mean_cos": 0.0557
+ },
+ {
+  "image": "frames/2018_0517_200403_018_opt.jpg",
+  "lat": 44.458569,
+  "lng": -109.84318,
+  "state": "Wyoming",
+  "filmed": "2018-05-17",
+  "median_km": 88.5,
+  "mean_cos": 0.0852
+ },
+ {
+  "image": "frames/2018_0514_183252_010_opt.jpg",
+  "lat": 44.539339,
+  "lng": -110.428337,
+  "state": "Wyoming",
+  "filmed": "2018-05-14",
+  "median_km": 10.5,
+  "mean_cos": 0.081
+ },
+ {
+  "image": "frames/2018_0731_223557_060_opt.jpg",
+  "lat": 42.187508,
+  "lng": -70.931836,
+  "state": "Massachusetts",
+  "filmed": "2018-07-31",
+  "median_km": 64.2,
+  "mean_cos": 0.0504
+ },
+ {
+  "image": "frames/2018_0517_231717_019_opt.jpg",
+  "lat": 44.495142,
+  "lng": -108.055404,
+  "state": "Wyoming",
+  "filmed": "2018-05-17",
+  "median_km": 93.4,
+  "mean_cos": 0.0758
+ },
+ {
+  "image": "frames/2018_0605_231157_016_opt.jpg",
+  "lat": 41.999951,
+  "lng": -76.522095,
+  "state": "New York",
+  "filmed": "2018-06-05",
+  "median_km": 91.9,
+  "mean_cos": 0.0493
+ },
+ {
+  "image": "frames/2018_1016_232020_001_opt.jpg",
+  "lat": 33.987435,
+  "lng": -118.459701,
+  "state": "California",
+  "filmed": "2018-10-16",
+  "median_km": 104.8,
+  "mean_cos": 0.073
+ },
+ {
+  "image": "frames/2018_0815_172909_003_opt.jpg",
+  "lat": 44.000016,
+  "lng": -70.177091,
+  "state": "Maine",
+  "filmed": "2018-08-15",
+  "median_km": 91.4,
+  "mean_cos": 0.0659
+ },
+ {
+  "image": "frames/2018_0919_170043_015_opt.jpg",
+  "lat": 39.993738,
+  "lng": -77.114396,
+  "state": "Pennsylvania",
+  "filmed": "2018-09-19",
+  "median_km": 219.9,
+  "mean_cos": 0.0557
+ },
+ {
+  "image": "frames/2018_0831_194119_023_opt.jpg",
+  "lat": 43.91202,
+  "lng": -69.818172,
+  "state": "Maine",
+  "filmed": "2018-08-31",
+  "median_km": 154.7,
+  "mean_cos": 0.0773
+ },
+ {
+  "image": "frames/2018_0531_211112_016_opt.jpg",
+  "lat": 41.807886,
+  "lng": -87.632048,
+  "state": "Illinois",
+  "filmed": "2018-05-31",
+  "median_km": 132.1,
+  "mean_cos": 0.0937
+ },
+ {
+  "image": "frames/2018_0809_144515_014_opt.jpg",
+  "lat": 43.641854,
+  "lng": -72.338192,
+  "state": "Vermont",
+  "filmed": "2018-08-09",
+  "median_km": 102.2,
+  "mean_cos": 0.072
+ },
+ {
+  "image": "frames/2018_0917_122653_023_opt.jpg",
+  "lat": 42.607723,
+  "lng": -71.320565,
+  "state": "Massachusetts",
+  "filmed": "2018-09-17",
+  "median_km": 17.7,
+  "mean_cos": 0.0554
+ },
+ {
+  "image": "frames/2018_1009_010212_066_opt.jpg",
+  "lat": 34.914616,
+  "lng": -110.154508,
+  "state": "Arizona",
+  "filmed": "2018-10-09",
+  "median_km": 147.2,
+  "mean_cos": 0.0756
+ },
+ {
+  "image": "frames/2018_0831_133227_003_opt.jpg",
+  "lat": 44.25760843283582,
+  "lng": -68.31117192537315,
+  "state": "Maine",
+  "filmed": "2018-08-31",
+  "median_km": 128.1,
+  "mean_cos": 0.0669
+ },
+ {
+  "image": "frames/2018_1008_145619_010_opt.jpg",
+  "lat": 35.208997,
+  "lng": -102.17238,
+  "state": "Texas",
+  "filmed": "2018-10-08",
+  "median_km": 196.9,
+  "mean_cos": 0.05
+ },
+ {
+  "image": "frames/2018_0805_204352_022_opt.jpg",
+  "lat": 42.811084,
+  "lng": -72.164364,
+  "state": "New Hampshire",
+  "filmed": "2018-08-05",
+  "median_km": 225.0,
+  "mean_cos": 0.1273
+ },
+ {
+  "image": "frames/2018_0917_124453_029_opt.jpg",
+  "lat": 42.567188,
+  "lng": -71.145744,
+  "state": "Massachusetts",
+  "filmed": "2018-09-17",
+  "median_km": 99.5,
+  "mean_cos": 0.0487
+ },
+ {
+  "image": "frames/2018_0825_122306_002_opt.jpg",
+  "lat": 44.123584,
+  "lng": -69.117261,
+  "state": "Maine",
+  "filmed": "2018-08-25",
+  "median_km": 100.9,
+  "mean_cos": 0.0585
+ },
+ {
+  "image": "frames/2018_1031_172234_032_opt.jpg",
+  "lat": 36.3522,
+  "lng": -121.021077,
+  "state": "California",
+  "filmed": "2018-10-31",
+  "median_km": 45.9,
+  "mean_cos": 0.057
+ },
+ {
+  "image": "frames/2018_1014_193603_001_opt.jpg",
+  "lat": 33.90505,
+  "lng": -117.319824,
+  "state": "California",
+  "filmed": "2018-10-14",
+  "median_km": 0.7,
+  "mean_cos": 0.0562
+ },
+ {
+  "image": "frames/2018_0602_224626_026_opt.jpg",
+  "lat": 42.050537,
+  "lng": -80.07793,
+  "state": "Pennsylvania",
+  "filmed": "2018-06-02",
+  "median_km": 202.2,
+  "mean_cos": 0.0707
+ },
+ {
+  "image": "frames/2018_0522_225117_029_opt.jpg",
+  "lat": 42.008162,
+  "lng": -87.734766,
+  "state": "Illinois",
+  "filmed": "2018-05-22",
+  "median_km": 28.0,
+  "mean_cos": 0.1071
+ },
+ {
+  "image": "frames/2018_0823_161958_002_opt.jpg",
+  "lat": 43.876758,
+  "lng": -69.824658,
+  "state": "Maine",
+  "filmed": "2018-08-23",
+  "median_km": 130.9,
+  "mean_cos": 0.0691
+ },
+ {
+  "image": "frames/2018_1009_223706_006_opt.jpg",
+  "lat": 36.009334,
+  "lng": -114.797575,
+  "state": "Nevada",
+  "filmed": "2018-10-09",
+  "median_km": 131.8,
+  "mean_cos": 0.0534
+ },
+ {
+  "image": "frames/2018_1014_085248_009_opt.jpg",
+  "lat": 33.916553,
+  "lng": -117.313949,
+  "state": "California",
+  "filmed": "2018-10-14",
+  "median_km": 109.1,
+  "mean_cos": 0.0513
+ },
+ {
+  "image": "frames/2018_0814_152005_001_opt.jpg",
+  "lat": 44.620597,
+  "lng": -73.119019,
+  "state": "Vermont",
+  "filmed": "2018-08-14",
+  "median_km": 221.3,
+  "mean_cos": 0.0701
+ },
+ {
+  "image": "frames/2018_0513_121117_004_opt.jpg",
+  "lat": 43.233146,
+  "lng": -110.439486,
+  "state": "Wyoming",
+  "filmed": "2018-05-13",
+  "median_km": 149.9,
+  "mean_cos": 0.0586
+ },
+ {
+  "image": "frames/2018_0516_230451_009_opt.jpg",
+  "lat": 44.948307,
+  "lng": -110.467952,
+  "state": "Wyoming",
+  "filmed": "2018-05-16",
+  "median_km": 70.9,
+  "mean_cos": 0.0552
+ },
+ {
+  "image": "frames/2018_0809_193022_016_opt.jpg",
+  "lat": 43.418042,
+  "lng": -72.413623,
+  "state": "Vermont",
+  "filmed": "2018-08-09",
+  "median_km": 137.3,
+  "mean_cos": 0.0733
+ },
+ {
+  "image": "frames/2018_0513_135318_038_opt.jpg",
+  "lat": 43.842212,
+  "lng": -110.612012,
+  "state": "Wyoming",
+  "filmed": "2018-05-13",
+  "median_km": 4.3,
+  "mean_cos": 0.0972
+ },
+ {
+  "image": "frames/2018_0531_235312_070_opt.jpg",
+  "lat": 42.26945,
+  "lng": -85.507764,
+  "state": "Michigan",
+  "filmed": "2018-05-31",
+  "median_km": 143.2,
+  "mean_cos": 0.0501
+ },
+ {
+  "image": "frames/2018_0517_010633_003_opt.jpg",
+  "lat": 44.829696,
+  "lng": -110.727913,
+  "state": "Wyoming",
+  "filmed": "2018-05-17",
+  "median_km": 1.3,
+  "mean_cos": 0.1053
+ },
+ {
+  "image": "frames/2018_0910_133333_013_opt.jpg",
+  "lat": 42.563086,
+  "lng": -71.299227,
+  "state": "Massachusetts",
+  "filmed": "2018-09-10",
+  "median_km": 96.3,
+  "mean_cos": 0.0713
+ },
+ {
+  "image": "frames/2018_0831_201221_005_opt.jpg",
+  "lat": 43.928499,
+  "lng": -69.819019,
+  "state": "Maine",
+  "filmed": "2018-08-31",
+  "median_km": 193.0,
+  "mean_cos": 0.0706
+ },
+ {
+  "image": "frames/2018_0514_154106_007_opt.jpg",
+  "lat": 43.90714052053646,
+  "lng": -110.62239707124895,
+  "state": "Wyoming",
+  "filmed": "2018-05-14",
+  "median_km": 75.9,
+  "mean_cos": 0.0766
+ },
+ {
+  "image": "frames/2018_1206_174648_001_opt.jpg",
+  "lat": 37.777063,
+  "lng": -122.443343,
+  "state": "California",
+  "filmed": "2018-12-06",
+  "median_km": 0.6,
+  "mean_cos": 0.0613
+ },
+ {
+  "image": "frames/2018_1101_171938_008_opt.jpg",
+  "lat": 37.004195,
+  "lng": -121.551807,
+  "state": "California",
+  "filmed": "2018-11-01",
+  "median_km": 95.9,
+  "mean_cos": 0.0776
+ },
+ {
+  "image": "frames/2018_1101_183659_019_opt.jpg",
+  "lat": 37.508126,
+  "lng": -122.249382,
+  "state": "California",
+  "filmed": "2018-11-01",
+  "median_km": 27.6,
+  "mean_cos": 0.0593
+ },
+ {
+  "image": "frames/2018_0917_112352_002_opt.jpg",
+  "lat": 42.851912,
+  "lng": -71.840356,
+  "state": "New Hampshire",
+  "filmed": "2018-09-17",
+  "median_km": 2.2,
+  "mean_cos": 0.0587
+ },
+ {
+  "image": "frames/2018_0611_170458_012_opt.jpg",
+  "lat": 41.832048,
+  "lng": -70.991455,
+  "state": "Massachusetts",
+  "filmed": "2018-06-11",
+  "median_km": 225.2,
+  "mean_cos": 0.0677
+ },
+ {
+  "image": "frames/2018_0522_202219_011_opt.jpg",
+  "lat": 42.992196,
+  "lng": -88.038184,
+  "state": "Wisconsin",
+  "filmed": "2018-05-22",
+  "median_km": 139.4,
+  "mean_cos": 0.0851
+ },
+ {
+  "image": "frames/2018_1121_203613_014_opt.jpg",
+  "lat": 37.70306,
+  "lng": -122.001253,
+  "state": "California",
+  "filmed": "2018-11-21",
+  "median_km": 8.7,
+  "mean_cos": 0.0753
+ },
+ {
+  "image": "frames/2018_0516_171855_005_opt.jpg",
+  "lat": 44.96945,
+  "lng": -110.701953,
+  "state": "Wyoming",
+  "filmed": "2018-05-16",
+  "median_km": 55.7,
+  "mean_cos": 0.2106
+ },
+ {
+  "image": "frames/2018_0701_210025_073_opt.jpg",
+  "lat": 41.458244,
+  "lng": -70.555379,
+  "state": "Massachusetts",
+  "filmed": "2018-07-01",
+  "median_km": 31.2,
+  "mean_cos": 0.1483
+ },
+ {
+  "image": "frames/2018_0811_163316_039_opt.jpg",
+  "lat": 44.4487385,
+  "lng": -73.02054050000001,
+  "state": "Vermont",
+  "filmed": "2018-08-11",
+  "median_km": 26.4,
+  "mean_cos": 0.0664
+ },
+ {
+  "image": "frames/2018_0701_180026_013_opt.jpg",
+  "lat": 42.156755,
+  "lng": -71.06901,
+  "state": "Massachusetts",
+  "filmed": "2018-07-01",
+  "median_km": 67.2,
+  "mean_cos": 0.0502
+ },
+ {
+  "image": "frames/2018_1101_170438_003_opt.jpg",
+  "lat": 36.885185,
+  "lng": -121.418164,
+  "state": "California",
+  "filmed": "2018-11-01",
+  "median_km": 78.3,
+  "mean_cos": 0.0684
+ },
+ {
+  "image": "frames/2018_0609_192614_043_opt.jpg",
+  "lat": 41.723966,
+  "lng": -71.185213,
+  "state": "Massachusetts",
+  "filmed": "2018-06-09",
+  "median_km": 49.1,
+  "mean_cos": 0.0695
+ },
+ {
+  "image": "frames/2018_1124_182149_001_opt.jpg",
+  "lat": 37.652991,
+  "lng": -121.879704,
+  "state": "California",
+  "filmed": "2018-11-24",
+  "median_km": 19.7,
+  "mean_cos": 0.0656
+ },
+ {
+  "image": "frames/2018_0701_184526_028_opt.jpg",
+  "lat": 41.725228,
+  "lng": -70.58466,
+  "state": "Massachusetts",
+  "filmed": "2018-07-01",
+  "median_km": 58.9,
+  "mean_cos": 0.0628
+ },
+ {
+  "image": "frames/2018_1010_001307_038_opt.jpg",
+  "lat": 35.378853,
+  "lng": -115.877507,
+  "state": "California",
+  "filmed": "2018-10-10",
+  "median_km": 58.5,
+  "mean_cos": 0.0758
+ },
+ {
+  "image": "frames/2018_0918_172208_022_opt.jpg",
+  "lat": 41.706136,
+  "lng": -71.473649,
+  "state": "Rhode Island",
+  "filmed": "2018-09-18",
+  "median_km": 99.5,
+  "mean_cos": 0.0496
+ },
+ {
+  "image": "frames/2018_1207_001435_018_opt.jpg",
+  "lat": 37.831067,
+  "lng": -122.480029,
+  "state": "California",
+  "filmed": "2018-12-07",
+  "median_km": 3.7,
+  "mean_cos": 0.0709
+ },
+ {
+  "image": "frames/2018_0805_210152_028_opt.jpg",
+  "lat": 42.937126,
+  "lng": -72.296582,
+  "state": "New Hampshire",
+  "filmed": "2018-08-05",
+  "median_km": 145.1,
+  "mean_cos": 0.0574
+ },
+ {
+  "image": "frames/2018_0924_234630_029_opt.jpg",
+  "lat": 32.39613,
+  "lng": -88.579069,
+  "state": "Mississippi",
+  "filmed": "2018-09-24",
+  "median_km": 22.9,
+  "mean_cos": 0.0505
+ },
+ {
+  "image": "frames/2018_0815_154334_009_opt.jpg",
+  "lat": 44.013932,
+  "lng": -70.973999,
+  "state": "Maine",
+  "filmed": "2018-08-15",
+  "median_km": 214.2,
+  "mean_cos": 0.0972
+ },
+ {
+  "image": "frames/2018_1007_230430_013_opt.jpg",
+  "lat": 34.427332,
+  "lng": -100.206559,
+  "state": "Texas",
+  "filmed": "2018-10-07",
+  "median_km": 222.0,
+  "mean_cos": 0.0793
+ },
+ {
+  "image": "frames/2018_1015_202919_005_opt.jpg",
+  "lat": 33.84692,
+  "lng": -117.868522,
+  "state": "California",
+  "filmed": "2018-10-15",
+  "median_km": 42.4,
+  "mean_cos": 0.0893
+ },
+ {
+  "image": "frames/2018_1008_223211_016_opt.jpg",
+  "lat": 35.052275,
+  "lng": -107.516032,
+  "state": "New Mexico",
+  "filmed": "2018-10-08",
+  "median_km": 216.0,
+  "mean_cos": 0.0698
+ },
+ {
+  "image": "frames/2018_0602_235826_050_opt.jpg",
+  "lat": 42.549276,
+  "lng": -79.149097,
+  "state": "New York",
+  "filmed": "2018-06-02",
+  "median_km": 17.3,
+  "mean_cos": 0.061
+ },
+ {
+  "image": "frames/2018_0831_160227_053_opt.jpg",
+  "lat": 44.163965,
+  "lng": -69.085107,
+  "state": "Maine",
+  "filmed": "2018-08-31",
+  "median_km": 61.9,
+  "mean_cos": 0.0569
+ },
+ {
+  "image": "frames/2018_0825_162536_006_opt.jpg",
+  "lat": 44.432723,
+  "lng": -69.012508,
+  "state": "Maine",
+  "filmed": "2018-08-25",
+  "median_km": 61.9,
+  "mean_cos": 0.0625
+ },
+ {
+  "image": "frames/2018_0815_155234_012_opt.jpg",
+  "lat": 43.9383015,
+  "lng": -70.882019,
+  "state": "Maine",
+  "filmed": "2018-08-15",
+  "median_km": 121.5,
+  "mean_cos": 0.0591
+ },
+ {
+  "image": "frames/2018_1017_014224_004_opt.jpg",
+  "lat": 34.156673,
+  "lng": -118.146045,
+  "state": "California",
+  "filmed": "2018-10-17",
+  "median_km": 86.4,
+  "mean_cos": 0.077
+ },
+ {
+  "image": "frames/2018_1207_003535_025_opt.jpg",
+  "lat": 37.772103,
+  "lng": -122.445736,
+  "state": "California",
+  "filmed": "2018-12-07",
+  "median_km": 0.5,
+  "mean_cos": 0.059
+ },
+ {
+  "image": "frames/2018_0606_202813_019_opt.jpg",
+  "lat": 42.198071,
+  "lng": -73.487988,
+  "state": "New York",
+  "filmed": "2018-06-06",
+  "median_km": 185.4,
+  "mean_cos": 0.0538
+ },
+ {
+  "image": "frames/2018_1120_214956_023_opt.jpg",
+  "lat": 37.749797,
+  "lng": -122.097738,
+  "state": "California",
+  "filmed": "2018-11-20",
+  "median_km": 163.2,
+  "mean_cos": 0.0947
+ },
+ {
+  "image": "frames/2018_0918_164908_011_opt.jpg",
+  "lat": 42.059009,
+  "lng": -71.233634,
+  "state": "Massachusetts",
+  "filmed": "2018-09-18",
+  "median_km": 63.6,
+  "mean_cos": 0.1273
+ },
+ {
+  "image": "frames/2018_0904_141212_035_opt.jpg",
+  "lat": 43.294043333333335,
+  "lng": -71.58442366666667,
+  "state": "New Hampshire",
+  "filmed": "2018-09-04",
+  "median_km": 150.9,
+  "mean_cos": 0.0548
+ },
+ {
+  "image": "frames/2018_0904_130312_012_opt.jpg",
+  "lat": 44.235921,
+  "lng": -71.755062,
+  "state": "New Hampshire",
+  "filmed": "2018-09-04",
+  "median_km": 27.3,
+  "mean_cos": 0.0593
+ },
+ {
+  "image": "frames/2018_0606_211613_035_opt.jpg",
+  "lat": 41.916577000000004,
+  "lng": -73.028521,
+  "state": "Connecticut",
+  "filmed": "2018-06-06",
+  "median_km": 174.4,
+  "mean_cos": 0.0485
+ },
+ {
+  "image": "frames/2018_1015_174545_001_opt.jpg",
+  "lat": 33.862646,
+  "lng": -117.198828,
+  "state": "California",
+  "filmed": "2018-10-15",
+  "median_km": 3.8,
+  "mean_cos": 0.1027
+ },
+ {
+  "image": "frames/2018_0924_132956_003_RO_opt.jpg",
+  "lat": 35.5167175,
+  "lng": -83.3065025,
+  "state": "North Carolina",
+  "filmed": "2018-09-24",
+  "median_km": 11.8,
+  "mean_cos": 0.0623
+ },
+ {
+  "image": "frames/2018_1016_001944_017_opt.jpg",
+  "lat": 34.031868,
+  "lng": -118.427409,
+  "state": "California",
+  "filmed": "2018-10-16",
+  "median_km": 212.0,
+  "mean_cos": 0.0616
+ },
+ {
+  "image": "frames/2018_0521_232247_056_opt.jpg",
+  "lat": 43.686426,
+  "lng": -93.352832,
+  "state": "Minnesota",
+  "filmed": "2018-05-21",
+  "median_km": 99.5,
+  "mean_cos": 0.0609
+ },
+ {
+  "image": "frames/2018_0606_214013_043_opt.jpg",
+  "lat": 41.951611,
+  "lng": -72.76750100000001,
+  "state": "Connecticut",
+  "filmed": "2018-06-06",
+  "median_km": 70.1,
+  "mean_cos": 0.0531
+ },
+ {
+  "image": "frames/2018_0516_012430_002_opt.jpg",
+  "lat": 44.602653,
+  "lng": -110.836898,
+  "state": "Wyoming",
+  "filmed": "2018-05-16",
+  "median_km": 7.1,
+  "mean_cos": 0.0633
+ },
+ {
+  "image": "frames/2018_0516_013031_004_opt.jpg",
+  "lat": 44.642432,
+  "lng": -110.859505,
+  "state": "Wyoming",
+  "filmed": "2018-05-16",
+  "median_km": 0.5,
+  "mean_cos": 0.1244
+ },
+ {
+  "image": "frames/2018_1012_210935_034_opt.jpg",
+  "lat": 33.8660027,
+  "lng": -117.711133,
+  "state": "California",
+  "filmed": "2018-10-12",
+  "median_km": 70.2,
+  "mean_cos": 0.0643
+ },
+ {
+  "image": "frames/2018_0516_155501_026_opt.jpg",
+  "lat": 44.829826,
+  "lng": -110.727913,
+  "state": "Wyoming",
+  "filmed": "2018-05-16",
+  "median_km": 1.7,
+  "mean_cos": 0.0822
+ },
+ {
+  "image": "frames/2018_0809_142715_008_opt.jpg",
+  "lat": 43.4630455,
+  "lng": -72.46037150000001,
+  "state": "Vermont",
+  "filmed": "2018-08-09",
+  "median_km": 107.7,
+  "mean_cos": 0.0734
+ },
+ {
+  "image": "frames/2018_1016_002544_019_opt.jpg",
+  "lat": 34.018986,
+  "lng": -118.49069,
+  "state": "California",
+  "filmed": "2018-10-16",
+  "median_km": 34.8,
+  "mean_cos": 0.0521
+ },
+ {
+  "image": "frames/2018_1107_182939_004_opt.jpg",
+  "lat": 37.770813,
+  "lng": -122.442008,
+  "state": "California",
+  "filmed": "2018-11-07",
+  "median_km": 0.7,
+  "mean_cos": 0.0611
+ },
+ {
+  "image": "frames/2018_0920_160124_002_opt.jpg",
+  "lat": 39.45411,
+  "lng": -77.73951,
+  "state": "Maryland",
+  "filmed": "2018-09-20",
+  "median_km": 65.1,
+  "mean_cos": 0.0938
+ },
+ {
+  "image": "frames/2018_0514_164558_017_opt.jpg",
+  "lat": 44.25057,
+  "lng": -110.644694,
+  "state": "Wyoming",
+  "filmed": "2018-05-14",
+  "median_km": 44.7,
+  "mean_cos": 0.0508
+ },
+ {
+  "image": "frames/2018_1024_005147_015_opt.jpg",
+  "lat": 34.46569,
+  "lng": -119.771582,
+  "state": "California",
+  "filmed": "2018-10-24",
+  "median_km": 3.2,
+  "mean_cos": 0.0489
+ },
+ {
+  "image": "frames/2018_0918_155158_005_opt.jpg",
+  "lat": 42.357202,
+  "lng": -71.223258,
+  "state": "Massachusetts",
+  "filmed": "2018-09-18",
+  "median_km": 14.3,
+  "mean_cos": 0.0673
+ },
+ {
+  "image": "frames/2018_1121_204213_016_opt.jpg",
+  "lat": 37.69314,
+  "lng": -121.932943,
+  "state": "California",
+  "filmed": "2018-11-21",
+  "median_km": 2.0,
+  "mean_cos": 0.0755
+ },
+ {
+  "image": "frames/2018_1015_190519_013_opt.jpg",
+  "lat": 33.882906,
+  "lng": -117.644059,
+  "state": "California",
+  "filmed": "2018-10-15",
+  "median_km": 112.4,
+  "mean_cos": 0.1341
+ },
+ {
+  "image": "frames/2018_0517_011233_005_opt.jpg",
+  "lat": 44.80297,
+  "lng": -110.74279,
+  "state": "Wyoming",
+  "filmed": "2018-05-17",
+  "median_km": 0.5,
+  "mean_cos": 0.0906
+ },
+ {
+  "image": "frames/2018_1023_145841_019_opt.jpg",
+  "lat": 34.285189,
+  "lng": -119.322461,
+  "state": "California",
+  "filmed": "2018-10-23",
+  "median_km": 6.0,
+  "mean_cos": 0.061
+ },
+ {
+  "image": "frames/2018_0831_212427_002_opt.jpg",
+  "lat": 43.883114,
+  "lng": -69.822176,
+  "state": "Maine",
+  "filmed": "2018-08-31",
+  "median_km": 72.3,
+  "mean_cos": 0.0656
+ },
+ {
+  "image": "frames/2018_0731_231158_072_opt.jpg",
+  "lat": 42.383561,
+  "lng": -71.075195,
+  "state": "Massachusetts",
+  "filmed": "2018-07-31",
+  "median_km": 15.1,
+  "mean_cos": 0.0997
+ },
+ {
+  "image": "frames/2018_0831_185019_006_opt.jpg",
+  "lat": 44.078532,
+  "lng": -69.218636,
+  "state": "Maine",
+  "filmed": "2018-08-31",
+  "median_km": 98.2,
+  "mean_cos": 0.0756
+ },
+ {
+  "image": "frames/2018_0809_190622_008_opt.jpg",
+  "lat": 43.626385,
+  "lng": -72.324276,
+  "state": "New Hampshire",
+  "filmed": "2018-08-09",
+  "median_km": 165.0,
+  "mean_cos": 0.0901
+ },
+ {
+  "image": "frames/2018_0825_122906_004_opt.jpg",
+  "lat": 44.162557,
+  "lng": -69.085311,
+  "state": "Maine",
+  "filmed": "2018-08-25",
+  "median_km": 67.7,
+  "mean_cos": 0.0934
+ },
+ {
+  "image": "frames/2018_1007_235530_030_opt.jpg",
+  "lat": 34.922811,
+  "lng": -100.849512,
+  "state": "Texas",
+  "filmed": "2018-10-07",
+  "median_km": 98.9,
+  "mean_cos": 0.0894
+ },
+ {
+  "image": "frames/2018_0831_184119_003_opt.jpg",
+  "lat": 44.105493,
+  "lng": -69.139209,
+  "state": "Maine",
+  "filmed": "2018-08-31",
+  "median_km": 74.5,
+  "mean_cos": 0.0596
+ },
+ {
+  "image": "frames/2018_1012_205735_030_opt.jpg",
+  "lat": 33.86992697,
+  "lng": -117.747249,
+  "state": "California",
+  "filmed": "2018-10-12",
+  "median_km": 66.9,
+  "mean_cos": 0.0754
+ },
+ {
+  "image": "frames/2018_0514_163358_013_opt.jpg",
+  "lat": 44.156484666666664,
+  "lng": -110.66926566666666,
+  "state": "Wyoming",
+  "filmed": "2018-05-14",
+  "median_km": 60.3,
+  "mean_cos": 0.0642
+ },
+ {
+  "image": "frames/2018_0531_203512_004_opt.jpg",
+  "lat": 41.921924,
+  "lng": -87.630013,
+  "state": "Illinois",
+  "filmed": "2018-05-31",
+  "median_km": 106.6,
+  "mean_cos": 0.0823
+ },
+ {
+  "image": "frames/2018_0902_151347_024_opt.jpg",
+  "lat": 44.222282,
+  "lng": -70.505884,
+  "state": "Maine",
+  "filmed": "2018-09-02",
+  "median_km": 171.8,
+  "mean_cos": 0.0551
+ },
+ {
+  "image": "frames/2018_0611_174958_027_opt.jpg",
+  "lat": 42.0621215,
+  "lng": -71.0519915,
+  "state": "Massachusetts",
+  "filmed": "2018-06-11",
+  "median_km": 223.0,
+  "mean_cos": 0.06
+ },
+ {
+  "image": "frames/2018_1010_005807_053_opt.jpg",
+  "lat": 34.972982,
+  "lng": -116.623877,
+  "state": "California",
+  "filmed": "2018-10-10",
+  "median_km": 108.4,
+  "mean_cos": 0.0831
+ },
+ {
+  "image": "frames/2018_0910_130333_003_opt.jpg",
+  "lat": 42.369718,
+  "lng": -71.190511,
+  "state": "Massachusetts",
+  "filmed": "2018-09-10",
+  "median_km": 102.2,
+  "mean_cos": 0.0905
+ },
+ {
+  "image": "frames/2018_0513_120217_001_opt.jpg",
+  "lat": 43.15533,
+  "lng": -110.314437,
+  "state": "Wyoming",
+  "filmed": "2018-05-13",
+  "median_km": 171.4,
+  "mean_cos": 0.0753
+ },
+ {
+  "image": "frames/2018_1010_004307_048_opt.jpg",
+  "lat": 35.085685,
+  "lng": -116.360026,
+  "state": "California",
+  "filmed": "2018-10-10",
+  "median_km": 85.9,
+  "mean_cos": 0.0529
+ },
+ {
+  "image": "frames/2018_1101_185459_025_opt.jpg",
+  "lat": 37.681002,
+  "lng": -122.388704,
+  "state": "California",
+  "filmed": "2018-11-01",
+  "median_km": 18.9,
+  "mean_cos": 0.0592
+ },
+ {
+  "image": "frames/2018_0512_230021_015_opt.jpg",
+  "lat": 40.87443,
+  "lng": -111.390381,
+  "state": "Utah",
+  "filmed": "2018-05-12",
+  "median_km": 179.2,
+  "mean_cos": 0.0562
+ },
+ {
+  "image": "frames/2018_0902_163148_005_opt.jpg",
+  "lat": 44.362939,
+  "lng": -71.38785,
+  "state": "New Hampshire",
+  "filmed": "2018-09-02",
+  "median_km": 171.6,
+  "mean_cos": 0.0527
+ },
+ {
+  "image": "frames/2018_0513_181730_004_opt.jpg",
+  "lat": 43.799764,
+  "lng": -110.685238,
+  "state": "Wyoming",
+  "filmed": "2018-05-13",
+  "median_km": 3.7,
+  "mean_cos": 0.0718
+ }
+]
