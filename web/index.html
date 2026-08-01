@@ -380,6 +380,7 @@ function reveal() {
   total += pts;
   results.push(pts);
   el('score').textContent = total.toLocaleString();
+  if (mode === 'daily') saveProgress();
 
   const pin = L.circleMarker(truth, { radius: 8, color: '#4ade80', fillOpacity: .9 }).addTo(map);
   const line = L.polyline([guess.getLatLng(), truth], { color: '#4ade80', dashArray: '5 6' }).addTo(map);
@@ -404,9 +405,32 @@ function shareText(day, res, sum) {
   ].join('\n');
 }
 
+// Saved after every reveal rather than only at the end, so a reload mid-game
+// resumes. Saving only the finished game let a player abandon a bad run, reload
+// into a fresh copy of the same five rounds, and replay them knowing the answers.
+function saveProgress() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify({ day: dayNumber(), results, total }));
+  } catch { /* the day plays through; it just won't survive a reload */ }
+}
+
+function savedDaily() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); }
+  catch { return null; }
+}
+
+// Entering the daily, from a page load or from the practice toggle: pick an
+// unfinished day back up where it left off, and give a finished one its summary
+// rather than a second run.
+function startDaily() {
+  const saved = savedDaily();
+  const state = dailyState(saved, dayNumber(), ROUNDS_PER_GAME);
+  if (state === 'finished') return showFinished(saved);
+  newGame('daily', state === 'unfinished' ? saved : null);
+}
+
 function finish() {
   if (mode === 'daily') {
-    localStorage.setItem(STORE_KEY, JSON.stringify({ day: dayNumber(), results, total }));
     go.hidden = true;
     shareBtn.hidden = false;
   } else {
@@ -456,9 +480,7 @@ shareBtn.addEventListener('click', async () => {
 
 practiceBtn.addEventListener('click', () => {
   if (mode === 'daily') return newGame('practice');
-  const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
-  if (saved && saved.day === dayNumber()) return showFinished(saved);
-  newGame('daily');
+  startDaily();
 });
 
 // <details> stays open until it is toggled again, and the panel sits over the
@@ -545,7 +567,10 @@ el('welcomeMore').addEventListener('click', e => {
   about.open = true;
 });
 
-function newGame(which) {
+// `saved` resumes an unfinished daily. The draw is the same five rounds for the
+// day either way, so resuming needs only the score and the rounds already played
+// carried over; the next unplayed round follows from how many there are.
+function newGame(which, saved = null) {
   mode = which;
   const day = dayNumber();
   if (mode === 'daily') {
@@ -559,8 +584,10 @@ function newGame(which) {
   // daily set for a given day is untouched.
   game = rampEasyToHard(game);
   el('roundTot').textContent = game.length;
-  idx = 0; total = 0; results = [];
-  el('score').textContent = '0';
+  results = saved ? [...saved.results] : [];
+  total = saved ? saved.total : 0;
+  idx = results.length;
+  el('score').textContent = total.toLocaleString();
   startRound();
 }
 
@@ -568,9 +595,7 @@ fetch('rounds.json')
   .then(r => r.json())
   .then(data => {
     pool = data;
-    const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
-    if (saved && saved.day === dayNumber()) showFinished(saved);
-    else newGame('daily');
+    startDaily();
   })
   .catch(() => { result.textContent = 'No rounds.json yet — run make_rounds.py first.'; });
 </script>
