@@ -33,13 +33,14 @@ tasks:
 
   test:
     desc: Run the tests that need no corpus or database (daily draw, frame zoom,
-      changelog rendering, frame dimensions, round-set swap)
+      changelog rendering, frame dimensions, round-set swap, seeding)
     cmds:
       - node test_daily.js
       - node test_zoom.js
       - node test_changelog.js
       - python3 test_check.py
       - python3 test_swap.py
+      - python3 test_seed.py
 
   build:
     desc: Generate a fresh round set and validate it
