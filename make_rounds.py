@@ -36,6 +36,13 @@ HUD_STRIP_PX = 70
 # of the same road -- near-identical and a mile apart, so including them scores
 # every clip as perfectly locatable. Date is a rough proxy for "the same drive".
 #
+# The same neighbours also give a second, near-independent signal: how visually
+# distinctive the frame is, as the mean cosine distance to those neighbours. A
+# frame whose neighbours are near-identical is a stretch of road the corpus drove
+# many times on other days -- empty blacktop, fog, sky -- which scores as highly
+# locatable (the neighbours really are all in one place) while a human player has
+# nothing to work with. See the README for what that filter keeps and drops.
+#
 # Iterative scan matters: the day filter is applied during the HNSW scan, so
 # without it a candidate whose neighbourhood is mostly same-day returns only a
 # handful of rows (sometimes zero) and its median is noise. It is also ~5x faster
@@ -62,16 +69,18 @@ cand AS (
   ORDER BY p.id, random()
 )
 SELECT c.slug, c.ts_sec, c.lat, c.lng, c.state, c.date_filmed,
-       nb.median_km, nb.n
+       nb.median_km, nb.n, nb.mean_cos
 FROM cand c
 CROSS JOIN LATERAL (
   SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY km) AS median_km,
-         count(*) AS n
+         count(*) AS n,
+         avg(cos_d) AS mean_cos
   FROM (
     SELECT 2*6371*asin(sqrt(
              power(sin(radians(v2.lat - c.lat)/2), 2) +
              cos(radians(c.lat))*cos(radians(v2.lat))*
-             power(sin(radians(v2.lng - c.lng)/2), 2))) AS km
+             power(sin(radians(v2.lng - c.lng)/2), 2))) AS km,
+           f2.embedding <=> c.embedding AS cos_d
     FROM frame_embeddings f2
     JOIN videos v2 ON v2.id = f2.video_id
     WHERE v2.lat <> 0
@@ -123,9 +132,9 @@ def score_candidates(namespace: str, pool: int, k: int) -> list[dict]:
     rows = []
     for line in out.splitlines():
         parts = line.split("\t")
-        if len(parts) != 8:  # skip the SET acknowledgements
+        if len(parts) != 9:  # skip the SET acknowledgements
             continue
-        slug, ts, lat, lng, state, filmed, median_km, n = parts
+        slug, ts, lat, lng, state, filmed, median_km, n, mean_cos = parts
         if not median_km or int(n) < k:
             continue  # too few neighbours survived the filter to trust the median
         rows.append(
@@ -137,6 +146,7 @@ def score_candidates(namespace: str, pool: int, k: int) -> list[dict]:
                 "state": state,
                 "filmed": filmed[:10],
                 "median_km": round(float(median_km), 1),
+                "mean_cos": round(float(mean_cos), 4),
             }
         )
     return rows
@@ -185,6 +195,13 @@ def main() -> None:
         help="fraction of the scored pool to sample from, best-scoring first. "
         "Sampling rather than taking the top N keeps the rounds varied.",
     )
+    ap.add_argument(
+        "--drop-generic",
+        type=float,
+        default=0.15,
+        help="fraction of the scored pool to discard for having no visual "
+        "signature of its own, lowest mean cosine distance first",
+    )
     ap.add_argument("--width", type=int, default=1280, help="output frame width")
     ap.add_argument("--namespace", default="stage-1-data")
     ap.add_argument("--seed", type=int, default=None)
@@ -197,6 +214,20 @@ def main() -> None:
     frames.mkdir(parents=True)
 
     scored = score_candidates(args.namespace, args.pool, args.neighbours)
+    # Cut the visually generic clips by percentile rather than an absolute cosine
+    # distance, so the filter stays honest if the corpus or the embedding model
+    # changes. ponytail: the pool is a few hundred rows, so sorting it twice is free.
+    if scored and args.drop_generic:
+        floor = sorted(r["mean_cos"] for r in scored)[
+            int(len(scored) * args.drop_generic)
+        ]
+        before = len(scored)
+        scored = [r for r in scored if r["mean_cos"] >= floor]
+        print(
+            f"dropped {before - len(scored)} clips with no visual signature of "
+            f"their own (mean cosine distance < {floor:g})"
+        )
+
     keep = max(args.count, int(len(scored) * args.keep_fraction))
     eligible = scored[:keep]
     cutoff = eligible[-1]["median_km"] if eligible else 0
@@ -222,11 +253,12 @@ def main() -> None:
                 "state": row["state"],
                 "filmed": row["filmed"],
                 "median_km": row["median_km"],
+                "mean_cos": row["mean_cos"],
             }
         )
         print(
             f"  {len(rounds):3d}/{args.count} {row['slug']} "
-            f"{row['state']} ({row['median_km']:g} km)"
+            f"{row['state']} ({row['median_km']:g} km, cos {row['mean_cos']:g})"
         )
 
     (WEB / "rounds.json").write_text(json.dumps(rounds, indent=1))

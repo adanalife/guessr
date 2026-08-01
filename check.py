@@ -67,6 +67,7 @@ def main() -> int:
         assert r.get("median_km") is not None and r["median_km"] >= 0, (
             f"missing locatability score: {r}"
         )
+        assert r.get("mean_cos"), f"missing distinctiveness score: {r}"
 
     states = {r["state"] for r in rounds}
     spread = sorted(r["median_km"] for r in rounds)
@@ -80,6 +81,13 @@ def main() -> int:
     print(
         f"    locatability (median neighbour km): best {spread[0]:g}, "
         f"median {spread[len(spread) // 2]:g}, worst {spread[-1]:g}"
+    )
+    # The other half of the score: a low mean cosine distance means the frame has
+    # near-identical twins elsewhere in the corpus, i.e. road a human can't place.
+    cos = sorted(r["mean_cos"] for r in rounds)
+    print(
+        f"    distinctiveness (mean neighbour cosine): least {cos[0]:g}, "
+        f"median {cos[len(cos) // 2]:g}, most {cos[-1]:g}"
     )
     return 0
 
