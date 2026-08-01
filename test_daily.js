@@ -58,6 +58,18 @@ assert.strictEqual(dailyState({ day: 5, results: [1, 2, 3, 4, 5] }, 5, 5), 'fini
 // ROUNDS_PER_GAME cannot reopen a day someone already played out.
 assert.strictEqual(dailyState({ day: 5, results: [1, 2, 3, 4, 5, 6] }, 5, 5), 'finished');
 
+// A clock that moves backwards must not re-open a played-out day. The record
+// carries the highest day reached, so the game stays on it until the calendar
+// genuinely catches up.
+const flew = { day: 12, results: [1, 2, 3, 4, 5], total: 5 };
+assert.strictEqual(effectiveDay(flew, new Date(2026, 7, 9)), 12, 'a backwards clock re-opened a day');
+assert.strictEqual(dailyState(flew, effectiveDay(flew, new Date(2026, 7, 9)), 5), 'finished');
+// Tomorrow is still tomorrow.
+assert.strictEqual(effectiveDay(flew, new Date(2026, 7, 12)), 13);
+assert.strictEqual(dailyState(flew, effectiveDay(flew, new Date(2026, 7, 12)), 5), 'unplayed');
+// And a first-ever visit has no record to clamp to.
+assert.strictEqual(effectiveDay(null, new Date(2026, 7, 1)), dayNumber(new Date(2026, 7, 1)));
+
 // A game ramps easy to hard.
 const ramped = rampEasyToHard(dailyRounds(pool, 12, 5));
 assert.deepStrictEqual(
@@ -88,3 +100,4 @@ assert.strictEqual(difficulty({ median_km: 5000 }), 3);
 console.log('ok: daily draw is deterministic, order-independent, and DST-safe');
 console.log('ok: games ramp easy to hard without changing the draw');
 console.log('ok: a partial day resumes, a played-out day stays played out');
+console.log('ok: the day number only moves forwards, whatever the clock does');

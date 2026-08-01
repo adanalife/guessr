@@ -513,7 +513,7 @@ function shareText(day, res, sum) {
 function saveProgress() {
   try {
     localStorage.setItem(STORE_KEY,
-      JSON.stringify({ day: dayNumber(), results, total, guesses,
+      JSON.stringify({ day: today(), results, total, guesses,
                        truths: game.slice(0, results.length).map(truthOf) }));
   } catch { /* the day plays through; it just won't survive a reload */ }
 }
@@ -530,12 +530,17 @@ function savedDaily() {
   catch { return null; }
 }
 
+// Every use of the day number goes through here rather than calling dayNumber()
+// directly, so the draw, the gate, the label and the share string can never
+// disagree about which day it is.
+const today = () => effectiveDay(savedDaily());
+
 // Entering the daily, from a page load or from the practice toggle: pick an
 // unfinished day back up where it left off, and give a finished one its summary
 // rather than a second run.
 function startDaily() {
   const saved = savedDaily();
-  const state = dailyState(saved, dayNumber(), ROUNDS_PER_GAME);
+  const state = dailyState(saved, effectiveDay(saved), ROUNDS_PER_GAME);
   if (state === 'finished') return showFinished(saved);
   newGame('daily', state === 'unfinished' ? saved : null);
 }
@@ -742,7 +747,7 @@ go.addEventListener('click', () => {
 });
 
 shareBtn.addEventListener('click', async () => {
-  const text = shareText(dayNumber(), results, total);
+  const text = shareText(today(), results, total);
   try {
     await navigator.clipboard.writeText(text);
     shareBtn.textContent = 'Copied';
@@ -850,7 +855,7 @@ el('welcomeMore').addEventListener('click', e => {
 // carried over; the next unplayed round follows from how many there are.
 function newGame(which, saved = null) {
   mode = which;
-  const day = dayNumber();
+  const day = today();
   if (mode === 'daily') {
     game = dailyRounds(pool, day, ROUNDS_PER_GAME);
     el('label').textContent = `Daily #${day}`;
