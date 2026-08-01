@@ -7,7 +7,9 @@
 // from the answers.json that make_rounds.py writes next to the round set. So a
 // deploy carrying a new round set scores nothing until that push runs -- which
 // is why an unknown round is a 404 with a distinct message rather than a 500.
-import { haversineKm, parseGuess, scoreFor } from '../_scoring.mjs';
+// A guess that names a date is a daily play and gets recorded once, in `plays`
+// (schema.sql). A guess with no date is a practice round: scored, never stored.
+import { haversineKm, isPlay, parseGuess, parsePlay, scoreFor } from '../_scoring.mjs';
 
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -26,6 +28,19 @@ export async function onRequestPost({ request, env }) {
   const guess = parseGuess(body);
   if (!guess) return json({ error: 'expected {image, lat, lng}' }, 400);
 
+  // Rejected rather than ignored: a play that means to be recorded and is
+  // malformed would otherwise score normally and quietly never reach the board,
+  // which the player has no way to see.
+  //
+  // ponytail: the date is taken on the client's word. Nothing here checks that
+  // the image is one of that date's five, or that the date is one currently open
+  // to play -- the draw is deterministic and client-side, so both are needed
+  // before a board is trustworthy, and both want the draw importable from
+  // web/daily.js. Until then this stops a player improving a score, not a script
+  // inventing one.
+  const play = parsePlay(body);
+  if (isPlay(body) && !play) return json({ error: 'expected {date, player_id}' }, 400);
+
   const answer = await env.ANSWERS
     .prepare('SELECT lat, lng, state, filmed FROM answers WHERE image = ?')
     .bind(guess.image)
@@ -33,16 +48,45 @@ export async function onRequestPost({ request, env }) {
   if (!answer) return json({ error: 'unknown round' }, 404);
 
   const km = haversineKm(guess, answer);
-  // ponytail: stateless, so nothing stops a client scoring the same round twice
-  // and keeping the better number. That is fine while the score is only ever
-  // shown back to the player who made it; a leaderboard needs a per-player,
-  // per-round record, which is the D1 table the leaderboard work adds anyway.
-  return json({
-    km,
-    points: scoreFor(km),
+  const scored = { km, points: scoreFor(km) };
+  const truth = {
     lat: answer.lat,
     lng: answer.lng,
     state: answer.state,
     filmed: answer.filmed,
-  });
+  };
+
+  if (!play) return json({ ...scored, ...truth, recorded: false });
+
+  const { km: keptKm, points: keptPoints } = await record(env, play, guess.image, scored);
+  // The truth goes back either way: a replay has already committed a guess for
+  // this round once, so it is not learning anything it wasn't told the first
+  // time -- and the page needs it to draw the map.
+  return json({ km: keptKm, points: keptPoints, ...truth, recorded: true });
+}
+
+// Writes the play, and returns whatever ended up on record -- the new score if
+// this is the first time this player has answered this round on this date, the
+// stored one if it isn't. First write wins, so re-scoring a round cannot improve
+// what the board sees.
+//
+// ponytail: two statements rather than one INSERT ... RETURNING, because D1's
+// `changes` is the reliable way to tell an insert from an ignored conflict and
+// the second query only runs on the replay path.
+async function record(env, play, image, scored) {
+  const insert = await env.ANSWERS
+    .prepare(`INSERT INTO plays (date, player_id, image, km, points, handle)
+              VALUES (?, ?, ?, ?, ?, ?)
+              ON CONFLICT (date, player_id, image) DO NOTHING`)
+    .bind(play.date, play.playerId, image, scored.km, scored.points, play.handle)
+    .run();
+  if (insert.meta.changes > 0) return scored;
+
+  const kept = await env.ANSWERS
+    .prepare('SELECT km, points FROM plays WHERE date = ? AND player_id = ? AND image = ?')
+    .bind(play.date, play.playerId, image)
+    .first();
+  // A conflict means the row is there, so a miss here is a database that changed
+  // under the request. Returning the fresh score beats failing the round.
+  return kept || scored;
 }

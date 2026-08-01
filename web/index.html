@@ -256,14 +256,41 @@ const HOME_URL = 'https://guessr.dana.lol';
 // deterministic draw as before.
 const truthOf = ({ lat, lng, state, filmed }) => ({ lat, lng, state, filmed });
 
+// Who is playing, for the leaderboard's benefit only. Opaque and random: it is
+// a way to tell two players apart, not a way to know who either of them is, and
+// the name a player eventually types is carried beside it as a label rather than
+// being this.
+const PLAYER_KEY = 'guessr-player';
+
+function playerId() {
+  try {
+    let id = localStorage.getItem(PLAYER_KEY);
+    if (!id) { id = crypto.randomUUID(); localStorage.setItem(PLAYER_KEY, id); }
+    return id;
+  } catch {
+    // A private window can't keep an id, so it can't hold a place on the board.
+    // The round still plays and still scores; it just goes unrecorded.
+    return null;
+  }
+}
+
 // Scoring is a round trip to functions/api/score.js, which holds the answers. The
 // response is also where the truth coordinates come from -- so a player learns
 // where the frame was only by committing a guess first.
-async function scoreGuess(image, latlng) {
+//
+// `date` is what makes a guess a daily play rather than a practice round: with
+// one, the server records the result and a re-guess gets the score already on
+// record; without one, nothing is stored. So practice can be replayed freely and
+// the daily cannot, which is the difference the board depends on.
+async function scoreGuess(image, latlng, date) {
+  const id = date && playerId();
   const res = await fetch('api/score', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ image, lat: latlng.lat, lng: latlng.lng }),
+    body: JSON.stringify({
+      image, lat: latlng.lat, lng: latlng.lng,
+      ...(id ? { date, player_id: id } : {}),
+    }),
   });
   if (!res.ok) throw new Error(`scoring failed: ${res.status}`);
   return res.json();
@@ -453,7 +480,7 @@ async function reveal() {
 
   let scored;
   try {
-    scored = await scoreGuess(r.image, at);
+    scored = await scoreGuess(r.image, at, mode === 'daily' ? dateForDay(today()) : null);
   } catch {
     // Back to guessing with the pin still where it was -- losing a round to a
     // dropped request would be worse than the retry.

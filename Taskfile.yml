@@ -6,6 +6,10 @@
 # deployed) and the answer coords (answers.json / answers.sql, never deployed
 # and never committed; `answers:*:push` sends them to D1 instead).
 #
+# The same D1 also holds the tables the game itself owns — `plays`, which records
+# a daily result once per player per round. Those are hand-written DDL in
+# schema.sql, applied by `schema:*:push`.
+#
 # So there are two ways to run it locally: `serve` for anything that isn't
 # scoring, and `dev` when a guess has to actually come back with points.
 
@@ -41,7 +45,7 @@ tasks:
 
   dev:
     desc: Run the game with scoring, against a local D1 seeded from answers.sql
-    deps: [answers:local:push]
+    deps: [schema:local:push, answers:local:push]
     cmds:
       - npx wrangler pages dev web/ --port {{.PORT}} --d1 ANSWERS={{.LOCAL_DB}}
 
@@ -49,6 +53,28 @@ tasks:
     desc: Seed answers.sql into the local D1 that `dev` binds
     cmds:
       - npx wrangler d1 execute {{.LOCAL_DB}} --local --file answers.sql --yes
+
+  # The tables the game owns, as opposed to the rows a round set fills in.
+  # Separate from answers:*:push because the two change on completely different
+  # clocks: answers.sql is regenerated and re-pushed with every round set, while
+  # schema.sql is idempotent DDL that a database needs once. Re-running either is
+  # harmless.
+  schema:local:push:
+    desc: Apply schema.sql to the local D1 that `dev` binds
+    cmds:
+      - npx wrangler d1 execute {{.LOCAL_DB}} --local --file schema.sql --yes
+
+  schema:stage:push:
+    desc: Apply schema.sql to the staging D1
+    cmds:
+      - task: _d1:push
+        vars: {DB: adanalife-guessr-answers-staging, FILE: schema.sql}
+
+  schema:prod:push:
+    desc: Apply schema.sql to the production D1
+    cmds:
+      - task: _d1:push
+        vars: {DB: adanalife-guessr-answers, FILE: schema.sql}
 
   # The coords, into the deployed databases. Separate targets per environment
   # rather than one with a flag, so nothing reaches production by defaulting
@@ -62,19 +88,19 @@ tasks:
   answers:stage:push:
     desc: Seed answers.sql into the staging D1
     cmds:
-      - task: _answers:push
-        vars: {DB: adanalife-guessr-answers-staging}
+      - task: _d1:push
+        vars: {DB: adanalife-guessr-answers-staging, FILE: answers.sql}
 
   answers:prod:push:
     desc: Seed answers.sql into the production D1
     cmds:
-      - task: _answers:push
-        vars: {DB: adanalife-guessr-answers}
+      - task: _d1:push
+        vars: {DB: adanalife-guessr-answers, FILE: answers.sql}
 
-  _answers:push:
+  _d1:push:
     internal: true
     cmds:
-      - npx wrangler d1 execute {{.DB}} --remote --file answers.sql --yes
+      - npx wrangler d1 execute {{.DB}} --remote --file {{.FILE}} --yes
 
   test:
     desc: Run the tests that need no corpus or database (daily draw, frame zoom,

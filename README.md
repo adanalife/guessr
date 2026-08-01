@@ -27,8 +27,9 @@ task dev      # http://localhost:8000, with scoring
 task serve    # http://localhost:8000, static only — guesses don't score
 ```
 
-`task dev` runs `wrangler pages dev` against a local D1 seeded from
-`answers.sql`, so guessing works end to end. `task serve` is a plain
+`task dev` runs `wrangler pages dev` against a local D1 — `schema.sql` applied
+and `answers.sql` seeded — so guessing works end to end, including the record a
+daily play leaves behind. `task serve` is a plain
 `http.server` for everything else — layout, zoom, the About panel — and is
 enough for most UI work; a guess in it fails with "could not reach the scorer".
 Both bind all interfaces, so a phone on the tailnet can reach them at
@@ -106,6 +107,38 @@ table has never heard of. `task rounds` prints the reminder on the way out.
 
 The databases are terraform, in `infra` alongside the Pages projects, and each
 tier has its own so a regeneration on one doesn't strand the other.
+
+### The tables the game owns
+
+The same D1 also holds `plays`, one row per player per round per date — the
+record of a daily result, and the whole storage behind the leaderboard. Its DDL
+is hand-written in `schema.sql` rather than generated, and applied once per
+database:
+
+```sh
+task schema:stage:push
+task schema:prod:push
+```
+
+It is kept out of `answers.sql` because the two change on completely different
+clocks: `answers.sql` is regenerated and re-pushed with every round set, while
+`schema.sql` is idempotent DDL. Folding them together would put the definition of
+a table of player scores inside a gitignored file that only exists on whichever
+laptop last built a round set.
+
+A row is written the first time a player answers a round on a given date, and
+never updated: guessing that round again returns the score already on record.
+Without that, a client could score the same round repeatedly and keep its best
+number, and a board built on top would rank whoever re-guessed most rather than
+who guessed best. Practice rounds send no date, so they are scored and never
+stored — which is why practice can be replayed freely and the daily cannot.
+
+Identity is an opaque id minted into `localStorage` on first play; the handle a
+player types rides alongside as a display label. It is deliberately not the
+handle (two players called "Jason" would collapse into one, and the second one's
+play would read as a replay of the first's) and deliberately not the IP address
+(NAT makes a household one player, CGNAT makes one phone several, and an address
+stored beside a typed name is personal data this doesn't need).
 
 One thing this does *not* buy yet: the round sets published before scoring moved
 server-side had their coordinates in `rounds.json`, and that file is in this
@@ -320,9 +353,11 @@ game still runs, it's just trivially cheatable.
   Reading it means OCR'ing the strip before cropping it.
 - **Video rounds.** A few seconds of motion beats a still, and motion is the
   whole character of the source material.
-- **A leaderboard.** Scoring is server-side now, which was the prerequisite, but
-  two things still stand in the way: the coordinates for the current round set
-  are in this repo's git history (see *The answers* above), and `/api/score` is
-  stateless, so nothing stops a client scoring the same round twice and keeping
-  the better number. Both are fixed by the same work — a regenerated set, and a
-  per-player, per-round record in the D1 table a leaderboard needs anyway.
+- **A leaderboard.** The store exists — daily results land in `plays`, and both
+  a daily and a monthly board are one query over it (see *The tables the game
+  owns* above). Three things still stand between that and a board on the stream:
+  the endpoint takes the date on the client's word, so nothing yet checks that a
+  posted round is one of that date's five or that the date is open to play; the
+  coordinates for the current round set are in this repo's git history (see *The
+  answers* above), so the set has to be regenerated before any score means
+  anything; and there is no name input, so every row is currently anonymous.

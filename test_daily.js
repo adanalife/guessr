@@ -44,6 +44,26 @@ assert.strictEqual(dayNumber(new Date(2026, 6, 31)), 1, 'epoch should be day 1')
 // Time of day must not matter -- only the calendar date.
 assert.strictEqual(dayNumber(new Date(2026, 6, 31, 23, 59)), dayNumber(new Date(2026, 6, 31, 0, 1)));
 
+// dateForDay is the key a play is recorded under, so a day that maps to the
+// wrong date files a score against the wrong board. It has to invert dayNumber
+// exactly, including across both DST boundaries -- adding 86400000 ms per day
+// lands on 23:00 of the previous date every autumn, which formats a day early.
+assert.strictEqual(dateForDay(1), '2026-07-31', 'the epoch is not day 1');
+assert.strictEqual(dateForDay(2), '2026-08-01');
+// Month, year and leap-day rollovers, all of which the Date constructor's
+// overflow handling is doing rather than any arithmetic here.
+assert.strictEqual(dateForDay(154), '2026-12-31');
+assert.strictEqual(dateForDay(155), '2027-01-01');
+assert.strictEqual(dateForDay(579), '2028-02-29');
+// Zero-padded, since the server matches YYYY-MM-DD literally.
+assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(dateForDay(3)), `unpadded: ${dateForDay(3)}`);
+// The round trip, over two years of days including both US DST switches.
+for (let day = 1; day <= 730; day++) {
+  const [y, m, d] = dateForDay(day).split('-').map(Number);
+  assert.strictEqual(dayNumber(new Date(y, m - 1, d, 12)), day,
+    `day ${day} round-tripped through ${dateForDay(day)}`);
+}
+
 // The three readings of a stored record. A same-day record short of the full
 // count must resume, not read as finished -- saving progress every round is what
 // stops an abandoned run from being replayed with the answers known, and it only
@@ -101,3 +121,4 @@ console.log('ok: daily draw is deterministic, order-independent, and DST-safe');
 console.log('ok: games ramp easy to hard without changing the draw');
 console.log('ok: a partial day resumes, a played-out day stays played out');
 console.log('ok: the day number only moves forwards, whatever the clock does');
+console.log('ok: every day number maps to the calendar date it came from');

@@ -20,6 +20,20 @@ function dayNumber(now = new Date()) {
   return Math.round((midnight - EPOCH) / 86400000) + 1;
 }
 
+// The inverse of dayNumber(): the calendar date a day number stands for, as
+// YYYY-MM-DD. What a recorded play is keyed on, because a day number only means
+// something relative to an epoch that could move, while a date is a date.
+//
+// Built by pushing the day count through the Date constructor's own overflow
+// handling rather than adding milliseconds: 86400000 ms past a spring-forward
+// midnight is 01:00, and past an autumn one is 23:00 of the day before, which
+// formats as the wrong date twice a year.
+function dateForDay(day) {
+  const d = new Date(EPOCH.getFullYear(), EPOCH.getMonth(), EPOCH.getDate() + day - 1);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 // Seeded PRNG so the daily draw is reproducible from the date alone, with no
 // server telling the client which rounds to play.
 function mulberry32(seed) {
