@@ -61,12 +61,12 @@ The Pages projects and the DNS records are terraform, in the `infra` repo under
 `terraform/prod-1/cloudflare-pages-guessr.tf` and `terraform/core/route53.tf`.
 
 `web/` holds `index.html`, its scripts (`daily.js`, `zoom.js`,
-`changelog.js`), the two share-card assets (`og.jpg`,
-`favicon.svg`), and the round set — `rounds.json` plus ~300 frames under
-`frames/`. The round set is committed even though `task rounds` regenerates it,
-because regenerating needs the corpus mounted and database access and the
-deploy has neither. Regenerating rewrites about 27 MB of JPEGs, so do it
-deliberately.
+`changelog.js`), the icon and share-card assets (`favicon.svg`,
+`apple-touch-icon.png`, `og.jpg`), and the round set — `rounds.json` plus ~300
+frames under `frames/`. The round set is committed even though `task rounds`
+regenerates it, because regenerating needs the corpus mounted and database
+access and the deploy has neither. Regenerating rewrites about 27 MB of JPEGs,
+so do it deliberately.
 
 Because that set is tracked, a regeneration rewrites ~300 files of tracked
 content and the next merge deploys the result — so **a generation that fails
@@ -75,6 +75,20 @@ leaves the current one alone.** `task rounds` builds into `web/.staging`, runs
 the corpus unmounted or the database unreachable leaves the working tree exactly
 as it was rather than deleting the frames it was about to replace, and the
 rejected set is left in `web/.staging` to look at.
+
+`favicon.svg` is the map pin, drawn as the adanalife mark — ring, centre dot,
+bead on the upper-right shoulder — with the ring pulled down to a point, so it
+reads as both. It's the source every other icon derives from.
+
+`apple-touch-icon.png` is that mark for the iOS home screen. Safari wants a PNG
+there and ignores its alpha, so the background is baked in rather than left
+transparent:
+
+```sh
+rsvg-convert -w 124 -h 124 web/favicon.svg -o /tmp/mark.png
+magick -size 180x180 xc:'#111111' /tmp/mark.png -gravity center -composite \
+  -depth 8 -strip PNG32:web/apple-touch-icon.png
+```
 
 `og.jpg` is the link preview, and the link preview is the whole distribution
 mechanism: this game spreads by people pasting a URL. It's a hand-picked frame
