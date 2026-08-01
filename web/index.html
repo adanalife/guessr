@@ -28,12 +28,27 @@
   body { margin: 0; height: 100vh; height: 100dvh; display: flex; flex-direction: column;
          background: #111; color: #eee;
          font: 15px/1.4 ui-sans-serif, system-ui, sans-serif; }
+  /* Above Leaflet's controls (z-index 800), so the About panel isn't painted
+     over by the map pane below it. */
   header { display: flex; align-items: baseline; gap: 1rem; padding: .6rem 1rem;
-           border-bottom: 1px solid #333; }
+           border-bottom: 1px solid #333; position: relative; z-index: 1000; }
   header h1 { font-size: 1rem; font-weight: 600; margin: 0; letter-spacing: .02em; }
   header .spacer { flex: 1; }
   header .stat { font-variant-numeric: tabular-nums; color: #aaa; }
   header .stat b { color: #eee; }
+  /* <details> rather than a dialog: it collapses natively, needs no script, and
+     is keyboard-operable for free. The panel is absolute so opening it overlays
+     the game instead of reflowing the header. */
+  #about summary { cursor: pointer; color: #aaa; list-style: none; }
+  #about summary::-webkit-details-marker { display: none; }
+  #about summary:hover, #about[open] summary { color: #eee; }
+  #about .panel { position: absolute; right: 1rem; top: 2.4rem;
+                  width: min(24rem, calc(100vw - 2rem));
+                  background: #1b1b1b; border: 1px solid #3a3a3a; border-radius: 8px;
+                  padding: .2rem 1rem 1rem; box-shadow: 0 10px 30px #000c; }
+  #about p { color: #bbb; }
+  #about a { color: #7dd3fc; }
+  #about .links { display: flex; flex-wrap: wrap; gap: .3rem 1rem; margin-bottom: 0; }
   main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
   /* touch-action: none so a pinch zooms the frame instead of the page. Leaflet
      owns its own gestures next door; the two panes never see each other's. */
@@ -62,7 +77,21 @@
   <span class="stat">Round <b id="roundNum">1</b>/<b id="roundTot">5</b></span>
   <span class="stat">Score <b id="score">0</b></span>
   <span class="spacer"></span>
-  <span class="stat">dashcam footage, 2018</span>
+  <details id="about" class="stat">
+    <summary>dashcam footage, 2018 &mdash; about</summary>
+    <div class="panel">
+      <p>Every round is a real frame from a dashcam, filmed on a year-long drive
+        around the United States in 2018. Five rounds a day, the same five for
+        everyone. Practice rounds are unlimited.</p>
+      <p>The footage comes from <b>A Dana Life</b>, which streams that drive
+        around the clock &mdash; the whole trip, in order, forever.</p>
+      <p class="links">
+        <a href="https://twitch.tv/adanalife_">Watch the stream</a>
+        <a href="https://dana.lol">Read the blog</a>
+        <a href="https://github.com/adanalife/guessr">How it works</a>
+      </p>
+    </div>
+  </details>
 </header>
 <main>
   <div id="photo"><img id="frame" alt="A dashcam frame to locate" hidden></div>
@@ -324,6 +353,17 @@ practiceBtn.addEventListener('click', () => {
   const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
   if (saved && saved.day === dayNumber()) return showFinished(saved);
   newGame('daily');
+});
+
+// <details> stays open until it is toggled again, and the panel sits over the
+// top-right of the map — so dismiss it the two ways an overlay is expected to
+// dismiss, or it blocks pinning in that corner.
+const about = el('about');
+document.addEventListener('click', e => {
+  if (!about.contains(e.target)) about.open = false;
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') about.open = false;
 });
 
 function newGame(which) {
