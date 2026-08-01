@@ -22,15 +22,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # web/version.json is what the page's About panel reads to say which
-      # build it is; CHANGELOG.md rides along so the panel can show what
-      # changed, matching the tag being deployed rather than main.
+      # build it is. The panel links the changelog on GitHub rather than
+      # shipping a copy, so there is nothing else to stamp.
       - name: Stamp the build
         run: |
-          printf '{"label":"%s","url":"%s"}\n' \
-            "$GITHUB_REF_NAME" \
-            "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME" \
-            > web/version.json
-          cp CHANGELOG.md web/
+          printf '{"label":"%s"}\n' "$GITHUB_REF_NAME" > web/version.json
       - name: Deploy to Cloudflare Pages (production)
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

@@ -31,12 +31,7 @@ jobs:
       # build it is. Staging is not a release, so it names the commit.
       - name: Stamp the build
         run: |
-          printf '{"label":"main@%s","url":"%s"}\n' \
-            "${GITHUB_SHA::7}" \
-            "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA" \
-            > web/version.json
-          # There is no CHANGELOG.md until the first release PR merges.
-          cp CHANGELOG.md web/ 2>/dev/null || :
+          printf '{"label":"main@%s"}\n' "${GITHUB_SHA::7}" > web/version.json
       # No build step: web/ is the site, round set included. `wrangler pages
       # deploy` uploads only the files whose hashes Cloudflare doesn't already
       # hold, so the 27 MB of frames transfers once, not on every deploy.
