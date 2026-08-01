@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.3.0](https://github.com/adanalife/guessr/compare/v0.2.0...v0.3.0) (2026-08-01)
+
+
+### Features
+
+* **ci:** deploy a preview for every pull request ([#16](https://github.com/adanalife/guessr/issues/16)) ([d0e29cf](https://github.com/adanalife/guessr/commit/d0e29cf7e51c8df0907625e1080bcb5dcd4a432b))
+* **ci:** stage/prod deploy tiers, with the version and changelog on the page ([#13](https://github.com/adanalife/guessr/issues/13)) ([3e2f5df](https://github.com/adanalife/guessr/commit/3e2f5dfe0d88cd52f694728bfc7c1dd90b65f730))
+* **web:** add a reset for saved state outside production ([#23](https://github.com/adanalife/guessr/issues/23)) ([93f889b](https://github.com/adanalife/guessr/commit/93f889bb6da412b5ab81a701912cf0f1002c6230))
+* **web:** add zoom buttons to the frame pane ([#19](https://github.com/adanalife/guessr/issues/19)) ([0691b5c](https://github.com/adanalife/guessr/commit/0691b5c3230d6b7369f8c67cf3b7f040321315a8))
+* **web:** blend the adanalife mark into the favicon pin ([#24](https://github.com/adanalife/guessr/issues/24)) ([1599dae](https://github.com/adanalife/guessr/commit/1599dae2650f1583daec7da78c8e4a94594283a3))
+* **web:** link the YouTube stream from the About panel ([#12](https://github.com/adanalife/guessr/issues/12)) ([883d25d](https://github.com/adanalife/guessr/commit/883d25dab105144f78551689e880ebb56c199f1d))
+* **web:** ramp each game easy to hard and show difficulty ([#18](https://github.com/adanalife/guessr/issues/18)) ([1c3daff](https://github.com/adanalife/guessr/commit/1c3daff68a2e3921b5b3dd4e9cc084947d27e407))
+* **web:** simplify the intro copy ([#25](https://github.com/adanalife/guessr/issues/25)) ([ba6a3c7](https://github.com/adanalife/guessr/commit/ba6a3c7a4c786e296ea27f31f3f07a9254d804c4))
+* **web:** welcome players with a dismissible intro, and link the changelog ([#20](https://github.com/adanalife/guessr/issues/20)) ([e5fc4ee](https://github.com/adanalife/guessr/commit/e5fc4eeb5e232373a15c8c4a8fbc5d0a52228c35))
+
+
+### Bug Fixes
+
+* **ci:** queue staging deploys instead of cancelling them ([#22](https://github.com/adanalife/guessr/issues/22)) ([c0cd117](https://github.com/adanalife/guessr/commit/c0cd1178e39148a794b442b14d597035e07c3a48))
+* **rounds:** make --seed reproduce the pool draw ([#17](https://github.com/adanalife/guessr/issues/17)) ([fa29f0d](https://github.com/adanalife/guessr/commit/fa29f0de9fe4bb41c6f2c24cd0488819f4102b8c))
+* **web:** drop the footage byline from the about toggle ([#21](https://github.com/adanalife/guessr/issues/21)) ([e49786b](https://github.com/adanalife/guessr/commit/e49786b25aa811ef971d7bb00a8e54e2e97ba29c))
+
+
+### Performance Improvements
+
+* **ci:** read frame dimensions from the JPEG header, not ffprobe ([#15](https://github.com/adanalife/guessr/issues/15)) ([9fc900d](https://github.com/adanalife/guessr/commit/9fc900d73bfc32aae788bd393a6f7e1ccf37f073))
+
 ## [0.2.0](https://github.com/adanalife/guessr/compare/v0.1.0...v0.2.0) (2026-08-01)
 
 
