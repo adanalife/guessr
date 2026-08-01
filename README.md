@@ -92,9 +92,12 @@ magick -size 180x180 xc:'#111111' /tmp/mark.png -gravity center -composite \
 
 `og.jpg` is the link preview, and the link preview is the whole distribution
 mechanism: this game spreads by people pasting a URL. It's a hand-picked frame
-with the title set over it, made once and committed:
+with the title and the mark set over it, made once and committed:
 
 ```sh
+rsvg-convert -w 110 -h 110 web/favicon.svg -o /tmp/mark.png
+magick /tmp/mark.png -channel RGB -fill white -colorize 100 +channel /tmp/mark-white.png
+
 magick web/frames/<frame>.jpg \
   -gravity North -crop 1280x672+0+0 +repage -resize 1200x630! \
   \( -size 1200x300 -define gradient:vector='0,0 0,300' \
@@ -104,11 +107,22 @@ magick web/frames/<frame>.jpg \
   -font Helvetica -pointsize 36 -fill '#dfe6ea' \
   -annotate +64+168 'GeoGuessr, but every round is a dashcam frame' \
   -annotate +64+214 'from a year of driving the United States' \
+  /tmp/mark-white.png -gravity NorthEast -geometry +60+46 -composite \
   -quality 88 -strip web/og.jpg
 ```
 
+The mark is white here rather than its green: over a sunlit frame the green
+sinks into whatever foliage is behind it, and white matches the title.
+
 Swapping the frame means re-running that and updating `og:image:alt`. Keep it
 1200x630 — that's the aspect every scraper crops to.
+
+**The committed card predates the current round set.** Its frame — a San
+Francisco intersection — was drawn from a set that has since been regenerated,
+and no frame under `frames/` matches it any more, so the recipe above builds a
+*new* card rather than reproducing the committed one. Anything that has to
+change on the existing card gets composited onto it directly until the frame is
+reselected.
 
 ## Development
 
