@@ -36,6 +36,7 @@
   header .spacer { flex: 1; }
   header .stat { font-variant-numeric: tabular-nums; color: #aaa; }
   header .stat b { color: #eee; }
+  header #difficulty { letter-spacing: .15em; }
   /* <details> rather than a dialog: it collapses natively, needs no script, and
      is keyboard-operable for free. The panel is absolute so opening it overlays
      the game instead of reflowing the header. */
@@ -86,6 +87,10 @@
   <h1>Guessr</h1>
   <span class="stat" id="label">Daily</span>
   <span class="stat">Round <b id="roundNum">1</b>/<b id="roundTot">5</b></span>
+  <!-- Dots rather than a word: "Hard" next to a round reads as a ready-made
+       excuse for a bad guess. role=img with an aria-label so a screen reader
+       gets the rating instead of spelling out the glyphs. -->
+  <span class="stat" id="difficulty" role="img" hidden></span>
   <span class="stat">Score <b id="score">0</b></span>
   <span class="spacer"></span>
   <details id="about" class="stat">
@@ -270,9 +275,19 @@ map.on('click', e => {
   go.textContent = 'Guess';
 });
 
+function showDifficulty(round) {
+  const dots = el('difficulty');
+  dots.hidden = !round;
+  if (!round) return;
+  const level = difficulty(round);
+  dots.textContent = '●'.repeat(level) + '○'.repeat(DIFFICULTY_LEVELS - level);
+  dots.setAttribute('aria-label', `Difficulty ${level} of ${DIFFICULTY_LEVELS}`);
+}
+
 function startRound() {
   const r = game[idx];
   setFrame(r.image);
+  showDifficulty(r);
   el('roundNum').textContent = idx + 1;
   clearMarks();
   if (guess) { map.removeLayer(guess); guess = null; }
@@ -338,6 +353,7 @@ function showFinished(saved) {
   el('roundTot').textContent = saved.results.length;
   el('score').textContent = saved.total.toLocaleString();
   setFrame(null);
+  showDifficulty(null);
   go.hidden = true;
   shareBtn.hidden = false;
   practiceBtn.hidden = false;
@@ -416,6 +432,9 @@ function newGame(which) {
     game = pick(pool, ROUNDS_PER_GAME, Math.random);
     el('label').textContent = 'Practice';
   }
+  // Both modes ramp. The draw picks which rounds; this only orders them, so the
+  // daily set for a given day is untouched.
+  game = rampEasyToHard(game);
   el('roundTot').textContent = game.length;
   idx = 0; total = 0; results = [];
   el('score').textContent = '0';

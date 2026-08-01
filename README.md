@@ -111,11 +111,18 @@ Guessr #1
 Finishing writes the day to `localStorage`, so today's round can't be replayed
 for a better result. Practice mode draws at random and is unlimited.
 
+Both modes then order their five rounds easy to hard by `median_km` (see [How
+rounds are chosen](#how-rounds-are-chosen)), and the header shows the current
+round's band as three dots — `●●○`. The ordering runs on the drawn five, never
+on the pool, so it can't change *which* rounds a day draws. The band cutoffs
+(32 km and 120 km) are the terciles of the shipped set.
+
 `test_daily.js` covers the draw, because it fails invisibly: if it stops being
 deterministic, every player simply gets different rounds, nothing errors, and
 the share string quietly stops meaning anything. The test pins determinism,
-independence from the order `rounds.json` was written in, and that a DST
-boundary doesn't skip or repeat a day number.
+independence from the order `rounds.json` was written in, that the ramp reorders
+the five without changing which five, and that a DST boundary doesn't skip or
+repeat a day number.
 
 The pool needs to stay comfortably larger than five times however many days you
 want before rounds repeat; `task check` reports that number. Regenerating
@@ -208,9 +215,6 @@ game still runs, it's just trivially cheatable.
 - **Per-frame ground truth.** The HUD holds exact coords for the frame being
   shown, which is finer than the clip-level lat/lng scored against today.
   Reading it means OCR'ing the strip before cropping it.
-- **A difficulty rating per round.** `median_km` is already in the manifest and
-  is a reasonable proxy — it just isn't surfaced in the UI or used to order a
-  game from easy to hard.
 - **Video rounds.** A few seconds of motion beats a still, and motion is the
   whole character of the source material.
 - **A leaderboard.** Needs scoring moved server-side first: `rounds.json`
