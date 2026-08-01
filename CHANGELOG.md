@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0](https://github.com/adanalife/guessr/compare/v0.3.0...v0.4.0) (2026-08-01)
+
+
+### Features
+
+* **web:** add a web app manifest ([#29](https://github.com/adanalife/guessr/issues/29)) ([d663875](https://github.com/adanalife/guessr/commit/d663875585bfa0a5ab02fdee3c226c400e754e56))
+* **web:** add an apple-touch-icon and badge the share card ([#27](https://github.com/adanalife/guessr/issues/27)) ([255d12c](https://github.com/adanalife/guessr/commit/255d12cee72648bdccb0706979dddd9802bc8a98))
+* **web:** add platform icons to the About panel links ([#30](https://github.com/adanalife/guessr/issues/30)) ([2fb6130](https://github.com/adanalife/guessr/commit/2fb6130a3e24c7feca10e27d39132db7698eeeec))
+
 ## [0.3.0](https://github.com/adanalife/guessr/compare/v0.2.0...v0.3.0) (2026-08-01)
 
 
