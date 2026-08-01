@@ -50,6 +50,13 @@ it, so the About panel can name the running build and show what changed — the
 tag on production, `main@<sha>` on staging, `PR #<n>@<sha>` on a preview.
 Neither file is committed, so a locally served copy just shows no version.
 
+`version.json` also carries the `tier` that deployed it, which is what puts a
+**Reset saved state** button in the About panel everywhere except production.
+The intro dialog, the About dot and the daily result are each once-per-browser,
+so testing any of them a second time otherwise means clearing site data by hand.
+Reset drops every `guessr-`prefixed key and reloads. A locally served copy has
+no `version.json` at all and gets the button too.
+
 The Pages projects and the DNS records are terraform, in the `infra` repo under
 `terraform/prod-1/cloudflare-pages-guessr.tf` and `terraform/core/route53.tf`.
 

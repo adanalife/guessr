@@ -52,6 +52,9 @@
   #about .links { display: flex; flex-wrap: wrap; gap: .3rem 1rem; }
   #build { border-top: 1px solid #333; padding-top: .6rem; margin-bottom: 0;
            color: #888; font-size: .9em; }
+  /* Sized down from the footer's action buttons: this belongs to the build
+     line, not to the game. */
+  #reset { font-size: inherit; padding: .1rem .5rem; border-color: #444; }
   /* :not([hidden]) so the attribute still hides it — a bare `display` rule
      would win over the UA's [hidden] style and leave the dot always on. */
   #about .dot:not([hidden]) { display: inline-block; width: .45rem; height: .45rem;
@@ -130,10 +133,14 @@
         <a href="https://dana.lol">Read the blog</a>
         <a href="https://github.com/adanalife/guessr">How it works</a>
       </p>
-      <!-- The version is stamped in at deploy time, so this line stays hidden
-           when the directory is served locally. -->
-      <p id="build" hidden>Running <a id="version"
-        href="https://github.com/adanalife/guessr/blob/main/CHANGELOG.md"></a></p>
+      <!-- Both halves are stamped in at deploy time, so the whole line stays
+           hidden until version.json says something. The reset is for the
+           testing tiers: the intro, the About dot and the daily record are all
+           once-per-browser, so without it the only way to see any of them a
+           second time is to clear site data by hand. -->
+      <p id="build" hidden><span id="buildLabel" hidden>Running <a id="version"
+        href="https://github.com/adanalife/guessr/blob/main/CHANGELOG.md"></a></span>
+        <button id="reset" class="secondary" hidden>Reset saved state</button></p>
     </div>
   </details>
 </header>
@@ -453,15 +460,40 @@ document.addEventListener('keydown', e => {
 });
 
 // version.json is written into web/ by whichever workflow deployed this copy —
-// staging names the commit, a release names the tag. A locally served
-// directory has none, and shows no version at all.
+// staging names the commit, a release names the tag. A locally served directory
+// has none, so the fetch fails and the version line stays empty.
+//
+// `tier` is declared by the deploying workflow rather than inferred from the
+// label's shape or the hostname: the workflow knows for certain which tier it
+// is, whereas a hostname test would be fooled by a Pages alias or a redirect
+// pointed at production. No version.json at all means someone is serving the
+// directory locally, which is a testing surface too.
 fetch('version.json')
   .then(r => r.json())
   .then(v => {
     el('version').textContent = v.label;
+    el('buildLabel').hidden = false;
+    el('reset').hidden = v.tier === 'production';
     el('build').hidden = false;
   })
-  .catch(() => {});
+  .catch(() => {
+    el('reset').hidden = false;
+    el('build').hidden = false;
+  });
+
+// Clearing by prefix rather than by a list of keys, so state added later is
+// covered without anyone remembering to come back here. This grants a player
+// nothing they couldn't already do from devtools — it only saves the trip —
+// which is why hiding it on production is about keeping a dev control out of
+// players' faces, not about protecting anything.
+el('reset').addEventListener('click', () => {
+  try {
+    Object.keys(localStorage)
+      .filter(k => k.startsWith('guessr-'))
+      .forEach(k => localStorage.removeItem(k));
+  } catch { /* private-window localStorage; nothing was stored to clear */ }
+  location.reload();
+});
 
 // The intro, and the dot that nudges people toward the About panel. Both are
 // once-per-browser, so a returning player lands straight on the map. Separate
