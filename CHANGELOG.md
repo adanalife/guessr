@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/adanalife/guessr/compare/v0.4.0...v0.5.0) (2026-08-01)
+
+
+### Features
+
+* score guesses server-side so the answers never reach the browser ([#31](https://github.com/adanalife/guessr/issues/31)) ([71397b1](https://github.com/adanalife/guessr/commit/71397b111953b41be720e5c2d32592cd21a1538a))
+* **web:** map every round at the end of a game, and every round ever ([#26](https://github.com/adanalife/guessr/issues/26)) ([c91b496](https://github.com/adanalife/guessr/commit/c91b496089c2ce5654447520349533f01a7bd83c))
+
+
+### Bug Fixes
+
+* **daily:** save progress every round so a reload resumes ([#32](https://github.com/adanalife/guessr/issues/32)) ([164cce0](https://github.com/adanalife/guessr/commit/164cce0cb8e0aaed1a7b4f275ffdc31d2c398b07))
+
 ## [0.4.0](https://github.com/adanalife/guessr/compare/v0.3.0...v0.4.0) (2026-08-01)
 
 
