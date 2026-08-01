@@ -1,8 +1,11 @@
-# Generated round sets. The frames are extracted from the dashcam corpus and
-# the manifest is rebuilt by make_rounds.py, so neither belongs in git.
-web/frames/
-web/rounds.json
-# Working directories for a generation that hasn't been swapped in (or died mid-swap).
+# The round set (web/frames/ + web/rounds.json) IS tracked, even though
+# make_rounds.py generates it. Generating it needs the dashcam corpus mounted
+# and database access, neither of which CI has, so the committed set is the
+# only copy a deploy can reach. Regenerating rewrites ~27 MB of JPEGs, so
+# regenerate deliberately rather than as a habit.
+#
+# A generation in progress is not that set: make_rounds.py builds into .staging
+# and moves the previous frames aside, and neither belongs in git or in a deploy.
 web/.staging/
 web/frames.old/
 

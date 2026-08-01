@@ -6,9 +6,9 @@ extracts a frame from the good ones, and writes web/rounds.json +
 web/frames/*.jpg. Everything downstream is static files.
 
 A run builds into web/.staging and only moves the result into place once check.py
-passes on it, because web/ is the served copy of the game and is not in git -- so
-a run that dies on an unmounted corpus or an unreachable database has to leave the
-live round set exactly as it was.
+passes on it. The round set under web/ is tracked and every merge to main deploys
+it, so a run that dies on an unmounted corpus or an unreachable database has to
+leave the current set exactly as it was rather than deleting it first.
 
 Ground truth is the clip-level lat/lng in `videos`. The dashcam also burns
 per-frame coords into the HUD, which would be a finer-grained truth if it were
@@ -295,7 +295,9 @@ def main() -> int:
             f"{row['state']} ({row['median_km']:g} km, cos {row['mean_cos']:g})"
         )
 
-    (STAGING / "rounds.json").write_text(json.dumps(rounds, indent=1))
+    # Trailing newline: rounds.json is committed, and end-of-file-fixer rewrites
+    # it on every commit without one.
+    (STAGING / "rounds.json").write_text(json.dumps(rounds, indent=1) + "\n")
     states = {r["state"] for r in rounds}
     print(f"\nstaged {len(rounds)} rounds across {len(states)} states")
 

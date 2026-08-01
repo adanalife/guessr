@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Cover the swap that puts a generated round set into place.
 
-Worth testing because it is the one piece of make_rounds.py that can destroy
-something: web/ is the served game and is not in git, so a swap that clears the
-old set before the new one is ready has no undo.
+Worth testing because it is the one piece of make_rounds.py that deletes anything:
+it replaces the round set that main deploys, and a swap that clears the old frames
+before the new ones are ready leaves the game with none.
 """
 
 import json
