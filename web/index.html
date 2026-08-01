@@ -35,7 +35,13 @@
   header .stat { font-variant-numeric: tabular-nums; color: #aaa; }
   header .stat b { color: #eee; }
   main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
-  #photo { background: #000 center/contain no-repeat; }
+  /* touch-action: none so a pinch zooms the frame instead of the page. Leaflet
+     owns its own gestures next door; the two panes never see each other's. */
+  #photo { position: relative; overflow: hidden; background: #000;
+           touch-action: none; cursor: grab; }
+  #photo.dragging { cursor: grabbing; }
+  #frame { position: absolute; top: 0; left: 0; transform-origin: 0 0;
+           user-select: none; -webkit-user-drag: none; }
   #map { height: 100%; background: #222; }
   footer { display: flex; align-items: center; gap: .6rem; padding: .6rem 1rem;
            border-top: 1px solid #333; min-height: 3.2rem; flex-wrap: wrap; }
@@ -59,7 +65,7 @@
   <span class="stat">dashcam footage, 2018</span>
 </header>
 <main>
-  <div id="photo"></div>
+  <div id="photo"><img id="frame" alt="A dashcam frame to locate" hidden></div>
   <div id="map"></div>
 </main>
 <footer>
@@ -71,6 +77,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="daily.js"></script>
+<script src="zoom.js"></script>
 <script>
 const ROUNDS_PER_GAME = 5;
 // GeoGuessr's curve: full marks near-exact, ~0 across the continent.
@@ -107,6 +114,102 @@ const el = id => document.getElementById(id);
 const photo = el('photo'), go = el('go'), result = el('result');
 const shareBtn = el('share'), practiceBtn = el('practice');
 
+// The frame is an <img> under a transform rather than a background-image, so a
+// player can zoom in: a road sign or a storefront name is often legible in the
+// 1280px source and unreadable once it is scaled down to fit the pane.
+const frame = el('frame');
+let view = { scale: 1, x: 0, y: 0 };
+
+const imgSize = () => ({ w: frame.naturalWidth, h: frame.naturalHeight });
+const boxSize = () => ({ w: photo.clientWidth, h: photo.clientHeight });
+const ready = () => frame.naturalWidth > 0 && photo.clientWidth > 0;
+
+function draw(next) {
+  view = next;
+  frame.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
+}
+
+function resetView() {
+  if (ready()) draw(fitView(imgSize(), boxSize()));
+}
+
+function setFrame(url) {
+  frame.hidden = !url;
+  if (!url) return;
+  frame.src = url;
+  // A cached image fires no load event, so fit it here instead.
+  if (frame.complete) resetView();
+}
+
+// Box coordinates for a pointer or wheel event.
+function localPoint(e) {
+  const box = photo.getBoundingClientRect();
+  return [e.clientX - box.left, e.clientY - box.top];
+}
+
+function zoom(px, py, factor) {
+  if (ready()) draw(zoomAbout(view, imgSize(), boxSize(), px, py, factor));
+}
+
+frame.addEventListener('load', resetView);
+new ResizeObserver(resetView).observe(photo);
+
+photo.addEventListener('wheel', e => {
+  e.preventDefault();
+  const [px, py] = localPoint(e);
+  zoom(px, py, Math.exp(-e.deltaY * 0.002));
+}, { passive: false });
+
+// Double-click and double-tap both land here. It toggles rather than only
+// zooming in, which is the reset control as well.
+photo.addEventListener('dblclick', e => {
+  const [px, py] = localPoint(e);
+  if (view.scale > fitScale(imgSize(), boxSize()) * 1.01) resetView();
+  else zoom(px, py, 2.5);
+});
+
+// One Pointer Events path covers mouse, touch and pen: one pointer drags, two
+// pinch.
+const pointers = new Map();
+let pinch = 0;
+
+const spread = () => {
+  const [a, b] = [...pointers.values()];
+  return Math.hypot(a[0] - b[0], a[1] - b[1]);
+};
+
+photo.addEventListener('pointerdown', e => {
+  photo.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, localPoint(e));
+  photo.classList.add('dragging');
+  if (pointers.size === 2) pinch = spread();
+});
+
+photo.addEventListener('pointermove', e => {
+  const prev = pointers.get(e.pointerId);
+  if (!prev) return;
+  const now = localPoint(e);
+  pointers.set(e.pointerId, now);
+  if (pointers.size === 2) {
+    const d = spread();
+    const [a, b] = [...pointers.values()];
+    if (pinch) zoom((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, d / pinch);
+    pinch = d;
+    // ponytail: a pinch zooms about its centre but does not also pan with it.
+    // Add the drag term if two-finger repositioning turns out to feel stuck.
+  } else if (ready()) {
+    draw(panView(view, imgSize(), boxSize(), now[0] - prev[0], now[1] - prev[1]));
+  }
+});
+
+const releasePointer = e => {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinch = 0;
+  if (!pointers.size) photo.classList.remove('dragging');
+};
+photo.addEventListener('pointerup', releasePointer);
+photo.addEventListener('pointercancel', releasePointer);
+
 let pool = [], game = [], idx = 0, total = 0, guess = null, marks = [];
 let mode = 'daily', results = [];
 
@@ -122,7 +225,7 @@ map.on('click', e => {
 
 function startRound() {
   const r = game[idx];
-  photo.style.backgroundImage = `url("${r.image}")`;
+  setFrame(r.image);
   el('roundNum').textContent = idx + 1;
   clearMarks();
   if (guess) { map.removeLayer(guess); guess = null; }
@@ -187,7 +290,7 @@ function showFinished(saved) {
   el('roundNum').textContent = saved.results.length;
   el('roundTot').textContent = saved.results.length;
   el('score').textContent = saved.total.toLocaleString();
-  photo.style.backgroundImage = '';
+  setFrame(null);
   go.hidden = true;
   shareBtn.hidden = false;
   practiceBtn.hidden = false;
