@@ -89,7 +89,7 @@
            touch-action: none; cursor: grab; }
   #photo.dragging { cursor: grabbing; }
   #frame { position: absolute; top: 0; left: 0; transform-origin: 0 0;
-           user-select: none; -webkit-user-drag: none; }
+           user-select: none; }
   /* Deliberately Leaflet's own control styling, in Leaflet's own corner: the
      map pane next door has the identical pair, so a player who has used one
      knows what these are without being told. This is the zoom affordance --
@@ -200,7 +200,12 @@
 </dialog>
 <main>
   <div id="photo">
-    <img id="frame" alt="A dashcam frame to locate" hidden>
+    <!-- draggable="false" is what stops a drag on the frame from starting a
+         native image drag instead of panning. It belongs in the markup rather
+         than the stylesheet: `-webkit-user-drag` is WebKit-only, so on Firefox
+         the browser takes over the gesture, fires pointercancel, and the pan is
+         torn down mid-swipe. -->
+    <img id="frame" alt="A dashcam frame to locate" draggable="false" hidden>
     <div id="zoomctl" hidden>
       <button id="zin" title="Zoom in — or scroll, pinch, or double-click the frame"
               aria-label="Zoom in">+</button>
