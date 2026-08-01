@@ -53,6 +53,18 @@ function dailyRounds(pool, day, n) {
   return pick(stable, n, mulberry32(hashSeed(`day-${day}`)));
 }
 
+// What a stored daily record means for the page. No record, or one from an
+// earlier day, means today is unplayed; a same-day record holding every round is
+// done; a shorter same-day one is a game to pick back up.
+//
+// Split out of index.html because getting it wrong is silent either way: reading
+// a half-played day as finished hides the rest of the game, and reading a
+// finished day as unplayed hands out a second run at the same five rounds.
+function dailyState(saved, day, roundsPerGame) {
+  if (!saved || saved.day !== day) return 'unplayed';
+  return saved.results.length >= roundsPerGame ? 'finished' : 'unfinished';
+}
+
 // Orders an already-drawn game easy to hard, by median_km -- the median
 // distance from a frame's true location to that of its nearest neighbours in
 // embedding space, so a low score means the image carries real location signal
