@@ -68,6 +68,18 @@
   #photo.dragging { cursor: grabbing; }
   #frame { position: absolute; top: 0; left: 0; transform-origin: 0 0;
            user-select: none; -webkit-user-drag: none; }
+  /* Deliberately Leaflet's own control styling, in Leaflet's own corner: the
+     map pane next door has the identical pair, so a player who has used one
+     knows what these are without being told. This is the zoom affordance --
+     wheel, pinch and double-click are all undiscoverable on their own. */
+  #zoomctl { position: absolute; top: 10px; left: 10px; z-index: 400;
+             display: flex; flex-direction: column;
+             border-radius: 4px; overflow: hidden; border: 2px solid #0003; }
+  #zoomctl button { width: 30px; height: 30px; padding: 0; border: 0;
+                    border-radius: 0; background: #fff; color: #333;
+                    font: 18px/30px ui-sans-serif, system-ui, sans-serif; }
+  #zoomctl button + button { border-top: 1px solid #ccc; }
+  #zoomctl button:hover { background: #f4f4f4; }
   #map { height: 100%; background: #222; }
   footer { display: flex; align-items: center; gap: .6rem; padding: .6rem 1rem;
            border-top: 1px solid #333; min-height: 3.2rem; flex-wrap: wrap; }
@@ -114,7 +126,14 @@
   </details>
 </header>
 <main>
-  <div id="photo"><img id="frame" alt="A dashcam frame to locate" hidden></div>
+  <div id="photo">
+    <img id="frame" alt="A dashcam frame to locate" hidden>
+    <div id="zoomctl" hidden>
+      <button id="zin" title="Zoom in — or scroll, pinch, or double-click the frame"
+              aria-label="Zoom in">+</button>
+      <button id="zout" title="Zoom out" aria-label="Zoom out">&minus;</button>
+    </div>
+  </div>
   <div id="map"></div>
 </main>
 <footer>
@@ -185,6 +204,7 @@ function resetView() {
 
 function setFrame(url) {
   frame.hidden = !url;
+  el('zoomctl').hidden = !url;
   if (!url) return;
   frame.src = url;
   // A cached image fires no load event, so fit it here instead.
@@ -200,6 +220,18 @@ function localPoint(e) {
 function zoom(px, py, factor) {
   if (ready()) draw(zoomAbout(view, imgSize(), boxSize(), px, py, factor));
 }
+
+// The buttons zoom about the middle of the pane, since a click on a control in
+// the corner says nothing about where the player is looking.
+const zoomCentre = factor => zoom(photo.clientWidth / 2, photo.clientHeight / 2, factor);
+
+const zoomctl = el('zoomctl');
+el('zin').addEventListener('click', () => zoomCentre(1.5));
+el('zout').addEventListener('click', () => zoomCentre(1 / 1.5));
+// The controls sit inside the pane, so without this a click on one starts a
+// drag and a quick double-click on + hits the pane's reset-to-fit.
+['pointerdown', 'dblclick'].forEach(type =>
+  zoomctl.addEventListener(type, e => e.stopPropagation()));
 
 frame.addEventListener('load', resetView);
 new ResizeObserver(resetView).observe(photo);
