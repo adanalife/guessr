@@ -80,6 +80,10 @@ const MAX_ROUND_SCORE = 5000;
 // Records the day you last finished, so today's round can't be replayed for a
 // better share string. The daily draw itself lives in daily.js.
 const STORE_KEY = 'guessr-daily';
+// The share string is pasted where the link outlives the session that made it,
+// so it names the canonical host rather than wherever this copy is served from
+// — a result shared off localhost or a preview deploy still sends people here.
+const HOME_URL = 'https://guessr.dana.lol';
 
 function haversineKm(a, b) {
   const R = 6371, rad = d => d * Math.PI / 180;
@@ -159,7 +163,7 @@ function shareText(day, res, sum) {
     `Guessr #${day}`,
     res.map(squareFor).join(''),
     `${sum.toLocaleString()} / ${(res.length * MAX_ROUND_SCORE).toLocaleString()}`,
-    location.origin,
+    HOME_URL,
   ].join('\n');
 }
 
