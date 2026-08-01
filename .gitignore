@@ -9,6 +9,11 @@
 web/.staging/
 web/frames.old/
 
+# Stamped into the deploy by staging.yml / release.yml — which build this is,
+# and the changelog to go with it. Generated per deploy, never committed.
+web/version.json
+web/CHANGELOG.md
+
 __pycache__/
 .venv/
 .DS_Store
