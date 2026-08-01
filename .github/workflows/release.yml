@@ -1,0 +1,41 @@
+name: release
+# Production deploy to guessr.dana.lol at a release tag.
+#
+# main deploys to staging on every merge (staging.yml); production only moves
+# when the standing release PR is merged, so the live game is always a version
+# with a changelog entry rather than whatever landed last.
+on:
+  push:
+    tags:
+      - v*
+  # release-please.yml dispatches this at the tag ref it just created — its
+  # GITHUB_TOKEN-pushed tag can't fire the push trigger above.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      # web/version.json is what the page's About panel reads to say which
+      # build it is; CHANGELOG.md rides along so the panel can show what
+      # changed, matching the tag being deployed rather than main.
+      - name: Stamp the build
+        run: |
+          printf '{"label":"%s","url":"%s"}\n' \
+            "$GITHUB_REF_NAME" \
+            "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME" \
+            > web/version.json
+          cp CHANGELOG.md web/
+      - name: Deploy to Cloudflare Pages (production)
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        # Tag checkouts have detached HEAD; --branch names the Pages project's
+        # production branch ("main", set in infra's terraform and independent
+        # of any git branch), which is the alias serving guessr.dana.lol.
+        run: npx wrangler pages deploy web/ --project-name adanalife-guessr --branch main

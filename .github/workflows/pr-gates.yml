@@ -45,14 +45,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # The daily-round draw. Node-only and sub-second — no corpus, no database
-      # — which is why it belongs here as a step rather than in its own job.
+      # The node tests: the daily-round draw, the frame-pane viewport math and
+      # the changelog renderer. All sub-second and needing no corpus or
+      # database, which is why they belong here as a step rather than a job.
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version-file: .tool-versions
-      - name: Daily-round draw
-        run: node test_daily.js
+      - name: Node tests
+        run: node test_daily.js && node test_zoom.js && node test_changelog.js
 
       - uses: actions/setup-python@v7
         with:

@@ -1,0 +1,50 @@
+name: staging
+# Every merge to main goes live at stage.guessr.dana.lol.
+#
+# Two Cloudflare Pages projects, declared in infra's
+# terraform/prod-1/cloudflare-pages-guessr.tf: main lands on the staging one,
+# and guessr.dana.lol only moves when a release tag ships (release.yml). The
+# game is static files with no backend, so staging costs a Pages project and
+# buys somewhere to look at a change — a regenerated round set especially —
+# before players see it.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Two merges close together would race, and the older deploy finishing last
+# would leave staging on stale content. (Tag-triggered release.yml is NOT
+# guarded — every release must ship.)
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      # web/version.json is what the page's About panel reads to say which
+      # build it is. Staging is not a release, so it names the commit.
+      - name: Stamp the build
+        run: |
+          printf '{"label":"main@%s","url":"%s"}\n' \
+            "${GITHUB_SHA::7}" \
+            "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA" \
+            > web/version.json
+          # There is no CHANGELOG.md until the first release PR merges.
+          cp CHANGELOG.md web/ 2>/dev/null || :
+      # No build step: web/ is the site, round set included. `wrangler pages
+      # deploy` uploads only the files whose hashes Cloudflare doesn't already
+      # hold, so the 27 MB of frames transfers once, not on every deploy.
+      - name: Deploy to Cloudflare Pages (staging)
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        # --branch names the Pages project's production branch ("main", set in
+        # infra's terraform and independent of any git branch), which is the
+        # alias serving stage.guessr.dana.lol.
+        run: npx wrangler pages deploy web/ --project-name adanalife-guessr-staging --branch main
