@@ -3,6 +3,11 @@
 # and database access, neither of which CI has, so the committed set is the
 # only copy a deploy can reach. Regenerating rewrites ~27 MB of JPEGs, so
 # regenerate deliberately rather than as a habit.
+#
+# A generation in progress is not that set: make_rounds.py builds into .staging
+# and moves the previous frames aside, and neither belongs in git or in a deploy.
+web/.staging/
+web/frames.old/
 
 __pycache__/
 .venv/

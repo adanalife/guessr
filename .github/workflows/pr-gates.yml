@@ -54,6 +54,10 @@ jobs:
       - name: Daily-round draw
         run: node test_daily.js
 
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: .tool-versions
+
       # The round set is committed and every main merge deploys it, so a bad
       # regeneration ships. check.py is the guard that matters: a 16:9 frame
       # means the HUD crop didn't run and the answer is printed on the image.
@@ -62,3 +66,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - name: Validate the round set
         run: python3 check.py
+
+      # The swap that puts a regenerated set into place. Stdlib-only and
+      # sub-second: it exercises file moves in a temp directory.
+      - name: Round-set swap
+        run: python3 test_swap.py

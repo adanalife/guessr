@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Validate a generated round set. Run after make_rounds.py.
 
+Takes the directory holding rounds.json and frames/, defaulting to web/.
+make_rounds.py runs it against its staging directory and only swaps that set into
+web/ if it passes, so these assertions are what stands between a bad generation
+and the served game.
+
 The check that matters is the aspect ratio: if the HUD crop ever stops applying,
 every frame ships with the answer ("W71.606763 N42.822437") printed across the
 bottom and the game is silently ruined. A 16:9 frame means the crop didn't run.
@@ -41,7 +46,8 @@ def dimensions(path: Path) -> tuple[int, int]:
 
 
 def main() -> int:
-    rounds = json.loads((WEB / "rounds.json").read_text())
+    web = Path(sys.argv[1]) if len(sys.argv) > 1 else WEB
+    rounds = json.loads((web / "rounds.json").read_text())
     assert rounds, "rounds.json is empty"
     assert len(rounds) >= ROUNDS_PER_GAME, (
         f"only {len(rounds)} rounds; a daily game needs {ROUNDS_PER_GAME}"
@@ -49,7 +55,7 @@ def main() -> int:
 
     seen = set()
     for r in rounds:
-        img = WEB / r["image"]
+        img = web / r["image"]
         assert img.exists() and img.stat().st_size > 0, f"missing frame: {r['image']}"
         assert r["image"] not in seen, f"duplicate round: {r['image']}"
         seen.add(r["image"])

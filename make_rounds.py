@@ -5,6 +5,11 @@ Samples clips from the dashcam corpus, scores each one for how locatable it is,
 extracts a frame from the good ones, and writes web/rounds.json +
 web/frames/*.jpg. Everything downstream is static files.
 
+A run builds into web/.staging and only moves the result into place once check.py
+passes on it. The round set under web/ is tracked and every merge to main deploys
+it, so a run that dies on an unmounted corpus or an unreachable database has to
+leave the current set exactly as it was rather than deleting it first.
+
 Ground truth is the clip-level lat/lng in `videos`. The dashcam also burns
 per-frame coords into the HUD, which would be a finer-grained truth if it were
 OCR'd (video-pipeline's hud.py already reads that strip) -- but a clip covers
@@ -13,13 +18,16 @@ only a couple of miles, so clip coords are close enough to score against.
 
 import argparse
 import json
+import os
 import random
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 CORPUS = Path("/Volumes/ADanaLife/dashcam/_opt/clips")
 WEB = Path(__file__).parent / "web"
+STAGING = WEB / ".staging"
 
 # The HUD burns "49 MPH W71.606763 N42.822437" and the date across the bottom of
 # every frame -- i.e. the answer. Crop it off. Measured against a 1920x1080 clip:
@@ -183,7 +191,34 @@ def extract_frame(row: dict, dest: Path, width: int) -> bool:
     return proc.returncode == 0 and dest.exists() and dest.stat().st_size > 0
 
 
-def main() -> None:
+def swap_in(staging: Path, web: Path) -> None:
+    """Move a validated round set into place, keeping the old one until the last step.
+
+    Renames rather than copies, so the served set is never half-written. A stale
+    `frames.old` means a previous run died mid-swap; it is safe to clear.
+
+    Checks the staged set is complete before touching anything under `web`: moving
+    the live frames aside and only then discovering there is nothing to replace them
+    with would take the game down, which is the failure this whole path exists to
+    prevent.
+    """
+    if not (staging / "frames").is_dir() or not (staging / "rounds.json").is_file():
+        raise FileNotFoundError(f"{staging} is not a complete round set; nothing moved")
+
+    old = web / "frames.old"
+    shutil.rmtree(old, ignore_errors=True)
+    if (web / "frames").exists():
+        (web / "frames").rename(old)
+    (staging / "frames").rename(web / "frames")
+    # ponytail: frames land before the manifest, so for a few milliseconds the served
+    # manifest names frames from the previous set. Serving one 404 to whoever is
+    # mid-request beats holding both sets on disk to make the pair truly atomic.
+    os.replace(staging / "rounds.json", web / "rounds.json")
+    shutil.rmtree(old, ignore_errors=True)
+    shutil.rmtree(staging, ignore_errors=True)
+
+
+def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("-n", "--count", type=int, default=60, help="rounds to keep")
     ap.add_argument("--pool", type=int, default=400, help="clips to score")
@@ -208,9 +243,8 @@ def main() -> None:
     args = ap.parse_args()
 
     random.seed(args.seed)
-    frames = WEB / "frames"
-    if frames.exists():
-        shutil.rmtree(frames)
+    shutil.rmtree(STAGING, ignore_errors=True)
+    frames = STAGING / "frames"
     frames.mkdir(parents=True)
 
     scored = score_candidates(args.namespace, args.pool, args.neighbours)
@@ -263,10 +297,24 @@ def main() -> None:
 
     # Trailing newline: rounds.json is committed, and end-of-file-fixer rewrites
     # it on every commit without one.
-    (WEB / "rounds.json").write_text(json.dumps(rounds, indent=1) + "\n")
+    (STAGING / "rounds.json").write_text(json.dumps(rounds, indent=1) + "\n")
     states = {r["state"] for r in rounds}
-    print(f"\nwrote {len(rounds)} rounds across {len(states)} states")
+    print(f"\nstaged {len(rounds)} rounds across {len(states)} states")
+
+    validate = subprocess.run(
+        [sys.executable, str(Path(__file__).parent / "check.py"), str(STAGING)]
+    )
+    if validate.returncode != 0:
+        print(
+            f"\ncheck failed: {WEB} still holds the previous round set. "
+            f"The rejected one is at {STAGING} to look at."
+        )
+        return 1
+
+    swap_in(STAGING, WEB)
+    print(f"swapped into {WEB}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

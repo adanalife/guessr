@@ -16,7 +16,7 @@ is Leaflet over OpenStreetMap tiles.
 ```sh
 task rounds   # needs the corpus mounted + kubectl access to the tripbot DB
 task check    # validates the round set
-task test     # daily-round draw; needs neither
+task test     # daily draw + round-set swap; needs neither
 task serve    # http://localhost:8000
 ```
 
@@ -39,6 +39,14 @@ repo under `terraform/prod-1/cloudflare-pages-guessr.tf` and
 because regenerating needs the corpus mounted and database access and the
 deploy has neither. Regenerating rewrites about 27 MB of JPEGs, so do it
 deliberately.
+
+Because that set is tracked, a regeneration rewrites ~300 files of tracked
+content and the next merge deploys the result — so **a generation that fails
+leaves the current one alone.** `task rounds` builds into `web/.staging`, runs
+`check.py` against *that*, and moves it into place only if it passes. A run with
+the corpus unmounted or the database unreachable leaves the working tree exactly
+as it was rather than deleting the frames it was about to replace, and the
+rejected set is left in `web/.staging` to look at.
 
 `og.jpg` is the link preview, and the link preview is the whole distribution
 mechanism: this game spreads by people pasting a URL. It's a hand-picked frame
