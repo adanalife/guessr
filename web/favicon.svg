@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- A map pin in the same green the share string's 🟩 band uses. -->
+  <path fill="#6aaa64" d="M16 1C9.4 1 4 6.4 4 13c0 8.2 12 18 12 18s12-9.8 12-18C28 6.4 22.6 1 16 1z"/>
+  <circle cx="16" cy="13" r="4.4" fill="#111"/>
+</svg>

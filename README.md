@@ -24,8 +24,29 @@ task serve    # http://localhost:8000
 `http://<this-machine>:8000`. Round generation is the only step with
 dependencies; `web/` on its own is a static directory anyone can host.
 
-Nothing in `web/` is committed except `index.html` — the frames are extracted
-from the dashcam corpus and the manifest is rebuilt, so both are gitignored.
+`web/` holds `index.html`, `daily.js`, and the two share-card assets
+(`og.jpg`, `favicon.svg`). The round frames and `rounds.json` are not committed —
+they're extracted from the dashcam corpus and rebuilt, so both are gitignored.
+
+`og.jpg` is the link preview, and the link preview is the whole distribution
+mechanism: this game spreads by people pasting a URL. It's a hand-picked frame
+with the title set over it, made once and committed:
+
+```sh
+magick web/frames/<frame>.jpg \
+  -gravity North -crop 1280x672+0+0 +repage -resize 1200x630! \
+  \( -size 1200x300 -define gradient:vector='0,0 0,300' \
+     gradient:'rgba(0,0,0,0.62)-rgba(0,0,0,0)' \) -gravity North -composite \
+  -font Helvetica-Bold -fill white -gravity NorthWest \
+  -pointsize 96 -annotate +60+52 'Guessr' \
+  -font Helvetica -pointsize 36 -fill '#dfe6ea' \
+  -annotate +64+168 'GeoGuessr, but every round is a dashcam frame' \
+  -annotate +64+214 'from a year of driving the United States' \
+  -quality 88 -strip web/og.jpg
+```
+
+Swapping the frame means re-running that and updating `og:image:alt`. Keep it
+1200x630 — that's the aspect every scraper crops to.
 
 ## Development
 
