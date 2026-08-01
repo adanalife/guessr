@@ -34,3 +34,44 @@ export function parseGuess(body) {
   if (!Number.isFinite(lng) || lng < -180 || lng > 180) return null;
   return { image, lat, lng };
 }
+
+// A guess carries a play context when it is part of a daily; a practice round
+// sends none and is scored without being recorded. `date` is what marks the
+// difference, so isPlay() and parsePlay() are kept apart: a body that means to
+// be recorded but is malformed has to be a 400, not a silent non-record. A
+// player whose score quietly never reaches the board has no way to notice.
+export const isPlay = body => !!body && typeof body === 'object' && body.date !== undefined;
+
+// The date is the calendar date of the round set being played, YYYY-MM-DD, and
+// it keys the leaderboard directly -- day numbers are display only, so that a
+// re-epoch or an off-by-one can never silently re-map history.
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// The handle is a display label, never an identity: two players called "Jason"
+// are two rows keyed on different player_ids that happen to render the same
+// string. Keying on the handle instead would read the second Jason's play as a
+// replay of the first's and drop it.
+export const MAX_HANDLE = 24;
+
+export function parsePlay(body) {
+  if (!isPlay(body)) return null;
+  const { date, player_id: playerId, handle } = body;
+  if (typeof date !== 'string' || !DATE_RE.test(date)) return null;
+  // A regex-shaped date can still be the 31st of February; Date is the cheapest
+  // real calendar. Month 13 and day 32 come back as an Invalid Date, but Feb 31
+  // silently rolls forward to Mar 3, so both the NaN check and the round-trip
+  // are load-bearing -- and toISOString() throws on an Invalid Date, so the NaN
+  // check has to come first.
+  const parsed = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  if (parsed.toISOString().slice(0, 10) !== date) return null;
+  // Opaque and client-minted, so its only real constraints are that it is a
+  // bounded string and that it is the same one next time. UUIDs are what the
+  // page mints; anything longer is not one.
+  if (typeof playerId !== 'string' || !playerId || playerId.length > 64) return null;
+  // Absent is legal -- the page has no name input yet, and a play still belongs
+  // on the board once one lands. Trimmed to nothing counts as absent.
+  if (handle !== undefined && handle !== null && typeof handle !== 'string') return null;
+  const label = (handle || '').trim().slice(0, MAX_HANDLE);
+  return { date, playerId, handle: label || null };
+}

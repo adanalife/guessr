@@ -10,7 +10,9 @@
 // and is exercised by actually running `task dev` against a local D1.
 
 import assert from 'node:assert/strict';
-import { MAX_ROUND_SCORE, haversineKm, parseGuess, scoreFor } from './functions/_scoring.mjs';
+import {
+  MAX_HANDLE, MAX_ROUND_SCORE, haversineKm, isPlay, parseGuess, parsePlay, scoreFor,
+} from './functions/_scoring.mjs';
 
 const SF = { lat: 37.7749, lng: -122.4194 };
 const NYC = { lat: 40.7128, lng: -74.0060 };
@@ -69,4 +71,52 @@ for (const edge of [
   assert.notEqual(parseGuess(edge), null, `rejected a legal edge guess: ${JSON.stringify(edge)}`);
 }
 
+// The play context: what turns a scored guess into a row on the leaderboard.
+// isPlay and parsePlay are separate for a reason worth pinning -- a body that
+// means to be recorded and fails validation must be distinguishable from one
+// that never asked to be, or the handler answers a malformed play with a
+// perfectly normal score that silently never reaches the board.
+const play = { date: '2026-08-01', player_id: 'a3f1c2d4-0000-4000-8000-000000000000' };
+assert.deepEqual(parsePlay(play), { date: play.date, playerId: play.player_id, handle: null });
+
+assert.equal(isPlay({ ...good }), false, 'a practice guess claimed to be a play');
+assert.equal(isPlay(play), true);
+assert.equal(parsePlay({ ...good }), null, 'a practice guess parsed as a play');
+// The pairing the handler relies on: not a play at all, versus a broken one.
+assert.equal(isPlay({ ...play, date: 'yesterday' }), true, 'a broken date stopped being a play');
+assert.equal(parsePlay({ ...play, date: 'yesterday' }), null);
+
+// The handle is optional, trimmed, bounded, and never an identity.
+assert.equal(parsePlay({ ...play, handle: '  Jason  ' }).handle, 'Jason');
+assert.equal(parsePlay({ ...play, handle: '' }).handle, null, 'empty handle should be absent');
+assert.equal(parsePlay({ ...play, handle: '   ' }).handle, null, 'blank handle should be absent');
+assert.equal(parsePlay({ ...play, handle: null }).handle, null);
+assert.equal(parsePlay({ ...play, handle: 'x'.repeat(200) }).handle.length, MAX_HANDLE);
+assert.equal(parsePlay({ ...play, handle: 42 }), null, 'a non-string handle is not a handle');
+// Two players who type the same name are still two players.
+const jasons = [play, { ...play, player_id: 'b7e2' }].map(b => parsePlay({ ...b, handle: 'Jason' }));
+assert.notEqual(jasons[0].playerId, jasons[1].playerId, 'the handle collapsed two players into one');
+
+for (const bad of [
+  { ...play, date: '2026-8-1' },        // unpadded, and the board matches literally
+  { ...play, date: '2026-13-01' },      // Invalid Date -- toISOString would throw
+  { ...play, date: '2026-01-32' },
+  { ...play, date: '2026-02-31' },      // parses, but Date rolls it forward to Mar 3
+  { ...play, date: '2026-02-29' },      // not a leap year
+  { ...play, date: '01-08-2026' },
+  { ...play, date: '2026-08-01T00:00:00Z' },
+  { ...play, date: 20260801 },
+  { ...play, date: null },
+  { ...play, player_id: '' },
+  { ...play, player_id: 42 },
+  { ...play, player_id: 'x'.repeat(65) },
+  { date: play.date },                  // a date with nobody attached to it
+]) {
+  assert.equal(parsePlay(bad), null, `accepted a bad play: ${JSON.stringify(bad)}`);
+}
+
+// Leap days are real days and must be playable.
+assert.ok(parsePlay({ ...play, date: '2028-02-29' }), 'rejected a real leap day');
+
 console.log('ok: scoring curve and guess validation');
+console.log('ok: a play is keyed on an opaque id, with the handle as a label only');
