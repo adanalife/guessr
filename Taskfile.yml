@@ -32,9 +32,11 @@ tasks:
       - python3 -m http.server -d web {{.PORT}}
 
   test:
-    desc: Run the tests that need no corpus or database (daily draw, round-set swap)
+    desc: Run the tests that need no corpus or database (daily draw, frame zoom,
+      round-set swap)
     cmds:
       - node test_daily.js
+      - node test_zoom.js
       - python3 test_swap.py
 
   build:
