@@ -14,6 +14,12 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#111111">
 
+<!-- The misspelling aliases (guesser.dana.lol and friends) serve this same page
+     rather than redirecting, and the staging tier and per-PR previews are more
+     copies again — so name the one URL a crawler should index and a share
+     should credit. Matches the hardcoded HOME_URL the share string uses. -->
+<link rel="canonical" href="https://guessr.dana.lol/">
+
 <!-- Absolute og:image URLs: scrapers don't all resolve relative ones. -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Guessr">
