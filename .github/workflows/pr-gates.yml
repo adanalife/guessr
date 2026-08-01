@@ -53,3 +53,11 @@ jobs:
           node-version-file: .tool-versions
       - name: Daily-round draw
         run: node test_daily.js
+
+      # The round-set swap. Also stdlib-only and sub-second: it exercises file
+      # moves in a temp directory, no corpus and no database.
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: .tool-versions
+      - name: Round-set swap
+        run: python3 test_swap.py

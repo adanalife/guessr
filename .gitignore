@@ -2,6 +2,9 @@
 # the manifest is rebuilt by make_rounds.py, so neither belongs in git.
 web/frames/
 web/rounds.json
+# Working directories for a generation that hasn't been swapped in (or died mid-swap).
+web/.staging/
+web/frames.old/
 
 __pycache__/
 .venv/

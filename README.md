@@ -16,7 +16,7 @@ is Leaflet over OpenStreetMap tiles.
 ```sh
 task rounds   # needs the corpus mounted + kubectl access to the tripbot DB
 task check    # validates the round set
-task test     # daily-round draw; needs neither
+task test     # daily draw + round-set swap; needs neither
 task serve    # http://localhost:8000
 ```
 
@@ -27,6 +27,12 @@ dependencies; `web/` on its own is a static directory anyone can host.
 `web/` holds `index.html`, `daily.js`, and the two share-card assets
 (`og.jpg`, `favicon.svg`). The round frames and `rounds.json` are not committed —
 they're extracted from the dashcam corpus and rebuilt, so both are gitignored.
+
+That makes `web/` the only copy of whatever round set is live, with no git history
+behind it, so **a generation that fails leaves the served set alone.** `task rounds`
+builds into `web/.staging`, runs `check.py` against *that*, and moves it into place
+only if it passes — a run with the corpus unmounted or the database unreachable
+changes nothing, and the rejected set is left in `web/.staging` to look at.
 
 `og.jpg` is the link preview, and the link preview is the whole distribution
 mechanism: this game spreads by people pasting a URL. It's a hand-picked frame

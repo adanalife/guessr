@@ -32,9 +32,10 @@ tasks:
       - python3 -m http.server -d web {{.PORT}}
 
   test:
-    desc: Run the daily-round draw test (no corpus or database needed)
+    desc: Run the tests that need no corpus or database (daily draw, round-set swap)
     cmds:
       - node test_daily.js
+      - python3 test_swap.py
 
   build:
     desc: Generate a fresh round set and validate it
