@@ -66,9 +66,11 @@ case "${1:?usage: clips.sh push|pull|key}" in
     # committed manifest names a set that was never uploaded, which is otherwise
     # a green deploy full of black panes.
     if ! npx wrangler r2 object get "$BUCKET/$k" --file "$tmp" --remote 2>&1; then
-      echo "::error::no $k in $BUCKET -- the media for the committed web/rounds.json"
-      echo "::error::was never pushed. Run \`task clips:push\` from the laptop that"
-      echo "::error::generated it, then re-run this deploy."
+      echo "::error::could not fetch $k from $BUCKET. Either the media for the"
+      echo "::error::committed web/rounds.json was never pushed -- run \`task clips:push\`"
+      echo "::error::from the laptop that generated it -- or this token is missing"
+      echo "::error::R2 read on the bucket. wrangler's own error is above; it says"
+      echo "::error::which."
       exit 1
     fi
     tar -xf "$tmp" -C "$WEB"
