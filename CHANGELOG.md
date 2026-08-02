@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/adanalife/guessr/compare/v0.7.0...v0.8.0) (2026-08-02)
+
+
+### Features
+
+* **api:** show each player's current alias, and number the duplicates ([#49](https://github.com/adanalife/guessr/issues/49)) ([3d6fdeb](https://github.com/adanalife/guessr/commit/3d6fdeb18a3f9a7aa6f97cf1688dd5094d4187bd))
+
 ## [0.7.0](https://github.com/adanalife/guessr/compare/v0.6.0...v0.7.0) (2026-08-02)
 
 
