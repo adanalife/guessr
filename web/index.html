@@ -173,9 +173,10 @@
   #frame { position: absolute; top: 0; left: 0; transform-origin: 0 0;
            user-select: none; }
   /* Deliberately Leaflet's own control styling, in Leaflet's own corner: the
-     map pane next door has the identical pair, so a player who has used one
-     knows what these are without being told. This is the zoom affordance --
-     wheel, pinch and double-click are all undiscoverable on their own. */
+     map pane next door has the identical zoom pair, so a player who has used
+     one knows what these are without being told. It is also the only
+     affordance any of it has -- wheel, pinch, double-click and space are all
+     undiscoverable on their own. */
   #zoomctl { position: absolute; top: 10px; left: 10px; z-index: 400;
              display: flex; flex-direction: column;
              border-radius: 4px; overflow: hidden; border: 2px solid #0003; }
@@ -355,6 +356,14 @@
       <button id="zin" title="Zoom in — or scroll, pinch, or double-click the frame"
               aria-label="Zoom in">+</button>
       <button id="zout" title="Zoom out" aria-label="Zoom out">&minus;</button>
+      <!-- The glyphs carry U+FE0E, the text variation selector, or a platform
+           with emoji for these code points renders two coloured cartoons in a
+           row of monochrome map controls. The label is set from the video's own
+           play/pause events rather than on click, so it stays honest when
+           playback stops for a reason the page didn't ask for — an autoplay
+           block on iOS being the one that actually happens. -->
+      <button id="playpause" title="Pause — or press space"
+              aria-label="Pause">&#9208;&#xFE0E;</button>
     </div>
     <div id="sheet" hidden></div>
   </div>
@@ -563,12 +572,18 @@ function setFrame(url) {
   el('zoomctl').hidden = !url;
   if (!url) return;
   frame.src = url;
+  // A player who paused wants a still, and wanting one on round 2 is a good
+  // guess that they want one on rounds 3 to 5 as well. So the preference
+  // carries across a game rather than resetting per round, which would make
+  // "play this like the old version" cost five clicks instead of one.
+  //
   // Autoplay is a promise that rejects rather than throws, and iOS in Low Power
   // Mode rejects it however muted the video is. Nothing to recover: the first
   // frame is painted either way, so the round degrades to the still it used to
   // be instead of to a blank pane. Swallowed explicitly, because an unhandled
   // rejection here is a console error on every round on those devices.
-  frame.play().catch(() => {});
+  if (paused) frame.pause();
+  else frame.play().catch(() => {});
   // A cached video may already have its metadata, which fires no event.
   if (frame.readyState >= 1) resetView();
 }
@@ -594,6 +609,31 @@ el('zout').addEventListener('click', () => zoomCentre(1 / 1.5));
 // drag and a quick double-click on + hits the pane's reset-to-fit.
 ['pointerdown', 'dblclick'].forEach(type =>
   zoomctl.addEventListener(type, e => e.stopPropagation()));
+
+// Whether the player asked for a still. Held here rather than read off
+// frame.paused, because that is also true for the moment between rounds while a
+// new source loads — reading it there would carry a phantom pause into round 2.
+let paused = false;
+const playpause = el('playpause');
+
+function togglePlay() {
+  paused = !frame.paused;
+  if (paused) frame.pause();
+  else frame.play().catch(() => {});
+}
+
+playpause.addEventListener('click', togglePlay);
+
+// Driven by the element's own events, so the control reports what is actually
+// happening rather than what was last clicked: autoplay refused on iOS, or the
+// clip stalling on a slow connection, both land here and relabel the button
+// into the one that will fix it.
+['play', 'pause'].forEach(type => frame.addEventListener(type, () => {
+  const playing = !frame.paused;
+  playpause.innerHTML = playing ? '&#9208;&#xFE0E;' : '&#9654;&#xFE0E;';
+  playpause.title = playing ? 'Pause — or press space' : 'Play — or press space';
+  playpause.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+}));
 
 // loadedmetadata, not canplay: the intrinsic size is what the fit needs and it
 // is known well before enough data to play has arrived.
@@ -1074,6 +1114,16 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') about.open = false;
+  // Space toggles playback, unless something with a prior claim on it has
+  // focus. Guarding on where focus *is* rather than on a set of state flags
+  // covers each case at its source: a focused button already treats space as a
+  // click and would otherwise fire twice, a text field needs the literal
+  // character, and an open dialog owns the keyboard while it is up.
+  if (e.key === ' ' && !frame.hidden &&
+      !e.target.closest?.('input, textarea, select, button, dialog[open], [contenteditable]')) {
+    e.preventDefault();  // space scrolls the page otherwise
+    togglePlay();
+  }
 });
 
 // version.json is written into web/ by whichever workflow deployed this copy —
