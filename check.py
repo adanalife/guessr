@@ -25,6 +25,7 @@ exists but is missing a file the manifest names is a real failure, not that mode
 """
 
 import json
+import math
 import struct
 import sys
 from collections import Counter
@@ -119,6 +120,30 @@ def dimensions(path: Path) -> tuple[int, int]:
 def band(median_km: float) -> int:
     """1 (easiest) to 3 (hardest) -- the same reading as difficulty() in daily.js."""
     return 1 if median_km < EASY_KM else 2 if median_km < HARD_KM else 3
+
+
+def repeat_rate(pool: int, days: int = 90) -> tuple[int, float]:
+    """Distinct rounds a daily player meets over `days`, and what share repeat.
+
+    dailyRounds() in web/daily.js reshuffles the *whole* pool for every day and
+    takes five. It does not deal the pool out into non-overlapping days, so
+    "pool / 5 days before anything repeats" -- which this file used to print --
+    describes a draw that was never implemented. Repeats begin in the first week
+    or two at any pool size worth having; what a bigger pool buys is how *often*
+    one comes round again, not whether.
+
+    Each of the `5 * days` draws is uniform over the pool and independent, so the
+    chance a given round is never drawn is (1 - 1/pool)**draws, i.e. e**-(d/pool)
+    for a pool of any size. Expected distinct rounds follows, and everything else
+    served was something the player had already seen.
+
+    Checked against the real draw in test_check.py rather than trusted: this is
+    the number that says whether a set is big enough, and being wrong about it in
+    the reassuring direction is how the previous one lasted.
+    """
+    draws = ROUNDS_PER_GAME * days
+    distinct = pool * (1 - math.exp(-draws / pool))
+    return round(distinct), (draws - distinct) / draws
 
 
 def main() -> int:
@@ -225,9 +250,10 @@ def main() -> int:
     states = {answers[r["image"]]["state"] for r in rounds}
     spread = sorted(r["median_km"] for r in rounds)
     print(f"ok: {len(rounds)} rounds, {len(states)} states, {cropped}")
+    distinct, repeats = repeat_rate(len(rounds))
     print(
-        f"    enough for {len(rounds) // ROUNDS_PER_GAME} days of dailies "
-        f"before rounds start repeating"
+        f"    a daily player meets {distinct} of them over 90 days, with "
+        f"{repeats:.0%} of what they are served a round they have had before"
     )
     # Worth eyeballing: the corpus tops out past 4000 km, so a max anywhere near
     # that means the locatability filter stopped biting.

@@ -367,8 +367,16 @@ since the draw is deterministic and computed on the client. A refused play comes
 back as a 403 with a distinct message, and the page treats a 4xx as final rather
 than inviting a retry that cannot work.
 
-The pool needs to stay comfortably larger than five times however many days you
-want before rounds repeat; `task check` reports that number. Regenerating
+**Rounds repeat sooner than the pool size suggests.** A day reshuffles the whole
+pool and takes five; it does not deal the pool out into non-overlapping days. So
+repeats begin within the first week or two whatever the pool size, and what a
+bigger pool buys is how *often* one comes round again. At 300 rounds, a player
+who plays all of the next 90 days meets 233 of them and sees a repeat about
+every other round; `task check` reports both numbers for the current set.
+
+Dealing days out of an unused slice instead would genuinely delay the first
+repeat, at the cost of a draw that has to know which days have already been
+played — worth it only if anyone ever plays long enough to mind. Regenerating
 `rounds.json` reshuffles future dailies, since the draw depends on which rounds
 exist — worth doing between days rather than mid-day.
 

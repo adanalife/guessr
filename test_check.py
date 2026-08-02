@@ -16,7 +16,7 @@ import struct
 import tempfile
 from pathlib import Path
 
-from check import EASY_KM, HARD_KM, dimensions
+from check import EASY_KM, HARD_KM, dimensions, repeat_rate
 
 HERE = Path(__file__).parent
 
@@ -128,5 +128,28 @@ for name, value in (("EASY_KM", EASY_KM), ("HARD_KM", HARD_KM)):
         f"{name} is {value:g} in check.py but not in web/daily.js"
     )
 
+# The repeat estimate, against the draw it claims to describe. These pool sizes
+# and percentages were read off a simulation of dailyRounds() from web/daily.js
+# over 90 days -- run it again if this ever fails rather than adjusting the
+# numbers to match, since the whole point is that check.py's previous claim
+# ("pool / 5 days before anything repeats") described a draw nobody implemented
+# and nothing caught it.
+for pool, distinct_sim, repeat_sim in ((300, 233, 0.48), (600, 318, 0.29)):
+    distinct, rate = repeat_rate(pool)
+    assert abs(distinct - distinct_sim) <= pool * 0.05, (
+        f"pool {pool}: estimate says {distinct} distinct rounds, the real draw "
+        f"gives {distinct_sim}"
+    )
+    assert abs(rate - repeat_sim) < 0.05, (
+        f"pool {pool}: estimate says {rate:.0%} repeats, the real draw gives "
+        f"{repeat_sim:.0%}"
+    )
+
+# A pool of five is one game, drawn again every day: everything repeats.
+assert repeat_rate(5)[1] > 0.98, repeat_rate(5)
+# And the estimate must never read as roomier than the pool actually is.
+assert repeat_rate(300)[0] <= 300
+
 print("ok: mp4 dimensions read correctly, and bad files raise")
+print("ok: the repeat estimate matches a simulation of the real daily draw")
 print("ok: the difficulty cutoffs agree with web/daily.js")
