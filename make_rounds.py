@@ -15,6 +15,12 @@ A run builds into web/.staging and only moves the result into place once check.p
 passes on it. A run that dies on an unmounted corpus or an unreachable database
 has to leave the current set exactly as it was rather than deleting it first.
 
+Selecting a set costs seconds and encoding one costs tens of minutes, so
+`--dry-run` stops between the two: it scores, selects, writes the manifest and
+the answers, and reports what the set would look like without cutting a single
+clip. That is the loop for tuning the knobs below, which otherwise can only be
+compared by paying for two full generations.
+
 web/clips/ is not committed -- a round set is ~125 MB and the repo is public, so
 committing one would add that to history on every regeneration, permanently. The
 manifest is committed and the media is uploaded separately (`task clips:push`),
@@ -413,6 +419,13 @@ def main() -> int:
     )
     ap.add_argument("--fps", type=int, default=30, help="output frame rate")
     ap.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="score and select, report what the set would look like, and cut "
+        "nothing. Scoring a pool takes seconds and encoding it takes tens of "
+        "minutes, so this is how the knobs above get tuned by trying them.",
+    )
+    ap.add_argument(
         "--threads",
         type=int,
         default=max(1, (os.cpu_count() or 2) // 2),
@@ -442,7 +455,11 @@ def main() -> int:
     random.seed(args.seed)
     shutil.rmtree(STAGING, ignore_errors=True)
     clips = STAGING / "clips"
-    clips.mkdir(parents=True)
+    # A dry run produces a manifest and its answers but no media, which is the
+    # same shape CI sees -- so check.py reports on the set and skips the media
+    # assertions on its own. Creating clips/ empty is what would turn that into
+    # a wall of missing-clip failures.
+    (STAGING if args.dry_run else clips).mkdir(parents=True)
 
     scored = score_candidates(args.namespace, args.pool, args.neighbours, args.seed)
     # Cut the visually generic clips by percentile rather than an absolute cosine
@@ -473,7 +490,14 @@ def main() -> int:
         if len(rounds) >= args.count:
             break
         name = f"{row['slug']}.mp4"
-        if not extract_clip(
+        if args.dry_run:
+            # The source going missing is what actually drops rounds from a set,
+            # and it costs a stat() rather than an encode -- so a dry run still
+            # reports the count it would really have ended up with.
+            if not (CORPUS / f"{row['slug']}.MP4").exists():
+                print(f"  skip {row['slug']} (no source clip)")
+                continue
+        elif not extract_clip(
             row,
             clips / name,
             args.width,
@@ -520,7 +544,8 @@ def main() -> int:
     (STAGING / "rounds.json").write_text(json.dumps(rounds, indent=1) + "\n")
     write_answers(answers, STAGING)
     states = {a["state"] for a in answers}
-    print(f"\nstaged {len(rounds)} rounds across {len(states)} states")
+    verb = "would stage" if args.dry_run else "staged"
+    print(f"\n{verb} {len(rounds)} rounds across {len(states)} states")
 
     validate = subprocess.run(
         [sys.executable, str(Path(__file__).parent / "check.py"), str(STAGING)]
@@ -531,6 +556,15 @@ def main() -> int:
             f"The rejected one is at {STAGING} to look at."
         )
         return 1
+
+    if args.dry_run:
+        print(
+            f"\ndry run: nothing was cut and {WEB} is untouched. The manifest "
+            f"and answers this run would have produced are in {STAGING}.\n"
+            f"Rerun with the same --seed and no --dry-run to build this set for "
+            f"real, or change the knobs and look again."
+        )
+        return 0
 
     swap_in(STAGING, WEB)
     size_mb = sum(f.stat().st_size for f in (WEB / "clips").iterdir()) / 1e6
