@@ -144,6 +144,10 @@
   /* Sized down from the footer's action buttons: this belongs to the build
      line, not to the game. */
   #reset, #reroll, #link { font-size: inherit; padding: .1rem .5rem; }
+  /* On its own line under the name: it opens a second thing rather than acting
+     on the name beside it, and reads as a row of two otherwise. Kept inside
+     #identity so it disappears with the line it belongs to. */
+  #link { display: block; margin-top: .5rem; }
   /* The GIF is one pixel per module, so it is scaled up rather than drawn large
      — pixelated because the browser's default smoothing blurs the module edges
      a camera is looking for. White ground is baked into the image, so it stays
