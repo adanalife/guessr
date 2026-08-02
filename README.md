@@ -305,10 +305,9 @@ Finishing writes the day to `localStorage`, so today's round can't be replayed
 for a better result. Practice mode draws at random and is unlimited.
 
 Both modes then order their five rounds easy to hard by `median_km` (see [How
-rounds are chosen](#how-rounds-are-chosen)), and the header shows the current
-round's band as three dots — `●●○`. The ordering runs on the drawn five, never
-on the pool, so it can't change *which* rounds a day draws. The band cutoffs
-(32 km and 120 km) are the terciles of the shipped set.
+rounds are chosen](#how-rounds-are-chosen)). The ordering runs on the drawn five,
+never on the pool, so it can't change *which* rounds a day draws. The ramp is
+felt, not shown — nothing in the header rates the round you are looking at.
 
 `test_daily.mjs` covers the draw, because it fails invisibly: if it stops being
 deterministic, every player simply gets different rounds, nothing errors, and
