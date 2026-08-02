@@ -2,10 +2,9 @@
 #
 # Fleet convention: every adanalife repo runs its cheap per-PR checks as steps
 # of one `gates` job here, because GitHub bills Actions per job rounded up to
-# the whole minute. This repo currently has only the title check, so there is no
-# saving today — the file exists so the shape matches everywhere and a second
-# gate is a step to add rather than a workflow (and a required-check rename) to
-# introduce.
+# the whole minute. Five checks in one job is four minutes of billing saved per
+# PR, and a sixth is a step to add rather than a workflow (and a required-check
+# rename) to introduce.
 #
 # `gates` always reports, even when an individual step is inapplicable, so it is
 # safe to mark required in branch protection — a path-filtered *workflow* would
@@ -14,7 +13,11 @@ name: pr-gates
 
 on:
   pull_request:
-    branches: [main]
+    # Every PR, whatever it targets. Filtering to `branches: [main]` meant a PR
+    # stacked on another feature branch ran no tests at all — the review that
+    # most wants them, since it is looking at the top of a stack rather than at
+    # a diff against main.
+    #
     # `edited` is what makes the title check re-run when a title is fixed.
     types: [opened, edited, reopened, synchronize]
 
@@ -75,3 +78,14 @@ jobs:
       # makes a regeneration reproducible. All stdlib-only and sub-second.
       - name: Python tests
         run: python3 test_check.py && python3 test_swap.py && python3 test_seed.py
+
+      # schema.sql is hand-written DDL that nothing else parses until someone
+      # runs `task schema:prod:push`, where a typo is discovered against the
+      # production database. sqlite3 is D1's own engine and ships on the runner,
+      # so loading it into a scratch database costs nothing and moves that
+      # discovery here. Idempotent by construction, hence running it twice: the
+      # push targets are documented as safe to re-run.
+      - name: Schema loads, twice
+        run: |
+          sqlite3 /tmp/schema-check.db < schema.sql
+          sqlite3 /tmp/schema-check.db < schema.sql
