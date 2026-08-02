@@ -124,7 +124,6 @@
   header .stat { font-variant-numeric: tabular-nums; color: var(--color-muted);
                  font-size: .95rem; }
   header .stat b { color: var(--color-text); }
-  header #difficultyDots { letter-spacing: .15em; }
   /* <details> rather than a dialog: it collapses natively, needs no script, and
      is keyboard-operable for free. The panel is absolute so opening it overlays
      the game instead of reflowing the header. */
@@ -280,12 +279,6 @@
   <h1>Guessr</h1>
   <span class="stat" id="label">Daily</span>
   <span class="stat">Round <b id="roundNum">1</b>/<b id="roundTot">5</b></span>
-  <!-- The label names the axis; the dots carry the rating. Dots rather than a
-       word for the rating itself, because "Hard" next to a round reads as a
-       ready-made excuse for a bad guess. role=img with an aria-label so a
-       screen reader gets the rating instead of spelling out the glyphs -- the
-       label sits outside that span so it isn't announced twice. -->
-  <span class="stat" id="difficulty" hidden>Difficulty <b id="difficultyDots" role="img"></b></span>
   <span class="stat">Score <b id="score">0</b></span>
   <span class="spacer"></span>
   <details id="about" class="stat">
@@ -374,8 +367,8 @@
      zoom.js's globals are in place by the time this executes. -->
 <script type="module">
 import {
-  DIFFICULTY_LEVELS, ROUNDS_PER_GAME, dailyRounds, dailyState, dateForDay,
-  difficulty, effectiveDay, pick, rampEasyToHard,
+  ROUNDS_PER_GAME, dailyRounds, dailyState, dateForDay,
+  effectiveDay, pick, rampEasyToHard,
 } from './daily.js';
 import { aliasFrom } from './alias.js';
 
@@ -660,19 +653,9 @@ map.on('click', e => {
   go.textContent = 'Guess';
 });
 
-function showDifficulty(round) {
-  el('difficulty').hidden = !round;
-  if (!round) return;
-  const level = difficulty(round);
-  const dots = el('difficultyDots');
-  dots.textContent = '●'.repeat(level) + '○'.repeat(DIFFICULTY_LEVELS - level);
-  dots.setAttribute('aria-label', `${level} of ${DIFFICULTY_LEVELS}`);
-}
-
 function startRound() {
   const r = game[idx];
   setFrame(r.image);
-  showDifficulty(r);
   el('roundNum').textContent = idx + 1;
   clearMarks();
   if (guess) { map.removeLayer(guess); guess = null; }
@@ -965,7 +948,6 @@ function finish() {
     go.textContent = 'Play again';
   }
   setFrame(null);
-  showDifficulty(null);
   // Back to the even split: the frame pane now holds the contact sheet and the
   // map holds all five rounds, so neither is the junior partner any more. Before
   // showSummary, which fits the board to whatever box the map ends up in.
@@ -995,7 +977,6 @@ function showFinished(saved) {
   el('roundTot').textContent = saved.results.length;
   el('score').textContent = saved.total.toLocaleString();
   setFrame(null);
-  showDifficulty(null);
   setLayout(false);
   go.hidden = true;
   shareBtn.hidden = false;
