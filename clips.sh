@@ -45,7 +45,9 @@ case "${1:?usage: clips.sh push|pull|key}" in
   push)
     k=$(key)
     test -d "$WEB/clips" || { echo "no web/clips/ to push -- run \`task rounds\`" >&2; exit 1; }
-    tmp=$(mktemp -t guessr-clips); trap 'rm -f "$tmp"' EXIT
+    # Bare mktemp, no -t: BSD treats its argument as a prefix and GNU treats it
+    # as a template needing literal X's, so the portable spelling is neither.
+    tmp=$(mktemp); trap 'rm -f "$tmp"' EXIT
     # -C so the archive holds clips/x.mp4 rather than the absolute path, which
     # is what lets the pull side extract straight into web/.
     tar -cf "$tmp" -C "$WEB" clips
@@ -57,7 +59,9 @@ case "${1:?usage: clips.sh push|pull|key}" in
 
   pull)
     k=$(key)
-    tmp=$(mktemp -t guessr-clips); trap 'rm -f "$tmp"' EXIT
+    # Bare mktemp, no -t: BSD treats its argument as a prefix and GNU treats it
+    # as a template needing literal X's, so the portable spelling is neither.
+    tmp=$(mktemp); trap 'rm -f "$tmp"' EXIT
     # A miss here is the whole reason this is content-addressed: it means the
     # committed manifest names a set that was never uploaded, which is otherwise
     # a green deploy full of black panes.
