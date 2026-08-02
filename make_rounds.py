@@ -207,7 +207,14 @@ def score_candidates(
 
 
 def extract_clip(
-    row: dict, dest: Path, width: int, seconds: float, crf: int, fps: int
+    row: dict,
+    dest: Path,
+    width: int,
+    seconds: float,
+    crf: int,
+    fps: int,
+    threads: int,
+    niceness: int,
 ) -> bool:
     """Cut one HUD-free clip. Returns False if the source isn't readable.
 
@@ -228,8 +235,18 @@ def extract_clip(
       bytes for something no player will ever hear.
     - `veryslow`: this runs once per round on a laptop, offline. The frames are
       the deliverable, so there is no reason to trade their size for encode time.
+      It buys about 2% over `slow` for 3.5x the time, which is a bad trade
+      anywhere the encode is on someone's critical path and a free one here.
     - `+faststart` puts the moov atom first, so the browser can start playing on
       the first bytes instead of waiting for the whole file.
+
+    `nice` and `-threads` bound what the encode can take rather than trusting it
+    to be modest. Three hundred of these is ~25 minutes of x264 that will use
+    every core it is given, and the machines that would run it are machines with
+    something else to do: a laptop being typed on, or -- if round generation ever
+    moves to the minipc -- a node that is also playing out the live stream, where
+    CPU contention is a known cause of a choppy broadcast. Half the cores and a
+    positive nice value cost wall-clock and nothing else.
     """
     src = CORPUS / f"{row['slug']}.MP4"
     if not src.exists():
@@ -238,6 +255,9 @@ def extract_clip(
     vf = f"crop=iw:ih-{HUD_STRIP_PX}:0:0,scale={width}:-2,fps={fps}"
     proc = subprocess.run(
         [
+            "nice",
+            "-n",
+            str(niceness),
             "ffmpeg",
             "-y",
             "-loglevel",
@@ -267,6 +287,8 @@ def extract_clip(
             "yuv420p",
             "-movflags",
             "+faststart",
+            "-threads",
+            str(threads),
             str(dest),
         ],
         capture_output=True,
@@ -390,6 +412,21 @@ def main() -> int:
         "28 rather than the smaller numbers a size argument alone would pick.",
     )
     ap.add_argument("--fps", type=int, default=30, help="output frame rate")
+    ap.add_argument(
+        "--threads",
+        type=int,
+        default=max(1, (os.cpu_count() or 2) // 2),
+        help="cores x264 may use, half of them by default. See extract_clip: "
+        "the encode is long enough to be worth bounding on a machine that has "
+        "anything else to do.",
+    )
+    ap.add_argument(
+        "--nice",
+        type=int,
+        default=10,
+        help="scheduling niceness for the encode, so it loses every contest for "
+        "a core rather than winning some of them",
+    )
     ap.add_argument("--namespace", default="stage-1-data")
     ap.add_argument(
         "--seed",
@@ -437,7 +474,14 @@ def main() -> int:
             break
         name = f"{row['slug']}.mp4"
         if not extract_clip(
-            row, clips / name, args.width, args.seconds, args.crf, args.fps
+            row,
+            clips / name,
+            args.width,
+            args.seconds,
+            args.crf,
+            args.fps,
+            args.threads,
+            args.nice,
         ):
             print(f"  skip {row['slug']} (unreadable)")
             continue
