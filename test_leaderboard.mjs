@@ -1,0 +1,118 @@
+// Cover the board query: who places, in what order, and under which name.
+//
+// Worth testing because every way it goes wrong is silent. A board with the
+// wrong name on it renders perfectly, and the wrong-name case is exactly the one
+// nobody can reproduce on demand -- it needs a player who rerolled between two
+// plays, which no amount of clicking through `task dev` produces by accident.
+//
+// It runs the real query against a real SQLite over the real schema.sql, so the
+// only thing not exercised here is D1's binding layer.
+
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
+import { query } from './functions/api/leaderboard.js';
+
+const DAILY = query('= ?');
+const MONTHLY = query("LIKE ? || '-%'");
+
+// played_at is a plain string column, so a test can hand-place rows in time
+// rather than sleep through a second to separate two of them.
+let tick = 0;
+const at = () => `2026-08-01 12:00:${String(tick++).padStart(2, '0')}`;
+
+function db(rows) {
+  const d = new DatabaseSync(':memory:');
+  d.exec(readFileSync('schema.sql', 'utf8'));
+  const insert = d.prepare(`INSERT INTO plays
+    (date, player_id, image, km, points, handle, played_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)`);
+  for (const [date, player, image, points, handle, when] of rows) {
+    insert.run(date, player, image, 1.0, points, handle, when ?? at());
+  }
+  return d;
+}
+
+const board = (d, sql, period) => d.prepare(sql).all(period, 10)
+  .map(r => [r.name, r.points]);
+
+// A player who rerolls mid-day wears the new name, not the alphabetically-last
+// one -- which is the whole point, and which both orderings below have to agree
+// on or the test is only pinning the sort it happened to get.
+for (const [first, second] of [
+  ['Winding Valley', 'Amber Basin'],  // renaming down the alphabet
+  ['Amber Basin', 'Winding Valley'],  // and up it
+]) {
+  const d = db([
+    ['2026-08-01', 'p1', 'a.jpg', 100, first],
+    ['2026-08-01', 'p1', 'b.jpg', 200, second],
+  ]);
+  assert.deepEqual(board(d, DAILY, '2026-08-01'), [[second, 300]],
+    `renaming ${first} -> ${second} did not take`);
+}
+
+// The rename reaches back: a name changed today shows on a day that closed
+// before it existed. Without this a player can only ever see a new name on a
+// board they have not played yet.
+{
+  const d = db([
+    ['2026-07-30', 'p1', 'a.jpg', 100, 'Amber Basin'],
+    ['2026-08-01', 'p1', 'b.jpg', 100, 'Winding Valley'],
+  ]);
+  assert.deepEqual(board(d, DAILY, '2026-07-30'), [['Winding Valley', 100]],
+    'a closed day kept the old name');
+}
+
+// A nameless play does not blank a name the player still has. This is the
+// realistic one: parsePlay drops a forged handle, so a single scripted post
+// would otherwise wipe the label off a legitimate player's whole history.
+{
+  const d = db([
+    ['2026-08-01', 'p1', 'a.jpg', 100, 'Amber Basin'],
+    ['2026-08-01', 'p1', 'b.jpg', 100, null],
+  ]);
+  assert.deepEqual(board(d, DAILY, '2026-08-01'), [['Amber Basin', 200]],
+    'a nameless play erased a name');
+}
+
+// A player with no name anywhere still places; the handler renders the null as
+// the placeholder.
+{
+  const d = db([['2026-08-01', 'p1', 'a.jpg', 100, null]]);
+  assert.deepEqual(board(d, DAILY, '2026-08-01'), [[null, 100]]);
+}
+
+// Same second, two rounds: insert order decides, so a reroll between two quick
+// plays is not a coin flip.
+{
+  const when = '2026-08-01 12:00:00';
+  const d = db([
+    ['2026-08-01', 'p1', 'a.jpg', 100, 'Amber Basin', when],
+    ['2026-08-01', 'p1', 'b.jpg', 100, 'Winding Valley', when],
+  ]);
+  assert.deepEqual(board(d, DAILY, '2026-08-01'), [['Winding Valley', 200]],
+    'a same-second tie did not fall back to insert order');
+}
+
+// The ranking itself, which the name change must not disturb: points sum per
+// player across the span, best first, and two players stay two players even
+// wearing the same alias.
+{
+  const d = db([
+    ['2026-08-01', 'p1', 'a.jpg', 100, 'Amber Basin'],
+    ['2026-08-01', 'p2', 'a.jpg', 400, 'Amber Basin'],
+    ['2026-08-01', 'p1', 'b.jpg', 200, 'Amber Basin'],
+    ['2026-08-02', 'p1', 'a.jpg', 900, 'Amber Basin'],   // another day, same month
+    ['2026-07-31', 'p1', 'a.jpg', 500, 'Amber Basin'],   // another month entirely
+  ]);
+  assert.deepEqual(board(d, DAILY, '2026-08-01'),
+    [['Amber Basin', 400], ['Amber Basin', 300]],
+    'the daily board is not one date, best first');
+  assert.deepEqual(board(d, MONTHLY, '2026-08'),
+    [['Amber Basin', 1200], ['Amber Basin', 400]],
+    'the monthly board is not the month summed');
+}
+
+console.log('ok: a reroll renames a player on every board, back through history');
+console.log('ok: a nameless play does not cost a player their name');
+console.log('ok: the boards still rank by summed points over their own span');

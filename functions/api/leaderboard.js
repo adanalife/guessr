@@ -40,13 +40,36 @@ const PLACEHOLDER = 'anonymous';
 // chose. Should typed names ever land, the allowlist lands with them and joins
 // in right here.
 //
-// ponytail: MAX picks alphabetically-last for a player who rerolled mid-span.
-// Rerolling is a button in the About panel, the cost is a stale-but-safe label,
-// and last-write-wins needs a correlated subquery over played_at.
-const query = span => `
+// Which name: the last one that player recorded anywhere, rather than the last
+// one inside this span. A handle is a label and not an identity, so rerolling
+// renames a player's whole history at once -- and scoped to the span instead, a
+// name changed after a day had closed could never reach that day's board, which
+// is the board the overlay shows most. Nothing is lost by renaming backwards,
+// because `player_id` is what ranks a player and the label rides beside it.
+//
+// A reroll lands on the boards from that player's next recorded round: a handle
+// only reaches this table on the back of a play, and no endpoint sets one alone.
+//
+// `handle IS NOT NULL` because a play can be nameless -- from a browser that
+// refuses localStorage, or carrying a name the wordlist could not have made,
+// which parsePlay drops. Without it, one such play would blank a name the player
+// still has on every other row.
+//
+// ponytail: the subquery seeks per board row and there is no index on
+// player_id alone, so it scans. Ten scans of days x players x 5 rows, behind a
+// 60s cache; add `(player_id, played_at)` to schema.sql if a profile says so.
+// Exported for test_leaderboard.mjs, which runs it against a real SQLite rather
+// than a second copy of it. Pages only looks for the onRequest* exports.
+export const query = span => `
   SELECT p.player_id,
          SUM(p.points) AS points,
-         MAX(p.handle) AS name
+         (SELECT h.handle
+            FROM plays h
+           WHERE h.player_id = p.player_id AND h.handle IS NOT NULL
+           -- played_at is second-resolution, so two rounds committed inside one
+           -- second tie; rowid breaks it by insert order.
+           ORDER BY h.played_at DESC, h.rowid DESC
+           LIMIT 1) AS name
     FROM plays p
    WHERE p.date ${span}
    GROUP BY p.player_id
