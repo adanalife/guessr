@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.7.0](https://github.com/adanalife/guessr/compare/v0.6.0...v0.7.0) (2026-08-02)
+
+
+### Features
+
+* **api:** serve the daily and monthly boards ([#43](https://github.com/adanalife/guessr/issues/43)) ([b69dcf3](https://github.com/adanalife/guessr/commit/b69dcf36a60f9d7f4ad091d3e45004b975f0c57a))
+* **score:** verify a daily play against that date's draw and window ([#42](https://github.com/adanalife/guessr/issues/42)) ([d28c646](https://github.com/adanalife/guessr/commit/d28c6463591b30bdf5b0a9687e0940c9ad0a0660))
+* **web:** play under a generated two-word alias ([#45](https://github.com/adanalife/guessr/issues/45)) ([f357c40](https://github.com/adanalife/guessr/commit/f357c402d02688f1edd140189327c017dbf076bb))
+* **web:** take the blog's ET Book type and light/dark palette ([#46](https://github.com/adanalife/guessr/issues/46)) ([a5937ca](https://github.com/adanalife/guessr/commit/a5937ca6faef156d9986868d6fdcadf0e928bf0b))
+
 ## [0.6.0](https://github.com/adanalife/guessr/compare/v0.5.1...v0.6.0) (2026-08-01)
 
 
