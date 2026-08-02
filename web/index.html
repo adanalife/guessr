@@ -167,9 +167,9 @@
          grid-template-columns: 1fr 1fr; min-height: 0; }
   /* touch-action: none so a pinch zooms the frame instead of the page. Leaflet
      owns its own gestures next door; the two panes never see each other's. */
-  #photo { position: relative; overflow: hidden; background: var(--color-bg);
+  #pane { position: relative; overflow: hidden; background: var(--color-bg);
            touch-action: none; cursor: grab; }
-  #photo.dragging { cursor: grabbing; }
+  #pane.dragging { cursor: grabbing; }
   #frame { position: absolute; top: 0; left: 0; transform-origin: 0 0;
            user-select: none; }
   /* Deliberately Leaflet's own control styling, in Leaflet's own corner: the
@@ -341,7 +341,7 @@
   </div>
 </dialog>
 <main>
-  <div id="photo">
+  <div id="pane">
     <!-- draggable="false" is what stops a drag on the frame from starting a
          native drag instead of panning. It belongs in the markup rather
          than the stylesheet: `-webkit-user-drag` is WebKit-only, so on Firefox
@@ -527,7 +527,7 @@ const homeView = () => map.fitBounds(US_BOUNDS, { animate: false });
 homeView();
 
 const el = id => document.getElementById(id);
-const photo = el('photo'), go = el('go'), result = el('result');
+const pane = el('pane'), go = el('go'), result = el('result');
 const shareBtn = el('share'), practiceBtn = el('practice'), historyBtn = el('history');
 
 // Which of the two panes is dominant, as a pair of classes the stylesheet reads
@@ -559,8 +559,8 @@ const frame = el('frame');
 let view = { scale: 1, x: 0, y: 0 };
 
 const imgSize = () => ({ w: frame.videoWidth, h: frame.videoHeight });
-const boxSize = () => ({ w: photo.clientWidth, h: photo.clientHeight });
-const ready = () => frame.videoWidth > 0 && photo.clientWidth > 0;
+const boxSize = () => ({ w: pane.clientWidth, h: pane.clientHeight });
+const ready = () => frame.videoWidth > 0 && pane.clientWidth > 0;
 
 function draw(next) {
   view = next;
@@ -594,7 +594,7 @@ function setFrame(url) {
 
 // Box coordinates for a pointer or wheel event.
 function localPoint(e) {
-  const box = photo.getBoundingClientRect();
+  const box = pane.getBoundingClientRect();
   return [e.clientX - box.left, e.clientY - box.top];
 }
 
@@ -604,7 +604,7 @@ function zoom(px, py, factor) {
 
 // The buttons zoom about the middle of the pane, since a click on a control in
 // the corner says nothing about where the player is looking.
-const zoomCentre = factor => zoom(photo.clientWidth / 2, photo.clientHeight / 2, factor);
+const zoomCentre = factor => zoom(pane.clientWidth / 2, pane.clientHeight / 2, factor);
 
 const zoomctl = el('zoomctl');
 el('zin').addEventListener('click', () => zoomCentre(1.5));
@@ -642,9 +642,9 @@ playpause.addEventListener('click', togglePlay);
 // loadedmetadata, not canplay: the intrinsic size is what the fit needs and it
 // is known well before enough data to play has arrived.
 frame.addEventListener('loadedmetadata', resetView);
-new ResizeObserver(resetView).observe(photo);
+new ResizeObserver(resetView).observe(pane);
 
-photo.addEventListener('wheel', e => {
+pane.addEventListener('wheel', e => {
   e.preventDefault();
   const [px, py] = localPoint(e);
   zoom(px, py, Math.exp(-e.deltaY * 0.002));
@@ -652,7 +652,7 @@ photo.addEventListener('wheel', e => {
 
 // Double-click and double-tap both land here. It toggles rather than only
 // zooming in, which is the reset control as well.
-photo.addEventListener('dblclick', e => {
+pane.addEventListener('dblclick', e => {
   const [px, py] = localPoint(e);
   if (view.scale > fitScale(imgSize(), boxSize()) * 1.01) resetView();
   else zoom(px, py, 2.5);
@@ -668,14 +668,14 @@ const spread = () => {
   return Math.hypot(a[0] - b[0], a[1] - b[1]);
 };
 
-photo.addEventListener('pointerdown', e => {
-  photo.setPointerCapture(e.pointerId);
+pane.addEventListener('pointerdown', e => {
+  pane.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId, localPoint(e));
-  photo.classList.add('dragging');
+  pane.classList.add('dragging');
   if (pointers.size === 2) pinch = spread();
 });
 
-photo.addEventListener('pointermove', e => {
+pane.addEventListener('pointermove', e => {
   const prev = pointers.get(e.pointerId);
   if (!prev) return;
   const now = localPoint(e);
@@ -695,10 +695,10 @@ photo.addEventListener('pointermove', e => {
 const releasePointer = e => {
   pointers.delete(e.pointerId);
   if (pointers.size < 2) pinch = 0;
-  if (!pointers.size) photo.classList.remove('dragging');
+  if (!pointers.size) pane.classList.remove('dragging');
 };
-photo.addEventListener('pointerup', releasePointer);
-photo.addEventListener('pointercancel', releasePointer);
+pane.addEventListener('pointerup', releasePointer);
+pane.addEventListener('pointercancel', releasePointer);
 
 let pool = [], game = [], idx = 0, total = 0, guess = null, marks = [];
 let mode = 'daily', results = [], guesses = [];
