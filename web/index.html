@@ -7,12 +7,14 @@
 <meta name="description" content="Five rounds a day from a year of driving the United States. Where is this?">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <!-- iOS home-screen icon: PNG only, and it ignores transparency, so this one
-     carries the page background rather than an alpha channel. -->
+     carries a dark background rather than an alpha channel. -->
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <!-- iOS labels a home-screen icon from <title>, which is too long for it. -->
 <meta name="apple-mobile-web-app-title" content="Guessr">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#111111">
+<!-- Rewritten to match the palette by setTheme() below; this is the dark value
+     so an installed icon's splash agrees with the manifest either way. -->
+<meta name="theme-color" content="#1a1a1a">
 
 <!-- The misspelling aliases (guesser.dana.lol and friends) serve this same page
      rather than redirecting, and the staging tier and per-PR previews are more
@@ -33,9 +35,74 @@
 <meta property="og:image:alt" content="A dashcam view of a San Francisco intersection lined with Victorian houses, titled Guessr">
 <meta name="twitter:card" content="summary_large_image">
 
+<!-- The palette, before first paint, so the page never flashes the wrong one.
+     Same `theme` key and same light/dark values as the blog, though the two are
+     separate origins and so keep separate copies of the choice. -->
+<script>
+  // Everywhere the palette has to be set at once: the attribute the stylesheet
+  // keys off, the UA's own scrollbar and form-control colours, and the mobile
+  // browser chrome. The meta tag is above this script because of that last one.
+  function setTheme(theme) {
+    var d = document.documentElement;
+    d.setAttribute('data-theme', theme);
+    d.style.setProperty('color-scheme', theme);
+    document.querySelector('meta[name=theme-color]')
+      .setAttribute('content', theme === 'dark' ? '#1a1a1a' : '#fffff8');
+  }
+
+  function toggleTheme() {
+    var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    try { localStorage.setItem('theme', next); } catch (e) { /* nothing to remember */ }
+  }
+
+  // A Safari private window throws rather than returning null, and an
+  // unreadable preference is no reason to serve an unthemed page.
+  var savedTheme = null;
+  try { savedTheme = localStorage.getItem('theme'); } catch (e) { /* fall back to the OS */ }
+  setTheme(savedTheme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+</script>
+
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
-  :root { color-scheme: dark; }
+  /* Type and colour come from the blog: the same ET Book faces and the same
+     `data-theme` palette, so the game reads as part of the same site. Tufte
+     CSS's stylesheet itself is not carried over — nearly all of it is article
+     layout (sidenotes, 55%-wide sections, figures) and none of that has
+     anything to say about a full-viewport game. */
+  @font-face { font-family: "et-book"; font-weight: normal; font-style: normal;
+               font-display: swap;
+               src: url("et-book/et-book-roman-line-figures.woff") format("woff"); }
+  @font-face { font-family: "et-book"; font-weight: normal; font-style: italic;
+               font-display: swap;
+               src: url("et-book/et-book-display-italic-old-style-figures.woff") format("woff"); }
+  @font-face { font-family: "et-book"; font-weight: bold; font-style: normal;
+               font-display: swap;
+               src: url("et-book/et-book-bold-line-figures.woff") format("woff"); }
+
+  /* The blog's variables verbatim, plus two an article never needs: a raised
+     panel surface for the dialog and the About popover, and an accent for the
+     unread dot — the blog has nothing that has to catch the eye like that. */
+  :root, [data-theme='light'] {
+    --color-bg: #fffff8;
+    --color-text: #111;
+    --color-border: #ccc;
+    --color-muted: grey;
+    --color-selection: #b4d5fe;
+    --color-panel: #fff;
+    --color-accent: #0369a1;
+  }
+  [data-theme='dark'] {
+    --color-bg: #1a1a1a;
+    --color-text: #e8e6d8;
+    --color-border: #444;
+    --color-muted: #888;
+    --color-selection: #2d4a7a;
+    --color-panel: #242424;
+    --color-accent: #7dd3fc;
+  }
+  ::selection { background: var(--color-selection); }
+
   * { box-sizing: border-box; }
   /* An explicit `display` beats the UA stylesheet's `[hidden] { display: none }`,
      so anything laid out with flex or grid stays on screen while hidden. Several
@@ -43,56 +110,62 @@
   [hidden] { display: none !important; }
   /* dvh so iOS Safari's collapsing chrome doesn't clip the footer. */
   body { margin: 0; height: 100vh; height: 100dvh; display: flex; flex-direction: column;
-         background: #111; color: #eee;
-         font: 15px/1.4 ui-sans-serif, system-ui, sans-serif; }
+         background: var(--color-bg); color: var(--color-text);
+         font: 17px/1.45 et-book, Palatino, "Palatino Linotype", "Palatino LT STD",
+               "Book Antiqua", Georgia, serif; }
+  /* Blog links: the text's own colour, underlined clear of the descenders. */
+  a { color: inherit; text-underline-offset: .1em; text-decoration-thickness: .05em; }
   /* Above Leaflet's controls (z-index 800), so the About panel isn't painted
      over by the map pane below it. */
   header { display: flex; align-items: baseline; gap: 1rem; padding: .6rem 1rem;
-           border-bottom: 1px solid #333; position: relative; z-index: 1000; }
-  header h1 { font-size: 1rem; font-weight: 600; margin: 0; letter-spacing: .02em; }
+           border-bottom: 1px solid var(--color-border); position: relative; z-index: 1000; }
+  header h1 { font-size: 1.5rem; font-weight: 400; margin: 0; letter-spacing: .01em; }
   header .spacer { flex: 1; }
-  header .stat { font-variant-numeric: tabular-nums; color: #aaa; }
-  header .stat b { color: #eee; }
+  header .stat { font-variant-numeric: tabular-nums; color: var(--color-muted);
+                 font-size: .95rem; }
+  header .stat b { color: var(--color-text); }
   header #difficultyDots { letter-spacing: .15em; }
   /* <details> rather than a dialog: it collapses natively, needs no script, and
      is keyboard-operable for free. The panel is absolute so opening it overlays
      the game instead of reflowing the header. */
-  #about summary { cursor: pointer; color: #aaa; list-style: none; }
+  #about summary { cursor: pointer; color: var(--color-muted); list-style: none; }
   #about summary::-webkit-details-marker { display: none; }
-  #about summary:hover, #about[open] summary { color: #eee; }
+  #about summary:hover, #about[open] summary { color: var(--color-text); }
   #about .panel { position: absolute; right: 1rem; top: 2.4rem;
-                  width: min(24rem, calc(100vw - 2rem));
-                  background: #1b1b1b; border: 1px solid #3a3a3a; border-radius: 8px;
-                  padding: .2rem 1rem 1rem; box-shadow: 0 10px 30px #000c; }
-  #about p { color: #bbb; }
-  #about a { color: #7dd3fc; }
+                  width: min(26rem, calc(100vw - 2rem));
+                  background: var(--color-panel); border: 1px solid var(--color-border);
+                  border-radius: 8px;
+                  padding: .2rem 1rem 1rem; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
   #about .links { display: flex; flex-wrap: wrap; gap: .3rem 1rem; }
   #about .links svg { width: 1em; height: 1em; vertical-align: -.13em;
                       margin-right: .35em; fill: currentColor; }
-  #build { border-top: 1px solid #333; padding-top: .6rem; margin-bottom: 0;
-           color: #888; font-size: .9em; }
+  #build { border-top: 1px solid var(--color-border); padding-top: .6rem; margin-bottom: 0;
+           color: var(--color-muted); font-size: .9em; }
   /* Sized down from the footer's action buttons: this belongs to the build
      line, not to the game. */
-  #reset { font-size: inherit; padding: .1rem .5rem; border-color: #444; }
+  #reset { font-size: inherit; padding: .1rem .5rem; }
   #about .dot { display: inline-block; width: .45rem; height: .45rem;
-                border-radius: 50%; background: #7dd3fc;
+                border-radius: 50%; background: var(--color-accent);
                 margin-left: .4rem; vertical-align: .08em; }
   /* A native <dialog> for the intro: showModal() brings the backdrop, the
      focus trap and Escape-to-dismiss with it, and none of that is worth
      re-implementing for one panel. */
-  #welcome { border: 1px solid #3a3a3a; border-radius: 10px; background: #1b1b1b;
-             color: #eee; font: inherit; padding: 1.5rem;
-             width: min(26rem, calc(100vw - 2rem));
-             box-shadow: 0 20px 50px #000c; }
-  #welcome::backdrop { background: #000b; }
-  #welcome h2 { margin: 0 0 .6rem; font-size: 1.1rem; }
-  #welcome p { color: #bbb; margin: .5rem 0; }
+  #welcome { border: 1px solid var(--color-border); border-radius: 10px;
+             background: var(--color-panel);
+             color: var(--color-text); font: inherit; padding: 1.5rem;
+             width: min(28rem, calc(100vw - 2rem));
+             box-shadow: 0 20px 50px rgba(0, 0, 0, .35); }
+  #welcome::backdrop { background: rgba(0, 0, 0, .7); }
+  /* Italic and unbolded, the way the blog sets a heading. */
+  #welcome h2 { margin: 0 0 .8rem; font-size: 1.4rem; font-style: italic;
+                font-weight: 400; line-height: 1.15; }
+  #welcome p { margin: .5rem 0; }
   #welcome .actions { display: flex; gap: .6rem; margin-top: 1.1rem; }
   main { flex: 1; position: relative; display: grid;
          grid-template-columns: 1fr 1fr; min-height: 0; }
   /* touch-action: none so a pinch zooms the frame instead of the page. Leaflet
      owns its own gestures next door; the two panes never see each other's. */
-  #photo { position: relative; overflow: hidden; background: #000;
+  #photo { position: relative; overflow: hidden; background: var(--color-bg);
            touch-action: none; cursor: grab; }
   #photo.dragging { cursor: grabbing; }
   #frame { position: absolute; top: 0; left: 0; transform-origin: 0 0;
@@ -120,10 +193,13 @@
                   margin: 0; padding: 0; border: 0; border-radius: 4px;
                   background: none; line-height: 0; }
   #sheet img { width: 100%; display: block; border-radius: 4px; }
-  #sheet button.on img, #sheet button:focus-visible img { outline: 2px solid #eee;
+  #sheet button.on img, #sheet button:focus-visible img { outline: 2px solid var(--color-text);
                                                           outline-offset: 1px; }
   /* Same number and same band colour as the pin on the map, which is the only
-     thing tying a thumbnail to the answer it belongs to. */
+     thing tying a thumbnail to the answer it belongs to.
+     The badges here and on the map keep fixed colours and a sans face rather
+     than following the theme: both sit on top of a photograph or a map tile,
+     neither of which changes with it, and at 11px ET Book is mush. */
   #sheet .cap { position: absolute; top: 4px; left: 4px;
                 display: flex; align-items: center; gap: .3rem;
                 padding: 2px 6px 2px 2px; border-radius: 999px;
@@ -132,7 +208,7 @@
   #sheet .n { width: 18px; height: 18px; border-radius: 50%; color: #111;
               text-align: center; font: 700 11px/18px ui-sans-serif, system-ui, sans-serif; }
   #mapwrap { min-height: 0; }
-  #map { height: 100%; background: #222; }
+  #map { height: 100%; background: var(--color-bg); }
   /* While a round is being guessed the frame takes the whole pane and the map
      rides over its bottom-right corner. The frame is a 1280px still and
      squinting at it is the entire game, whereas the map only matters for the
@@ -153,7 +229,11 @@
     main.minimap #mapwrap { position: absolute; right: 1rem; bottom: 1rem; z-index: 500;
                             width: 22rem; height: 15rem;
                             border-radius: 8px; overflow: hidden;
-                            border: 2px solid #0006; box-shadow: 0 8px 24px #000a; }
+                            /* Unthemed, like the badges: this floats on the
+                               frame, and a border in the page's own colours
+                               vanishes into whatever the photo happens to be. */
+                            border: 2px solid #0006;
+                            box-shadow: 0 8px 24px rgba(0, 0, 0, .4); }
     main.minimap #mapwrap:hover, main.minimap #mapwrap:focus-within,
     main.minimap.wide #mapwrap { width: min(60%, 46rem); height: 78%; }
   }
@@ -164,15 +244,33 @@
               text-align: center;
               font: 700 12px/18px ui-sans-serif, system-ui, sans-serif; }
   footer { display: flex; align-items: center; gap: .6rem; padding: .6rem 1rem;
-           border-top: 1px solid #333; min-height: 3.2rem; flex-wrap: wrap; }
-  button { font: inherit; padding: .45rem 1.1rem; border-radius: 6px;
-           border: 1px solid #555; background: #eee; color: #111; cursor: pointer; }
-  button:disabled { background: #333; color: #777; cursor: default; }
-  button.secondary { background: transparent; color: #bbb; }
-  #result { flex: 1; min-width: 14rem; color: #bbb; }
-  #result b { color: #eee; }
+           border-top: 1px solid var(--color-border); min-height: 3.2rem; flex-wrap: wrap; }
+  /* Inverted against the page, so the button that plays the round is the
+     highest-contrast thing on screen whichever way the theme is set. */
+  button { font: inherit; padding: .35rem 1.1rem; border-radius: 6px;
+           border: 1px solid var(--color-text);
+           background: var(--color-text); color: var(--color-bg); cursor: pointer; }
+  button:disabled { background: transparent; color: var(--color-muted);
+                    border-color: var(--color-border); cursor: default; }
+  button.secondary { background: transparent; color: var(--color-muted);
+                     border-color: var(--color-border); }
+  button.secondary:hover { color: var(--color-text); border-color: var(--color-text); }
+  #result { flex: 1; min-width: 14rem; color: var(--color-muted); }
+  #result b { color: var(--color-text); }
   .squares { letter-spacing: .1em; }
-  @media (max-width: 800px) { main { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } }
+  .swatch { display: inline-block; width: .6rem; height: .6rem; border-radius: 2px;
+            margin-right: .3rem; }
+  /* The blog's footer toggle, in the game's footer. */
+  .theme-toggle { background: none; border: 0; padding: 0 .4em; font-size: 1.1rem;
+                  color: inherit; opacity: .6; }
+  .theme-toggle:hover { opacity: 1; }
+  @media (max-width: 800px) {
+    main { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    /* The wordmark at its desktop size costs the header a line on a phone,
+       where it is already the tightest row on the page. */
+    header { gap: .7rem; }
+    header h1 { font-size: 1.2rem; }
+  }
 </style>
 </head>
 <body>
@@ -256,6 +354,9 @@
   <button id="practice" class="secondary" hidden>Practice</button>
   <button id="history" class="secondary" hidden>All my guesses</button>
   <span id="result">Somewhere in the United States. Where?</span>
+  <!-- After #result, which is flex: 1, so the toggle sits at the far end. -->
+  <button type="button" class="theme-toggle" aria-label="Toggle dark mode"
+          onclick="toggleTheme()">🌓</button>
 </footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -726,6 +827,11 @@ function showSummary(rounds, played, res) {
 // share string and the end-of-game map.
 const DAILY_COLOUR = '#4ade80', PRACTICE_COLOUR = '#7dd3fc';
 
+// A swatch rather than colouring the label text: to be a legend at all the
+// colour has to be exactly the line's, and both line colours are chosen to read
+// on map tiles — as text on the page they wash out, badly on the light theme.
+const swatch = colour => `<span class="swatch" style="background:${colour}"></span>`;
+
 function showHistory() {
   clearMarks();
   if (guess) { map.removeLayer(guess); guess = null; }
@@ -748,8 +854,8 @@ function showHistory() {
   // practice, which is what most of them were.
   const daily = rounds.filter(r => r[5]).length;
   result.innerHTML = `<b>${rounds.length}</b> rounds &mdash;
-    <b style="color:${DAILY_COLOUR}">${daily} daily</b>,
-    <b style="color:${PRACTICE_COLOUR}">${rounds.length - daily} practice</b>.
+    ${swatch(DAILY_COLOUR)}<b>${daily} daily</b>,
+    ${swatch(PRACTICE_COLOUR)}<b>${rounds.length - daily} practice</b>.
     Each line runs from your guess to the truth.`;
 }
 
