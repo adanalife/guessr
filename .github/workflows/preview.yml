@@ -72,12 +72,23 @@ jobs:
         # built by concatenating the branch name is wrong for most branches
         # here. An empty capture fails the step rather than posting a comment
         # with a blank link.
+        #
+        # wrangler sometimes finishes a deploy cleanly and prints no alias line
+        # at all, which is the one case that guard reads wrong — a good deploy
+        # looks broken. The line only ever appears as part of a deploy, so the
+        # retry is the deploy: a re-upload is cheap (Cloudflare already holds
+        # every file hash) and sequential, so no two uploads race for the alias.
         run: |
           set -o pipefail
-          npx wrangler pages deploy web/ \
-            --project-name adanalife-guessr-staging \
-            --branch "$HEAD_REF" | tee wrangler.out
-          alias=$(grep 'alias URL:' wrangler.out | grep -oE 'https://[^[:space:]]+' | tail -1)
+          for attempt in 1 2 3; do
+            npx wrangler pages deploy web/ \
+              --project-name adanalife-guessr-staging \
+              --branch "$HEAD_REF" | tee wrangler.out
+            alias=$(grep 'alias URL:' wrangler.out | grep -oE 'https://[^[:space:]]+' | tail -1 || true)
+            if [ -n "$alias" ]; then break; fi
+            echo "::warning::wrangler printed no alias URL (attempt $attempt)"
+            sleep 5
+          done
           test -n "$alias"
           echo "alias=$alias" >> "$GITHUB_OUTPUT"
       # The endpoints, against the deployment that will actually serve them.
