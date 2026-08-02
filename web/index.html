@@ -63,7 +63,14 @@
   setTheme(savedTheme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
 </script>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<!-- Leaflet, vendored rather than loaded from unpkg. It is the only thing on
+     this page that has to load from somewhere else for the game to work at all:
+     no map means no way to answer, so a CDN outage is a total outage, and there
+     is no fallback a static page could take. Same reasoning as the ET Book
+     faces below. Byte-identical to what unpkg serves for 1.9.4; bump by
+     replacing web/leaflet/ wholesale from the npm tarball. Licence travels with
+     it in web/leaflet/LICENSE. -->
+<link rel="stylesheet" href="leaflet/leaflet.css">
 <style>
   /* Type and colour come from the blog: the same ET Book faces and the same
      `data-theme` palette, so the game reads as part of the same site. Tufte
@@ -387,7 +394,7 @@
           onclick="toggleTheme()">🌓</button>
 </footer>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="leaflet/leaflet.js"></script>
 <script src="zoom.js"></script>
 <!-- A module, so daily.js can be imported here and by functions/api/score.js
      alike: the draw the page plays and the draw the server checks against have
