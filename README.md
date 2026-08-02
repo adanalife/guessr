@@ -75,12 +75,30 @@ The Pages projects and the DNS records are terraform, in the `infra` repo under
 
 `web/` holds `index.html`, its scripts (`daily.js`, `zoom.js`,
 `changelog.js`), `manifest.json`, the icon and share-card assets (`favicon.svg`,
-`apple-touch-icon.png`, `icon-512.png`, `og.jpg`), and the round set —
+`apple-touch-icon.png`, `icon-512.png`, `og.jpg`), the ET Book faces under
+`et-book/`, and the round set —
 `rounds.json` plus ~300
 frames under `frames/`. The round set is committed even though `task rounds`
 regenerates it, because regenerating needs the corpus mounted and database
 access and the deploy has neither. Regenerating rewrites about 27 MB of JPEGs,
 so do it deliberately.
+
+The page borrows its look from the blog at
+[dana.lol](https://dana.lol): the same ET Book faces, and the same light/dark
+palette behind a `data-theme` attribute that an inline script sets before first
+paint and a footer toggle flips. Only three of the four ET Book faces are
+vendored (roman, italic, bold) and only as `woff` — the old-style-figures face
+has nothing to set here, and the `eot`/`svg`/`ttf` copies target browsers this
+game does not otherwise support. The faces are
+[ET Book](https://github.com/edwardtufte/et-book), MIT-licensed; the notice
+travels with them in `web/et-book/LICENSE`.
+
+Tufte CSS's own stylesheet is deliberately not used: nearly all of it is
+article layout — sidenotes, 55%-wide sections, figures — which has nothing to
+say about a full-viewport game. A handful of things stay outside the palette on
+purpose, each with a note where it is set: the zoom controls copy Leaflet's,
+and the badges, the minimap frame and the legend swatches sit on photographs or
+map tiles rather than on the page.
 
 `functions/` holds the scoring endpoint. It is not served: Pages routes
 `functions/api/score.js` to `/api/score`, and `_scoring.mjs` is skipped by the
@@ -172,7 +190,7 @@ transparent:
 
 ```sh
 rsvg-convert -w 124 -h 124 web/favicon.svg -o /tmp/mark.png
-magick -size 180x180 xc:'#111111' /tmp/mark.png -gravity center -composite \
+magick -size 180x180 xc:'#1a1a1a' /tmp/mark.png -gravity center -composite \
   -depth 8 -strip PNG32:web/apple-touch-icon.png
 ```
 
@@ -182,7 +200,7 @@ it points at, same mark on the same background:
 
 ```sh
 rsvg-convert -w 352 -h 352 web/favicon.svg -o /tmp/mark.png
-magick -size 512x512 xc:'#111111' /tmp/mark.png -gravity center -composite \
+magick -size 512x512 xc:'#1a1a1a' /tmp/mark.png -gravity center -composite \
   -depth 8 -strip PNG32:web/icon-512.png
 ```
 
