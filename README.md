@@ -190,7 +190,7 @@ transparent:
 
 ```sh
 rsvg-convert -w 124 -h 124 web/favicon.svg -o /tmp/mark.png
-magick -size 180x180 xc:'#111111' /tmp/mark.png -gravity center -composite \
+magick -size 180x180 xc:'#1a1a1a' /tmp/mark.png -gravity center -composite \
   -depth 8 -strip PNG32:web/apple-touch-icon.png
 ```
 
@@ -200,7 +200,7 @@ it points at, same mark on the same background:
 
 ```sh
 rsvg-convert -w 352 -h 352 web/favicon.svg -o /tmp/mark.png
-magick -size 512x512 xc:'#111111' /tmp/mark.png -gravity center -composite \
+magick -size 512x512 xc:'#1a1a1a' /tmp/mark.png -gravity center -composite \
   -depth 8 -strip PNG32:web/icon-512.png
 ```
 
