@@ -7,7 +7,7 @@
 import assert from 'node:assert';
 import {
   dailyRounds, dailyState, dateForDay, dayFromDate, dayNumber, difficulty,
-  effectiveDay, isOpen, playWindow, rampEasyToHard,
+  effectiveDay, isOpen, lastClosedDate, monthOf, playWindow, rampEasyToHard,
 } from './web/daily.js';
 
 const pool = Array.from({ length: 60 }, (_, i) => ({
@@ -114,6 +114,35 @@ for (const date of ['2026-08-05', '2026-09-01', '2026-12-31', '2028-02-29', '202
   assert.strictEqual(closes - opens, 50 * 3600 * 1000, `${date} was not open for 50 hours`);
 }
 
+// Which board the overlay shows: the most recent date that can no longer
+// change. A board that reorders while it is on screen is worse than a stale one.
+assert.strictEqual(lastClosedDate(utc('2026-08-06T12:00:00')), '2026-08-05',
+  'a date should be closed the instant its window ends');
+assert.strictEqual(lastClosedDate(utc('2026-08-06T11:59:59')), '2026-08-04',
+  'a date still open was shown as closed');
+// Month and year boundaries, where an off-by-one would show a board from the
+// wrong month entirely.
+assert.strictEqual(lastClosedDate(utc('2026-09-01T12:00:00')), '2026-08-31');
+assert.strictEqual(lastClosedDate(utc('2027-01-01T12:00:00')), '2026-12-31');
+assert.strictEqual(lastClosedDate(utc('2028-03-01T12:00:00')), '2028-02-29');
+
+// The property that makes it correct, checked rather than assumed: whatever the
+// instant, the date it names is closed and the day after it is not.
+for (let h = 0; h < 24 * 14; h++) {
+  const now = new Date(Date.UTC(2026, 7, 1) + h * 3600 * 1000);
+  const closed = lastClosedDate(now);
+  assert.equal(isOpen(closed, now), false, `${closed} was still open at ${now.toISOString()}`);
+  const next = dateForDay(dayFromDate(closed) + 1);
+  assert.equal(isOpen(next, now), true,
+    `${next} should still be open at ${now.toISOString()}, so ${closed} is not the latest closed`);
+}
+
+// The monthly board is a running total over the current month, today included --
+// no closing rule, because a sum has nothing to settle.
+assert.strictEqual(monthOf(utc('2026-08-01T00:00:00')), '2026-08');
+assert.strictEqual(monthOf(utc('2026-08-31T23:59:59')), '2026-08');
+assert.strictEqual(monthOf(utc('2026-09-01T00:00:00')), '2026-09');
+
 // The three readings of a stored record. A same-day record short of the full
 // count must resume, not read as finished -- saving progress every round is what
 // stops an abandoned run from being replayed with the answers known, and it only
@@ -173,3 +202,4 @@ console.log('ok: a partial day resumes, a played-out day stays played out');
 console.log('ok: the day number only moves forwards, whatever the clock does');
 console.log('ok: every day number maps to the calendar date it came from');
 console.log('ok: a date is open for 50 hours, and three overlap at once');
+console.log("ok: the overlay board is the latest date that can no longer change");
