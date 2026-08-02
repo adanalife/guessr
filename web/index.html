@@ -201,7 +201,7 @@
   /* Same number and same band colour as the pin on the map, which is the only
      thing tying a thumbnail to the answer it belongs to.
      The badges here and on the map keep fixed colours and a sans face rather
-     than following the theme: both sit on top of a photograph or a map tile,
+     than following the theme: both sit on top of footage or a map tile,
      neither of which changes with it, and at 11px ET Book is mush. */
   #sheet .cap { position: absolute; top: 4px; left: 4px;
                 display: flex; align-items: center; gap: .3rem;
@@ -213,10 +213,10 @@
   #mapwrap { min-height: 0; }
   #map { height: 100%; background: var(--color-bg); }
   /* While a round is being guessed the frame takes the whole pane and the map
-     rides over its bottom-right corner. The frame is a 1280px still and
-     squinting at it is the entire game, whereas the map only matters for the
-     few seconds spent placing a pin — an even split spends half the window on
-     the half that matters least, and puts the frame well under 1:1.
+     rides over its bottom-right corner. The frame is 1280px wide and squinting
+     at it is the entire game, whereas the map only matters for the few seconds
+     spent placing a pin — an even split spends half the window on the half that
+     matters least, and puts the frame well under 1:1.
      Hover or keyboard focus grows it; `wide` pins it open once the answer is
      revealed, when the map becomes the thing worth reading. `minimap` comes off
      entirely for the end-of-game board and the all-time map, which want the
@@ -234,7 +234,8 @@
                             border-radius: 8px; overflow: hidden;
                             /* Unthemed, like the badges: this floats on the
                                frame, and a border in the page's own colours
-                               vanishes into whatever the photo happens to be. */
+                               vanishes into whatever the footage happens to
+                               be. */
                             border: 2px solid #0006;
                             box-shadow: 0 8px 24px rgba(0, 0, 0, .4); }
     main.minimap #mapwrap:hover, main.minimap #mapwrap:focus-within,
@@ -292,9 +293,12 @@
   <details id="about" class="stat">
     <summary>about<span class="dot" id="aboutDot" hidden></span></summary>
     <div class="panel">
-      <p>Every round is a real frame from a dashcam, filmed on a year-long drive
-        around the United States in 2018. Five rounds a day, the same five for
-        everyone. Practice rounds are unlimited.</p>
+      <p>Every round is a few seconds of real dashcam footage, filmed on a
+        year-long drive around the United States in 2018. Five rounds a day, the
+        same five for everyone. Practice rounds are unlimited.</p>
+      <p>The clip loops. Pause it with the button in its corner or the space
+        bar, and zoom in &mdash; a road sign or a storefront is often legible
+        close up and unreadable at a glance.</p>
       <p>The footage comes from <b>A Dana Life</b>, which streams that drive
         around the clock &mdash; the whole trip, in order, forever. On Twitch a
         chat bot runs the same game against the live feed: type !guess to call
@@ -328,9 +332,9 @@
   </details>
 </header>
 <dialog id="welcome">
-  <h2>Drop a pin where you think this dashcam screenshot was taken</h2>
-  <p>This photo was taken during a year of travel in a campervan.</p>
-  <p>Everyone gets the same photos, refreshing daily</p>
+  <h2>Drop a pin where you think this dashcam footage was filmed</h2>
+  <p>These few seconds were filmed during a year of travel in a campervan.</p>
+  <p>Everyone gets the same clips, refreshing daily</p>
   <div class="actions">
     <button id="welcomePlay" autofocus>Play</button>
     <button id="welcomeMore" class="secondary">Learn more</button>

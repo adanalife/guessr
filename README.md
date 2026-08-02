@@ -265,11 +265,16 @@ and the icon, nothing else.
 mechanism: this game spreads by people pasting a URL. It's a hand-picked frame
 with the title and the mark set over it, made once and committed:
 
+It is cut straight from the corpus rather than from a round clip, so it does not
+go stale when the round set is regenerated — `2018_1107_182338_002_opt` at
+87.9s, a Victorian intersection in San Francisco:
+
 ```sh
 rsvg-convert -w 110 -h 110 web/favicon.svg -o /tmp/mark.png
 magick /tmp/mark.png -channel RGB -fill white -colorize 100 +channel /tmp/mark-white.png
 
-ffmpeg -y -ss 1.5 -i web/clips/<clip>.mp4 -frames:v 1 -q:v 2 /tmp/card.jpg
+ffmpeg -ss 87.9 -i /Volumes/ADanaLife/dashcam/_opt/clips/2018_1107_182338_002_opt.MP4 \
+  -frames:v 1 -vf "crop=iw:ih-70:0:0,scale=1280:-2" -q:v 2 /tmp/card.jpg
 
 magick /tmp/card.jpg \
   -gravity North -crop 1280x672+0+0 +repage -resize 1200x630! \
@@ -290,17 +295,19 @@ sinks into whatever foliage is behind it, and white matches the title.
 Swapping the frame means re-running that and updating `og:image:alt`. Keep it
 1200x630 — that's the aspect every scraper crops to.
 
-**The committed card predates the current round set.** Its frame — a San
-Francisco intersection — was drawn from a set that has since been regenerated,
-and nothing under `web/clips/` matches it any more, so the recipe above builds a
-*new* card rather than reproducing the committed one. Anything that has to
-change on the existing card gets composited onto it directly until the frame is
-reselected.
+The recipe names a corpus clip and a timestamp, which is what makes it
+reproducible. It used to name `web/frames/<frame>.jpg` from whatever round set
+was current, and the frame it wanted had long since left the set — so the recipe
+built a *new* card rather than the committed one, and the only way to change
+anything was to composite onto the existing image. Keying it to the corpus fixes
+that for good: a round set is regenerable, and the corpus clip behind this frame
+is not going anywhere.
 
-This is a standing consequence of the round set being regenerable, and the media
-leaving git makes it sharper: the card is now derived from an artifact that is
-not in the repo at all, so reproducing it needs the right tarball out of R2 as
-well as the right clip out of the tarball.
+(The source frame was recovered by scanning every San Francisco clip in the
+corpus for the one whose untexted lower band matched the committed card: 0.039
+RMSE against 0.20+ for every other candidate. The rebuilt card is that scene a
+fraction of a second off — near enough that the difference is a pedestrian
+mid-crossing.)
 
 ## Development
 
