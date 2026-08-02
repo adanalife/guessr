@@ -166,6 +166,37 @@ play would read as a replay of the first's) and deliberately not the IP address
 (NAT makes a household one player, CGNAT makes one phone several, and an address
 stored beside a typed name is personal data this doesn't need).
 
+### The boards
+
+`GET /api/leaderboard?board=daily|monthly` returns `{board, period, rows}`, rows
+being `[name, points]` pairs, best first. Ten of them, since the overlay renders
+five and the extra leaves room to filter without a second request.
+
+The **daily** board is the most recently *closed* date, never one still filling.
+Three dates are open at once, so "today" isn't a single answer, and the
+alternative — the streamer's own date, labelled in-progress — puts a board on
+screen that can reorder while it's up. The **monthly** board is a running total
+over the current month and needs no closing rule, because a sum has nothing to
+settle.
+
+It's a read the stream pulls, not a write the game pushes. The cluster tripbot
+runs in has no inbound path, deliberately, and a leaderboard isn't a reason to
+open one — so the game keeps scores where it already writes them and the bot
+fetches on its own schedule. The board being unreachable costs a rotation slot
+and nothing else.
+
+### Names on the stream
+
+Rows carry the player's alias, and it is safe to render as stored because of
+where it comes from: a curated wordlist, so the review happens when the name is
+*made* rather than after it is typed. There is no moderation queue because there
+is nothing a stranger chose. A play with no name at all — one recorded before
+aliases existed, or from a browser that can't keep `localStorage` — renders as
+`anonymous` and still places.
+
+If typed names ever land, an allowlist lands with them and joins into the board
+query; until then it would be a table with nothing to hold.
+
 One thing this does *not* buy yet: the round sets published before scoring moved
 server-side had their coordinates in `rounds.json`, and that file is in this
 repo's git history. Until the set is regenerated, the answers are still one
@@ -395,10 +426,13 @@ game still runs, it's just trivially cheatable.
   Reading it means OCR'ing the strip before cropping it.
 - **Video rounds.** A few seconds of motion beats a still, and motion is the
   whole character of the source material.
-- **A leaderboard.** The store exists — daily results land in `plays`, verified
-  against that date's draw and its play window, and both a daily and a monthly
-  board are one query over it (see *The tables the game owns* above). Two things
-  still stand between that and a board on the stream: the coordinates for the
-  current round set are in this repo's git history (see *The answers* above), so
-  the set has to be regenerated before any score means anything; and there is no
-  name input, so every row is currently anonymous.
+- **The board on the stream.** Everything on this side of it exists: results are
+  recorded and verified, names are collected and moderated, and
+  `/api/leaderboard` serves both boards. What's left is tripbot fetching it —
+  two new `leaderboardKind`s in its rotation, which currently splits one
+  five-minute slot three ways and would need re-weighting for five.
+- **A round set whose answers aren't in git.** The sets published before scoring
+  moved server-side had their coordinates in `rounds.json`, and that file is in
+  this repo's history (see *The answers* above), so a score is only worth as much
+  as the player's disinclination to run `git log`. Fine for a beta; the set gets
+  regenerated before this is something people compete at.

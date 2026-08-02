@@ -83,6 +83,26 @@ export function isOpen(date, now = new Date()) {
   return t >= opens && t < closes;
 }
 
+// The most recent date whose board can no longer change -- what a board on the
+// stream renders. Three dates are open at once, so "today" is not a single
+// answer, and the alternative (show the streamer's own date, labelled
+// in-progress) puts a board on screen that can still reorder while it is up.
+// A board is worth broadcasting when it is final.
+//
+// Straight from the closing rule rather than by searching: date D closes at
+// D+1 12:00 UTC, so the latest closed date is the UTC date 36 hours back --
+// 12 to undo the close offset, 24 more to land on the date before it.
+export function lastClosedDate(now = new Date()) {
+  return new Date(now.getTime() - 36 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+// The month a monthly board covers, as the YYYY-MM prefix its dates share.
+// Unlike the daily board this needs no closing rule -- it is a running total,
+// and today's plays belong in it.
+export function monthOf(now = new Date()) {
+  return now.toISOString().slice(0, 7);
+}
+
 // Seeded PRNG so the daily draw is reproducible from the date alone, with no
 // server telling the client which rounds to play.
 function mulberry32(seed) {
