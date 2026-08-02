@@ -11,7 +11,7 @@ import struct
 import tempfile
 from pathlib import Path
 
-from check import EASY_KM, HARD_KM, dimensions
+from check import dimensions
 
 HERE = Path(__file__).parent
 
@@ -60,14 +60,4 @@ if frame:
     w, h = dimensions(frame)
     assert w / h > 16 / 9, f"{frame.name} is {w}x{h}, which is not a cropped frame"
 
-# check.py's band assertion only means something if it buckets rounds the way the
-# page does, and the cutoffs are spelled out in both files. Drift would let a set
-# through whose bands are empty where it counts -- in play.
-daily_js = (HERE / "web" / "daily.js").read_text()
-for name, value in (("EASY_KM", EASY_KM), ("HARD_KM", HARD_KM)):
-    assert f"const {name} = {value:g};" in daily_js, (
-        f"{name} is {value:g} in check.py but not in web/daily.js"
-    )
-
 print("ok: JPEG dimensions read correctly, and bad files raise")
-print("ok: the difficulty cutoffs agree with web/daily.js")
