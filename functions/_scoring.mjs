@@ -4,8 +4,10 @@
 // leaderboard built on that would rank whoever cared least.
 //
 // Underscore-prefixed, so Pages leaves it out of the routing table and
-// functions/api/ can import it. Dependency-free ESM, so `node test_score.mjs`
-// exercises it directly with no bundler and no package.json.
+// functions/api/ can import it. Its one import is the alias wordlist, which is
+// data rather than a dependency, so `node test_score.mjs` still exercises this
+// directly with no bundler and no package.json.
+import { isAlias } from '../web/alias.js';
 
 // GeoGuessr's curve: full marks near-exact, ~0 across the continent. 4500 km is
 // roughly the width of the playable area (the lower 48).
@@ -69,9 +71,19 @@ export function parsePlay(body) {
   // bounded string and that it is the same one next time. UUIDs are what the
   // page mints; anything longer is not one.
   if (typeof playerId !== 'string' || !playerId || playerId.length > 64) return null;
-  // Absent is legal -- the page has no name input yet, and a play still belongs
-  // on the board once one lands. Trimmed to nothing counts as absent.
+  // Absent is legal -- a play still belongs on the board without a name, and a
+  // browser that cannot keep localStorage cannot keep an alias either.
   if (handle !== undefined && handle !== null && typeof handle !== 'string') return null;
-  const label = (handle || '').trim().slice(0, MAX_HANDLE);
-  return { date, playerId, handle: label || null };
+  const label = (handle || '').trim();
+
+  // A name the wordlist could not have produced is dropped rather than stored,
+  // which is what makes that list a boundary rather than a client-side
+  // convention: /api/score is reachable directly, so without this anyone can put
+  // an arbitrary string on a board that renders to a live broadcast.
+  //
+  // Dropped, not rejected: the score itself was earned under checks that already
+  // passed, so refusing the whole play would punish a legitimate guess for a
+  // label. It records nameless and shows as the placeholder, which is also how a
+  // player keeps their rank if a word is ever retired from the lists.
+  return { date, playerId, handle: isAlias(label) ? label : null };
 }

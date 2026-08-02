@@ -9,11 +9,12 @@ import assert from 'node:assert';
 import { MAX_HANDLE } from './functions/_scoring.mjs';
 import { ADJECTIVES, ALIAS_COUNT, aliasFrom, NOUNS } from './web/alias.js';
 
-// Every alias the lists can produce has to survive the server intact.
-// parsePlay() truncates a handle to MAX_HANDLE without complaint, so a long word
-// added later would not fail anywhere -- it would just start appearing on the
-// board with its end sliced off. Exhaustive rather than sampled: it is 2,401
-// pairs and the whole point is that no combination is a surprise.
+// Every alias the lists can produce has to survive the server intact, and
+// MAX_HANDLE is the column the board reads from. A word added later that pushed
+// a pair over it would not fail anywhere obvious -- the play would simply record
+// nameless and the player would show as the placeholder, having done nothing
+// wrong. Exhaustive rather than sampled: it is 2,401 pairs and the whole point
+// is that no combination is a surprise.
 let longest = '';
 for (const adjective of ADJECTIVES) {
   for (const noun of NOUNS) {
@@ -23,7 +24,7 @@ for (const adjective of ADJECTIVES) {
 }
 assert.ok(
   longest.length <= MAX_HANDLE,
-  `"${longest}" is ${longest.length} chars; the server truncates past ${MAX_HANDLE}`,
+  `"${longest}" is ${longest.length} chars; the board's column holds ${MAX_HANDLE}`,
 );
 
 // A duplicate is invisible in play -- it just makes one word twice as likely as
