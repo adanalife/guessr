@@ -16,6 +16,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { MOVE, SWEEP } from './functions/api/link.js';
+import { linkUrl, parseLink } from './web/link.js';
 
 const PHONE = 'phone-id', DESKTOP = 'desktop-id', STRANGER = 'stranger-id';
 
@@ -102,4 +103,39 @@ const owned = (d, player) => d.prepare(
 {
   const d = db([[PHONE, 'a.jpg', 100], [DESKTOP, 'a.jpg', 200]]);
   assert.equal(d.prepare('SELECT COUNT(*) AS n FROM plays').get().n, 2);
+}
+
+// The URL the code carries, and reading it back. The whole failure mode is that
+// it arrives wrong -- a space in the name ending the fragment early, a key read
+// under the wrong name -- and every version of that presents to a player as a
+// QR code that did nothing.
+{
+  const id = 'b1c4f0e2-3a7d-4c19-9f8e-2d6a5b3c1e70';
+  // Every origin the game is actually played on, because they differ in the
+  // ways that break a URL: a bare host, a preview alias deep in subdomains, and
+  // a local server on a port.
+  for (const base of [
+    'https://guessr.dana.lol/',
+    'https://link.adanalife-guessr-staging.pages.dev/',
+    'http://localhost:8000/',
+  ]) {
+    // The name has a space in it -- every alias does -- which is exactly what an
+    // unescaped fragment loses.
+    const url = linkUrl(base, id, 'Wandering Wildflower');
+    assert.ok(url.startsWith(`${base}#`), `${url} did not build on its own origin`);
+    assert.ok(!url.includes(' '), `${url} carries a raw space`);
+    assert.deepEqual(parseLink(new URL(url).hash), { id, name: 'Wandering Wildflower' });
+  }
+
+  // Nameless is legal on both sides: a browser that cannot keep localStorage has
+  // no alias to send, and the id is what does the linking.
+  assert.deepEqual(parseLink(new URL(linkUrl('https://guessr.dana.lol/', id, null)).hash),
+    { id, name: null });
+
+  // Anything that isn't one of these links reads as no link at all, rather than
+  // as a link to nowhere -- the page acts on the difference.
+  for (const hash of ['', '#', '#name=Amber%20Basin', '#link=']) {
+    assert.equal(parseLink(hash), null, `${hash || '(empty)'} parsed as a link`);
+  }
+  console.log('ok: the code carries an id and a name across origins, and back');
 }
