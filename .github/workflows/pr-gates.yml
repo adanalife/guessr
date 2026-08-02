@@ -54,7 +54,7 @@ jobs:
         with:
           node-version-file: .tool-versions
       - name: Node tests
-        run: node test_daily.js && node test_zoom.js && node test_score.mjs
+        run: node test_daily.mjs && node test_zoom.js && node test_score.mjs
 
       - uses: actions/setup-python@v7
         with:

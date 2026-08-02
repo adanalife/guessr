@@ -259,10 +259,17 @@
 </footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="daily.js"></script>
 <script src="zoom.js"></script>
-<script>
-const ROUNDS_PER_GAME = 5;
+<!-- A module, so daily.js can be imported here and by functions/api/score.js
+     alike: the draw the page plays and the draw the server checks against have
+     to be the same code. Classic scripts above run first, so Leaflet's `L` and
+     zoom.js's globals are in place by the time this executes. -->
+<script type="module">
+import {
+  DIFFICULTY_LEVELS, ROUNDS_PER_GAME, dailyRounds, dailyState, dateForDay,
+  difficulty, effectiveDay, pick, rampEasyToHard,
+} from './daily.js';
+
 // Only the share line's denominator. The scoring itself is server-side, and
 // functions/_scoring.mjs owns the real value -- rounds.json ships no
 // coordinates, so the browser has nothing to score with.
@@ -327,7 +334,17 @@ async function scoreGuess(image, latlng, date) {
       ...(id ? { date, player_id: id } : {}),
     }),
   });
-  if (!res.ok) throw new Error(`scoring failed: ${res.status}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const err = new Error(body.error || `scoring failed: ${res.status}`);
+    // A 4xx says the request itself is the problem, so retrying it produces the
+    // same answer forever. The page has to tell that apart from a dropped
+    // connection, or it invites the player to keep trying something that cannot
+    // work. Realistically only a badly wrong clock or a tampered client gets
+    // here, but "try again" would be a lie to either.
+    err.final = res.status >= 400 && res.status < 500;
+    throw err;
+  }
   return res.json();
 }
 
@@ -494,6 +511,15 @@ photo.addEventListener('pointercancel', releasePointer);
 
 let pool = [], game = [], idx = 0, total = 0, guess = null, marks = [];
 let mode = 'daily', results = [], guesses = [];
+// The day the board on screen belongs to, fixed when that board is established
+// rather than re-read from the clock. A game started at 23:58 is still that day's
+// game at 00:02, and everything downstream has to agree: the rounds were drawn
+// from this day, so the score posts against this date, the progress record saves
+// under this day, and the share string names it. Re-reading today() per use meant
+// a game that crossed local midnight posted tomorrow's date against tonight's
+// rounds -- and, before any of this, resumed the next day holding the previous
+// day's results.
+let gameDay = 0;
 
 function clearMarks() { marks.forEach(m => map.removeLayer(m)); marks = []; }
 
@@ -549,8 +575,17 @@ async function reveal() {
 
   let scored;
   try {
-    scored = await scoreGuess(r.image, at, mode === 'daily' ? dateForDay(today()) : null);
-  } catch {
+    scored = await scoreGuess(r.image, at, mode === 'daily' ? dateForDay(gameDay) : null);
+  } catch (e) {
+    // A refused play is not a failed request: retrying it changes nothing, so
+    // say what the server said and offer practice, which is never refused.
+    if (e.final) {
+      go.hidden = true;
+      practiceBtn.hidden = false;
+      practiceBtn.textContent = 'Practice rounds';
+      result.textContent = `${e.message}. Practice rounds still work.`;
+      return;
+    }
     // Back to guessing with the pin still where it was -- losing a round to a
     // dropped request would be worse than the retry.
     go.dataset.phase = 'guess';
@@ -613,7 +648,7 @@ function shareText(day, res, sum) {
 function saveProgress() {
   try {
     localStorage.setItem(STORE_KEY,
-      JSON.stringify({ day: today(), results, total, guesses,
+      JSON.stringify({ day: gameDay, results, total, guesses,
                        truths: game.slice(0, results.length).map(truthOf) }));
   } catch { /* the day plays through; it just won't survive a reload */ }
 }
@@ -818,6 +853,7 @@ function offerHistory() {
 
 function showFinished(saved) {
   mode = 'daily';
+  gameDay = saved.day;
   total = saved.total;
   results = saved.results;
   el('label').textContent = `Daily #${saved.day}`;
@@ -853,7 +889,7 @@ go.addEventListener('click', () => {
 });
 
 shareBtn.addEventListener('click', async () => {
-  const text = shareText(today(), results, total);
+  const text = shareText(gameDay, results, total);
   try {
     await navigator.clipboard.writeText(text);
     shareBtn.textContent = 'Copied';
@@ -961,7 +997,7 @@ el('welcomeMore').addEventListener('click', e => {
 // carried over; the next unplayed round follows from how many there are.
 function newGame(which, saved = null) {
   mode = which;
-  const day = today();
+  const day = gameDay = today();
   if (mode === 'daily') {
     game = dailyRounds(pool, day, ROUNDS_PER_GAME);
     el('label').textContent = `Daily #${day}`;
