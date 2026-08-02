@@ -11,7 +11,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
-import { query } from './functions/api/leaderboard.js';
+import { label, query } from './functions/api/leaderboard.js';
+import { ADJECTIVES, NOUNS } from './web/alias.js';
 
 const DAILY = query('= ?');
 const MONTHLY = query("LIKE ? || '-%'");
@@ -113,6 +114,47 @@ for (const [first, second] of [
     'the monthly board is not the month summed');
 }
 
+// Two players wearing the same alias, which the wordlist makes likely rather
+// than exotic. Numbering runs in board order, so the better score takes (1).
+assert.deepEqual(
+  label(['Amber Basin', 'Winding Valley', 'Amber Basin']),
+  ['Amber Basin (1)', 'Winding Valley', 'Amber Basin (2)'],
+);
+
+// A board with nothing repeated is left exactly as it came, which is the common
+// case and the one a viewer sees every day.
+const distinct = ['Amber Basin', 'Winding Valley', 'Lucky Overpass'];
+assert.deepEqual(label(distinct), distinct, 'numbered a board with no collision');
+assert.deepEqual(label([]), []);
+assert.deepEqual(label(['Amber Basin']), ['Amber Basin']);
+
+// Three-way, and two separate collisions on one board -- each set counts on its
+// own rather than sharing a running total.
+assert.deepEqual(
+  label(['Amber Basin', 'Amber Basin', 'Amber Basin']),
+  ['Amber Basin (1)', 'Amber Basin (2)', 'Amber Basin (3)'],
+);
+assert.deepEqual(
+  label(['Amber Basin', 'Winding Valley', 'Amber Basin', 'Winding Valley']),
+  ['Amber Basin (1)', 'Winding Valley (1)', 'Amber Basin (2)', 'Winding Valley (2)'],
+);
+
+// Nameless players are several players, not one. Without this a board renders
+// "anonymous" twice with no way to read it as two people.
+assert.deepEqual(
+  label(['anonymous', 'Amber Basin', 'anonymous']),
+  ['anonymous (1)', 'Amber Basin', 'anonymous (2)'],
+);
+
+// A numbered name still fits an overlay row. The longest pair the generator can
+// make is 20 characters, and a full board of ten of them is the worst case.
+const longest = `${[...ADJECTIVES].sort((a, b) => b.length - a.length)[0]} `
+  + `${[...NOUNS].sort((a, b) => b.length - a.length)[0]}`;
+for (const name of label(Array(10).fill(longest))) {
+  assert.ok(name.length <= 25, `"${name}" is too wide for a board row`);
+}
+
 console.log('ok: a reroll renames a player on every board, back through history');
 console.log('ok: a nameless play does not cost a player their name');
 console.log('ok: the boards still rank by summed points over their own span');
+console.log('ok: players sharing an alias are numbered apart on the board');
