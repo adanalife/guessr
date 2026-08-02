@@ -73,7 +73,7 @@ jobs:
       - name: Validate the round set
         run: python3 check.py
 
-      # The python tests: the JPEG header reader check.py validates frames with,
+      # The python tests: the mp4 header reader check.py validates clips with,
       # the swap that puts a regenerated set into place, and the seeding that
       # makes a regeneration reproducible. All stdlib-only and sub-second.
       - name: Python tests

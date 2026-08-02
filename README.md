@@ -1,20 +1,24 @@
 # Guessr
 
-GeoGuessr, but every round is a frame from the A Dana Life dashcam corpus —
+GeoGuessr, but every round is a few seconds of the A Dana Life dashcam corpus —
 a year of driving the United States in 2018.
 
 Five rounds a day, the same five for everyone, with a spoiler-free share string
 at the end. Practice rounds are unlimited.
 
 The game is static files plus one endpoint. `make_rounds.py` does all the work up
-front (query the corpus metadata, extract frames, write a manifest); `web/` is
-then a plain directory of HTML, JS and JPEGs. The map is Leaflet over
+front (query the corpus metadata, cut the clips, write a manifest); `web/` is
+then a plain directory of HTML, JS and mp4. The map is Leaflet over
 OpenStreetMap tiles.
+
+A round plays on a loop and can be paused — the button in the frame's corner, or
+the space bar. Motion is what places a scene; a still is what lets you read the
+sign in it.
 
 The endpoint is `POST /api/score`, a Cloudflare Pages Function, and it exists
 because the answers can't ship to the browser. `web/rounds.json` names each
-round's frame and how hard it is, and nothing else — the coordinates live in a D1
-database the client can't read, so a player learns where a frame was taken only
+round's clip and how hard it is, and nothing else — the coordinates live in a D1
+database the client can't read, so a player learns where a clip was taken only
 by committing a guess and getting the score back.
 
 ## Play locally
@@ -22,6 +26,7 @@ by committing a guess and getting the score back.
 ```sh
 task rounds   # needs the corpus mounted + kubectl access to the tripbot DB
 task check    # validates the round set
+task clips:push  # uploads the media to R2, without which a deploy has none
 task test     # daily draw, scoring, round-set swap; needs neither
 task dev      # http://localhost:8000, with scoring
 task serve    # http://localhost:8000, static only — guesses don't score
@@ -76,12 +81,25 @@ The Pages projects and the DNS records are terraform, in the `infra` repo under
 `web/` holds `index.html`, its scripts (`daily.js`, `zoom.js`,
 `changelog.js`), `manifest.json`, the icon and share-card assets (`favicon.svg`,
 `apple-touch-icon.png`, `icon-512.png`, `og.jpg`), the ET Book faces under
-`et-book/`, and the round set —
-`rounds.json` plus ~300
-frames under `frames/`. The round set is committed even though `task rounds`
-regenerates it, because regenerating needs the corpus mounted and database
-access and the deploy has neither. Regenerating rewrites about 27 MB of JPEGs,
-so do it deliberately.
+`et-book/`, and the round set — `rounds.json` plus ~300 clips under `clips/`.
+
+**Only the manifest is committed.** A round set is ~150 MB of mp4 and this repo
+is public, so committing one would add that to git history on every
+regeneration, permanently. `web/clips/` is gitignored and the media lives in an
+R2 bucket instead; the three deploy workflows pull it into `web/` before
+uploading. `rounds.json` has to stay in git regardless, because
+`functions/api/score.js` imports it at build time — that is what makes the five
+rounds the server checks a daily play against provably the five the page handed
+out.
+
+`clips.sh` moves the media both ways, and names the object after a hash of the
+manifest. That is deliberate: under a stable name, regenerating would overwrite
+the tarball that production — still on an older release, with an older manifest
+— pulls on its next deploy, and production would come back up naming clips the
+bucket no longer holds. Content-addressing makes a manifest and its media
+inseparable, and makes "the clips were never pushed" a failed deploy rather than
+a game of black panes. Nothing in the bucket is ever deleted, for the same
+reason: an old tarball is what some deployed manifest still points at.
 
 The page borrows its look from the blog at
 [dana.lol](https://dana.lol): the same ET Book faces, and the same light/dark
@@ -128,8 +146,10 @@ task answers:prod:push    # adanalife-guessr-answers
 ```
 
 **A regenerated round set is unplayable until that push runs** — every guess
-comes back "unknown round", because the frames deployed are ones the answers
-table has never heard of. `task rounds` prints the reminder on the way out.
+comes back "unknown round", because the rounds deployed are ones the answers
+table has never heard of. `task rounds` prints the reminder on the way out,
+alongside the other push a new set needs: `task clips:push`, without which the
+rounds have no footage to show in the first place.
 
 The databases are terraform, in `infra` alongside the Pages projects, and each
 tier has its own so a regeneration on one doesn't strand the other.
@@ -203,13 +223,13 @@ repo's git history. Until the set is regenerated, the answers are still one
 `git log` away for anyone who looks — so the endpoint is the mechanism, not yet
 the guarantee. A leaderboard needs the regeneration first.
 
-Because that set is tracked, a regeneration rewrites ~300 files of tracked
-content and the next merge deploys the result — so **a generation that fails
-leaves the current one alone.** `task rounds` builds into `web/.staging`, runs
-`check.py` against *that*, and moves it into place only if it passes. A run with
-the corpus unmounted or the database unreachable leaves the working tree exactly
-as it was rather than deleting the frames it was about to replace, and the
-rejected set is left in `web/.staging` to look at.
+A regeneration replaces every clip under `web/clips/` and rewrites the
+manifest that gets committed — so **a generation that fails leaves the current
+one alone.** `task rounds` builds into `web/.staging`, runs `check.py` against
+*that*, and moves it into place only if it passes. A run with the corpus
+unmounted or the database unreachable leaves the working tree exactly as it was
+rather than deleting the clips it was about to replace, and the rejected set is
+left in `web/.staging` to look at.
 
 `favicon.svg` is the map pin, drawn as the adanalife mark — ring, centre dot,
 bead on the upper-right shoulder — with the ring pulled down to a point, so it
@@ -249,14 +269,16 @@ with the title and the mark set over it, made once and committed:
 rsvg-convert -w 110 -h 110 web/favicon.svg -o /tmp/mark.png
 magick /tmp/mark.png -channel RGB -fill white -colorize 100 +channel /tmp/mark-white.png
 
-magick web/frames/<frame>.jpg \
+ffmpeg -y -ss 1.5 -i web/clips/<clip>.mp4 -frames:v 1 -q:v 2 /tmp/card.jpg
+
+magick /tmp/card.jpg \
   -gravity North -crop 1280x672+0+0 +repage -resize 1200x630! \
   \( -size 1200x300 -define gradient:vector='0,0 0,300' \
      gradient:'rgba(0,0,0,0.62)-rgba(0,0,0,0)' \) -gravity North -composite \
   -font Helvetica-Bold -fill white -gravity NorthWest \
   -pointsize 96 -annotate +60+52 'Guessr' \
   -font Helvetica -pointsize 36 -fill '#dfe6ea' \
-  -annotate +64+168 'GeoGuessr, but every round is a dashcam frame' \
+  -annotate +64+168 'GeoGuessr, but every round is dashcam footage' \
   -annotate +64+214 'from a year of driving the United States' \
   /tmp/mark-white.png -gravity NorthEast -geometry +60+46 -composite \
   -quality 88 -strip web/og.jpg
@@ -270,10 +292,15 @@ Swapping the frame means re-running that and updating `og:image:alt`. Keep it
 
 **The committed card predates the current round set.** Its frame — a San
 Francisco intersection — was drawn from a set that has since been regenerated,
-and no frame under `frames/` matches it any more, so the recipe above builds a
+and nothing under `web/clips/` matches it any more, so the recipe above builds a
 *new* card rather than reproducing the committed one. Anything that has to
 change on the existing card gets composited onto it directly until the frame is
 reselected.
+
+This is a standing consequence of the round set being regenerable, and the media
+leaving git makes it sharper: the card is now derived from an artifact that is
+not in the repo at all, so reproducing it needs the right tarball out of R2 as
+well as the right clip out of the tarball.
 
 ## Development
 
@@ -413,19 +440,19 @@ gives a pool of (clip, timestamp, truth coords) — one round each. Ground truth
 is clip-level, which is accurate to a couple of miles, since a clip is about
 three minutes of driving.
 
-**The frames must be cropped.** The dashcam burns a HUD across the bottom of
+**The clips must be cropped.** The dashcam burns a HUD across the bottom of
 every frame reading `49 MPH W71.606763 N42.822437` plus the date — the answer,
 in text, on screen. `make_rounds.py` crops that strip off and `check.py` fails
-if a frame ever ships uncropped, since the failure is otherwise invisible: the
-game still runs, it's just trivially cheatable.
+if a clip ever ships uncropped, since the failure is otherwise invisible: the
+game still runs, it's just trivially cheatable. That check runs on the laptop
+now rather than in CI, which never sees the media — `task clips:push` will not
+upload a set that fails it.
 
 ## Not built yet
 
 - **Per-frame ground truth.** The HUD holds exact coords for the frame being
   shown, which is finer than the clip-level lat/lng scored against today.
   Reading it means OCR'ing the strip before cropping it.
-- **Video rounds.** A few seconds of motion beats a still, and motion is the
-  whole character of the source material.
 - **The board on the stream.** Everything on this side of it exists: results are
   recorded and verified, names are collected and moderated, and
   `/api/leaderboard` serves both boards. What's left is tripbot fetching it —
