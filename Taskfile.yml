@@ -103,13 +103,15 @@ tasks:
       - npx wrangler d1 execute {{.DB}} --remote --file {{.FILE}} --yes
 
   test:
-    desc: Run the tests that need no corpus or database (daily draw, leaderboard
-      aliases, frame zoom, scoring, frame dimensions, round-set swap, seeding)
+    desc: Run the tests that need no corpus and no database to be running (daily
+      draw, leaderboard aliases and ranking, frame zoom, scoring, frame
+      dimensions, round-set swap, seeding)
     cmds:
       - node test_daily.mjs
       - node test_alias.mjs
       - node test_zoom.js
       - node test_score.mjs
+      - node test_leaderboard.mjs
       - python3 test_check.py
       - python3 test_swap.py
       - python3 test_seed.py
