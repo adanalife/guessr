@@ -14,6 +14,12 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#111111">
 
+<!-- The misspelling aliases (guesser.dana.lol and friends) serve this same page
+     rather than redirecting, and the staging tier and per-PR previews are more
+     copies again — so name the one URL a crawler should index and a share
+     should credit. Matches the hardcoded HOME_URL the share string uses. -->
+<link rel="canonical" href="https://guessr.dana.lol/">
+
 <!-- Absolute og:image URLs: scrapers don't all resolve relative ones. -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Guessr">
@@ -82,7 +88,8 @@
   #welcome h2 { margin: 0 0 .6rem; font-size: 1.1rem; }
   #welcome p { color: #bbb; margin: .5rem 0; }
   #welcome .actions { display: flex; gap: .6rem; margin-top: 1.1rem; }
-  main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
+  main { flex: 1; position: relative; display: grid;
+         grid-template-columns: 1fr 1fr; min-height: 0; }
   /* touch-action: none so a pinch zooms the frame instead of the page. Leaflet
      owns its own gestures next door; the two panes never see each other's. */
   #photo { position: relative; overflow: hidden; background: #000;
@@ -124,7 +131,32 @@
                 font: 600 11px ui-sans-serif, system-ui, sans-serif; }
   #sheet .n { width: 18px; height: 18px; border-radius: 50%; color: #111;
               text-align: center; font: 700 11px/18px ui-sans-serif, system-ui, sans-serif; }
+  #mapwrap { min-height: 0; }
   #map { height: 100%; background: #222; }
+  /* While a round is being guessed the frame takes the whole pane and the map
+     rides over its bottom-right corner. The frame is a 1280px still and
+     squinting at it is the entire game, whereas the map only matters for the
+     few seconds spent placing a pin — an even split spends half the window on
+     the half that matters least, and puts the frame well under 1:1.
+     Hover or keyboard focus grows it; `wide` pins it open once the answer is
+     revealed, when the map becomes the thing worth reading. `minimap` comes off
+     entirely for the end-of-game board and the all-time map, which want the
+     opposite treatment.
+     Only above 800px: a phone has no hover, and a tap on the map is a guess, so
+     the narrow layout keeps its two stacked panes.
+     The size change is a snap, not a transition: Leaflet reads its container
+     size synchronously, so anything fitting bounds right after a layout change
+     would frame the country for a width the box is still animating away from —
+     and an animated grow re-tiles the map on every frame of it. */
+  @media (min-width: 801px) {
+    main.minimap { grid-template-columns: 1fr; }
+    main.minimap #mapwrap { position: absolute; right: 1rem; bottom: 1rem; z-index: 500;
+                            width: 22rem; height: 15rem;
+                            border-radius: 8px; overflow: hidden;
+                            border: 2px solid #0006; box-shadow: 0 8px 24px #000a; }
+    main.minimap #mapwrap:hover, main.minimap #mapwrap:focus-within,
+    main.minimap.wide #mapwrap { width: min(60%, 46rem); height: 78%; }
+  }
   /* End-of-game pins. A bare className replaces Leaflet's own div-icon styling
      (white square, grey border) rather than layering on top of it. */
   .pin span { display: block; width: 22px; height: 22px; box-sizing: border-box;
@@ -213,7 +245,10 @@
     </div>
     <div id="sheet" hidden></div>
   </div>
-  <div id="map"></div>
+  <!-- Leaflet writes `position: relative` inline on its own container, which
+       beats any stylesheet rule, so the minimap is positioned by this wrapper
+       rather than by #map itself. -->
+  <div id="mapwrap"><div id="map"></div></div>
 </main>
 <footer>
   <button id="go" disabled>Drop a pin to guess</button>
@@ -325,14 +360,45 @@ const BANDS = [
 const bandFor = pts => BANDS.find(b => pts >= b.min);
 const squareFor = pts => bandFor(pts).square;
 
-const map = L.map('map', { worldCopyJump: false }).setView([39.5, -98.5], 4);
+const map = L.map('map', { worldCopyJump: false });
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18, attribution: '&copy; OpenStreetMap'
 }).addTo(map);
 
+// Every round opens on the whole playable area — the lower 48, the same box
+// check.py bounds the answers to. Fitted rather than a fixed zoom because the
+// map's box is a corner minimap for some of the game and half the window for
+// the rest, and a zoom that frames the country in one crops it in the other.
+const US_BOUNDS = L.latLngBounds([24, -125], [49.5, -66]);
+const homeView = () => map.fitBounds(US_BOUNDS, { animate: false });
+// Straight away, not only at the first round: a Leaflet map with no view set
+// throws on the first interaction, and rounds.json failing to load would
+// otherwise leave it in that state.
+homeView();
+
 const el = id => document.getElementById(id);
 const photo = el('photo'), go = el('go'), result = el('result');
 const shareBtn = el('share'), practiceBtn = el('practice'), historyBtn = el('history');
+
+// Which of the two panes is dominant, as a pair of classes the stylesheet reads
+// (see the min-width: 801px block). `wide` only means anything with `minimap`.
+const layout = document.querySelector('main');
+const setLayout = (minimap, wide = false) => {
+  layout.classList.toggle('minimap', minimap);
+  layout.classList.toggle('wide', minimap && wide);
+  // Leaflet caches its container size and a CSS-driven resize never tells it,
+  // so `getSize()` would still report the box the map just left. Refreshed here
+  // rather than left to the observer below, which runs after this turn: every
+  // caller fits bounds immediately afterwards, and a fit against the stale size
+  // frames the country for a width that no longer exists.
+  map.invalidateSize({ animate: false });
+};
+
+// Leaflet caches its container size and renders into the stale box otherwise, so
+// every cause of a resize routes through one observer: growing on hover, the
+// reveal pinning it open, dropping back to the split board, and the 800px
+// breakpoint flipping the whole layout.
+new ResizeObserver(() => map.invalidateSize({ animate: false })).observe(el('map'));
 
 // The frame is an <img> under a transform rather than a background-image, so a
 // player can zoom in: a road sign or a storefront name is often legible in the
@@ -481,11 +547,14 @@ function startRound() {
   el('roundNum').textContent = idx + 1;
   clearMarks();
   if (guess) { map.removeLayer(guess); guess = null; }
-  map.setView([39.5, -98.5], 4);
   go.hidden = false;
   go.disabled = true;
   go.textContent = 'Drop a pin to guess';
   go.dataset.phase = 'guess';
+  // After the layout, not before: the fit has to be against the box the map
+  // ends the round in, which is the collapsed minimap.
+  setLayout(true);
+  homeView();
   el('sheet').hidden = true;
   shareBtn.hidden = true;
   practiceBtn.hidden = true;
@@ -545,6 +614,10 @@ async function reveal() {
   const pin = L.circleMarker(truth, { radius: 8, color: '#4ade80', fillOpacity: .9 }).addTo(map);
   const line = L.polyline([at, truth], { color: '#4ade80', dashArray: '5 6' }).addTo(map);
   marks.push(pin, line);
+  // The answer is on the map now, so stop making the player hover to read it.
+  // Before the fit rather than after: growing the box afterwards would leave the
+  // line fitted to the minimap and adrift in the middle of the larger one.
+  setLayout(true, true);
   // Not on the last round: finish() replaces this view with the whole board a
   // moment later, and this animation would land after that fit and undo it.
   const last = idx + 1 >= game.length;
@@ -656,6 +729,7 @@ const DAILY_COLOUR = '#4ade80', PRACTICE_COLOUR = '#7dd3fc';
 function showHistory() {
   clearMarks();
   if (guess) { map.removeLayer(guess); guess = null; }
+  setLayout(false);
 
   const rounds = loadHistory();
   rounds.forEach(([glat, glng, tlat, tlng, , wasDaily]) => {
@@ -758,6 +832,10 @@ function finish() {
   }
   setFrame(null);
   showDifficulty(null);
+  // Back to the even split: the frame pane now holds the contact sheet and the
+  // map holds all five rounds, so neither is the junior partner any more. Before
+  // showSummary, which fits the board to whatever box the map ends up in.
+  setLayout(false);
   showSheet(game, guesses, results);
   showSummary(game, guesses, results);
   result.innerHTML = scoreLine(results, total);
@@ -784,6 +862,7 @@ function showFinished(saved) {
   el('score').textContent = saved.total.toLocaleString();
   setFrame(null);
   showDifficulty(null);
+  setLayout(false);
   go.hidden = true;
   shareBtn.hidden = false;
   practiceBtn.hidden = false;

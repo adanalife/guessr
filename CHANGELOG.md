@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.0](https://github.com/adanalife/guessr/compare/v0.5.1...v0.6.0) (2026-08-01)
+
+
+### Features
+
+* **score:** record one daily result per player per round ([#38](https://github.com/adanalife/guessr/issues/38)) ([a37323b](https://github.com/adanalife/guessr/commit/a37323b445fe8d73f9b519e2f5dfce2ef1cb06ec))
+* **web:** give the frame the whole pane, the map a corner minimap ([#39](https://github.com/adanalife/guessr/issues/39)) ([eae171c](https://github.com/adanalife/guessr/commit/eae171c519556f5e9f446e11f5284a5df572e9f2))
+* **web:** name guessr.dana.lol as the canonical URL ([#40](https://github.com/adanalife/guessr/issues/40)) ([3120c4a](https://github.com/adanalife/guessr/commit/3120c4a1cde20178b2e07c0bea992f99e87fb9ea))
+
 ## [0.5.1](https://github.com/adanalife/guessr/compare/v0.5.0...v0.5.1) (2026-08-01)
 
 
