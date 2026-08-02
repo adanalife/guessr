@@ -1,11 +1,14 @@
-// Checks the daily-round draw. Run with `node test_daily.js` (or `task test`).
+// Checks the daily-round draw and the window a day is open for. Run with
+// `node test_daily.mjs` (or `task test`).
 //
-// daily.js is a plain script rather than a module, so eval in this scope is how
-// the test gets at its functions without adding a module system for one file.
-const assert = require('node:assert');
-const fs = require('node:fs');
-
-eval(fs.readFileSync(`${__dirname}/web/daily.js`, 'utf8'));
+// This is the module both the page and functions/api/score.js import, so a
+// change here that shifts the draw does not just spoil a share string -- it
+// makes the server reject rounds the page legitimately handed out.
+import assert from 'node:assert';
+import {
+  dailyRounds, dailyState, dateForDay, dayFromDate, dayNumber, difficulty,
+  effectiveDay, isOpen, playWindow, rampEasyToHard,
+} from './web/daily.js';
 
 const pool = Array.from({ length: 60 }, (_, i) => ({
   image: `frames/clip_${String(i).padStart(3, '0')}.jpg`,
@@ -37,9 +40,7 @@ assert.strictEqual(
   dayNumber(new Date(2027, 2, 9, 12)) - dayNumber(new Date(2027, 2, 7, 12)), 2,
   'DST boundary skipped or repeated a day number',
 );
-// The epoch itself is day 1. Spelled out rather than read from daily.js
-// because `const` inside eval does not leak into this scope (function
-// declarations do, which is why the rest is reachable).
+// The epoch itself is day 1.
 assert.strictEqual(dayNumber(new Date(2026, 6, 31)), 1, 'epoch should be day 1');
 // Time of day must not matter -- only the calendar date.
 assert.strictEqual(dayNumber(new Date(2026, 6, 31, 23, 59)), dayNumber(new Date(2026, 6, 31, 0, 1)));
@@ -57,11 +58,60 @@ assert.strictEqual(dateForDay(155), '2027-01-01');
 assert.strictEqual(dateForDay(579), '2028-02-29');
 // Zero-padded, since the server matches YYYY-MM-DD literally.
 assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(dateForDay(3)), `unpadded: ${dateForDay(3)}`);
-// The round trip, over two years of days including both US DST switches.
+// The round trip, over two years of days including both US DST switches. This
+// is the property the server leans on: it turns a posted date back into a day
+// number to redraw that date's five, so a date the page could produce and the
+// server reads differently would reject a legitimate play.
 for (let day = 1; day <= 730; day++) {
+  assert.strictEqual(dayFromDate(dateForDay(day)), day,
+    `day ${day} round-tripped through ${dateForDay(day)}`);
   const [y, m, d] = dateForDay(day).split('-').map(Number);
   assert.strictEqual(dayNumber(new Date(y, m - 1, d, 12)), day,
-    `day ${day} round-tripped through ${dateForDay(day)}`);
+    `day ${day} did not read back from its own date`);
+}
+
+// When a date is open. Everyone gets until their own midnight, so a date runs
+// from midnight in UTC+14 (10:00 UTC the day before) to midnight in UTC-12
+// (12:00 UTC the day after). Both edges matter for different reasons: the close
+// is what lets a board be final, and the open is the only thing stopping a
+// script from playing next week today, the draw being public and deterministic.
+const utc = s => new Date(`${s}Z`);
+const w = playWindow('2026-08-05');
+assert.strictEqual(new Date(w.opens).toISOString(), '2026-08-04T10:00:00.000Z');
+assert.strictEqual(new Date(w.closes).toISOString(), '2026-08-06T12:00:00.000Z');
+
+assert.equal(isOpen('2026-08-05', utc('2026-08-04T09:59:59')), false, 'opened early');
+assert.equal(isOpen('2026-08-05', utc('2026-08-04T10:00:00')), true, 'the open edge is inclusive');
+assert.equal(isOpen('2026-08-05', utc('2026-08-05T12:00:00')), true);
+assert.equal(isOpen('2026-08-05', utc('2026-08-06T11:59:59')), true);
+assert.equal(isOpen('2026-08-05', utc('2026-08-06T12:00:00')), false, 'the close edge is exclusive');
+assert.equal(isOpen('2026-08-05', utc('2026-08-12T00:00:00')), false, 'a week later was still open');
+
+// Month and year ends are the case a naive day±1 gets wrong, and Date.UTC's
+// overflow handling is what covers them.
+assert.strictEqual(new Date(playWindow('2026-09-01').opens).toISOString(),
+  '2026-08-31T10:00:00.000Z');
+assert.strictEqual(new Date(playWindow('2026-12-31').closes).toISOString(),
+  '2027-01-01T12:00:00.000Z');
+assert.strictEqual(new Date(playWindow('2028-03-01').opens).toISOString(),
+  '2028-02-29T10:00:00.000Z', 'a leap day was skipped');
+
+// Up to three dates are open at once -- which is why the overlay has to choose
+// which one it renders rather than assuming there is only ever a "today".
+const at11 = utc('2026-08-05T11:00:00');
+assert.deepStrictEqual(
+  ['2026-08-04', '2026-08-05', '2026-08-06'].map(d => isOpen(d, at11)),
+  [true, true, true],
+  'three dates should overlap at 11:00 UTC',
+);
+// And never four.
+assert.equal(isOpen('2026-08-07', at11), false);
+assert.equal(isOpen('2026-08-03', at11), false);
+
+// Every date is open for exactly 50 hours, whatever the month boundary.
+for (const date of ['2026-08-05', '2026-09-01', '2026-12-31', '2028-02-29', '2027-01-01']) {
+  const { opens, closes } = playWindow(date);
+  assert.strictEqual(closes - opens, 50 * 3600 * 1000, `${date} was not open for 50 hours`);
 }
 
 // The three readings of a stored record. A same-day record short of the full
@@ -122,3 +172,4 @@ console.log('ok: games ramp easy to hard without changing the draw');
 console.log('ok: a partial day resumes, a played-out day stays played out');
 console.log('ok: the day number only moves forwards, whatever the clock does');
 console.log('ok: every day number maps to the calendar date it came from');
+console.log('ok: a date is open for 50 hours, and three overlap at once');

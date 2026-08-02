@@ -86,6 +86,14 @@ so do it deliberately.
 `functions/api/score.js` to `/api/score`, and `_scoring.mjs` is skipped by the
 router (leading underscore) so the handler can import it.
 
+The handler also imports `web/daily.js` and `web/rounds.json` — the same draw and
+the same pool the page plays from, bundled into the worker at build time. That is
+what lets it check that a posted round really is one of that date's five without
+storing a schedule anywhere: both sides run the same function over the same data
+from the same commit, so they cannot disagree unless the deploy is internally
+inconsistent. It is also why `daily.js` is an ES module rather than a plain
+script, and why the page's inline script is `type="module"`.
+
 ### The answers
 
 `task rounds` writes two files *outside* `web/`, and neither is committed:
@@ -253,12 +261,28 @@ round's band as three dots — `●●○`. The ordering runs on the drawn five,
 on the pool, so it can't change *which* rounds a day draws. The band cutoffs
 (32 km and 120 km) are the terciles of the shipped set.
 
-`test_daily.js` covers the draw, because it fails invisibly: if it stops being
+`test_daily.mjs` covers the draw, because it fails invisibly: if it stops being
 deterministic, every player simply gets different rounds, nothing errors, and
 the share string quietly stops meaning anything. The test pins determinism,
 independence from the order `rounds.json` was written in, that the ramp reorders
 the five without changing which five, and that a DST boundary doesn't skip or
-repeat a day number.
+repeat a day number. It matters twice over now that `/api/score` draws from the
+same module to check a play: a draw that shifted would have the server rejecting
+rounds the page had just handed out.
+
+### When a day is open
+
+A date is playable from midnight in the earliest timezone on Earth to midnight in
+the latest — 10:00 UTC the day before until 12:00 UTC the day after, 50 hours, so
+everyone gets their own full day. Up to three dates are therefore open at once,
+which is why a board on the stream has to name the date it is showing rather than
+assume there is a single "today".
+
+`/api/score` enforces both edges on a daily play. The close is what lets a board
+be final; the open is the only thing stopping someone playing next week today,
+since the draw is deterministic and computed on the client. A refused play comes
+back as a 403 with a distinct message, and the page treats a 4xx as final rather
+than inviting a retry that cannot work.
 
 The pool needs to stay comfortably larger than five times however many days you
 want before rounds repeat; `task check` reports that number. Regenerating
@@ -353,11 +377,10 @@ game still runs, it's just trivially cheatable.
   Reading it means OCR'ing the strip before cropping it.
 - **Video rounds.** A few seconds of motion beats a still, and motion is the
   whole character of the source material.
-- **A leaderboard.** The store exists — daily results land in `plays`, and both
-  a daily and a monthly board are one query over it (see *The tables the game
-  owns* above). Three things still stand between that and a board on the stream:
-  the endpoint takes the date on the client's word, so nothing yet checks that a
-  posted round is one of that date's five or that the date is open to play; the
-  coordinates for the current round set are in this repo's git history (see *The
-  answers* above), so the set has to be regenerated before any score means
-  anything; and there is no name input, so every row is currently anonymous.
+- **A leaderboard.** The store exists — daily results land in `plays`, verified
+  against that date's draw and its play window, and both a daily and a monthly
+  board are one query over it (see *The tables the game owns* above). Two things
+  still stand between that and a board on the stream: the coordinates for the
+  current round set are in this repo's git history (see *The answers* above), so
+  the set has to be regenerated before any score means anything; and there is no
+  name input, so every row is currently anonymous.

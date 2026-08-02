@@ -106,7 +106,7 @@ tasks:
     desc: Run the tests that need no corpus or database (daily draw, frame zoom,
       scoring, frame dimensions, round-set swap, seeding)
     cmds:
-      - node test_daily.js
+      - node test_daily.mjs
       - node test_zoom.js
       - node test_score.mjs
       - python3 test_check.py

@@ -7,9 +7,15 @@
 // from the answers.json that make_rounds.py writes next to the round set. So a
 // deploy carrying a new round set scores nothing until that push runs -- which
 // is why an unknown round is a 404 with a distinct message rather than a 500.
-// A guess that names a date is a daily play and gets recorded once, in `plays`
-// (schema.sql). A guess with no date is a practice round: scored, never stored.
+// A guess that names a date is a daily play: checked against that date's draw,
+// then recorded once in `plays` (schema.sql). A guess with no date is a practice
+// round -- scored, never stored, never checked, because nothing is at stake.
 import { haversineKm, isPlay, parseGuess, parsePlay, scoreFor } from '../_scoring.mjs';
+// The pool and the draw, imported from the deployed game rather than copied. Both
+// are bundled at build time from the same commit that serves web/, so the five
+// rounds checked here are by construction the five the page handed the player.
+import pool from '../../web/rounds.json';
+import { ROUNDS_PER_GAME, dailyRounds, dayFromDate, isOpen } from '../../web/daily.js';
 
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -31,15 +37,23 @@ export async function onRequestPost({ request, env }) {
   // Rejected rather than ignored: a play that means to be recorded and is
   // malformed would otherwise score normally and quietly never reach the board,
   // which the player has no way to see.
-  //
-  // ponytail: the date is taken on the client's word. Nothing here checks that
-  // the image is one of that date's five, or that the date is one currently open
-  // to play -- the draw is deterministic and client-side, so both are needed
-  // before a board is trustworthy, and both want the draw importable from
-  // web/daily.js. Until then this stops a player improving a score, not a script
-  // inventing one.
   const play = parsePlay(body);
   if (isPlay(body) && !play) return json({ error: 'expected {date, player_id}' }, 400);
+
+  // What stops a posted play being invented rather than earned. The draw is
+  // deterministic and runs on the client, so without these two a script can work
+  // out any date's five -- including next week's -- and post whatever score it
+  // likes against them.
+  //
+  // Both are 403 rather than 400: the request is perfectly well formed, it is
+  // just not a play this endpoint will accept, and the page tells them apart from
+  // a malformed one to know it must not retry.
+  if (play && !isOpen(play.date)) {
+    return json({ error: 'that day is closed' }, 403);
+  }
+  if (play && !inDraw(play.date, guess.image)) {
+    return json({ error: 'that round is not in that day\'s game' }, 403);
+  }
 
   const answer = await env.ANSWERS
     .prepare('SELECT lat, lng, state, filmed FROM answers WHERE image = ?')
@@ -63,6 +77,19 @@ export async function onRequestPost({ request, env }) {
   // this round once, so it is not learning anything it wasn't told the first
   // time -- and the page needs it to draw the map.
   return json({ km: keptKm, points: keptPoints, ...truth, recorded: true });
+}
+
+// Whether an image is one of the five that date draws. Re-running the draw beats
+// storing a schedule: it is the same function the page drew from, over the same
+// rounds.json, in the same deploy -- so the two cannot disagree without the
+// deploy being internally inconsistent.
+//
+// ponytail: the draw is recomputed per request rather than memoised. It is a
+// sort and a shuffle of 300 rounds against one guess that already costs a D1
+// round trip; cache it if a profile ever says so.
+function inDraw(date, image) {
+  return dailyRounds(pool, dayFromDate(date), ROUNDS_PER_GAME)
+    .some(r => r.image === image);
 }
 
 // Writes the play, and returns whatever ended up on record -- the new score if
