@@ -57,6 +57,22 @@ post() { call -X POST "$BASE/api/score" \
 
 image=$(curl -sf "$BASE/rounds.json" | jq -r '.[0].image')
 
+# The media half of the round set, which is the half git does not carry: the
+# clips are pulled from R2 at deploy time, so a deploy that skipped the pull, or
+# a manifest naming a set that was never uploaded, produces a game of black panes.
+#
+# Status is no good for detecting it. Pages answers a path it has no file for
+# with the game's own HTML and a 200, so the missing-media case and the
+# everything-is-fine case are the same status code, the same colour in CI, and
+# distinguishable only by content type.
+ctype=$(curl -s -o /dev/null -w '%{content_type}' "$BASE/$image")
+if [ "${ctype%%;*}" != "video/mp4" ]; then
+  echo "::error::$image served as '$ctype', not video/mp4 -- the clips for this"
+  echo "::error::manifest never reached this deployment. Run \`task clips:push\`."
+  exit 1
+fi
+echo "ok: round media is served as video -> $image"
+
 # A practice guess: scored, never recorded. Fails if the answers table has never
 # heard of the round set that just deployed.
 out=$(post "{\"image\":\"$image\",\"lat\":40,\"lng\":-100}")
