@@ -39,7 +39,7 @@ for (const [near, far] of [[0, 1], [1, 10], [10, 100], [100, 1000]]) {
 
 // The validator. Each of these reaching haversineKm produces a score rather than
 // an error, so they have to be rejected here or not at all.
-const good = { image: 'frames/a.jpg', lat: 40, lng: -100 };
+const good = { image: 'clips/a.mp4', lat: 40, lng: -100 };
 assert.deepEqual(parseGuess(good), good);
 assert.deepEqual(parseGuess({ ...good, extra: 'ignored' }), good, 'extra keys should be dropped');
 

@@ -2,19 +2,25 @@
 """Build a round set for the guessing game.
 
 Samples clips from the dashcam corpus, scores each one for how locatable it is,
-extracts a frame from the good ones, and writes web/rounds.json +
-web/frames/*.jpg -- the files the browser gets -- plus answers.json and
+cuts a few seconds out of the good ones, and writes web/rounds.json +
+web/clips/*.mp4 -- the files the browser gets -- plus answers.json and
 answers.sql outside web/, which hold the coordinates and never ship.
 
 The split is the point: a manifest carrying the true lat/lng lets any player read
 the answer out of devtools, so the coords go to D1 instead (`task
 answers:{stage,prod}:push`) and functions/api/score.js is what turns a guess into
-points. Nothing under web/ says where a frame was taken.
+points. Nothing under web/ says where a clip was taken.
 
 A run builds into web/.staging and only moves the result into place once check.py
-passes on it. The round set under web/ is tracked and every merge to main deploys
-it, so a run that dies on an unmounted corpus or an unreachable database has to
-leave the current set exactly as it was rather than deleting it first.
+passes on it. A run that dies on an unmounted corpus or an unreachable database
+has to leave the current set exactly as it was rather than deleting it first.
+
+web/clips/ is not committed -- a round set is ~125 MB and the repo is public, so
+committing one would add that to history on every regeneration, permanently. The
+manifest is committed and the media is uploaded separately (`task clips:push`),
+which means the two can disagree: a deploy whose clips were never uploaded serves
+a black pane per round. check.py catches that locally; smoke.sh catches it
+against a real deployment.
 
 Ground truth is the clip-level lat/lng in `videos`. The dashcam also burns
 per-frame coords into the HUD, which would be a finer-grained truth if it were
@@ -200,29 +206,67 @@ def score_candidates(
     return rows
 
 
-def extract_frame(row: dict, dest: Path, width: int) -> bool:
-    """Grab one HUD-free frame. Returns False if the clip isn't readable."""
+def extract_clip(
+    row: dict, dest: Path, width: int, seconds: float, crf: int, fps: int
+) -> bool:
+    """Cut one HUD-free clip. Returns False if the source isn't readable.
+
+    A few seconds of motion rather than a still, because motion is the character
+    of the source material and parallax is real information: a still flattens the
+    depth cues that tell a hill from a backdrop.
+
+    Encoding choices, all of them size-driven -- a round set is ~300 of these and
+    none of them are in git:
+
+    - 30fps, halved from the source's 60. The stream keeps 60 because that is its
+      differentiator; a three-second loop of it is twice the bytes for nothing.
+    - CRF 28. 26 is visibly better on shadow detail and 32 is visibly worse --
+      distant signage goes to mush, and reading a sign after zooming in is the
+      mechanic, so there is a floor here that a pure size argument would blow
+      through.
+    - `-an`: the corpus has audio, autoplay requires muted anyway, and it is
+      bytes for something no player will ever hear.
+    - `veryslow`: this runs once per round on a laptop, offline. The frames are
+      the deliverable, so there is no reason to trade their size for encode time.
+    - `+faststart` puts the moov atom first, so the browser can start playing on
+      the first bytes instead of waiting for the whole file.
+    """
     src = CORPUS / f"{row['slug']}.MP4"
     if not src.exists():
         return False
 
-    vf = f"crop=iw:ih-{HUD_STRIP_PX}:0:0,scale={width}:-2"
+    vf = f"crop=iw:ih-{HUD_STRIP_PX}:0:0,scale={width}:-2,fps={fps}"
     proc = subprocess.run(
         [
             "ffmpeg",
             "-y",
             "-loglevel",
             "error",
+            # Before -i, so ffmpeg seeks rather than decoding up to the mark.
+            # Output-accurate regardless, since everything downstream is
+            # re-encoded.
             "-ss",
             str(row["ts"]),
+            "-t",
+            str(seconds),
             "-i",
             str(src),
-            "-frames:v",
-            "1",
             "-vf",
             vf,
-            "-q:v",
-            "3",
+            "-an",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryslow",
+            "-crf",
+            str(crf),
+            # Baseline-compatible chroma and a leading moov atom: without
+            # yuv420p some encodes come out 4:4:4, which Safari refuses to play
+            # at all and which fails as a black pane rather than as an error.
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
             str(dest),
         ],
         capture_output=True,
@@ -278,10 +322,10 @@ def swap_in(staging: Path, web: Path, root: Path | None = None) -> None:
     """Move a validated round set into place, keeping the old one until the last step.
 
     Renames rather than copies, so the served set is never half-written. A stale
-    `frames.old` means a previous run died mid-swap; it is safe to clear.
+    `clips.old` means a previous run died mid-swap; it is safe to clear.
 
     Checks the staged set is complete before touching anything under `web`: moving
-    the live frames aside and only then discovering there is nothing to replace them
+    the live clips aside and only then discovering there is nothing to replace them
     with would take the game down, which is the failure this whole path exists to
     prevent.
 
@@ -294,7 +338,7 @@ def swap_in(staging: Path, web: Path, root: Path | None = None) -> None:
         staging / "answers.json",
         staging / "answers.sql",
     )
-    if not (staging / "frames").is_dir() or not all(f.is_file() for f in required):
+    if not (staging / "clips").is_dir() or not all(f.is_file() for f in required):
         raise FileNotFoundError(f"{staging} is not a complete round set; nothing moved")
 
     # Answers first: they sit outside web/, so getting them into place costs the
@@ -302,13 +346,13 @@ def swap_in(staging: Path, web: Path, root: Path | None = None) -> None:
     for name in ("answers.json", "answers.sql"):
         os.replace(staging / name, root / name)
 
-    old = web / "frames.old"
+    old = web / "clips.old"
     shutil.rmtree(old, ignore_errors=True)
-    if (web / "frames").exists():
-        (web / "frames").rename(old)
-    (staging / "frames").rename(web / "frames")
-    # ponytail: frames land before the manifest, so for a few milliseconds the served
-    # manifest names frames from the previous set. Serving one 404 to whoever is
+    if (web / "clips").exists():
+        (web / "clips").rename(old)
+    (staging / "clips").rename(web / "clips")
+    # ponytail: clips land before the manifest, so for a few milliseconds the served
+    # manifest names clips from the previous set. Serving one 404 to whoever is
     # mid-request beats holding both sets on disk to make the pair truly atomic.
     os.replace(staging / "rounds.json", web / "rounds.json")
     shutil.rmtree(old, ignore_errors=True)
@@ -334,7 +378,18 @@ def main() -> int:
         help="fraction of the scored pool to discard for having no visual "
         "signature of its own, lowest mean cosine distance first",
     )
-    ap.add_argument("--width", type=int, default=1280, help="output frame width")
+    ap.add_argument("--width", type=int, default=1280, help="output clip width")
+    ap.add_argument(
+        "--seconds", type=float, default=3.0, help="length of each round's clip"
+    )
+    ap.add_argument(
+        "--crf",
+        type=int,
+        default=28,
+        help="x264 quality, lower is better and bigger. See extract_clip for why "
+        "28 rather than the smaller numbers a size argument alone would pick.",
+    )
+    ap.add_argument("--fps", type=int, default=30, help="output frame rate")
     ap.add_argument("--namespace", default="stage-1-data")
     ap.add_argument(
         "--seed",
@@ -349,8 +404,8 @@ def main() -> int:
 
     random.seed(args.seed)
     shutil.rmtree(STAGING, ignore_errors=True)
-    frames = STAGING / "frames"
-    frames.mkdir(parents=True)
+    clips = STAGING / "clips"
+    clips.mkdir(parents=True)
 
     scored = score_candidates(args.namespace, args.pool, args.neighbours, args.seed)
     # Cut the visually generic clips by percentile rather than an absolute cosine
@@ -380,14 +435,20 @@ def main() -> int:
     for row in eligible:
         if len(rounds) >= args.count:
             break
-        name = f"{row['slug']}.jpg"
-        if not extract_frame(row, frames / name, args.width):
+        name = f"{row['slug']}.mp4"
+        if not extract_clip(
+            row, clips / name, args.width, args.seconds, args.crf, args.fps
+        ):
             print(f"  skip {row['slug']} (unreadable)")
             continue
-        image = f"frames/{name}"
+        # `image` rather than `clip`: this string is the primary key of D1's
+        # `answers` table and a column of `plays`, so renaming it is a migration
+        # against live rows for no behavioural gain. The pre-launch regeneration
+        # resets `plays` anyway -- that is the cheap moment to rename it, if ever.
+        image = f"clips/{name}"
         # What the browser gets. The two scores stay -- median_km drives the
         # difficulty rating and the easy-to-hard ramp, and neither score says
-        # anything about *where* the frame is.
+        # anything about *where* the clip is.
         rounds.append(
             {
                 "image": image,
@@ -428,12 +489,15 @@ def main() -> int:
         return 1
 
     swap_in(STAGING, WEB)
-    print(f"swapped into {WEB}")
-    # The new rounds score nothing until their coords reach D1, and a deploy of
-    # this set without the push serves every round as "unknown round".
+    size_mb = sum(f.stat().st_size for f in (WEB / "clips").iterdir()) / 1e6
+    print(f"swapped into {WEB} ({size_mb:.0f} MB of clips)")
+    # Two out-of-band pushes, and a deploy that runs without either looks green
+    # while being unplayable: no clips is a black pane per round, no coords is
+    # "unknown round" on every guess. Neither is inferable from the deploy.
     print(
-        "\nnext: task answers:stage:push (and answers:prod:push) to seed the new "
-        "coords into D1 -- until then these rounds cannot be scored"
+        "\nnext, both of them, before deploying this set:\n"
+        "  task clips:push    -- the media, to R2\n"
+        "  task answers:stage:push (and answers:prod:push) -- the coords, to D1"
     )
     return 0
 

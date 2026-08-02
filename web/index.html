@@ -194,9 +194,9 @@
   #sheet button { position: relative; display: block; width: 100%;
                   margin: 0; padding: 0; border: 0; border-radius: 4px;
                   background: none; line-height: 0; }
-  #sheet img { width: 100%; display: block; border-radius: 4px; }
-  #sheet button.on img, #sheet button:focus-visible img { outline: 2px solid var(--color-text);
-                                                          outline-offset: 1px; }
+  #sheet video { width: 100%; display: block; border-radius: 4px; }
+  #sheet button.on video, #sheet button:focus-visible video { outline: 2px solid var(--color-text);
+                                                              outline-offset: 1px; }
   /* Same number and same band colour as the pin on the map, which is the only
      thing tying a thumbnail to the answer it belongs to.
      The badges here and on the map keep fixed colours and a sans face rather
@@ -338,11 +338,19 @@
 <main>
   <div id="photo">
     <!-- draggable="false" is what stops a drag on the frame from starting a
-         native image drag instead of panning. It belongs in the markup rather
+         native drag instead of panning. It belongs in the markup rather
          than the stylesheet: `-webkit-user-drag` is WebKit-only, so on Firefox
          the browser takes over the gesture, fires pointercancel, and the pan is
-         torn down mid-swipe. -->
-    <img id="frame" alt="A dashcam frame to locate" draggable="false" hidden>
+         torn down mid-swipe.
+
+         muted and playsinline are both load-bearing rather than stylistic:
+         without muted no browser will autoplay at all, and without playsinline
+         iOS Safari takes the video fullscreen the moment it starts, burying the
+         map. There is no `controls` because a scrubber is a way to hunt for a
+         frame the round didn't mean to show. -->
+    <video id="frame" draggable="false" hidden
+           autoplay muted loop playsinline preload="auto"
+           aria-label="A few seconds of dashcam footage to locate"></video>
     <div id="zoomctl" hidden>
       <button id="zin" title="Zoom in — or scroll, pinch, or double-click the frame"
               aria-label="Zoom in">+</button>
@@ -529,15 +537,17 @@ const setLayout = (minimap, wide = false) => {
 // breakpoint flipping the whole layout.
 new ResizeObserver(() => map.invalidateSize({ animate: false })).observe(el('map'));
 
-// The frame is an <img> under a transform rather than a background-image, so a
+// The frame is a <video> under a transform rather than a background, so a
 // player can zoom in: a road sign or a storefront name is often legible in the
-// 1280px source and unreadable once it is scaled down to fit the pane.
+// 1280px source and unreadable once it is scaled down to fit the pane. The
+// transform applies to a playing video exactly as it did to an image, so
+// zoom.js is unchanged — only where the intrinsic size is read from moved.
 const frame = el('frame');
 let view = { scale: 1, x: 0, y: 0 };
 
-const imgSize = () => ({ w: frame.naturalWidth, h: frame.naturalHeight });
+const imgSize = () => ({ w: frame.videoWidth, h: frame.videoHeight });
 const boxSize = () => ({ w: photo.clientWidth, h: photo.clientHeight });
-const ready = () => frame.naturalWidth > 0 && photo.clientWidth > 0;
+const ready = () => frame.videoWidth > 0 && photo.clientWidth > 0;
 
 function draw(next) {
   view = next;
@@ -553,8 +563,14 @@ function setFrame(url) {
   el('zoomctl').hidden = !url;
   if (!url) return;
   frame.src = url;
-  // A cached image fires no load event, so fit it here instead.
-  if (frame.complete) resetView();
+  // Autoplay is a promise that rejects rather than throws, and iOS in Low Power
+  // Mode rejects it however muted the video is. Nothing to recover: the first
+  // frame is painted either way, so the round degrades to the still it used to
+  // be instead of to a blank pane. Swallowed explicitly, because an unhandled
+  // rejection here is a console error on every round on those devices.
+  frame.play().catch(() => {});
+  // A cached video may already have its metadata, which fires no event.
+  if (frame.readyState >= 1) resetView();
 }
 
 // Box coordinates for a pointer or wheel event.
@@ -579,7 +595,9 @@ el('zout').addEventListener('click', () => zoomCentre(1 / 1.5));
 ['pointerdown', 'dblclick'].forEach(type =>
   zoomctl.addEventListener(type, e => e.stopPropagation()));
 
-frame.addEventListener('load', resetView);
+// loadedmetadata, not canplay: the intrinsic size is what the fit needs and it
+// is known well before enough data to play has arrived.
+frame.addEventListener('loadedmetadata', resetView);
 new ResizeObserver(resetView).observe(photo);
 
 photo.addEventListener('wheel', e => {
@@ -911,10 +929,15 @@ function showSheet(rounds, played, res) {
   sheetRounds = rounds;
   sheetGuesses = played || [];
   const sheet = el('sheet');
+  // Left paused on a frame rather than looping: five clips playing at once is
+  // noise at the moment the player is reading their score, and five decoders is
+  // real work on a phone. `#t=1` is a media fragment — the browser seeks there
+  // and paints it, which is how you get a poster without generating one. The
+  // bytes are already in cache, since these are the five just played.
   sheet.innerHTML = rounds.map((r, i) => `
     <button type="button" data-i="${i}" title="Show round ${i + 1} on the map">
-      <img src="${r.image}" loading="lazy"
-           alt="Round ${i + 1}${r.state ? `, ${r.state} ${r.filmed}` : ''}">
+      <video src="${r.image}#t=1" preload="metadata" muted playsinline
+             aria-label="Round ${i + 1}${r.state ? `, ${r.state} ${r.filmed}` : ''}"></video>
       <span class="cap">
         <span class="n" style="background:${bandFor(res[i]).colour}">${i + 1}</span>
         ${r.state ? `${r.state} &middot; ` : ''}${res[i].toLocaleString()}

@@ -17,6 +17,12 @@ version: '3'
 
 vars:
   PORT: '{{.PORT | default "8000"}}'
+  # The round-set media. One bucket, not one per tier: a clip is the same bytes
+  # whichever tier serves it, and the manifest each deploy carries is what
+  # decides which of them that tier actually plays. The answers are the opposite
+  # -- those are per-tier, because a regenerated set diverges the moment one tier
+  # has it and the other doesn't.
+  BUCKET: 'adanalife-guessr-clips'
   # The local D1 wrangler keeps under .wrangler/, seeded from answers.sql. Not
   # the deployed database — `answers:{stage,prod}:push` target those by name.
   LOCAL_DB: 'guessr-answers-local'
@@ -28,7 +34,7 @@ tasks:
     silent: true
 
   rounds:
-    desc: Build a round set (scores clips for locatability, extracts frames)
+    desc: Build a round set (scores clips for locatability, cuts their clips)
     cmds:
       - python3 make_rounds.py {{.CLI_ARGS}}
 
@@ -36,6 +42,31 @@ tasks:
     desc: Validate the generated round set
     cmds:
       - python3 check.py
+
+  # The media half of a round set. web/clips/ is gitignored -- a set is ~150 MB
+  # and this repo is public -- so the bucket is how a deploy gets it: the three
+  # deploy workflows pull from here into web/ before handing the directory to
+  # `wrangler pages deploy`.
+  #
+  # check.py first, and not as a convenience: the HUD-crop assertion is the only
+  # thing standing between a clip with the coordinates burned into it and the
+  # served game, and now that the media never reaches CI this is the last place
+  # it runs before the bytes leave the laptop.
+  clips:push:
+    desc: Upload web/clips/ to R2, which is where the deploy workflows read it from
+    deps: [check]
+    cmds:
+      # ponytail: one wrangler invocation per file, which is ~4 minutes for a
+      # full 300-round set. It runs by hand a few times a year, so the fix (an
+      # `aws s3 sync` against R2's S3 endpoint, needing an access-key pair in
+      # SSM on top of the API token) costs more to set up than it saves.
+      - |
+        set -euo pipefail
+        for f in web/clips/*.mp4; do
+          npx wrangler r2 object put "{{.BUCKET}}/$(basename "$f")" \
+            --file "$f" --content-type video/mp4 --remote
+        done
+        echo "uploaded $(ls web/clips/*.mp4 | wc -l | tr -d ' ') clips to {{.BUCKET}}"
 
   serve:
     desc: Serve the static game on $PORT (binds all interfaces, so a phone on

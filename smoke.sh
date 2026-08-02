@@ -64,7 +64,7 @@ check "practice guess scores" 200 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
 grep -q '"recorded":false' <<<"$out" || { echo "::error::practice guess was recorded"; exit 1; }
 
 # A round nobody has answers for.
-out=$(post '{"image":"frames/not-a-real-frame.jpg","lat":40,"lng":-100}')
+out=$(post '{"image":"clips/not-a-real-round.mp4","lat":40,"lng":-100}')
 check "unknown round is refused" 404 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
 
 # A date far enough out that no clock skew makes it open, so the window check is
