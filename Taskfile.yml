@@ -102,6 +102,28 @@ tasks:
     cmds:
       - npx wrangler d1 execute {{.DB}} --remote --file {{.FILE}} --yes
 
+  # How the game is being played, read back out of the plays it already records.
+  # See stats.sql for the questions.
+  stats:stage:
+    desc: Play stats from the staging D1
+    cmds:
+      - task: _d1:stats
+        vars: {DB: adanalife-guessr-answers-staging}
+
+  stats:prod:
+    desc: Play stats from the production D1 (read-only)
+    cmds:
+      - task: _d1:stats
+        vars: {DB: adanalife-guessr-answers}
+
+  # --command rather than --file: --file is D1's *import* path, which reports
+  # only a row count and marks the database changed. And --command= with the
+  # equals sign, or wrangler reads the leading `--` of a SQL comment as a flag.
+  _d1:stats:
+    internal: true
+    cmds:
+      - npx wrangler d1 execute {{.DB}} --remote --json --command="$(cat stats.sql)" | jq '[.[].results]'
+
   test:
     desc: Run the tests that need no corpus and no database to be running (daily
       draw, leaderboard aliases and ranking, frame zoom, scoring, frame
