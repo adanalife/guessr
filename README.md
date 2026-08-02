@@ -166,6 +166,35 @@ play would read as a replay of the first's) and deliberately not the IP address
 (NAT makes a household one player, CGNAT makes one phone several, and an address
 stored beside a typed name is personal data this doesn't need).
 
+### Linking a second device
+
+An id per browser means a player who plays on a phone and a desktop is two
+players on the board. `POST /api/link` with `{from, to}` folds one into the
+other: every play under `from` is rewritten to `to`, and a round both browsers
+answered on the same date keeps the score already on record under `to` — first
+write wins, the same rule the primary key exists to enforce — while the other
+copy is dropped rather than left behind.
+
+There is no account to log into, and adding one would be the whole apparatus (an
+email, a session, a way back in when it's lost) around a problem that is one row
+rewrite. The id already *is* the credential: minted in the browser, never
+returned by any endpoint, `/api/leaderboard` deliberately serving names and
+points and no ids. So holding both ids is proof of holding both browsers.
+
+The About panel's **Link a device** copies a URL carrying the id, and the browser
+that opens it merges and adopts. In the fragment rather than the query string, so
+it is never sent with the request and stays out of the logs it passes through on
+the way; and pointed at the current origin rather than `guessr.dana.lol`, because
+each tier has its own database and a staging id opened on production names a
+player nothing has heard of. The receiving browser asks first, naming the player
+it is about to become: a URL that silently rewrote who you are would be a URL
+anyone could send you.
+
+The consequence worth being plain about: anyone who learns a player's id can take
+that history. That's the exposure the id already carried — knowing it lets you
+post plays as that player — and the mitigation is the same one, which is that it
+has no path out of the browser holding it.
+
 ### The boards
 
 `GET /api/leaderboard?board=daily|monthly` returns `{board, period, rows}`, rows

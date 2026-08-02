@@ -143,7 +143,7 @@
            color: var(--color-muted); font-size: .9em; }
   /* Sized down from the footer's action buttons: this belongs to the build
      line, not to the game. */
-  #reset, #reroll { font-size: inherit; padding: .1rem .5rem; }
+  #reset, #reroll, #link { font-size: inherit; padding: .1rem .5rem; }
   #identity { color: var(--color-muted); }
   #identity b { color: var(--color-text); margin-right: .4rem; }
   #about .dot { display: inline-block; width: .45rem; height: .45rem;
@@ -314,7 +314,12 @@
            (web/alias.js says why), so the control is a reroll rather than a
            field: keep drawing until one reads right. -->
       <p id="identity">You play as <b id="alias"></b>
-        <button id="reroll" class="secondary" title="Draw another name">New name</button></p>
+        <button id="reroll" class="secondary" title="Draw another name">New name</button>
+        <!-- Playing on a phone and a desktop otherwise puts the same person on
+             the board twice. The link carries the player id, so opening it on
+             the other device is the whole mechanism. -->
+        <button id="link" class="secondary"
+          title="Copy a link that adds another device's scores to yours">Link a device</button></p>
       <!-- Both halves are stamped in at deploy time, so the whole line stays
            hidden until version.json says something. The reset is for the
            testing tiers: the intro, the About dot and the daily record are all
@@ -377,7 +382,7 @@ import {
   DIFFICULTY_LEVELS, ROUNDS_PER_GAME, dailyRounds, dailyState, dateForDay,
   difficulty, effectiveDay, pick, rampEasyToHard,
 } from './daily.js';
-import { aliasFrom } from './alias.js';
+import { aliasFrom, isAlias } from './alias.js';
 
 // Only the share line's denominator. The scoring itself is server-side, and
 // functions/_scoring.mjs owns the real value -- rounds.json ships no
@@ -1022,18 +1027,22 @@ go.addEventListener('click', () => {
   else newGame(mode);
 });
 
-shareBtn.addEventListener('click', async () => {
-  const text = shareText(gameDay, results, total);
+// Hand a string to the player, by whichever route the browser allows. The
+// clipboard API needs a secure context, which a plain-http LAN or tailnet
+// address is not, so the fallback is something selectable.
+async function copyOut(btn, text, ask) {
+  const was = btn.textContent;
   try {
     await navigator.clipboard.writeText(text);
-    shareBtn.textContent = 'Copied';
-    setTimeout(() => { shareBtn.textContent = 'Share'; }, 1500);
+    btn.textContent = 'Copied';
+    setTimeout(() => { btn.textContent = was; }, 1500);
   } catch {
-    // The clipboard API needs a secure context, which a plain-http LAN or
-    // tailnet address is not. Fall back to something selectable.
-    window.prompt('Copy your result:', text);
+    window.prompt(ask, text);
   }
-});
+}
+
+shareBtn.addEventListener('click', () =>
+  copyOut(shareBtn, shareText(gameDay, results, total), 'Copy your result:'));
 
 practiceBtn.addEventListener('click', () => {
   if (mode === 'daily') return newGame('practice');
@@ -1093,6 +1102,77 @@ el('reroll').addEventListener('click', () => {
   while (next === el('alias').textContent) next = aliasFrom();
   showAlias(alias(next));
 });
+
+// Linking a second device, so that playing on a phone and a desktop places one
+// player rather than two. The player id is the only credential the game has --
+// minted in the browser, never returned by any endpoint -- so carrying it to the
+// other browser IS the link, and there is no account here to hold the two
+// together instead.
+//
+// It rides in the fragment rather than the query string because a fragment is
+// never sent with the request: the id stays out of the logs of everything it
+// passes through on the way to the other device.
+//
+// The current origin rather than HOME_URL, which is what the share string uses.
+// Each tier has its own database, so a staging id opened on production names a
+// player that database has never heard of, and the merge would report nothing
+// moved with nothing to say why.
+const linkUrl = () => `${location.origin}${location.pathname}` +
+  `#link=${encodeURIComponent(playerId())}&name=${encodeURIComponent(alias() || '')}`;
+
+el('link').addEventListener('click', () =>
+  copyOut(el('link'), linkUrl(), 'Open this on your other device:'));
+
+// The other end: a browser that opens one of those links moves what it has
+// recorded onto that id, then plays as it from here on.
+//
+// Behind a confirm, and never on load alone. A URL that silently rewrites who
+// you are is a URL anyone can send you, so the click is what separates "I sent
+// this to myself" from "someone sent me this" -- and the name carried alongside
+// is what makes the question answerable, since it says which player you are
+// about to become.
+async function adoptLink() {
+  const params = new URLSearchParams(location.hash.slice(1));
+  const to = params.get('link');
+  if (!to) return;
+  // Dropped from the address bar first, so that declining leaves nothing behind
+  // to ask again on the next reload -- including the reload at the end of this.
+  history.replaceState(null, '', location.pathname + location.search);
+
+  const from = playerId();
+  // No id to move means no localStorage, which is the case that was never going
+  // to hold a place on a board anyway. Same id means the link was opened on the
+  // browser that made it, which has nothing to do.
+  if (!from || from === to) return;
+
+  const name = params.get('name');
+  if (!window.confirm(`Add this browser's scores to ${isAlias(name) ? name : 'your other device'}?`
+    + ' Both devices will play as one player from now on.')) return;
+
+  try {
+    const res = await fetch('api/link', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ from, to }),
+    });
+    if (!res.ok) throw new Error(res.status);
+  } catch {
+    // The id is adopted only once the plays have moved. Switching first and
+    // failing here would strand them under an id nothing points at any more:
+    // the link has already left the address bar, and the id it replaced would
+    // have left localStorage.
+    window.alert('Could not link the devices just now. Open the link again to retry.');
+    return;
+  }
+
+  localStorage.setItem(PLAYER_KEY, to);
+  if (isAlias(name)) alias(name);
+  // Reloaded rather than patched in place: a day may be part-played under the
+  // old id, and everything on screen was drawn for a player who no longer plays
+  // here.
+  location.reload();
+}
+adoptLink();
 
 // Clearing by prefix rather than by a list of keys, so state added later is
 // covered without anyone remembering to come back here. This grants a player
