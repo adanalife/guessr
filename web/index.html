@@ -142,7 +142,17 @@
            color: var(--color-muted); font-size: .9em; }
   /* Sized down from the footer's action buttons: this belongs to the build
      line, not to the game. */
-  #reset, #reroll { font-size: inherit; padding: .1rem .5rem; }
+  #reset, #reroll, #link { font-size: inherit; padding: .1rem .5rem; }
+  /* On its own line under the name: it opens a second thing rather than acting
+     on the name beside it, and reads as a row of two otherwise. Kept inside
+     #identity so it disappears with the line it belongs to. */
+  #link { display: block; margin-top: .5rem; }
+  /* The GIF is one pixel per module, so it is scaled up rather than drawn large
+     — pixelated because the browser's default smoothing blurs the module edges
+     a camera is looking for. White ground is baked into the image, so it stays
+     scannable on the dark panel. */
+  #qr { display: block; width: 9rem; height: 9rem; image-rendering: pixelated;
+        border: .4rem solid #fff; }
   #identity { color: var(--color-muted); }
   #identity b { color: var(--color-text); margin-right: .4rem; }
   #about .dot { display: inline-block; width: .45rem; height: .45rem;
@@ -307,7 +317,18 @@
            (web/alias.js says why), so the control is a reroll rather than a
            field: keep drawing until one reads right. -->
       <p id="identity">You play as <b id="alias"></b>
-        <button id="reroll" class="secondary" title="Draw another name">New name</button></p>
+        <button id="reroll" class="secondary" title="Draw another name">New name</button>
+        <!-- Playing on a phone and a desktop otherwise puts the same person on
+             the board twice. The code carries the player id, so scanning it
+             from the other device is the whole mechanism. -->
+        <button id="link" class="secondary"
+          title="Show a code that adds another device's scores to yours">Link a device</button></p>
+      <!-- An anchor around it, so the id is reachable by anyone who can't scan a
+           picture: a screen reader announces a link, and a phone that has the
+           panel open can follow it directly. Following it on the device that
+           drew it is a no-op — it is already that player. -->
+      <p id="qrWrap" hidden><a id="qrLink"><img id="qr"
+        alt="Scan from your other device to play as one player"></a></p>
       <!-- Both halves are stamped in at deploy time, so the whole line stays
            hidden until version.json says something. The reset is for the
            testing tiers: the intro, the About dot and the daily record are all
@@ -360,6 +381,13 @@
 </footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- QR encoding is Reed-Solomon over GF(256), block interleaving and mask
+     scoring — a spec implementation rather than something to write, and one
+     whose bugs are a code that scans on the phone it was tested with and not on
+     the next one. From unpkg like Leaflet above, and pinned the same way: the
+     page already gives that origin the run of itself, so this adds a request
+     rather than a trust boundary. -->
+<script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
 <script src="zoom.js"></script>
 <!-- A module, so daily.js can be imported here and by functions/api/score.js
      alike: the draw the page plays and the draw the server checks against have
@@ -370,7 +398,8 @@ import {
   ROUNDS_PER_GAME, dailyRounds, dailyState, dateForDay,
   effectiveDay, pick, rampEasyToHard,
 } from './daily.js';
-import { aliasFrom } from './alias.js';
+import { aliasFrom, isAlias } from './alias.js';
+import { linkUrl, parseLink } from './link.js';
 
 // Only the share line's denominator. The scoring itself is server-side, and
 // functions/_scoring.mjs owns the real value -- rounds.json ships no
@@ -1074,6 +1103,90 @@ el('reroll').addEventListener('click', () => {
   while (next === el('alias').textContent) next = aliasFrom();
   showAlias(alias(next));
 });
+
+// Linking a second device, so that playing on a phone and a desktop places one
+// player rather than two. The player id is the only credential the game has --
+// minted in the browser, never returned by any endpoint -- so carrying it to the
+// other browser IS the link, and there is no account here to hold the two
+// together instead.
+//
+// A code to point a camera at rather than a URL to copy, because copying was the
+// hard half: a link on a desktop still has to reach a phone, and every route
+// there is a detour out of the game.
+//
+// Error correction M rather than L, the four extra modules being cheap against a
+// camera reading a screen at an angle, through glare, in whatever the room is
+// lit by.
+el('link').addEventListener('click', () => {
+  const wrap = el('qrWrap');
+  wrap.hidden = !wrap.hidden;
+  if (wrap.hidden) return;
+
+  // Drawn on each open rather than once: it encodes the current name, and a
+  // reroll between two opens would otherwise show a code carrying the old one.
+  const url = linkUrl(location.origin + location.pathname, playerId(), alias());
+  const code = qrcode(0, 'M');
+  code.addData(url);
+  code.make();
+  el('qr').src = code.createDataURL(4, 0);
+  el('qrLink').href = url;
+});
+
+// The other end: a browser that opens one of those links moves what it has
+// recorded onto that id, then plays as it from here on.
+//
+// Behind a confirm, and never on load alone. A URL that silently rewrites who
+// you are is a URL anyone can send you, so the click is what separates "I sent
+// this to myself" from "someone sent me this" -- and the name carried alongside
+// is what makes the question answerable, since it says which player you are
+// about to become.
+async function adoptLink() {
+  const link = parseLink(location.hash);
+  if (!link) return;
+  // Dropped from the address bar first, so that declining leaves nothing behind
+  // to ask again on the next reload -- including the reload at the end of this.
+  history.replaceState(null, '', location.pathname + location.search);
+
+  const { id: to, name } = link;
+  const from = playerId();
+  // No id to move means no localStorage, which is the case that was never going
+  // to hold a place on a board anyway. Same id means the code was scanned by the
+  // browser that drew it, which has nothing to do.
+  if (!from || from === to) return;
+
+  if (!window.confirm(`Add this browser's scores to ${isAlias(name) ? name : 'your other device'}?`
+    + ' Both devices will play as one player from now on.')) return;
+
+  try {
+    const res = await fetch('api/link', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ from, to }),
+    });
+    if (!res.ok) throw new Error(res.status);
+  } catch {
+    // The id is adopted only once the plays have moved. Switching first and
+    // failing here would strand them under an id nothing points at any more:
+    // the link has already left the address bar, and the id it replaced would
+    // have left localStorage.
+    window.alert('Could not link the devices just now. Open the link again to retry.');
+    return;
+  }
+
+  localStorage.setItem(PLAYER_KEY, to);
+  if (isAlias(name)) alias(name);
+  // Reloaded rather than patched in place: a day may be part-played under the
+  // old id, and everything on screen was drawn for a player who no longer plays
+  // here.
+  location.reload();
+}
+adoptLink();
+// And again on a hash change, because opening the link is not always a page
+// load: a browser that already has the game in a tab reuses it, and the URL
+// differs only in its fragment -- so the whole thing is a same-document
+// navigation this module would otherwise sleep through. replaceState() above
+// doesn't fire this, so declining doesn't loop.
+window.addEventListener('hashchange', adoptLink);
 
 // Clearing by prefix rather than by a list of keys, so state added later is
 // covered without anyone remembering to come back here. This grants a player

@@ -52,7 +52,7 @@ tasks:
   answers:local:push:
     desc: Seed answers.sql into the local D1 that `dev` binds
     cmds:
-      - npx wrangler d1 execute {{.LOCAL_DB}} --local --file answers.sql --yes
+      - npx wrangler d1 execute {{.LOCAL_DB}} --local --config wrangler.local.jsonc --file answers.sql --yes
 
   # The tables the game owns, as opposed to the rows a round set fills in.
   # Separate from answers:*:push because the two change on completely different
@@ -62,7 +62,7 @@ tasks:
   schema:local:push:
     desc: Apply schema.sql to the local D1 that `dev` binds
     cmds:
-      - npx wrangler d1 execute {{.LOCAL_DB}} --local --file schema.sql --yes
+      - npx wrangler d1 execute {{.LOCAL_DB}} --local --config wrangler.local.jsonc --file schema.sql --yes
 
   schema:stage:push:
     desc: Apply schema.sql to the staging D1
@@ -126,14 +126,15 @@ tasks:
 
   test:
     desc: Run the tests that need no corpus and no database to be running (daily
-      draw, leaderboard aliases and ranking, frame zoom, scoring, frame
-      dimensions, round-set swap, seeding)
+      draw, leaderboard aliases and ranking, frame zoom, scoring, the device
+      merge, frame dimensions, round-set swap, seeding)
     cmds:
       - node test_daily.mjs
       - node test_alias.mjs
       - node test_zoom.js
       - node test_score.mjs
       - node test_leaderboard.mjs
+      - node test_link.mjs
       - python3 test_check.py
       - python3 test_swap.py
       - python3 test_seed.py
