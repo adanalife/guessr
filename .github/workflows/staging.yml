@@ -47,3 +47,13 @@ jobs:
         # infra's terraform and independent of any git branch), which is the
         # alias serving stage.guessr.dana.lol.
         run: npx wrangler pages deploy web/ --project-name adanalife-guessr-staging --branch main
+      # Nothing else couples a deploy to the answers push it needs: the deploy
+      # runs here, the push runs from Dana's laptop, and a mismatch looks exactly
+      # like a network error from the player's side. Same script preview.yml and
+      # release.yml run.
+      #
+      # Against pages.dev rather than stage.guessr.dana.lol: a custom domain
+      # serves the previous build for up to a minute after a green deploy, which
+      # would smoke-test the thing that just got replaced.
+      - name: Smoke-test the endpoints
+        run: ./smoke.sh https://adanalife-guessr-staging.pages.dev

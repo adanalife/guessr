@@ -114,6 +114,13 @@ tasks:
       - python3 test_swap.py
       - python3 test_seed.py
 
+  smoke:
+    desc: "Check a deployed tier is actually playable: task smoke -- <base-url>.
+      Read-only, so it is safe against production — and the thing to run by hand
+      after an answers push"
+    cmds:
+      - ./smoke.sh {{.CLI_ARGS}}
+
   build:
     desc: Generate a fresh round set and validate it
     cmds:

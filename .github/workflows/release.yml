@@ -35,3 +35,18 @@ jobs:
         # production branch ("main", set in infra's terraform and independent
         # of any git branch), which is the alias serving guessr.dana.lol.
         run: npx wrangler pages deploy web/ --project-name adanalife-guessr --branch main
+      # The tier this matters most on. A release carrying a new round set scores
+      # nothing until `task answers:prod:push` runs, and until 2026-08-01 the
+      # only thing coupling the two was remembering — v0.5.0 went live minutes
+      # before its seed and very likely served an unscoreable game meanwhile.
+      # Red here says so; nothing else would have.
+      #
+      # Against pages.dev rather than guessr.dana.lol: a custom domain serves the
+      # previous build for up to a minute after a green deploy, which would
+      # smoke-test the thing that just got replaced.
+      #
+      # It fails *after* the deploy, which is the honest shape — a Pages deploy
+      # can't be gated on a check that needs it live. Fix forward: push the
+      # answers, then re-run the job.
+      - name: Smoke-test the endpoints
+        run: ./smoke.sh https://adanalife-guessr.pages.dev
