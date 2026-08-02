@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import {
   MAX_HANDLE, MAX_ROUND_SCORE, haversineKm, isPlay, parseGuess, parsePlay, scoreFor,
 } from './functions/_scoring.mjs';
+import { ADJECTIVES, NOUNS, aliasFrom } from './web/alias.js';
 
 const SF = { lat: 37.7749, lng: -122.4194 };
 const NYC = { lat: 40.7128, lng: -74.0060 };
@@ -86,16 +87,55 @@ assert.equal(parsePlay({ ...good }), null, 'a practice guess parsed as a play');
 assert.equal(isPlay({ ...play, date: 'yesterday' }), true, 'a broken date stopped being a play');
 assert.equal(parsePlay({ ...play, date: 'yesterday' }), null);
 
-// The handle is optional, trimmed, bounded, and never an identity.
-assert.equal(parsePlay({ ...play, handle: '  Jason  ' }).handle, 'Jason');
+// The handle is optional, trimmed, and never an identity.
+const alias = aliasFrom(() => 0); // the first adjective and the first noun
+assert.equal(parsePlay({ ...play, handle: `  ${alias}  ` }).handle, alias);
 assert.equal(parsePlay({ ...play, handle: '' }).handle, null, 'empty handle should be absent');
 assert.equal(parsePlay({ ...play, handle: '   ' }).handle, null, 'blank handle should be absent');
 assert.equal(parsePlay({ ...play, handle: null }).handle, null);
-assert.equal(parsePlay({ ...play, handle: 'x'.repeat(200) }).handle.length, MAX_HANDLE);
 assert.equal(parsePlay({ ...play, handle: 42 }), null, 'a non-string handle is not a handle');
-// Two players who type the same name are still two players.
-const jasons = [play, { ...play, player_id: 'b7e2' }].map(b => parsePlay({ ...b, handle: 'Jason' }));
-assert.notEqual(jasons[0].playerId, jasons[1].playerId, 'the handle collapsed two players into one');
+
+// Only a name the wordlist could have produced is kept. This is what makes that
+// list a boundary rather than a client-side convention: /api/score is reachable
+// directly, so anything accepted here can be put on a live broadcast by anyone
+// with a terminal.
+for (const forged of [
+  'GO WATCH SOMEONE ELSE',
+  'adanalife_',
+  'Jason',                                  // a plausible name is still not an alias
+  `${ADJECTIVES[0]}`,                       // half of one
+  `${NOUNS[0]}`,
+  `${NOUNS[0]} ${ADJECTIVES[0]}`,           // the right words, the wrong way round
+  `${ADJECTIVES[0]} ${NOUNS[0]} ${NOUNS[1]}`, // an alias with something appended
+  `${ADJECTIVES[0]}  ${NOUNS[0]}`,          // two spaces
+  `${ADJECTIVES[0]} ${NOUNS[0]} `.repeat(2).trim(),
+  `${ADJECTIVES[0].toLowerCase()} ${NOUNS[0]}`, // case is part of the list
+  '<script>alert(1)</script>',
+  'x'.repeat(200),
+]) {
+  assert.equal(parsePlay({ ...play, handle: forged }).handle, null,
+    `a forged handle was kept: ${JSON.stringify(forged)}`);
+}
+
+// Dropped, not rejected -- the guess was still earned, so it records nameless
+// rather than failing the round.
+assert.ok(parsePlay({ ...play, handle: 'GO WATCH SOMEONE ELSE' }),
+  'a forged handle should drop the name, not the play');
+
+// Every alias the generator can produce survives the round trip, or a player
+// would silently lose their name to the validator that is meant to protect it.
+for (const adjective of ADJECTIVES) {
+  for (const noun of NOUNS) {
+    const name = `${adjective} ${noun}`;
+    assert.equal(parsePlay({ ...play, handle: name }).handle, name,
+      `the generator can produce "${name}" but parsePlay drops it`);
+    assert.ok(name.length <= MAX_HANDLE, `"${name}" is longer than MAX_HANDLE`);
+  }
+}
+
+// Two players wearing the same alias are still two players.
+const twins = [play, { ...play, player_id: 'b7e2' }].map(b => parsePlay({ ...b, handle: alias }));
+assert.notEqual(twins[0].playerId, twins[1].playerId, 'the handle collapsed two players into one');
 
 for (const bad of [
   { ...play, date: '2026-8-1' },        // unpadded, and the board matches literally
@@ -120,3 +160,4 @@ assert.ok(parsePlay({ ...play, date: '2028-02-29' }), 'rejected a real leap day'
 
 console.log('ok: scoring curve and guess validation');
 console.log('ok: a play is keyed on an opaque id, with the handle as a label only');
+console.log('ok: only a name the wordlist could have made is kept');
