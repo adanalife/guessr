@@ -51,3 +51,23 @@ jobs:
       # answers, then re-run the job.
       - name: Smoke-test the endpoints
         run: ./smoke.sh https://adanalife-guessr.pages.dev
+      # Nothing else says a production deploy went red. The release PR merges
+      # green long before the tag runs, so the only record is this run's own
+      # entry in a list nobody is watching at 04:00.
+      #
+      # Best-effort, like the release notifications in the other repos: a
+      # rotated webhook 404s, and that must not bury the failure it reports
+      # under a second one.
+      - name: Discord notification on failure
+        if: failure()
+        continue-on-error: true
+        uses: Ilshidur/action-discord@0.4.0
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          VERSION_TAG: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          # The deploy and the smoke test both live in this job and either can
+          # be what failed, so the message points at the log rather than
+          # claiming which -- and claims nothing about what the site is serving.
+          args: 'Production deploy failed for [{{ EVENT_PAYLOAD.repository.full_name }}]({{ EVENT_PAYLOAD.repository.html_url }}) at {{ VERSION_TAG }}: [run log]({{ RUN_URL }})'
