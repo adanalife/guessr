@@ -186,6 +186,55 @@ play would read as a replay of the first's) and deliberately not the IP address
 (NAT makes a household one player, CGNAT makes one phone several, and an address
 stored beside a typed name is personal data this doesn't need).
 
+### Linking a second device
+
+An id per browser means a player who plays on a phone and a desktop is two
+players on the board. `POST /api/link` with `{from, to}` folds one into the
+other: every play under `from` is rewritten to `to`, and a round both browsers
+answered on the same date keeps the score already on record under `to` — first
+write wins, the same rule the primary key exists to enforce — while the other
+copy is dropped rather than left behind.
+
+There is no account to log into, and adding one would be the whole apparatus (an
+email, a session, a way back in when it's lost) around a problem that is one row
+rewrite. The id already *is* the credential: minted in the browser, never
+returned by any endpoint, `/api/leaderboard` deliberately serving names and
+points and no ids. So holding both ids is proof of holding both browsers.
+
+The About panel's **Link a device** draws that URL as a QR code, and the browser
+that scans it merges and adopts. A code rather than a copyable link because
+copying was the hard half: a URL on a desktop still has to reach a phone, and
+every route there is a detour out of the game. It stays an `<a>` around the
+image, so a screen reader still announces a link and a phone with the panel open
+can follow it directly.
+
+The id rides in the fragment rather than the query string, so it is never sent
+with the request and stays out of the logs it passes through on the way; and the
+URL is built on the current origin rather than `guessr.dana.lol`, because each
+tier has its own database and a staging id opened on production names a player
+nothing has heard of. `web/link.js` owns both halves — building the URL and
+reading one back — split out for the same reason `daily.js` is: a name that
+isn't escaped and a parse that reads the wrong key both present as a code that
+did nothing.
+
+Adoption runs on load *and* on `hashchange`, because opening the link isn't
+always a page load — a browser already showing the game reuses the tab, and the
+URL differs only in its fragment. The receiving browser asks first, naming the
+player it is about to become: a URL that silently rewrote who you are would be a
+URL anyone could send you.
+
+Encoding is `qrcode-generator` from unpkg, pinned alongside Leaflet. QR is
+Reed-Solomon over GF(256), block interleaving and mask scoring — a spec
+implementation rather than something to write, and one whose bugs are a code that
+scans on the phone it was tested with and not the next one. It adds a request
+rather than a trust boundary: the page already gives that origin the run of
+itself.
+
+The consequence worth being plain about: anyone who learns a player's id can take
+that history. That's the exposure the id already carried — knowing it lets you
+post plays as that player — and the mitigation is the same one, which is that it
+has no path out of the browser holding it.
+
 ### The boards
 
 `GET /api/leaderboard?board=daily|monthly` returns `{board, period, rows}`, rows
@@ -319,6 +368,45 @@ Commits and PR titles follow [Conventional Commits](https://www.conventionalcomm
 PRs squash-merge, so the PR title becomes the subject in history and is what
 release-please reads to compute the next version.
 
+### Changelog
+
+`CHANGELOG.md` is assembled by [towncrier](https://towncrier.readthedocs.io)
+from one fragment per PR, so every PR adds one:
+
+```sh
+task changelog:add TYPE=new     # writes changelog.d/+new.new.md — open it and write the line
+task changelog:preview          # what the next release will say
+```
+
+Types are `new`, `changed`, `fixed`, `behind` (behind the scenes) and `summary`
+(a lead paragraph for the release, when one is warranted). You don't need the PR
+number: `changelog-number.yml` renames the `+` placeholder to `<PR#>.<type>.md`
+on push, which is what puts a PR link on each entry. A PR that genuinely
+warrants no entry — a dependabot bump, a round-set regeneration, a revert —
+carries the `skip-changelog` label instead, and `gates` fails without one.
+
+**Write the entry for a player.** That file is what the version number in the
+About panel links to, so it's read by someone who just finished a round and
+tapped it — not by anyone who will ever open this repo. Say what changed for
+them, in their words, in the present tense:
+
+> The map remembers how far you zoomed in.
+
+not
+
+> persist zoom level to localStorage
+
+No file names, no endpoints, no repo jargon; if a line only parses next to the
+diff, it belongs in the PR description. Plumbing still gets a line, under
+**Behind the scenes** — plainly, not in the jargon that section might seem to
+invite.
+
+Releases assemble it automatically: release-please's standing PR carries the
+version bump, and a step on that branch collates the fragments into
+`CHANGELOG.md` so the notes and the bump land together. Entries from before
+towncrier are still in the old release-please style below the
+`<!-- towncrier release notes start -->` marker.
+
 ## The daily round
 
 Everyone playing on the same calendar day draws the same five rounds. There is
@@ -339,10 +427,9 @@ Finishing writes the day to `localStorage`, so today's round can't be replayed
 for a better result. Practice mode draws at random and is unlimited.
 
 Both modes then order their five rounds easy to hard by `median_km` (see [How
-rounds are chosen](#how-rounds-are-chosen)), and the header shows the current
-round's band as three dots — `●●○`. The ordering runs on the drawn five, never
-on the pool, so it can't change *which* rounds a day draws. The band cutoffs
-(32 km and 120 km) are the terciles of the shipped set.
+rounds are chosen](#how-rounds-are-chosen)). The ordering runs on the drawn five,
+never on the pool, so it can't change *which* rounds a day draws. The ramp is
+felt, not shown — nothing in the header rates the round you are looking at.
 
 `test_daily.mjs` covers the draw, because it fails invisibly: if it stops being
 deterministic, every player simply gets different rounds, nothing errors, and

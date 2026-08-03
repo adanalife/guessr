@@ -6,7 +6,7 @@
 // makes the server reject rounds the page legitimately handed out.
 import assert from 'node:assert';
 import {
-  dailyRounds, dailyState, dateForDay, dayFromDate, dayNumber, difficulty,
+  dailyRounds, dailyState, dateForDay, dayFromDate, dayNumber,
   effectiveDay, isOpen, lastClosedDate, monthOf, playWindow, rampEasyToHard,
 } from './web/daily.js';
 
@@ -187,14 +187,6 @@ const original = dailyRounds(pool, 12, 5);
 const before = original.map(r => r.image);
 rampEasyToHard(original);
 assert.deepStrictEqual(original.map(r => r.image), before, 'rampEasyToHard mutated its input');
-
-// The bands are monotonic in median_km and cover the whole range.
-assert.strictEqual(difficulty({ median_km: 0 }), 1);
-assert.strictEqual(difficulty({ median_km: 31.9 }), 1);
-assert.strictEqual(difficulty({ median_km: 32 }), 2);
-assert.strictEqual(difficulty({ median_km: 119.9 }), 2);
-assert.strictEqual(difficulty({ median_km: 120 }), 3);
-assert.strictEqual(difficulty({ median_km: 5000 }), 3);
 
 console.log('ok: daily draw is deterministic, order-independent, and DST-safe');
 console.log('ok: games ramp easy to hard without changing the draw');

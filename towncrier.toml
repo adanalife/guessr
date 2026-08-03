@@ -1,0 +1,65 @@
+# Changelog fragments, assembled by towncrier at release time.
+#
+# Every PR drops a fragment in changelog.d/ named <PR>.<type>.md. You rarely
+# know the PR number when branching, so scaffold a "+" placeholder (towncrier's
+# issue-less convention) and let CI number it:
+#
+#   task changelog:add TYPE=new          # writes changelog.d/+new.new.md
+#   task changelog:preview               # see the pending notes
+#   task changelog:build VERSION=0.9.0   # collate into CHANGELOG.md
+#
+# On push, changelog-number.yml renames +<slug>.<type>.md -> <PR#>.<type>.md so
+# each entry links to its PR.
+#
+# WRITE THESE FOR PLAYERS, NOT FOR US. The About panel links here, so the
+# audience is whoever just finished a round and tapped the version number —
+# someone who has never read this repo and never will. That means:
+#
+#   - Say what changed for them, in the words they'd use. "The map remembers
+#     how far you zoomed in", not "persist zoom level to localStorage".
+#   - No file names, function names, endpoints, or repo jargon. If a sentence
+#     only parses next to the diff, it belongs in the PR, not here.
+#   - Present tense, describing how the game works now — not the work that got
+#     it there.
+#   - A player-invisible change is still worth a line under "Behind the
+#     scenes", written just as plainly. That section is where the plumbing
+#     goes, not where the jargon gets let back in.
+#
+# Sections are what a player cares about, in the order they'd care: what's new,
+# what moved, what stopped being broken, and then the machinery. `summary` is
+# the optional lead paragraph for a release — reach for it when a release has
+# one headline worth stating before the list.
+[tool.towncrier]
+directory = "changelog.d"
+filename = "CHANGELOG.md"
+template = ".github/towncrier-template.md"
+start_string = "<!-- towncrier release notes start -->\n"
+title_format = "## v{version} — {project_date}"
+issue_format = "[#{issue}](https://github.com/adanalife/guessr/pull/{issue})"
+wrap = false
+all_bullets = true
+
+[[tool.towncrier.type]]
+directory = "summary"
+name = "Summary"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "new"
+name = "New"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "changed"
+name = "Changed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "fixed"
+name = "Fixed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "behind"
+name = "Behind the scenes"
+showcontent = true

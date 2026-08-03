@@ -79,7 +79,7 @@ tasks:
   answers:local:push:
     desc: Seed answers.sql into the local D1 that `dev` binds
     cmds:
-      - npx wrangler d1 execute {{.LOCAL_DB}} --local --file answers.sql --yes
+      - npx wrangler d1 execute {{.LOCAL_DB}} --local --config wrangler.local.jsonc --file answers.sql --yes
 
   # The tables the game owns, as opposed to the rows a round set fills in.
   # Separate from answers:*:push because the two change on completely different
@@ -89,7 +89,7 @@ tasks:
   schema:local:push:
     desc: Apply schema.sql to the local D1 that `dev` binds
     cmds:
-      - npx wrangler d1 execute {{.LOCAL_DB}} --local --file schema.sql --yes
+      - npx wrangler d1 execute {{.LOCAL_DB}} --local --config wrangler.local.jsonc --file schema.sql --yes
 
   schema:stage:push:
     desc: Apply schema.sql to the staging D1
@@ -151,16 +151,43 @@ tasks:
     cmds:
       - npx wrangler d1 execute {{.DB}} --remote --json --command="$(cat stats.sql)" | jq '[.[].results]'
 
+  # Changelog (towncrier). Fragments live in changelog.d/, one per PR, and are
+  # collated into CHANGELOG.md at release time. Run via uvx — no project dep.
+  # The About panel links to that file, so the entries are written for players;
+  # towncrier.toml says what that means.
+  changelog:add:
+    desc: 'Scaffold a changelog fragment (TYPE=new, optional SLUG=my-thing; CI numbers it on push). Pass PR=123 to name it directly. Types: new changed fixed behind summary'
+    vars:
+      TYPE: '{{.TYPE | default "new"}}'
+      # No PR yet? Drop a "+" placeholder (towncrier's issue-less convention) —
+      # changelog-number.yml renames it to <PR#>.<type>.md once the PR is open.
+      NAME: '{{if .PR}}{{.PR}}{{else}}+{{.SLUG | default .TYPE}}{{end}}'
+    cmds:
+      - uvx towncrier create --config towncrier.toml {{.NAME}}.{{.TYPE}}.md
+
+  changelog:preview:
+    desc: Preview the pending changelog from the current fragments (towncrier draft)
+    cmds:
+      - uvx towncrier build --draft --config towncrier.toml --version {{.VERSION | default "Unreleased"}}
+
+  changelog:build:
+    desc: Collate fragments into CHANGELOG.md for a release + delete them (VERSION=0.9.0). CI does this on the release PR — this is for checking the result by hand
+    requires:
+      vars: [VERSION]
+    cmds:
+      - uvx towncrier build --yes --config towncrier.toml --version {{trimPrefix "v" .VERSION}}
+
   test:
     desc: Run the tests that need no corpus and no database to be running (daily
-      draw, leaderboard aliases and ranking, frame zoom, scoring, frame
-      dimensions, round-set swap, seeding)
+      draw, leaderboard aliases and ranking, frame zoom, scoring, the device
+      merge, frame dimensions, round-set swap, seeding)
     cmds:
       - node test_daily.mjs
       - node test_alias.mjs
       - node test_zoom.js
       - node test_score.mjs
       - node test_leaderboard.mjs
+      - node test_link.mjs
       - python3 test_check.py
       - python3 test_swap.py
       - python3 test_seed.py
