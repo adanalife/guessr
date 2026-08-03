@@ -115,4 +115,4 @@ jobs:
           # claiming which -- and claims nothing about what the site is serving.
           # That distinction is not academic here: v1.0.0's run went red on a
           # smoke test racing its own deploy, while the site was fine.
-          args: 'Production deploy failed for [{{ EVENT_PAYLOAD.repository.full_name }}]({{ EVENT_PAYLOAD.repository.html_url }}) at {{ VERSION_TAG }}: [run log]({{ RUN_URL }})'
+          args: 'Release failed for [{{ EVENT_PAYLOAD.repository.full_name }}]({{ EVENT_PAYLOAD.repository.html_url }}) at {{ VERSION_TAG }}: [run log]({{ RUN_URL }})'
