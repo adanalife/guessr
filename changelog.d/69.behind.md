@@ -1,0 +1,1 @@
+Nothing changes about how a round looks. The settings that decide how the footage is compressed are now written down in one place rather than passed in every time, which makes them harder to change by accident.
