@@ -210,14 +210,35 @@
   #sheet { position: absolute; inset: 0; overflow-y: auto; padding: .5rem;
            display: grid; gap: .5rem; align-content: center;
            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-  /* A button, not a figure: each tile zooms the map to its round, and the
-     element that does that should be focusable and Enter-operable for free. */
+  /* A button, not a figure: each tile reopens its round, and the element that
+     does that should be focusable and Enter-operable for free. */
+  /* align-self, and it is load-bearing rather than tidiness: a grid item
+     stretches to its row by default, a button centres its own content
+     vertically, and the badge is positioned against the button — so one taller
+     cell in the row pushed a thumbnail down while its badge stayed at the top
+     and came off the picture entirely. Not stretching means the button is always
+     exactly its thumbnail, whatever shares the row. */
   #sheet button { position: relative; display: block; width: 100%;
+                  align-self: start;
                   margin: 0; padding: 0; border: 0; border-radius: 4px;
-                  background: none; line-height: 0; }
+                  background: none; line-height: 0; cursor: pointer; }
   #sheet video { width: 100%; display: block; border-radius: 4px; }
-  #sheet button.on video, #sheet button:focus-visible video { outline: 2px solid var(--color-text);
-                                                              outline-offset: 1px; }
+  #sheet button:focus-visible video { outline: 2px solid var(--color-text);
+                                      outline-offset: 1px; }
+  /* The live embed rides in the same grid cell shape as a round. aspect-ratio
+     rather than a height, because a round tile is sized by its own video and the
+     two have to agree or the last row goes ragged. */
+  #sheet .live { position: relative; line-height: 0; }
+  #sheet .live iframe { width: 100%; aspect-ratio: 16 / 9; display: block;
+                        border: 0; border-radius: 4px; }
+  /* The caption sits under this one rather than over it: on a round tile the
+     badge overlays a paused frame, but here it would cover YouTube's own
+     controls, and the link has to stay clickable. It is also the whole cell
+     until the player arrives, so it carries the type size rather than the 11px
+     a badge over footage wants. */
+  #sheet .live .cap { position: static; margin-top: .4rem; background: none;
+                      color: var(--color-text); line-height: 1.35;
+                      font-size: .82rem; font-weight: 400; }
   /* Same number and same band colour as the pin on the map, which is the only
      thing tying a thumbnail to the answer it belongs to.
      The badges here and on the map keep fixed colours and a sans face rather
@@ -389,6 +410,11 @@
            block on iOS being the one that actually happens. -->
       <button id="playpause" title="Pause — or press space"
               aria-label="Pause">&#9208;&#xFE0E;</button>
+      <!-- Only up while a single round is open from the end-of-game sheet, which
+           is the one state the pane can be in that the player did not arrive at
+           by playing. -->
+      <button id="board" hidden title="Back to all five rounds — or press Escape"
+              aria-label="Back to all five rounds">&#9638;&#xFE0E;</button>
     </div>
     <div id="sheet" hidden></div>
   </div>
@@ -561,7 +587,7 @@ new ResizeObserver(() => map.invalidateSize({ animate: false })).observe(el('map
 // The frame is a <video> under a transform rather than a background, so a
 // player can zoom in: a road sign or a storefront name is often legible in the
 // 1280px source and unreadable once it is scaled down to fit the pane.
-const frame = el('frame');
+const frame = el('frame'), boardBtn = el('board');
 let view = { scale: 1, x: 0, y: 0 };
 
 const imgSize = () => ({ w: frame.videoWidth, h: frame.videoHeight });
@@ -580,6 +606,10 @@ function resetView() {
 function setFrame(url) {
   frame.hidden = !url;
   el('zoomctl').hidden = !url;
+  // Every other route into the pane is a round being played, and there is no
+  // board to go back to from one. Only the sheet raises it again, so putting it
+  // here means a new route can't inherit a control that doesn't apply.
+  boardBtn.hidden = true;
   if (!url) return;
   frame.src = url;
   // A player who paused wants a still, and wanting one on round 2 is a good
@@ -673,6 +703,13 @@ const spread = () => {
 };
 
 pane.addEventListener('pointerdown', e => {
+  // Nothing to pan when the contact sheet has the pane, and capturing anyway is
+  // not harmless: a captured pointer retargets the click that follows it to the
+  // capture element, so every tap on a tile arrived at the pane instead of the
+  // tile and the sheet's own handler never saw one. Guarded here rather than
+  // with a stopPropagation on the sheet, because the pan has no meaning without
+  // a frame to apply it to whatever else ends up in this pane.
+  if (frame.hidden) return;
   pane.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId, localPoint(e));
   pane.classList.add('dragging');
@@ -910,6 +947,11 @@ function showHistory() {
   clearMarks();
   if (guess) { map.removeLayer(guess); guess = null; }
   setLayout(false);
+  // A round opened from the sheet holds the pane, and this map is about every
+  // game rather than that round — so leave the pane the way the end-of-game
+  // board does. Not showBoard(), which would refit the map it just drew.
+  setFrame(null);
+  el('sheet').hidden = false;
 
   const rounds = loadHistory();
   rounds.forEach(([glat, glng, tlat, tlng, , wasDaily]) => {
@@ -963,34 +1005,93 @@ function showSheet(rounds, played, res) {
   // and paints it, which is how you get a poster without generating one. The
   // bytes are already in cache, since these are the five just played.
   sheet.innerHTML = rounds.map((r, i) => `
-    <button type="button" data-i="${i}" title="Show round ${i + 1} on the map">
+    <button type="button" data-i="${i}" title="Watch round ${i + 1} again">
       <video src="${r.image}#t=1" preload="metadata" muted playsinline
              aria-label="Round ${i + 1}${r.state ? `, ${r.state} ${r.filmed}` : ''}"></video>
       <span class="cap">
         <span class="n" style="background:${bandFor(res[i]).colour}">${i + 1}</span>
         ${r.state ? `${r.state} &middot; ` : ''}${res[i].toLocaleString()}
       </span>
-    </button>`).join('');
+    </button>`).join('') + LIVE_TILE;
   sheet.hidden = false;
+  fillLiveTile();
 }
 
-// A tile zooms the map to its own round, and zooms back out when it's the one
-// already selected — otherwise the only way back to the whole board is the
-// map's minus button, which doesn't look like the way back.
+// The sixth cell of a five-round grid, which is otherwise a hole. A player who
+// has reached this screen just spent five rounds enjoying the footage, so it is
+// the one place the game has earned the right to point at the stream it comes
+// from.
+//
+// It starts as the link and grows a player only once /api/live says the channel
+// is streaming. That order is deliberate: the retired embed endpoint answered a
+// dark channel with YouTube's own "This video is unavailable" panel, and a grey
+// error box is worse in this cell than a line of text. So the cheap thing
+// renders first and the player is the upgrade.
+const LIVE_TILE = `
+  <div class="live">
+    <span class="cap">
+      <a href="https://youtube.com/@adanalife_/live" target="_blank" rel="noopener">
+        Watch live on YouTube &rarr;</a>
+    </span>
+  </div>`;
+
+// `mute=1` is not politeness, it is what makes this play at all: no browser
+// autoplays an unmuted embed, so without it the cell is a still with a play
+// button on it. The nocookie host serves the same player without setting
+// YouTube's cookies, which keeps what this game has to disclose down to its own
+// localStorage.
+async function fillLiveTile() {
+  const box = el('sheet').querySelector('.live');
+  if (!box) return;
+  let videoId = null;
+  try {
+    ({ videoId } = await (await fetch('/api/live')).json());
+  } catch { /* the cell stays the link, which is the point of it being one */ }
+  // Checked here and not only at the endpoint: this id goes into a URL, and a
+  // page should not put a response it did not validate into one.
+  if (!videoId || !/^[\w-]{11}$/.test(videoId)) return;
+  // The board may have been left in the meantime -- a slow answer must not paint
+  // a player into a sheet that has since been rebuilt or replaced by a round.
+  if (!box.isConnected) return;
+
+  const player = document.createElement('iframe');
+  player.src = `https://www.youtube-nocookie.com/embed/${videoId}?mute=1&autoplay=1&playsinline=1`;
+  player.title = 'A Dana Life — the 24/7 dashcam stream, live on YouTube';
+  player.allow = 'autoplay; encrypted-media; picture-in-picture';
+  player.referrerPolicy = 'strict-origin-when-cross-origin';
+  player.allowFullscreen = true;
+  box.prepend(player);
+}
+
+// A tile opens its round: the clip goes back into the pane with the zoom, pan
+// and playback it had during the round, and the map fits that one round.
 let sheetRounds = [], sheetGuesses = [], boardBounds = null;
+
+// The sheet is the only way into a single round, so leaving one needs a control
+// of its own — the map's minus button doesn't look like the way back, and the
+// sheet is hidden behind the clip while the clip is up.
+function showBoard() {
+  setFrame(null);
+  el('sheet').hidden = false;
+  if (boardBounds) map.fitBounds(boardBounds, { padding: [40, 40], animate: false });
+}
+
+boardBtn.addEventListener('click', showBoard);
 
 el('sheet').addEventListener('click', e => {
   const tile = e.target.closest('button[data-i]');
   if (!tile) return;
 
-  const selected = !tile.classList.contains('on');
-  [...el('sheet').children].forEach(t => t.classList.toggle('on', selected && t === tile));
-
-  if (!selected) {
-    if (boardBounds) map.fitBounds(boardBounds, { padding: [40, 40], animate: false });
-    return;
-  }
   const i = +tile.dataset.i, r = sheetRounds[i];
+  // Hand the pane back to the frame. setFrame after hiding the sheet, which is
+  // absolutely positioned over the frame: the fit reads the pane's box, and the
+  // box is the same either way, but the clip should never paint underneath.
+  el('sheet').hidden = true;
+  setFrame(r.image);
+  boardBtn.hidden = false;
+
+  // A save written before the answers moved server-side has no truth to fit, so
+  // the clip opens and the map stays on whatever it was showing.
   if (r.lat == null) return;
   const truth = [r.lat, r.lng];
   // A save from before guesses were recorded has no line to frame, so centre
@@ -1094,7 +1195,13 @@ document.addEventListener('click', e => {
   if (!about.contains(e.target)) about.open = false;
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') about.open = false;
+  // One overlay per press, outermost first. The back button's own state is the
+  // one flag that says a round is open from the sheet; during a round Escape has
+  // nothing to leave.
+  if (e.key === 'Escape') {
+    if (about.open) about.open = false;
+    else if (!boardBtn.hidden) showBoard();
+  }
   // Space toggles playback, unless something with a prior claim on it has
   // focus. Guarding on where focus *is* rather than on a set of state flags
   // covers each case at its source: a focused button already treats space as a
