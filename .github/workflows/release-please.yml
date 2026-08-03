@@ -1,18 +1,24 @@
 name: release-please
 # Trunk-based release flow: release-please maintains a standing release PR on
-# main (version + CHANGELOG computed from conventional commits). Merging that
-# PR creates the vX.Y.Z tag + GitHub Release, and the tag fires release.yml —
-# which is what promotes staging to guessr.dana.lol.
+# main (the next version, computed from the conventional commits since the last
+# release). Merging that PR creates the vX.Y.Z tag + GitHub Release, and the tag
+# fires release.yml — which is what promotes staging to guessr.dana.lol.
+#
+# `skip-changelog` is set because towncrier owns CHANGELOG.md: the "Build the
+# changelog" step below collates the changelog.d/ fragments on the release PR
+# branch, so the player-facing notes land atomically with the version bump when
+# the PR squash-merges. Release-please's own changelog is a list of commit
+# subjects, which is the wrong register for a file the About panel links to.
 #
 # It runs on the adanalife-automation app token, not GITHUB_TOKEN, and both
 # halves of that matter. Anything github-actions[bot] triggers is held at
 # `action_required` under the repo's first-time-contributor approval policy —
-# a status the bot never outgrows — so every update to the release PR branch
-# parked `gates` and `pre-commit` unrun and left the PR BLOCKED until someone
+# a status the bot never outgrows — so an update to the release PR branch would
+# park `gates` and `pre-commit` unrun and leave the PR BLOCKED until someone
 # clicked approve, three workflows at a time. And a GITHUB_TOKEN-pushed tag
-# fires no push trigger at all, which is why this used to dispatch release.yml
-# by hand. An app token is an ordinary actor on both counts: its pull_request
-# events run unheld and its tag reaches release.yml on its own.
+# fires no push trigger at all, so release.yml would need dispatching by hand.
+# An app token is an ordinary actor on both counts: its pull_request events run
+# unheld and its tag reaches release.yml on its own.
 on:
   push:
     branches:
@@ -36,7 +42,48 @@ jobs:
           private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
 
       - uses: googleapis/release-please-action@v5
+        id: release
         with:
           token: ${{ steps.app-token.outputs.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      # On the standing-release-PR run (not the release-created run), collate
+      # the fragments onto the PR branch. Pushed with the app token so the push
+      # fires the PR's pull_request events and the gates re-run against the
+      # final release state. release-please recreates this branch from main on
+      # every push, so the rebuild is idempotent.
+      - name: Check out the release PR branch
+        if: ${{ steps.release.outputs.pr && !steps.release.outputs.release_created }}
+        uses: actions/checkout@v7
+        with:
+          ref: release-please--branches--main
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: astral-sh/setup-uv@v8.2.0 # no floating major tag published
+        if: ${{ steps.release.outputs.pr && !steps.release.outputs.release_created }}
+
+      - name: Build the changelog on the release PR branch
+        if: ${{ steps.release.outputs.pr && !steps.release.outputs.release_created }}
+        run: |
+          set -euo pipefail
+          # release-please bumped the manifest on this branch — that version is
+          # the single source of truth for both the changelog stanza and the
+          # tag that gets cut.
+          VERSION=$(jq -r '."."' .release-please-manifest.json)
+          echo "Release version: $VERSION"
+
+          # A release PR can legitimately carry no fragments (a fix: whose entry
+          # was skip-changelog'd), which is no stanza rather than an error.
+          if compgen -G "changelog.d/*.md" > /dev/null; then
+            uvx towncrier build --yes --config towncrier.toml --version "$VERSION"
+          fi
+
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "chore: build changelog for $VERSION"
+            git push origin HEAD:release-please--branches--main
+          fi

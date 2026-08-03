@@ -13,13 +13,14 @@ name: pr-gates
 
 on:
   pull_request:
-    # Every PR, whatever it targets. Filtering to `branches: [main]` meant a PR
-    # stacked on another feature branch ran no tests at all — the review that
-    # most wants them, since it is looking at the top of a stack rather than at
-    # a diff against main.
+    # Every PR, whatever it targets. Filtering to `branches: [main]` would leave
+    # a PR stacked on another feature branch running no tests at all — the review
+    # that most wants them, since it is looking at the top of a stack rather than
+    # at a diff against main.
     #
-    # `edited` is what makes the title check re-run when a title is fixed.
-    types: [opened, edited, reopened, synchronize]
+    # `edited` is what makes the title check re-run when a title is fixed;
+    # `labeled`/`unlabeled` the same for the skip-changelog escape hatch.
+    types: [opened, edited, reopened, synchronize, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -48,16 +49,28 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # The node tests: the daily-round draw, the frame-pane viewport math, and
-      # the scoring curve plus the validator on /api/score. All sub-second and
-      # needing no corpus or database, which is why they belong here as a step
-      # rather than a job.
+      # fetch-depth: 0 so the changelog gate below can diff against the base
+      # branch; nothing else here needs history.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version-file: .tool-versions
+
+      # The node tests: the daily-round draw, the frame-pane viewport math, the
+      # scoring curve plus the validator on /api/score, the leaderboard boards,
+      # the generated aliases and the device merge. All sub-second and needing no
+      # corpus or database, which is why they belong here as a step rather than a
+      # job.
+      #
+      # Globbed, not listed. A listed test file is one somebody has to remember to
+      # add to two places, and both had drifted: four tests ran nowhere in CI, and
+      # test_select.py -- which pins how a round set is chosen -- ran nowhere at
+      # all. `|| exit 1` because a for-loop reports its last command's status, so
+      # without it a failure anywhere but the end passes.
       - name: Node tests
-        run: node test_daily.mjs && node test_zoom.js && node test_score.mjs
+        run: for f in test_*.mjs test_*.js; do echo "== $f"; node "$f" || exit 1; done
 
       - uses: actions/setup-python@v7
         with:
@@ -69,15 +82,25 @@ jobs:
       # image, and a coordinate in rounds.json means the answer went to the
       # browser. The answers themselves aren't committed, so the cross-check that
       # every round *has* one runs at generation time, not here.
-      # Stdlib-only, so there is no toolchain to install first.
+      # Nothing to install: web/clips/ is gitignored, so this runs in
+      # manifest-only mode and never reaches the ffprobe the media branch uses.
       - name: Validate the round set
         run: python3 check.py
 
-      # The python tests: the JPEG header reader check.py validates frames with,
-      # the swap that puts a regenerated set into place, and the seeding that
-      # makes a regeneration reproducible. All stdlib-only and sub-second.
+      # test_check.py builds clips with ffmpeg and measures them with ffprobe,
+      # and the runner image carries neither. Without this the dimension
+      # assertions -- the ones standing behind the HUD-crop check -- skip
+      # themselves and the step still passes green.
+      - uses: AnimMouse/setup-ffmpeg@v1
+
+      # The python tests: the clip-dimension reader behind check.py's HUD-crop
+      # assertion, the swap that puts a regenerated set into place, the seeding
+      # that makes a regeneration reproducible, how a round set is selected, and
+      # which route scoring takes to Postgres. Sub-second, and stdlib apart from
+      # the ffmpeg installed just above. Globbed for the same reason as the node
+      # step above.
       - name: Python tests
-        run: python3 test_check.py && python3 test_swap.py && python3 test_seed.py
+        run: for f in test_*.py; do echo "== $f"; python3 "$f" || exit 1; done
 
       # schema.sql is hand-written DDL that nothing else parses until someone
       # runs `task schema:prod:push`, where a typo is discovered against the
@@ -89,3 +112,20 @@ jobs:
         run: |
           sqlite3 /tmp/schema-check.db < schema.sql
           sqlite3 /tmp/schema-check.db < schema.sql
+
+      - uses: astral-sh/setup-uv@v8.2.0 # no floating major tag published
+
+      # Require every PR to add a towncrier changelog fragment under
+      # changelog.d/ (see README "Changelog"). CHANGELOG.md is linked from the
+      # game's About panel, so it is read by players rather than reconstructed
+      # by us at release time — this is what keeps it complete by construction.
+      #
+      # Escape hatch: the `skip-changelog` label, for PRs that genuinely warrant
+      # no entry (dependabot bumps, a round-set regeneration, a revert).
+      # release-please's own release PR is exempt by head branch — it collates
+      # the fragments, it doesn't add one.
+      - name: Require a changelog fragment
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-changelog') && github.head_ref != 'release-please--branches--main' }}
+        env:
+          BASE: ${{ github.base_ref }}
+        run: uvx towncrier check --config towncrier.toml --compare-with "origin/$BASE"

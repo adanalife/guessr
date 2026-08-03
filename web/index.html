@@ -63,7 +63,14 @@
   setTheme(savedTheme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
 </script>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<!-- Leaflet, vendored rather than loaded from unpkg. It is the only thing on
+     this page that has to load from somewhere else for the game to work at all:
+     no map means no way to answer, so a CDN outage is a total outage, and there
+     is no fallback a static page could take. Same reasoning as the ET Book
+     faces below. Byte-identical to what unpkg serves for 1.9.4; bump by
+     replacing web/leaflet/ wholesale from the npm tarball. Licence travels with
+     it in web/leaflet/LICENSE. -->
+<link rel="stylesheet" href="leaflet/leaflet.css">
 <style>
   /* Type and colour come from the blog: the same ET Book faces and the same
      `data-theme` palette, so the game reads as part of the same site. Tufte
@@ -124,7 +131,6 @@
   header .stat { font-variant-numeric: tabular-nums; color: var(--color-muted);
                  font-size: .95rem; }
   header .stat b { color: var(--color-text); }
-  header #difficultyDots { letter-spacing: .15em; }
   /* <details> rather than a dialog: it collapses natively, needs no script, and
      is keyboard-operable for free. The panel is absolute so opening it overlays
      the game instead of reflowing the header. */
@@ -143,7 +149,21 @@
            color: var(--color-muted); font-size: .9em; }
   /* Sized down from the footer's action buttons: this belongs to the build
      line, not to the game. */
-  #reset, #reroll { font-size: inherit; padding: .1rem .5rem; }
+  #reset, #reroll, #link { font-size: inherit; padding: .1rem .5rem; }
+  /* Both controls sit on their own line under the name (the <br> in the
+     markup), clear of the sentence they act on. */
+  #reroll, #link { margin-top: .5rem; }
+  /* Inline SVG rather than the library's data-URL GIF, so both fills can come
+     from the palette rather than being baked in: the panel's own ground under
+     modules in the same ink as the prose beside them. The dark theme inverts
+     the usual polarity that way — phone cameras read inverted codes, and a
+     phone camera is the only thing scanning this. Quiet zone is the four
+     modules the spec asks for, carried by the SVG's own margin so it takes the
+     ground colour too. */
+  #qr { display: block; width: 9rem; height: 9rem; }
+  #qr svg { display: block; width: 100%; height: 100%; }
+  #qr rect { fill: var(--color-panel); }
+  #qr path { fill: var(--color-text); }
   #identity { color: var(--color-muted); }
   #identity b { color: var(--color-text); margin-right: .4rem; }
   #about .dot { display: inline-block; width: .45rem; height: .45rem;
@@ -167,15 +187,16 @@
          grid-template-columns: 1fr 1fr; min-height: 0; }
   /* touch-action: none so a pinch zooms the frame instead of the page. Leaflet
      owns its own gestures next door; the two panes never see each other's. */
-  #photo { position: relative; overflow: hidden; background: var(--color-bg);
+  #pane { position: relative; overflow: hidden; background: var(--color-bg);
            touch-action: none; cursor: grab; }
-  #photo.dragging { cursor: grabbing; }
+  #pane.dragging { cursor: grabbing; }
   #frame { position: absolute; top: 0; left: 0; transform-origin: 0 0;
            user-select: none; }
   /* Deliberately Leaflet's own control styling, in Leaflet's own corner: the
-     map pane next door has the identical pair, so a player who has used one
-     knows what these are without being told. This is the zoom affordance --
-     wheel, pinch and double-click are all undiscoverable on their own. */
+     map pane next door has the identical zoom pair, so a player who has used
+     one knows what these are without being told. It is also the only
+     affordance any of it has -- wheel, pinch, double-click and space are all
+     undiscoverable on their own. */
   #zoomctl { position: absolute; top: 10px; left: 10px; z-index: 400;
              display: flex; flex-direction: column;
              border-radius: 4px; overflow: hidden; border: 2px solid #0003; }
@@ -189,18 +210,39 @@
   #sheet { position: absolute; inset: 0; overflow-y: auto; padding: .5rem;
            display: grid; gap: .5rem; align-content: center;
            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-  /* A button, not a figure: each tile zooms the map to its round, and the
-     element that does that should be focusable and Enter-operable for free. */
+  /* A button, not a figure: each tile reopens its round, and the element that
+     does that should be focusable and Enter-operable for free. */
+  /* align-self, and it is load-bearing rather than tidiness: a grid item
+     stretches to its row by default, a button centres its own content
+     vertically, and the badge is positioned against the button — so one taller
+     cell in the row pushed a thumbnail down while its badge stayed at the top
+     and came off the picture entirely. Not stretching means the button is always
+     exactly its thumbnail, whatever shares the row. */
   #sheet button { position: relative; display: block; width: 100%;
+                  align-self: start;
                   margin: 0; padding: 0; border: 0; border-radius: 4px;
-                  background: none; line-height: 0; }
-  #sheet img { width: 100%; display: block; border-radius: 4px; }
-  #sheet button.on img, #sheet button:focus-visible img { outline: 2px solid var(--color-text);
-                                                          outline-offset: 1px; }
+                  background: none; line-height: 0; cursor: pointer; }
+  #sheet video { width: 100%; display: block; border-radius: 4px; }
+  #sheet button:focus-visible video { outline: 2px solid var(--color-text);
+                                      outline-offset: 1px; }
+  /* The live embed rides in the same grid cell shape as a round. aspect-ratio
+     rather than a height, because a round tile is sized by its own video and the
+     two have to agree or the last row goes ragged. */
+  #sheet .live { position: relative; line-height: 0; }
+  #sheet .live iframe { width: 100%; aspect-ratio: 16 / 9; display: block;
+                        border: 0; border-radius: 4px; }
+  /* The caption sits under this one rather than over it: on a round tile the
+     badge overlays a paused frame, but here it would cover YouTube's own
+     controls, and the link has to stay clickable. It is also the whole cell
+     until the player arrives, so it carries the type size rather than the 11px
+     a badge over footage wants. */
+  #sheet .live .cap { position: static; margin-top: .4rem; background: none;
+                      color: var(--color-text); line-height: 1.35;
+                      font-size: .82rem; font-weight: 400; }
   /* Same number and same band colour as the pin on the map, which is the only
      thing tying a thumbnail to the answer it belongs to.
      The badges here and on the map keep fixed colours and a sans face rather
-     than following the theme: both sit on top of a photograph or a map tile,
+     than following the theme: both sit on top of footage or a map tile,
      neither of which changes with it, and at 11px ET Book is mush. */
   #sheet .cap { position: absolute; top: 4px; left: 4px;
                 display: flex; align-items: center; gap: .3rem;
@@ -212,10 +254,10 @@
   #mapwrap { min-height: 0; }
   #map { height: 100%; background: var(--color-bg); }
   /* While a round is being guessed the frame takes the whole pane and the map
-     rides over its bottom-right corner. The frame is a 1280px still and
-     squinting at it is the entire game, whereas the map only matters for the
-     few seconds spent placing a pin — an even split spends half the window on
-     the half that matters least, and puts the frame well under 1:1.
+     rides over its bottom-right corner. The frame is 1280px wide and squinting
+     at it is the entire game, whereas the map only matters for the few seconds
+     spent placing a pin — an even split spends half the window on the half that
+     matters least, and puts the frame well under 1:1.
      Hover or keyboard focus grows it; `wide` pins it open once the answer is
      revealed, when the map becomes the thing worth reading. `minimap` comes off
      entirely for the end-of-game board and the all-time map, which want the
@@ -233,7 +275,8 @@
                             border-radius: 8px; overflow: hidden;
                             /* Unthemed, like the badges: this floats on the
                                frame, and a border in the page's own colours
-                               vanishes into whatever the photo happens to be. */
+                               vanishes into whatever the footage happens to
+                               be. */
                             border: 2px solid #0006;
                             box-shadow: 0 8px 24px rgba(0, 0, 0, .4); }
     main.minimap #mapwrap:hover, main.minimap #mapwrap:focus-within,
@@ -280,24 +323,20 @@
   <h1>Guessr</h1>
   <span class="stat" id="label">Daily</span>
   <span class="stat">Round <b id="roundNum">1</b>/<b id="roundTot">5</b></span>
-  <!-- The label names the axis; the dots carry the rating. Dots rather than a
-       word for the rating itself, because "Hard" next to a round reads as a
-       ready-made excuse for a bad guess. role=img with an aria-label so a
-       screen reader gets the rating instead of spelling out the glyphs -- the
-       label sits outside that span so it isn't announced twice. -->
-  <span class="stat" id="difficulty" hidden>Difficulty <b id="difficultyDots" role="img"></b></span>
   <span class="stat">Score <b id="score">0</b></span>
   <span class="spacer"></span>
   <details id="about" class="stat">
     <summary>about<span class="dot" id="aboutDot" hidden></span></summary>
     <div class="panel">
-      <p>Every round is a real frame from a dashcam, filmed on a year-long drive
-        around the United States in 2018. Five rounds a day, the same five for
-        everyone. Practice rounds are unlimited.</p>
-      <p>The footage comes from <b>A Dana Life</b>, which streams that drive
-        around the clock &mdash; the whole trip, in order, forever. On Twitch a
-        chat bot runs the same game against the live feed: type !guess to call
-        where the van is right now.</p>
+      <p>Every round is a few seconds of real dashcam footage, filmed on a
+        year-long drive around the United States in 2018. Five rounds a day, the
+        same five for everyone. Practice rounds are unlimited.</p>
+      <p>Pause the clip with the pause button or spacebar. Zoom in and look for
+        clues.</p>
+      <p>All of the footage comes from the <a href="https://dana.lol">A Dana
+        Life</a> project, a livestream that streams the trip 24/7. It's
+        available on several platforms, some of which have more games you can
+        play.</p>
       <p class="links">
         <!-- Inline brand marks (simple-icons paths) rather than an icon font or
              a sprite: two glyphs aren't worth a request, and aria-hidden keeps
@@ -307,14 +346,22 @@
           aria-hidden="true"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>Watch on YouTube</a>
         <a href="https://twitch.tv/adanalife_"><svg viewBox="0 0 24 24"
           aria-hidden="true"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>Guess in realtime on Twitch</a>
-        <a href="https://dana.lol">Read the blog</a>
-        <a href="https://github.com/adanalife/guessr">How it works</a>
       </p>
       <!-- The name a daily score is recorded under. Generated rather than typed
            (web/alias.js says why), so the control is a reroll rather than a
            field: keep drawing until one reads right. -->
-      <p id="identity">You play as <b id="alias"></b>
-        <button id="reroll" class="secondary" title="Draw another name">New name</button></p>
+      <p id="identity">Your leaderboard name is <b id="alias"></b><br>
+        <button id="reroll" class="secondary" title="Draw another name">Generate new name</button>
+        <!-- Playing on a phone and a desktop otherwise puts the same person on
+             the board twice. The code carries the player id, so scanning it
+             from the other device is the whole mechanism. -->
+        <button id="link" class="secondary"
+          title="Show a code that adds another device's scores to yours">Link a device</button></p>
+      <!-- An anchor around it, so the id is reachable by anyone who can't scan a
+           picture: a screen reader announces a link, and a phone that has the
+           panel open can follow it directly. Following it on the device that
+           drew it is a no-op — it is already that player. -->
+      <p id="qrWrap" hidden><a id="qrLink"><span id="qr"></span></a></p>
       <!-- Both halves are stamped in at deploy time, so the whole line stays
            hidden until version.json says something. The reset is for the
            testing tiers: the intro, the About dot and the daily record are all
@@ -327,26 +374,47 @@
   </details>
 </header>
 <dialog id="welcome">
-  <h2>Drop a pin where you think this dashcam screenshot was taken</h2>
-  <p>This photo was taken during a year of travel in a campervan.</p>
-  <p>Everyone gets the same photos, refreshing daily</p>
+  <h2>Drop a pin where you think this clip was filmed</h2>
+  <p>This is real footage from a year of traveling in a campervan</p>
+  <p>Every player guesses the same 5 clips, new ones daily</p>
   <div class="actions">
     <button id="welcomePlay" autofocus>Play</button>
     <button id="welcomeMore" class="secondary">Learn more</button>
   </div>
 </dialog>
 <main>
-  <div id="photo">
+  <div id="pane">
     <!-- draggable="false" is what stops a drag on the frame from starting a
-         native image drag instead of panning. It belongs in the markup rather
+         native drag instead of panning. It belongs in the markup rather
          than the stylesheet: `-webkit-user-drag` is WebKit-only, so on Firefox
          the browser takes over the gesture, fires pointercancel, and the pan is
-         torn down mid-swipe. -->
-    <img id="frame" alt="A dashcam frame to locate" draggable="false" hidden>
+         torn down mid-swipe.
+
+         muted and playsinline are both load-bearing rather than stylistic:
+         without muted no browser will autoplay at all, and without playsinline
+         iOS Safari takes the video fullscreen the moment it starts, burying the
+         map. There is no `controls` because a scrubber is a way to hunt for a
+         frame the round didn't mean to show. -->
+    <video id="frame" draggable="false" hidden
+           autoplay muted loop playsinline preload="auto"
+           aria-label="A few seconds of dashcam footage to locate"></video>
     <div id="zoomctl" hidden>
       <button id="zin" title="Zoom in — or scroll, pinch, or double-click the frame"
               aria-label="Zoom in">+</button>
       <button id="zout" title="Zoom out" aria-label="Zoom out">&minus;</button>
+      <!-- The glyphs carry U+FE0E, the text variation selector, or a platform
+           with emoji for these code points renders two coloured cartoons in a
+           row of monochrome map controls. The label is set from the video's own
+           play/pause events rather than on click, so it stays honest when
+           playback stops for a reason the page didn't ask for — an autoplay
+           block on iOS being the one that actually happens. -->
+      <button id="playpause" title="Pause — or press space"
+              aria-label="Pause">&#9208;&#xFE0E;</button>
+      <!-- Only up while a single round is open from the end-of-game sheet, which
+           is the one state the pane can be in that the player did not arrive at
+           by playing. -->
+      <button id="board" hidden title="Back to all five rounds — or press Escape"
+              aria-label="Back to all five rounds">&#9638;&#xFE0E;</button>
     </div>
     <div id="sheet" hidden></div>
   </div>
@@ -366,7 +434,13 @@
           onclick="toggleTheme()">🌓</button>
 </footer>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="leaflet/leaflet.js"></script>
+<!-- QR encoding is Reed-Solomon over GF(256), block interleaving and mask
+     scoring — a spec implementation rather than something to write, and one
+     whose bugs are a code that scans on the phone it was tested with and not on
+     the next one. Pinned, and from unpkg: unlike the map, a QR code that fails
+     to load costs the page one optional button rather than any way to play. -->
+<script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
 <script src="zoom.js"></script>
 <!-- A module, so daily.js can be imported here and by functions/api/score.js
      alike: the draw the page plays and the draw the server checks against have
@@ -374,15 +448,13 @@
      zoom.js's globals are in place by the time this executes. -->
 <script type="module">
 import {
-  DIFFICULTY_LEVELS, ROUNDS_PER_GAME, dailyRounds, dailyState, dateForDay,
-  difficulty, effectiveDay, pick, rampEasyToHard,
+  ROUNDS_PER_GAME, dailyRounds, dailyState, dateForDay,
+  effectiveDay, pick, rampEasyToHard,
 } from './daily.js';
-import { aliasFrom } from './alias.js';
+import { aliasFrom, isAlias } from './alias.js';
+import { linkUrl, parseLink } from './link.js';
+import { bandFor, scoreLine, shareText } from './share.js';
 
-// Only the share line's denominator. The scoring itself is server-side, and
-// functions/_scoring.mjs owns the real value -- rounds.json ships no
-// coordinates, so the browser has nothing to score with.
-const MAX_ROUND_SCORE = 5000;
 // Records the day you last finished, so today's round can't be replayed for a
 // better share string. The daily draw itself lives in daily.js.
 const STORE_KEY = 'guessr-daily';
@@ -396,11 +468,6 @@ const HISTORY_KEY = 'guessr-history';
 // per round), and how legible the result is — past a few hundred lines the map
 // is a smear rather than a record.
 const MAX_HISTORY = 250;
-// The share string is pasted where the link outlives the session that made it,
-// so it names the canonical host rather than wherever this copy is served from
-// — a result shared off localhost or a preview deploy still sends people here.
-const HOME_URL = 'https://guessr.dana.lol';
-
 // What a scored round tells us about where it was, as opposed to how it went.
 // Kept apart because it is also what gets stored and replayed: a resumed or
 // finished day rebuilds its board from these, the frames coming from the
@@ -477,18 +544,6 @@ async function scoreGuess(image, latlng, date) {
   return res.json();
 }
 
-// Score bands, ordered best first. One table so a round's square in the share
-// string and its line on the end-of-game map are always the same colour.
-const BANDS = [
-  { min: 4000, square: '🟩', colour: '#4ade80' },
-  { min: 2500, square: '🟨', colour: '#facc15' },
-  { min: 1000, square: '🟧', colour: '#fb923c' },
-  { min: 0, square: '⬜', colour: '#9ca3af' },
-];
-
-const bandFor = pts => BANDS.find(b => pts >= b.min);
-const squareFor = pts => bandFor(pts).square;
-
 const map = L.map('map', { worldCopyJump: false });
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18, attribution: '&copy; OpenStreetMap'
@@ -506,7 +561,7 @@ const homeView = () => map.fitBounds(US_BOUNDS, { animate: false });
 homeView();
 
 const el = id => document.getElementById(id);
-const photo = el('photo'), go = el('go'), result = el('result');
+const pane = el('pane'), go = el('go'), result = el('result');
 const shareBtn = el('share'), practiceBtn = el('practice'), historyBtn = el('history');
 
 // Which of the two panes is dominant, as a pair of classes the stylesheet reads
@@ -529,15 +584,15 @@ const setLayout = (minimap, wide = false) => {
 // breakpoint flipping the whole layout.
 new ResizeObserver(() => map.invalidateSize({ animate: false })).observe(el('map'));
 
-// The frame is an <img> under a transform rather than a background-image, so a
+// The frame is a <video> under a transform rather than a background, so a
 // player can zoom in: a road sign or a storefront name is often legible in the
 // 1280px source and unreadable once it is scaled down to fit the pane.
-const frame = el('frame');
+const frame = el('frame'), boardBtn = el('board');
 let view = { scale: 1, x: 0, y: 0 };
 
-const imgSize = () => ({ w: frame.naturalWidth, h: frame.naturalHeight });
-const boxSize = () => ({ w: photo.clientWidth, h: photo.clientHeight });
-const ready = () => frame.naturalWidth > 0 && photo.clientWidth > 0;
+const imgSize = () => ({ w: frame.videoWidth, h: frame.videoHeight });
+const boxSize = () => ({ w: pane.clientWidth, h: pane.clientHeight });
+const ready = () => frame.videoWidth > 0 && pane.clientWidth > 0;
 
 function draw(next) {
   view = next;
@@ -551,15 +606,29 @@ function resetView() {
 function setFrame(url) {
   frame.hidden = !url;
   el('zoomctl').hidden = !url;
+  // Every other route into the pane is a round being played, and there is no
+  // board to go back to from one. Only the sheet raises it again, so putting it
+  // here means a new route can't inherit a control that doesn't apply.
+  boardBtn.hidden = true;
   if (!url) return;
   frame.src = url;
-  // A cached image fires no load event, so fit it here instead.
-  if (frame.complete) resetView();
+  // A player who paused wants a still, and wanting one on round 2 is a good
+  // guess that they want one on rounds 3 to 5 as well. So the preference
+  // carries across a game rather than resetting per round, which would cost
+  // five clicks a game to someone who wants to play it as stills.
+  //
+  // Autoplay is a promise that rejects rather than throws, and iOS in Low Power
+  // Mode rejects it however muted the video is. Nothing to recover: the first
+  // frame is painted either way, so the round degrades to a still rather than
+  // to a blank pane. Swallowed explicitly, because an unhandled rejection here
+  // is a console error on every round on those devices.
+  if (paused) frame.pause();
+  else frame.play().catch(() => {});
 }
 
 // Box coordinates for a pointer or wheel event.
 function localPoint(e) {
-  const box = photo.getBoundingClientRect();
+  const box = pane.getBoundingClientRect();
   return [e.clientX - box.left, e.clientY - box.top];
 }
 
@@ -569,7 +638,7 @@ function zoom(px, py, factor) {
 
 // The buttons zoom about the middle of the pane, since a click on a control in
 // the corner says nothing about where the player is looking.
-const zoomCentre = factor => zoom(photo.clientWidth / 2, photo.clientHeight / 2, factor);
+const zoomCentre = factor => zoom(pane.clientWidth / 2, pane.clientHeight / 2, factor);
 
 const zoomctl = el('zoomctl');
 el('zin').addEventListener('click', () => zoomCentre(1.5));
@@ -579,10 +648,37 @@ el('zout').addEventListener('click', () => zoomCentre(1 / 1.5));
 ['pointerdown', 'dblclick'].forEach(type =>
   zoomctl.addEventListener(type, e => e.stopPropagation()));
 
-frame.addEventListener('load', resetView);
-new ResizeObserver(resetView).observe(photo);
+// Whether the player asked for a still. Held here rather than read off
+// frame.paused, because that is also true for the moment between rounds while a
+// new source loads — reading it there would carry a phantom pause into round 2.
+let paused = false;
+const playpause = el('playpause');
 
-photo.addEventListener('wheel', e => {
+function togglePlay() {
+  paused = !frame.paused;
+  if (paused) frame.pause();
+  else frame.play().catch(() => {});
+}
+
+playpause.addEventListener('click', togglePlay);
+
+// Driven by the element's own events, so the control reports what is actually
+// happening rather than what was last clicked: autoplay refused on iOS, or the
+// clip stalling on a slow connection, both land here and relabel the button
+// into the one that will fix it.
+['play', 'pause'].forEach(type => frame.addEventListener(type, () => {
+  const playing = !frame.paused;
+  playpause.innerHTML = playing ? '&#9208;&#xFE0E;' : '&#9654;&#xFE0E;';
+  playpause.title = playing ? 'Pause — or press space' : 'Play — or press space';
+  playpause.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+}));
+
+// loadedmetadata, not canplay: the intrinsic size is what the fit needs and it
+// is known well before enough data to play has arrived.
+frame.addEventListener('loadedmetadata', resetView);
+new ResizeObserver(resetView).observe(pane);
+
+pane.addEventListener('wheel', e => {
   e.preventDefault();
   const [px, py] = localPoint(e);
   zoom(px, py, Math.exp(-e.deltaY * 0.002));
@@ -590,7 +686,7 @@ photo.addEventListener('wheel', e => {
 
 // Double-click and double-tap both land here. It toggles rather than only
 // zooming in, which is the reset control as well.
-photo.addEventListener('dblclick', e => {
+pane.addEventListener('dblclick', e => {
   const [px, py] = localPoint(e);
   if (view.scale > fitScale(imgSize(), boxSize()) * 1.01) resetView();
   else zoom(px, py, 2.5);
@@ -606,14 +702,21 @@ const spread = () => {
   return Math.hypot(a[0] - b[0], a[1] - b[1]);
 };
 
-photo.addEventListener('pointerdown', e => {
-  photo.setPointerCapture(e.pointerId);
+pane.addEventListener('pointerdown', e => {
+  // Nothing to pan when the contact sheet has the pane, and capturing anyway is
+  // not harmless: a captured pointer retargets the click that follows it to the
+  // capture element, so every tap on a tile arrived at the pane instead of the
+  // tile and the sheet's own handler never saw one. Guarded here rather than
+  // with a stopPropagation on the sheet, because the pan has no meaning without
+  // a frame to apply it to whatever else ends up in this pane.
+  if (frame.hidden) return;
+  pane.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId, localPoint(e));
-  photo.classList.add('dragging');
+  pane.classList.add('dragging');
   if (pointers.size === 2) pinch = spread();
 });
 
-photo.addEventListener('pointermove', e => {
+pane.addEventListener('pointermove', e => {
   const prev = pointers.get(e.pointerId);
   if (!prev) return;
   const now = localPoint(e);
@@ -633,10 +736,10 @@ photo.addEventListener('pointermove', e => {
 const releasePointer = e => {
   pointers.delete(e.pointerId);
   if (pointers.size < 2) pinch = 0;
-  if (!pointers.size) photo.classList.remove('dragging');
+  if (!pointers.size) pane.classList.remove('dragging');
 };
-photo.addEventListener('pointerup', releasePointer);
-photo.addEventListener('pointercancel', releasePointer);
+pane.addEventListener('pointerup', releasePointer);
+pane.addEventListener('pointercancel', releasePointer);
 
 let pool = [], game = [], idx = 0, total = 0, guess = null, marks = [];
 let mode = 'daily', results = [], guesses = [];
@@ -644,10 +747,9 @@ let mode = 'daily', results = [], guesses = [];
 // rather than re-read from the clock. A game started at 23:58 is still that day's
 // game at 00:02, and everything downstream has to agree: the rounds were drawn
 // from this day, so the score posts against this date, the progress record saves
-// under this day, and the share string names it. Re-reading today() per use meant
-// a game that crossed local midnight posted tomorrow's date against tonight's
-// rounds -- and, before any of this, resumed the next day holding the previous
-// day's results.
+// under this day, and the share string names it. Re-reading today() per use would
+// have a game that crossed local midnight post tomorrow's date against tonight's
+// rounds, and resume the next day holding the previous day's results.
 let gameDay = 0;
 
 function clearMarks() { marks.forEach(m => map.removeLayer(m)); marks = []; }
@@ -660,19 +762,9 @@ map.on('click', e => {
   go.textContent = 'Guess';
 });
 
-function showDifficulty(round) {
-  el('difficulty').hidden = !round;
-  if (!round) return;
-  const level = difficulty(round);
-  const dots = el('difficultyDots');
-  dots.textContent = '●'.repeat(level) + '○'.repeat(DIFFICULTY_LEVELS - level);
-  dots.setAttribute('aria-label', `${level} of ${DIFFICULTY_LEVELS}`);
-}
-
 function startRound() {
   const r = game[idx];
   setFrame(r.image);
-  showDifficulty(r);
   el('roundNum').textContent = idx + 1;
   clearMarks();
   if (guess) { map.removeLayer(guess); guess = null; }
@@ -760,15 +852,6 @@ async function reveal() {
   go.dataset.phase = 'next';
   if (last) finish();
   else go.textContent = 'Next round';
-}
-
-function shareText(day, res, sum) {
-  return [
-    `Guessr #${day}`,
-    res.map(squareFor).join(''),
-    `${sum.toLocaleString()} / ${(res.length * MAX_ROUND_SCORE).toLocaleString()}`,
-    HOME_URL,
-  ].join('\n');
 }
 
 // Saved after every reveal rather than only at the end, so a reload mid-game
@@ -864,6 +947,11 @@ function showHistory() {
   clearMarks();
   if (guess) { map.removeLayer(guess); guess = null; }
   setLayout(false);
+  // A round opened from the sheet holds the pane, and this map is about every
+  // game rather than that round — so leave the pane the way the end-of-game
+  // board does. Not showBoard(), which would refit the map it just drew.
+  setFrame(null);
+  el('sheet').hidden = false;
 
   const rounds = loadHistory();
   rounds.forEach(([glat, glng, tlat, tlng, , wasDaily]) => {
@@ -911,35 +999,99 @@ function showSheet(rounds, played, res) {
   sheetRounds = rounds;
   sheetGuesses = played || [];
   const sheet = el('sheet');
+  // Left paused on a frame rather than looping: five clips playing at once is
+  // noise at the moment the player is reading their score, and five decoders is
+  // real work on a phone. `#t=1` is a media fragment — the browser seeks there
+  // and paints it, which is how you get a poster without generating one. The
+  // bytes are already in cache, since these are the five just played.
   sheet.innerHTML = rounds.map((r, i) => `
-    <button type="button" data-i="${i}" title="Show round ${i + 1} on the map">
-      <img src="${r.image}" loading="lazy"
-           alt="Round ${i + 1}${r.state ? `, ${r.state} ${r.filmed}` : ''}">
+    <button type="button" data-i="${i}" title="Watch round ${i + 1} again">
+      <video src="${r.image}#t=1" preload="metadata" muted playsinline
+             aria-label="Round ${i + 1}${r.state ? `, ${r.state} ${r.filmed}` : ''}"></video>
       <span class="cap">
         <span class="n" style="background:${bandFor(res[i]).colour}">${i + 1}</span>
         ${r.state ? `${r.state} &middot; ` : ''}${res[i].toLocaleString()}
       </span>
-    </button>`).join('');
+    </button>`).join('') + LIVE_TILE;
   sheet.hidden = false;
+  fillLiveTile();
 }
 
-// A tile zooms the map to its own round, and zooms back out when it's the one
-// already selected — otherwise the only way back to the whole board is the
-// map's minus button, which doesn't look like the way back.
+// The sixth cell of a five-round grid, which is otherwise a hole. A player who
+// has reached this screen just spent five rounds enjoying the footage, so it is
+// the one place the game has earned the right to point at the stream it comes
+// from.
+//
+// It starts as the link and grows a player only once /api/live says the channel
+// is streaming. That order is deliberate: the retired embed endpoint answered a
+// dark channel with YouTube's own "This video is unavailable" panel, and a grey
+// error box is worse in this cell than a line of text. So the cheap thing
+// renders first and the player is the upgrade.
+const LIVE_TILE = `
+  <div class="live">
+    <span class="cap">
+      <a href="https://youtube.com/@adanalife_/live" target="_blank" rel="noopener">
+        Watch live on YouTube &rarr;</a>
+    </span>
+  </div>`;
+
+// `mute=1` is not politeness, it is what makes this play at all: no browser
+// autoplays an unmuted embed, so without it the cell is a still with a play
+// button on it. The nocookie host serves the same player without setting
+// YouTube's cookies, which keeps what this game has to disclose down to its own
+// localStorage.
+async function fillLiveTile() {
+  const box = el('sheet').querySelector('.live');
+  if (!box) return;
+  let videoId = null;
+  try {
+    ({ videoId } = await (await fetch('/api/live')).json());
+  } catch { /* the cell stays the link, which is the point of it being one */ }
+  // Checked here and not only at the endpoint: this id goes into a URL, and a
+  // page should not put a response it did not validate into one.
+  if (!videoId || !/^[\w-]{11}$/.test(videoId)) return;
+  // The board may have been left in the meantime -- a slow answer must not paint
+  // a player into a sheet that has since been rebuilt or replaced by a round.
+  if (!box.isConnected) return;
+
+  const player = document.createElement('iframe');
+  player.src = `https://www.youtube-nocookie.com/embed/${videoId}?mute=1&autoplay=1&playsinline=1`;
+  player.title = 'A Dana Life — the 24/7 dashcam stream, live on YouTube';
+  player.allow = 'autoplay; encrypted-media; picture-in-picture';
+  player.referrerPolicy = 'strict-origin-when-cross-origin';
+  player.allowFullscreen = true;
+  box.prepend(player);
+}
+
+// A tile opens its round: the clip goes back into the pane with the zoom, pan
+// and playback it had during the round, and the map fits that one round.
 let sheetRounds = [], sheetGuesses = [], boardBounds = null;
+
+// The sheet is the only way into a single round, so leaving one needs a control
+// of its own — the map's minus button doesn't look like the way back, and the
+// sheet is hidden behind the clip while the clip is up.
+function showBoard() {
+  setFrame(null);
+  el('sheet').hidden = false;
+  if (boardBounds) map.fitBounds(boardBounds, { padding: [40, 40], animate: false });
+}
+
+boardBtn.addEventListener('click', showBoard);
 
 el('sheet').addEventListener('click', e => {
   const tile = e.target.closest('button[data-i]');
   if (!tile) return;
 
-  const selected = !tile.classList.contains('on');
-  [...el('sheet').children].forEach(t => t.classList.toggle('on', selected && t === tile));
-
-  if (!selected) {
-    if (boardBounds) map.fitBounds(boardBounds, { padding: [40, 40], animate: false });
-    return;
-  }
   const i = +tile.dataset.i, r = sheetRounds[i];
+  // Hand the pane back to the frame. setFrame after hiding the sheet, which is
+  // absolutely positioned over the frame: the fit reads the pane's box, and the
+  // box is the same either way, but the clip should never paint underneath.
+  el('sheet').hidden = true;
+  setFrame(r.image);
+  boardBtn.hidden = false;
+
+  // A save written before the answers moved server-side has no truth to fit, so
+  // the clip opens and the map stays on whatever it was showing.
   if (r.lat == null) return;
   const truth = [r.lat, r.lng];
   // A save from before guesses were recorded has no line to frame, so centre
@@ -952,11 +1104,6 @@ el('sheet').addEventListener('click', e => {
   }
 });
 
-function scoreLine(res, sum) {
-  return `<span class="squares">${res.map(squareFor).join('')}</span>
-    <b>${sum.toLocaleString()}</b> / ${(res.length * MAX_ROUND_SCORE).toLocaleString()}`;
-}
-
 function finish() {
   if (mode === 'daily') {
     go.hidden = true;
@@ -965,7 +1112,6 @@ function finish() {
     go.textContent = 'Play again';
   }
   setFrame(null);
-  showDifficulty(null);
   // Back to the even split: the frame pane now holds the contact sheet and the
   // map holds all five rounds, so neither is the junior partner any more. Before
   // showSummary, which fits the board to whatever box the map ends up in.
@@ -995,7 +1141,6 @@ function showFinished(saved) {
   el('roundTot').textContent = saved.results.length;
   el('score').textContent = saved.total.toLocaleString();
   setFrame(null);
-  showDifficulty(null);
   setLayout(false);
   go.hidden = true;
   shareBtn.hidden = false;
@@ -1004,8 +1149,8 @@ function showFinished(saved) {
 
   // Rebuild the board from the saved day. The rounds themselves aren't stored —
   // the draw is deterministic, so replaying it reconstructs exactly what was
-  // played. The guesses are stored, and a save written before that shipped has
-  // none: it still gets the contact sheet, just no lines on the map.
+  // played. The guesses are stored, and an older save has none: it still gets
+  // the contact sheet, just no lines on the map.
   const rounds = rampEasyToHard(dailyRounds(pool, saved.day, ROUNDS_PER_GAME));
   restoreTruths(rounds, saved);
   showSheet(rounds, saved.guesses, saved.results);
@@ -1050,7 +1195,23 @@ document.addEventListener('click', e => {
   if (!about.contains(e.target)) about.open = false;
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') about.open = false;
+  // One overlay per press, outermost first. The back button's own state is the
+  // one flag that says a round is open from the sheet; during a round Escape has
+  // nothing to leave.
+  if (e.key === 'Escape') {
+    if (about.open) about.open = false;
+    else if (!boardBtn.hidden) showBoard();
+  }
+  // Space toggles playback, unless something with a prior claim on it has
+  // focus. Guarding on where focus *is* rather than on a set of state flags
+  // covers each case at its source: a focused button already treats space as a
+  // click and would otherwise fire twice, a text field needs the literal
+  // character, and an open dialog owns the keyboard while it is up.
+  if (e.key === ' ' && !frame.hidden &&
+      !e.target.closest?.('input, textarea, select, button, dialog[open], [contenteditable]')) {
+    e.preventDefault();  // space scrolls the page otherwise
+    togglePlay();
+  }
 });
 
 // version.json is written into web/ by whichever workflow deployed this copy —
@@ -1093,6 +1254,93 @@ el('reroll').addEventListener('click', () => {
   while (next === el('alias').textContent) next = aliasFrom();
   showAlias(alias(next));
 });
+
+// Linking a second device, so that playing on a phone and a desktop places one
+// player rather than two. The player id is the only credential the game has --
+// minted in the browser, never returned by any endpoint -- so carrying it to the
+// other browser IS the link, and there is no account here to hold the two
+// together instead.
+//
+// A code to point a camera at rather than a URL to copy, because copying was the
+// hard half: a link on a desktop still has to reach a phone, and every route
+// there is a detour out of the game.
+//
+// Error correction M rather than L, the four extra modules being cheap against a
+// camera reading a screen at an angle, through glare, in whatever the room is
+// lit by.
+el('link').addEventListener('click', () => {
+  const wrap = el('qrWrap');
+  wrap.hidden = !wrap.hidden;
+  if (wrap.hidden) return;
+
+  // Drawn on each open rather than once: it encodes the current name, and a
+  // reroll between two opens would otherwise show a code carrying the old one.
+  const url = linkUrl(location.origin + location.pathname, playerId(), alias());
+  const code = qrcode(0, 'M');
+  code.addData(url);
+  code.make();
+  el('qr').innerHTML = code.createSvgTag({
+    cellSize: 4, margin: 16, scalable: true,
+    alt: 'Scan from your other device to play as one player',
+  });
+  el('qrLink').href = url;
+});
+
+// The other end: a browser that opens one of those links moves what it has
+// recorded onto that id, then plays as it from here on.
+//
+// Behind a confirm, and never on load alone. A URL that silently rewrites who
+// you are is a URL anyone can send you, so the click is what separates "I sent
+// this to myself" from "someone sent me this" -- and the name carried alongside
+// is what makes the question answerable, since it says which player you are
+// about to become.
+async function adoptLink() {
+  const link = parseLink(location.hash);
+  if (!link) return;
+  // Dropped from the address bar first, so that declining leaves nothing behind
+  // to ask again on the next reload -- including the reload at the end of this.
+  history.replaceState(null, '', location.pathname + location.search);
+
+  const { id: to, name } = link;
+  const from = playerId();
+  // No id to move means no localStorage, which is the case that was never going
+  // to hold a place on a board anyway. Same id means the code was scanned by the
+  // browser that drew it, which has nothing to do.
+  if (!from || from === to) return;
+
+  if (!window.confirm(`Add this browser's scores to ${isAlias(name) ? name : 'your other device'}?`
+    + ' Both devices will play as one player from now on.')) return;
+
+  try {
+    const res = await fetch('api/link', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ from, to }),
+    });
+    if (!res.ok) throw new Error(res.status);
+  } catch {
+    // The id is adopted only once the plays have moved. Switching first and
+    // failing here would strand them under an id nothing points at any more:
+    // the link has already left the address bar, and the id it replaced would
+    // have left localStorage.
+    window.alert('Could not link the devices just now. Open the link again to retry.');
+    return;
+  }
+
+  localStorage.setItem(PLAYER_KEY, to);
+  if (isAlias(name)) alias(name);
+  // Reloaded rather than patched in place: a day may be part-played under the
+  // old id, and everything on screen was drawn for a player who no longer plays
+  // here.
+  location.reload();
+}
+adoptLink();
+// And again on a hash change, because opening the link is not always a page
+// load: a browser that already has the game in a tab reuses it, and the URL
+// differs only in its fragment -- so the whole thing is a same-document
+// navigation this module would otherwise sleep through. replaceState() above
+// doesn't fire this, so declining doesn't loop.
+window.addEventListener('hashchange', adoptLink);
 
 // Clearing by prefix rather than by a list of keys, so state added later is
 // covered without anyone remembering to come back here. This grants a player

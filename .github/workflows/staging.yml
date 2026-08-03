@@ -36,9 +36,20 @@ jobs:
       - name: Stamp the build
         run: |
           printf '{"label":"main@%s","tier":"staging"}\n' "${GITHUB_SHA::7}" > web/version.json
-      # No build step: web/ is the site, round set included. `wrangler pages
-      # deploy` uploads only the files whose hashes Cloudflare doesn't already
-      # hold, so the 27 MB of frames transfers once, not on every deploy.
+      # No build step: web/ is the site, and the clips pulled above complete
+      # it. `wrangler pages deploy` uploads only the files whose hashes
+      # Cloudflare doesn't already hold, so a round set transfers once rather
+      # than on every deploy of it.
+      # The round-set media, which git does not carry: a set is ~150 MB of mp4
+      # and this repo is public. clips.sh keys the object on a hash of the
+      # committed manifest, so this can only ever pull the clips that were
+      # pushed alongside the rounds.json being deployed -- and fails loudly
+      # rather than deploying a game of black panes if they never were.
+      - name: Pull the round-set clips from R2
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: ./clips.sh pull
       - name: Deploy to Cloudflare Pages (staging)
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -47,6 +58,11 @@ jobs:
         # infra's terraform and independent of any git branch), which is the
         # alias serving stage.guessr.dana.lol.
         run: npx wrangler pages deploy web/ --project-name adanalife-guessr-staging --branch main
+      # smoke.sh measures the served clip to prove the HUD crop applied, and the
+      # runner image carries no ffmpeg. A cached static build is a few seconds;
+      # apt would pull the whole media stack for the one binary this needs.
+      - uses: AnimMouse/setup-ffmpeg@v1
+
       # Nothing else couples a deploy to the answers push it needs: the deploy
       # runs here, the push runs from Dana's laptop, and a mismatch looks exactly
       # like a network error from the player's side. Same script preview.yml and

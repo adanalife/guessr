@@ -176,15 +176,3 @@ export function dailyState(saved, day, roundsPerGame) {
 export function rampEasyToHard(rounds) {
   return [...rounds].sort((a, b) => a.median_km - b.median_km);
 }
-
-// Difficulty bands, in median_km. The two cutoffs are the terciles of the
-// shipped round set, so the bands split the pool into roughly equal thirds
-// (99 / 100 / 101 of 300 rounds).
-export const EASY_KM = 32;
-export const HARD_KM = 120;
-export const DIFFICULTY_LEVELS = 3;
-
-// 1 (easiest) to DIFFICULTY_LEVELS (hardest).
-export function difficulty(round) {
-  return round.median_km < EASY_KM ? 1 : round.median_km < HARD_KM ? 2 : 3;
-}

@@ -1,13 +1,20 @@
-# The round set (web/frames/ + web/rounds.json) IS tracked, even though
-# make_rounds.py generates it. Generating it needs the dashcam corpus mounted
-# and database access, neither of which CI has, so the committed set is the
-# only copy a deploy can reach. Regenerating rewrites ~27 MB of JPEGs, so
-# regenerate deliberately rather than as a habit.
+# The manifest (web/rounds.json) is tracked and the media (web/clips/) is not.
 #
-# A generation in progress is not that set: make_rounds.py builds into .staging
-# and moves the previous frames aside, and neither belongs in git or in a deploy.
+# The manifest has to be: functions/api/score.js imports it at build time, so the
+# five rounds the server checks a daily play against are by construction the five
+# the page handed out. It is a few KB and carries no coordinates.
+#
+# The media cannot be. A round set is ~125 MB of mp4 and this repo is public, so
+# committing one would add that to history on every regeneration, permanently and
+# irreversibly. It goes to R2 instead (`task clips:push`), which CI pulls before
+# deploying. The trade is that a deploy is not self-contained: the manifest and
+# the media can disagree, and smoke.sh is what catches it.
+#
+# A generation in progress is neither: make_rounds.py builds into .staging and
+# moves the previous clips aside, and no part of that belongs in a deploy.
+web/clips/
 web/.staging/
-web/frames.old/
+web/clips.old/
 
 # The answers. make_rounds.py writes these next to the round set rather than
 # inside web/, because web/ is the entire deployed surface — a coords file in

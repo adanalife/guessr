@@ -1,20 +1,24 @@
 # Guessr
 
-GeoGuessr, but every round is a frame from the A Dana Life dashcam corpus —
+GeoGuessr, but every round is a few seconds of the A Dana Life dashcam corpus —
 a year of driving the United States in 2018.
 
 Five rounds a day, the same five for everyone, with a spoiler-free share string
 at the end. Practice rounds are unlimited.
 
 The game is static files plus one endpoint. `make_rounds.py` does all the work up
-front (query the corpus metadata, extract frames, write a manifest); `web/` is
-then a plain directory of HTML, JS and JPEGs. The map is Leaflet over
+front (query the corpus metadata, cut the clips, write a manifest); `web/` is
+then a plain directory of HTML, JS and mp4. The map is Leaflet over
 OpenStreetMap tiles.
+
+A round plays on a loop and can be paused — the button in the frame's corner, or
+the space bar. Motion is what places a scene; a still is what lets you read the
+sign in it.
 
 The endpoint is `POST /api/score`, a Cloudflare Pages Function, and it exists
 because the answers can't ship to the browser. `web/rounds.json` names each
-round's frame and how hard it is, and nothing else — the coordinates live in a D1
-database the client can't read, so a player learns where a frame was taken only
+round's clip and how hard it is, and nothing else — the coordinates live in a D1
+database the client can't read, so a player learns where a clip was taken only
 by committing a guess and getting the score back.
 
 ## Play locally
@@ -22,6 +26,7 @@ by committing a guess and getting the score back.
 ```sh
 task rounds   # needs the corpus mounted + kubectl access to the tripbot DB
 task check    # validates the round set
+task clips:push  # uploads the media to R2, without which a deploy has none
 task test     # daily draw, scoring, round-set swap; needs neither
 task dev      # http://localhost:8000, with scoring
 task serve    # http://localhost:8000, static only — guesses don't score
@@ -35,7 +40,20 @@ enough for most UI work; a guess in it fails with "could not reach the scorer".
 Both bind all interfaces, so a phone on the tailnet can reach them at
 `http://<this-machine>:8000`.
 
-Round generation is the only step with real dependencies.
+Round generation is the only step with real dependencies: the corpus, and the
+corpus metadata in the tripbot Postgres.
+
+It reaches that database two ways, and `DATABASE_HOST` is the switch. Unset — the
+laptop — there is no route to it at all, since it sits in the cluster behind no
+ingress, so `make_rounds.py` exec's a `psql` that is already inside the pod
+(`--namespace` names where). Set, the script connects straight to the Service and
+`--namespace` is ignored, which is what lets this run *as* a job in the cluster
+rather than from a laptop with `kubectl`. That route needs a `psql` on `PATH` and
+reads the same project-wide `DATABASE_USER` / `DATABASE_PASS` / `DATABASE_DB` /
+`DATABASE_PORT` vars as tripbot and video-pipeline. `GUESSR_CORPUS` moves the
+corpus path off the laptop's SMB mount for the same reason.
+
+Nothing schedules it yet — see *Not built yet*.
 
 ## Deploying
 
@@ -76,12 +94,25 @@ The Pages projects and the DNS records are terraform, in the `infra` repo under
 `web/` holds `index.html`, its scripts (`daily.js`, `zoom.js`,
 `changelog.js`), `manifest.json`, the icon and share-card assets (`favicon.svg`,
 `apple-touch-icon.png`, `icon-512.png`, `og.jpg`), the ET Book faces under
-`et-book/`, and the round set —
-`rounds.json` plus ~300
-frames under `frames/`. The round set is committed even though `task rounds`
-regenerates it, because regenerating needs the corpus mounted and database
-access and the deploy has neither. Regenerating rewrites about 27 MB of JPEGs,
-so do it deliberately.
+`et-book/`, and the round set — `rounds.json` plus ~300 clips under `clips/`.
+
+**Only the manifest is committed.** A round set is ~150 MB of mp4 and this repo
+is public, so committing one would add that to git history on every
+regeneration, permanently. `web/clips/` is gitignored and the media lives in an
+R2 bucket instead; the three deploy workflows pull it into `web/` before
+uploading. `rounds.json` has to stay in git regardless, because
+`functions/api/score.js` imports it at build time — that is what makes the five
+rounds the server checks a daily play against provably the five the page handed
+out.
+
+`clips.sh` moves the media both ways, and names the object after a hash of the
+manifest. That is deliberate: under a stable name, regenerating would overwrite
+the tarball that production — still on an older release, with an older manifest
+— pulls on its next deploy, and production would come back up naming clips the
+bucket no longer holds. Content-addressing makes a manifest and its media
+inseparable, and makes "the clips were never pushed" a failed deploy rather than
+a game of black panes. Nothing in the bucket is ever deleted, for the same
+reason: an old tarball is what some deployed manifest still points at.
 
 The page borrows its look from the blog at
 [dana.lol](https://dana.lol): the same ET Book faces, and the same light/dark
@@ -128,8 +159,10 @@ task answers:prod:push    # adanalife-guessr-answers
 ```
 
 **A regenerated round set is unplayable until that push runs** — every guess
-comes back "unknown round", because the frames deployed are ones the answers
-table has never heard of. `task rounds` prints the reminder on the way out.
+comes back "unknown round", because the rounds deployed are ones the answers
+table has never heard of. `task rounds` prints the reminder on the way out,
+alongside the other push a new set needs: `task clips:push`, without which the
+rounds have no footage to show in the first place.
 
 The databases are terraform, in `infra` alongside the Pages projects, and each
 tier has its own so a regeneration on one doesn't strand the other.
@@ -166,6 +199,55 @@ play would read as a replay of the first's) and deliberately not the IP address
 (NAT makes a household one player, CGNAT makes one phone several, and an address
 stored beside a typed name is personal data this doesn't need).
 
+### Linking a second device
+
+An id per browser means a player who plays on a phone and a desktop is two
+players on the board. `POST /api/link` with `{from, to}` folds one into the
+other: every play under `from` is rewritten to `to`, and a round both browsers
+answered on the same date keeps the score already on record under `to` — first
+write wins, the same rule the primary key exists to enforce — while the other
+copy is dropped rather than left behind.
+
+There is no account to log into, and adding one would be the whole apparatus (an
+email, a session, a way back in when it's lost) around a problem that is one row
+rewrite. The id already *is* the credential: minted in the browser, never
+returned by any endpoint, `/api/leaderboard` deliberately serving names and
+points and no ids. So holding both ids is proof of holding both browsers.
+
+The About panel's **Link a device** draws that URL as a QR code, and the browser
+that scans it merges and adopts. A code rather than a copyable link because
+copying was the hard half: a URL on a desktop still has to reach a phone, and
+every route there is a detour out of the game. It stays an `<a>` around the
+image, so a screen reader still announces a link and a phone with the panel open
+can follow it directly.
+
+The id rides in the fragment rather than the query string, so it is never sent
+with the request and stays out of the logs it passes through on the way; and the
+URL is built on the current origin rather than `guessr.dana.lol`, because each
+tier has its own database and a staging id opened on production names a player
+nothing has heard of. `web/link.js` owns both halves — building the URL and
+reading one back — split out for the same reason `daily.js` is: a name that
+isn't escaped and a parse that reads the wrong key both present as a code that
+did nothing.
+
+Adoption runs on load *and* on `hashchange`, because opening the link isn't
+always a page load — a browser already showing the game reuses the tab, and the
+URL differs only in its fragment. The receiving browser asks first, naming the
+player it is about to become: a URL that silently rewrote who you are would be a
+URL anyone could send you.
+
+Encoding is `qrcode-generator` from unpkg, pinned alongside Leaflet. QR is
+Reed-Solomon over GF(256), block interleaving and mask scoring — a spec
+implementation rather than something to write, and one whose bugs are a code that
+scans on the phone it was tested with and not the next one. It adds a request
+rather than a trust boundary: the page already gives that origin the run of
+itself.
+
+The consequence worth being plain about: anyone who learns a player's id can take
+that history. That's the exposure the id already carried — knowing it lets you
+post plays as that player — and the mitigation is the same one, which is that it
+has no path out of the browser holding it.
+
 ### The boards
 
 `GET /api/leaderboard?board=daily|monthly` returns `{board, period, rows}`, rows
@@ -197,19 +279,21 @@ aliases existed, or from a browser that can't keep `localStorage` — renders as
 If typed names ever land, an allowlist lands with them and joins into the board
 query; until then it would be a table with nothing to hold.
 
-One thing this does *not* buy yet: the round sets published before scoring moved
-server-side had their coordinates in `rounds.json`, and that file is in this
-repo's git history. Until the set is regenerated, the answers are still one
-`git log` away for anyone who looks — so the endpoint is the mechanism, not yet
-the guarantee. A leaderboard needs the regeneration first.
+One thing this does *not* buy outright: the round sets published before scoring
+moved server-side carried their coordinates in `rounds.json`, and that file is in
+this repo's git history. The current set is a later regeneration and most of it
+is clear of them, but 34 of its 300 rounds are cut from a clip that also appeared
+in one of those sets — and ground truth is clip-level, so for those the answer is
+a `git log` away. The endpoint is the mechanism; a set with no overlap at all is
+what would make it the guarantee.
 
-Because that set is tracked, a regeneration rewrites ~300 files of tracked
-content and the next merge deploys the result — so **a generation that fails
-leaves the current one alone.** `task rounds` builds into `web/.staging`, runs
-`check.py` against *that*, and moves it into place only if it passes. A run with
-the corpus unmounted or the database unreachable leaves the working tree exactly
-as it was rather than deleting the frames it was about to replace, and the
-rejected set is left in `web/.staging` to look at.
+A regeneration replaces every clip under `web/clips/` and rewrites the
+manifest that gets committed — so **a generation that fails leaves the current
+one alone.** `task rounds` builds into `web/.staging`, runs `check.py` against
+*that*, and moves it into place only if it passes. A run with the corpus
+unmounted or the database unreachable leaves the working tree exactly as it was
+rather than deleting the clips it was about to replace, and the rejected set is
+left in `web/.staging` to look at.
 
 `favicon.svg` is the map pin, drawn as the adanalife mark — ring, centre dot,
 bead on the upper-right shoulder — with the ring pulled down to a point, so it
@@ -245,19 +329,26 @@ and the icon, nothing else.
 mechanism: this game spreads by people pasting a URL. It's a hand-picked frame
 with the title and the mark set over it, made once and committed:
 
+It is cut straight from the corpus rather than from a round clip, so it does not
+go stale when the round set is regenerated — `2018_1107_182338_002_opt` at
+87.9s, a Victorian intersection in San Francisco:
+
 ```sh
 rsvg-convert -w 110 -h 110 web/favicon.svg -o /tmp/mark.png
 magick /tmp/mark.png -channel RGB -fill white -colorize 100 +channel /tmp/mark-white.png
 
-magick web/frames/<frame>.jpg \
+ffmpeg -ss 87.9 -i /Volumes/ADanaLife/dashcam/_opt/clips/2018_1107_182338_002_opt.MP4 \
+  -frames:v 1 -vf "crop=iw:ih-70:0:0,scale=1280:-2" -q:v 2 /tmp/card.jpg
+
+magick /tmp/card.jpg \
   -gravity North -crop 1280x672+0+0 +repage -resize 1200x630! \
   \( -size 1200x300 -define gradient:vector='0,0 0,300' \
      gradient:'rgba(0,0,0,0.62)-rgba(0,0,0,0)' \) -gravity North -composite \
   -font Helvetica-Bold -fill white -gravity NorthWest \
   -pointsize 96 -annotate +60+52 'Guessr' \
   -font Helvetica -pointsize 36 -fill '#dfe6ea' \
-  -annotate +64+168 'GeoGuessr, but every round is a dashcam frame' \
-  -annotate +64+214 'from a year of driving the United States' \
+  -annotate +64+168 'Like GeoGuessr, but every round is a dashcam clip' \
+  -annotate +64+214 'from a year-long roadtrip' \
   /tmp/mark-white.png -gravity NorthEast -geometry +60+46 -composite \
   -quality 88 -strip web/og.jpg
 ```
@@ -268,12 +359,18 @@ sinks into whatever foliage is behind it, and white matches the title.
 Swapping the frame means re-running that and updating `og:image:alt`. Keep it
 1200x630 — that's the aspect every scraper crops to.
 
-**The committed card predates the current round set.** Its frame — a San
-Francisco intersection — was drawn from a set that has since been regenerated,
-and no frame under `frames/` matches it any more, so the recipe above builds a
-*new* card rather than reproducing the committed one. Anything that has to
-change on the existing card gets composited onto it directly until the frame is
-reselected.
+The recipe names a corpus clip and a timestamp rather than a file from the
+current round set, which is what makes it reproducible. A round set is
+regenerable and its frames turn over, so a recipe keyed to one rebuilds a
+*different* card the moment that frame leaves the set — leaving compositing onto
+the existing image as the only way to change anything. The corpus clip behind
+this frame is not going anywhere.
+
+(The source frame was recovered by scanning every San Francisco clip in the
+corpus for the one whose untexted lower band matched the committed card: 0.039
+RMSE against 0.20+ for every other candidate. The rebuilt card is that scene a
+fraction of a second off — near enough that the difference is a pedestrian
+mid-crossing.)
 
 ## Development
 
@@ -284,6 +381,45 @@ pre-commit install   # wires up both the file hooks and the commit-msg check
 Commits and PR titles follow [Conventional Commits](https://www.conventionalcommits.org).
 PRs squash-merge, so the PR title becomes the subject in history and is what
 release-please reads to compute the next version.
+
+### Changelog
+
+`CHANGELOG.md` is assembled by [towncrier](https://towncrier.readthedocs.io)
+from one fragment per PR, so every PR adds one:
+
+```sh
+task changelog:add TYPE=new     # writes changelog.d/+new.new.md — open it and write the line
+task changelog:preview          # what the next release will say
+```
+
+Types are `new`, `changed`, `fixed`, `behind` (behind the scenes) and `summary`
+(a lead paragraph for the release, when one is warranted). You don't need the PR
+number: `changelog-number.yml` renames the `+` placeholder to `<PR#>.<type>.md`
+on push, which is what puts a PR link on each entry. A PR that genuinely
+warrants no entry — a dependabot bump, a round-set regeneration, a revert —
+carries the `skip-changelog` label instead, and `gates` fails without one.
+
+**Write the entry for a player.** That file is what the version number in the
+About panel links to, so it's read by someone who just finished a round and
+tapped it — not by anyone who will ever open this repo. Say what changed for
+them, in their words, in the present tense:
+
+> The map remembers how far you zoomed in.
+
+not
+
+> persist zoom level to localStorage
+
+No file names, no endpoints, no repo jargon; if a line only parses next to the
+diff, it belongs in the PR description. Plumbing still gets a line, under
+**Behind the scenes** — plainly, not in the jargon that section might seem to
+invite.
+
+Releases assemble it automatically: release-please's standing PR carries the
+version bump, and a step on that branch collates the fragments into
+`CHANGELOG.md` so the notes and the bump land together. Entries from before
+towncrier are still in the old release-please style below the
+`<!-- towncrier release notes start -->` marker.
 
 ## The daily round
 
@@ -305,17 +441,16 @@ Finishing writes the day to `localStorage`, so today's round can't be replayed
 for a better result. Practice mode draws at random and is unlimited.
 
 Both modes then order their five rounds easy to hard by `median_km` (see [How
-rounds are chosen](#how-rounds-are-chosen)), and the header shows the current
-round's band as three dots — `●●○`. The ordering runs on the drawn five, never
-on the pool, so it can't change *which* rounds a day draws. The band cutoffs
-(32 km and 120 km) are the terciles of the shipped set.
+rounds are chosen](#how-rounds-are-chosen)). The ordering runs on the drawn five,
+never on the pool, so it can't change *which* rounds a day draws. The ramp is
+felt, not shown — nothing in the header rates the round you are looking at.
 
 `test_daily.mjs` covers the draw, because it fails invisibly: if it stops being
 deterministic, every player simply gets different rounds, nothing errors, and
 the share string quietly stops meaning anything. The test pins determinism,
 independence from the order `rounds.json` was written in, that the ramp reorders
 the five without changing which five, and that a DST boundary doesn't skip or
-repeat a day number. It matters twice over now that `/api/score` draws from the
+repeat a day number. It matters twice over because `/api/score` draws from the
 same module to check a play: a draw that shifted would have the server rejecting
 rounds the page had just handed out.
 
@@ -333,8 +468,16 @@ since the draw is deterministic and computed on the client. A refused play comes
 back as a 403 with a distinct message, and the page treats a 4xx as final rather
 than inviting a retry that cannot work.
 
-The pool needs to stay comfortably larger than five times however many days you
-want before rounds repeat; `task check` reports that number. Regenerating
+**Rounds repeat sooner than the pool size suggests.** A day reshuffles the whole
+pool and takes five; it does not deal the pool out into non-overlapping days. So
+repeats begin within the first week or two whatever the pool size, and what a
+bigger pool buys is how *often* one comes round again. At 300 rounds, a player
+who plays all of the next 90 days meets 233 of them and sees a repeat about
+every other round; `task check` reports both numbers for the current set.
+
+Dealing days out of an unused slice instead would genuinely delay the first
+repeat, at the cost of a draw that has to know which days have already been
+played — worth it only if anyone ever plays long enough to mind. Regenerating
 `rounds.json` reshuffles future dailies, since the draw depends on which rounds
 exist — worth doing between days rather than mid-day.
 
@@ -364,10 +507,21 @@ Two things the implementation has to get right:
   without `hnsw.iterative_scan` a candidate whose neighbourhood is mostly
   same-day comes back with a handful of neighbours, sometimes zero, and its
   median is noise. It's also about 5x faster than the exhaustive fallback.
+- **Score several moments per clip.** A clip is ~3 minutes of driving with ~32
+  frame embeddings, and its moments vary in quality far more than clips do —
+  glare into the lens, a truck filling the windscreen, nine-tenths blown-white
+  sky are bad *moments* in clips that have good ones. One clip's four sampled
+  moments came back spanning 15.7 to 58.3 median km. `--per-clip` is the knob
+  (default `4`); a clip contributes only its best-ranked moment, because
+  selection takes each clip once and rank order decides which. The cost is
+  sublinear — four moments each on a 400-clip pool is 7.7s against 3.2s for one —
+  and the encode, which is the slow half, still cuts one clip per round.
 
-Rounds are then *sampled* from the better-scoring half rather than taken
-strictly best-first, which drops the featureless rounds while keeping the set
-varied. `--keep-fraction` is the knob.
+Rounds are then taken from the better-scoring half of the pool, best-ranked
+first, skipping any clip too close to one already taken or from a state that has
+filled its share. `--keep-fraction` sets how much of the pool is in contention;
+`--min-spacing` and `--state-cap` are what keep the set from piling into the
+roads the van drove most.
 
 ### The second signal: distinctiveness
 
@@ -386,15 +540,17 @@ information rather than the same measurement twice.
 So the bottom slice of the pool by mean cosine distance is discarded before
 ranking. `--drop-generic` is the knob (default `0.15`); the cut is a percentile
 rather than an absolute distance, so it survives a change of corpus or embedding
-model. On a 400-clip pool that drops about 40 of the ~200 clips the geographic
-score would have kept, and admits about 10 in their place.
+model. Measured on a 400-clip pool at one moment per clip, that drops about 40 of
+the ~200 clips the geographic score would have kept, and admits about 10 in their
+place. The unit is a moment rather than a clip, so with `--per-clip` above 1 the
+counts scale with it while the proportions hold.
 
 Sorting the kept set by this signal is the clearest way to see what it does. At
 the top: a ferry deck, a signed visitor centre, a harbour full of boats, a
 grocery storefront. At the bottom: five near-identical shots of empty Wyoming
 highway, a foggy field, and a frame that is mostly cloud.
 
-**Known limitation, unchanged:** the score still measures locatability *within
+**Known limitation:** the score measures locatability *within
 this corpus*. A landmark visited on exactly one day has its real visual matches
 excluded along with the rest of that day, so it can score as generic and be
 dropped. Rescuing those by their high cosine distance was the original reason to
@@ -413,26 +569,34 @@ gives a pool of (clip, timestamp, truth coords) — one round each. Ground truth
 is clip-level, which is accurate to a couple of miles, since a clip is about
 three minutes of driving.
 
-**The frames must be cropped.** The dashcam burns a HUD across the bottom of
+**The clips must be cropped.** The dashcam burns a HUD across the bottom of
 every frame reading `49 MPH W71.606763 N42.822437` plus the date — the answer,
 in text, on screen. `make_rounds.py` crops that strip off and `check.py` fails
-if a frame ever ships uncropped, since the failure is otherwise invisible: the
-game still runs, it's just trivially cheatable.
+if a clip ever ships uncropped, since the failure is otherwise invisible: the
+game still runs, it's just trivially cheatable. That check runs on the laptop
+rather than in CI, which never sees the media — `task clips:push` will not
+upload a set that fails it.
 
 ## Not built yet
 
 - **Per-frame ground truth.** The HUD holds exact coords for the frame being
   shown, which is finer than the clip-level lat/lng scored against today.
   Reading it means OCR'ing the strip before cropping it.
-- **Video rounds.** A few seconds of motion beats a still, and motion is the
-  whole character of the source material.
 - **The board on the stream.** Everything on this side of it exists: results are
   recorded and verified, names are collected and moderated, and
   `/api/leaderboard` serves both boards. What's left is tripbot fetching it —
   two new `leaderboardKind`s in its rotation, which currently splits one
   five-minute slot three ways and would need re-weighting for five.
-- **A round set whose answers aren't in git.** The sets published before scoring
-  moved server-side had their coordinates in `rounds.json`, and that file is in
-  this repo's history (see *The answers* above), so a score is only worth as much
-  as the player's disinclination to run `git log`. Fine for a beta; the set gets
-  regenerated before this is something people compete at.
+- **A schedule for round generation.** The script runs in the cluster as well as
+  on a laptop (above), which is what makes a scheduled job possible at all.
+  What is left is the job itself: an image carrying `ffmpeg` and
+  `psql` with the corpus mounted, a CPU limit low enough not to make the live
+  stream choppy, and a credential that can push the media to R2, seed the
+  answers, and commit the manifest. Media and answers both have to land *before*
+  the manifest, since the manifest is what a deploy keys off.
+- **A round set with no source clip in common with the pre-server-side sets.**
+  Those sets carried their coordinates in `rounds.json`, which is in this repo's
+  history (see *The answers* above). 34 of the current 300 rounds are cut from a
+  clip one of them used, and truth is clip-level — so those 34 are worth only as
+  much as the player's disinclination to run `git log`. Fine for a beta; a
+  regeneration that avoids those clips closes it.

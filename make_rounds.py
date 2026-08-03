@@ -2,19 +2,31 @@
 """Build a round set for the guessing game.
 
 Samples clips from the dashcam corpus, scores each one for how locatable it is,
-extracts a frame from the good ones, and writes web/rounds.json +
-web/frames/*.jpg -- the files the browser gets -- plus answers.json and
+cuts a few seconds out of the good ones, and writes web/rounds.json +
+web/clips/*.mp4 -- the files the browser gets -- plus answers.json and
 answers.sql outside web/, which hold the coordinates and never ship.
 
 The split is the point: a manifest carrying the true lat/lng lets any player read
 the answer out of devtools, so the coords go to D1 instead (`task
 answers:{stage,prod}:push`) and functions/api/score.js is what turns a guess into
-points. Nothing under web/ says where a frame was taken.
+points. Nothing under web/ says where a clip was taken.
 
 A run builds into web/.staging and only moves the result into place once check.py
-passes on it. The round set under web/ is tracked and every merge to main deploys
-it, so a run that dies on an unmounted corpus or an unreachable database has to
-leave the current set exactly as it was rather than deleting it first.
+passes on it. A run that dies on an unmounted corpus or an unreachable database
+has to leave the current set exactly as it was rather than deleting it first.
+
+Selecting a set costs seconds and encoding one costs tens of minutes, so
+`--dry-run` stops between the two: it scores, selects, writes the manifest and
+the answers, and reports what the set would look like without cutting a single
+clip. That is the loop for tuning the knobs below, which otherwise can only be
+compared by paying for two full generations.
+
+web/clips/ is not committed -- a round set is ~125 MB and the repo is public, so
+committing one would add that to history on every regeneration, permanently. The
+manifest is committed and the media is uploaded separately (`task clips:push`),
+which means the two can disagree: a deploy whose clips were never uploaded serves
+a black pane per round. check.py catches that locally; smoke.sh catches it
+against a real deployment.
 
 Ground truth is the clip-level lat/lng in `videos`. The dashcam also burns
 per-frame coords into the HUD, which would be a finer-grained truth if it were
@@ -23,16 +35,21 @@ only a couple of miles, so clip coords are close enough to score against.
 """
 
 import argparse
+import bisect
 import hashlib
 import json
 import os
-import random
 import shutil
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 
-CORPUS = Path("/Volumes/ADanaLife/dashcam/_opt/clips")
+from check import NEAR_KM, dimensions, km
+
+# The laptop mounts the corpus over SMB at this path; in the cluster it is an NFS
+# mount at whatever path the pod spec picks. The default is the laptop's.
+CORPUS = Path(os.environ.get("GUESSR_CORPUS", "/Volumes/ADanaLife/dashcam/_opt/clips"))
 WEB = Path(__file__).parent / "web"
 STAGING = WEB / ".staging"
 
@@ -41,27 +58,37 @@ STAGING = WEB / ".staging"
 # the text baseline sits around y=1075, so 70px clears it with room to spare.
 HUD_STRIP_PX = 70
 
-# Scoring: a frame is a good round if visually similar frames come from nearby
-# places. Take each candidate's nearest neighbours in SigLIP2 embedding space and
-# measure how far their true locations sit from the candidate's. A tight cluster
-# means the image carries real location signal; neighbours scattered across the
-# continent mean it's anonymous interstate that could be anywhere.
+# The encode. Settled by measurement (see extract_clip) and constants rather than
+# flags: sweeping these means regenerating a set and looking at it, which is a
+# day's work and a decision, not something a run gets to vary on its way past.
+# The knobs that *are* swept -- pool, per-clip, distinctiveness, spacing, seed --
+# are arguments, because --dry-run makes trying them cost seconds.
+WIDTH = 1280
+SECONDS = 3.0
+CRF = 28
+FPS = 30
+# Bound what the encode may take rather than trusting it to be modest: ~300 of
+# these is ~25 minutes of x264 that will use every core it is given, and the
+# machine running it is a laptop being typed on.
+THREADS = max(1, (os.cpu_count() or 2) // 2)
+NICENESS = 10
+
+# What the two scores mean, why same-day frames are excluded, and why several
+# moments are scored per clip: README, "How rounds are chosen". The three things
+# that are about this query rather than about the scoring:
 #
-# Same-day frames are excluded because consecutive clips are the next few minutes
-# of the same road -- near-identical and a mile apart, so including them scores
-# every clip as perfectly locatable. Date is a rough proxy for "the same drive".
-#
-# The same neighbours also give a second, near-independent signal: how visually
-# distinctive the frame is, as the mean cosine distance to those neighbours. A
-# frame whose neighbours are near-identical is a stretch of road the corpus drove
-# many times on other days -- empty blacktop, fog, sky -- which scores as highly
-# locatable (the neighbours really are all in one place) while a human player has
-# nothing to work with. See the README for what that filter keeps and drops.
-#
-# Iterative scan matters: the day filter is applied during the HNSW scan, so
-# without it a candidate whose neighbourhood is mostly same-day returns only a
-# handful of rows (sometimes zero) and its median is noise. It is also ~5x faster
-# here than letting the scan fall back to exhaustive.
+# - `hnsw.iterative_scan` is load-bearing, not tuning. The day filter is applied
+#   during the scan, so without it a candidate whose neighbourhood is mostly
+#   same-day comes back with a handful of rows, sometimes zero, and its median is
+#   noise.
+# - `:per_clip` moments per clip means one clip appears several times over.
+#   Nothing downstream has to pick between them: select() skips a slug it has
+#   taken, so a clip's first appearance going down the ranked list is its best
+#   moment by the same merit every other round is chosen on. Dropping the extras
+#   here in SQL would have to do it on median_km alone, which is the ordering
+#   rank() exists to correct.
+# - The score describes the round's *first* frame, not its middle: extract_clip
+#   opens the cut on the scored timestamp (`-ss ts`).
 SCORE_SQL = """
 SET hnsw.ef_search = 100;
 SET hnsw.iterative_scan = relaxed_order;
@@ -75,13 +102,16 @@ WITH picked AS (
   LIMIT :pool
 ),
 cand AS (
-  SELECT DISTINCT ON (p.id)
-         p.id AS vid, p.slug, p.lat, p.lng, p.state, p.date_filmed,
+  SELECT p.id AS vid, p.slug, p.lat, p.lng, p.state, p.date_filmed,
          f.embedding, f.ts_sec
   FROM picked p
-  JOIN frame_embeddings f ON f.video_id = p.id
-  WHERE f.ts_sec > 15
-  ORDER BY p.id, random()
+  CROSS JOIN LATERAL (
+    SELECT embedding, ts_sec
+    FROM frame_embeddings
+    WHERE video_id = p.id AND ts_sec > 15
+    ORDER BY random()
+    LIMIT :per_clip
+  ) f
 )
 SELECT c.slug, c.ts_sec, c.lat, c.lng, c.state, c.date_filmed,
        nb.median_km, nb.n, nb.mean_cos
@@ -132,50 +162,96 @@ def score_sql(seed: int | None) -> str:
 
     Only against an unchanged corpus, though: adding a row to `videos` or
     `frame_embeddings` changes which clips the same sequence of random values
-    picks out.
+    picks out. `--per-clip` does the same, for the same reason -- it changes how
+    many values the frame draw consumes, so a seed reproduces a set only alongside
+    the depth it was generated at.
     """
     if seed is None:
         return SCORE_SQL
     return f"SELECT setseed({pg_seed(seed)!r});\n{SCORE_SQL}"
 
 
+def psql_invocation(
+    namespace: str, pool: int, k: int, per_clip: int
+) -> tuple[list[str], dict[str, str]]:
+    """How to run the scoring query: straight at Postgres, or via kubectl exec.
+
+    `DATABASE_HOST` is the switch, because it is the thing that is only true in
+    one of the two places. From the laptop there is no route to the database at
+    all -- it lives in the cluster with no ingress -- so the only way in is to
+    exec a psql that is already inside. A process running *in* the cluster
+    reaches the Service directly and has no business shelling out to kubectl for
+    it, nor the RBAC to.
+
+    Names follow the project-wide DATABASE_* vars that tripbot's Go and
+    video-pipeline's db.py already read, so an in-cluster deployment configures
+    this the same way it configures everything else. The defaults are the laptop
+    path, so an unset environment takes the kubectl route.
+    """
+    query = [
+        "psql",
+        "-U",
+        os.environ.get("DATABASE_USER", "tripbot"),
+        "-d",
+        os.environ.get("DATABASE_DB", "tripbot"),
+        "-At",
+        "-F",
+        "\t",
+        # ON_ERROR_STOP because psql otherwise exits 0 on a SQL error, which
+        # arrives here as an empty result and reads as "no clips matched".
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-v",
+        f"pool={pool}",
+        "-v",
+        f"k={k}",
+        "-v",
+        f"per_clip={per_clip}",
+        "-f",
+        "-",
+    ]
+    host = os.environ.get("DATABASE_HOST")
+    if not host:
+        exec_argv = ["kubectl", "-n", namespace, "exec", "-i", "postgres-0", "--"]
+        return [*exec_argv, *query], dict(os.environ)
+
+    # PG* is how libpq takes a host and a password. Only the local psql reads
+    # them, which is why they belong to this branch: on the kubectl path the psql
+    # that matters is inside the pod and connects over its own loopback.
+    return query, {
+        **os.environ,
+        "PGHOST": host,
+        "PGPORT": os.environ.get("DATABASE_PORT", "5432"),
+        "PGPASSWORD": os.environ.get("DATABASE_PASS", ""),
+    }
+
+
 def score_candidates(
-    namespace: str, pool: int, k: int, seed: int | None = None
+    namespace: str, pool: int, k: int, per_clip: int = 4, seed: int | None = None
 ) -> list[dict]:
-    """Score a random pool of clips for locatability. Best (tightest) first."""
-    out = subprocess.run(
-        [
-            "kubectl",
-            "-n",
-            namespace,
-            "exec",
-            "-i",
-            "postgres-0",
-            "--",
-            "psql",
-            "-U",
-            "tripbot",
-            "-d",
-            "tripbot",
-            "-At",
-            "-F",
-            "\t",
-            # ON_ERROR_STOP because psql otherwise exits 0 on a SQL error, which
-            # arrives here as an empty result and reads as "no clips matched".
-            "-v",
-            "ON_ERROR_STOP=1",
-            "-v",
-            f"pool={pool}",
-            "-v",
-            f"k={k}",
-            "-f",
-            "-",
-        ],
-        input=score_sql(seed),
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
+    """Score a random pool of clips for locatability. Best (tightest) first.
+
+    Returns up to `per_clip` candidate moments per clip, so one clip can appear
+    several times over. select() keeps the best of them.
+    """
+    argv, env = psql_invocation(namespace, pool, k, per_clip)
+    try:
+        out = subprocess.run(
+            argv,
+            env=env,
+            input=score_sql(seed),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    except FileNotFoundError:
+        # The two routes need different binaries, and an unattended run should say
+        # which one is missing rather than raise a traceback out of subprocess.
+        sys.exit(
+            f"{argv[0]}: not found. Scoring reaches Postgres either by exec'ing "
+            "into the pod, which needs kubectl, or straight over the network when "
+            "DATABASE_HOST is set, which needs a psql client on PATH."
+        )
 
     rows = []
     for line in out.splitlines():
@@ -200,35 +276,195 @@ def score_candidates(
     return rows
 
 
-def extract_frame(row: dict, dest: Path, width: int) -> bool:
-    """Grab one HUD-free frame. Returns False if the clip isn't readable."""
-    src = CORPUS / f"{row['slug']}.MP4"
-    if not src.exists():
-        return False
+def available(scored: list[dict]) -> list[dict]:
+    """Drop candidates whose source clip isn't in the corpus, in one directory read.
 
-    vf = f"crop=iw:ih-{HUD_STRIP_PX}:0:0,scale={width}:-2"
-    proc = subprocess.run(
-        [
-            "ffmpeg",
-            "-y",
-            "-loglevel",
-            "error",
-            "-ss",
-            str(row["ts"]),
-            "-i",
-            str(src),
-            "-frames:v",
-            "1",
-            "-vf",
-            vf,
-            "-q:v",
-            "3",
-            str(dest),
-        ],
-        capture_output=True,
-        text=True,
-    )
-    return proc.returncode == 0 and dest.exists() and dest.stat().st_size > 0
+    `videos` is derived from the corpus, so the two agreeing is the normal case
+    and this drops nothing -- but when it does drop something, doing it here is
+    what lets select() below return exactly the count it was asked for instead
+    of discovering the gap one encode at a time.
+
+    One listdir rather than a stat() per candidate: the corpus is an SMB mount,
+    where a stat costs ~4ms and a pool of a couple of thousand would spend
+    several seconds finding out what one directory read answers in ten
+    milliseconds. An unmounted corpus raises here, which is the right moment --
+    before anything under web/ has been touched.
+    """
+    present = set(os.listdir(CORPUS))
+    return [r for r in scored if f"{r['slug']}.MP4" in present]
+
+
+def rank(scored: list[dict], weight: float) -> list[dict]:
+    """Order a scored pool on both signals at once, best round first.
+
+    What the two signals are and why both: README, "The second signal:
+    distinctiveness". Combined by *percentile* rather than by value, because
+    kilometres and cosine distances share no scale -- a weight applied to the raw
+    numbers would mean something different for every pool.
+
+    The default weight is 0.25 rather than an even split, from sweeping it on a
+    2000-clip pool against the 300-round set that shipped (`--dry-run`, seed 7):
+
+        weight   states  top state   locatability med/worst   distinctiveness
+        shipped      23    CA  29%              84 / 230               0.0677
+        0.00         25    WY  12%              67 / 177               0.0622
+        0.25         26    CA  12%              72 / 313               0.0737
+        0.50         30    CA  12%             107 / 1144              0.0858
+
+    Half and half buys four more states and keeps climbing on distinctiveness,
+    but it pays in rounds nobody can answer: a worst case of 1144 km is a clip
+    whose visual neighbours average a thousand kilometres away, and the set goes
+    from a third hard to nearly half hard. At 0.25 the set beats the shipped one
+    on every axis at once, locatability included -- spreading a set out turns
+    out to *improve* how locatable it is, because it stops the selection piling
+    into a handful of well-driven clusters.
+    """
+    by_km = sorted(r["median_km"] for r in scored)
+    by_cos = sorted(r["mean_cos"] for r in scored)
+
+    def merit(r: dict) -> float:
+        # Locatability is better when smaller, distinctiveness when larger.
+        locatable = 1 - bisect.bisect_left(by_km, r["median_km"]) / len(scored)
+        distinct = bisect.bisect_left(by_cos, r["mean_cos"]) / len(scored)
+        return locatable * (1 - weight) + distinct * weight
+
+    return sorted(scored, key=merit, reverse=True)
+
+
+def select(
+    ranked: list[dict], count: int, min_km: float, state_cap: int
+) -> tuple[list[dict], int]:
+    """Take the best `count` rounds that aren't the same place twice.
+
+    Greedy down the ranked list, skipping any clip within `min_km` of one
+    already taken, or from a state that has already filled its share. Returns
+    the set and how many of it had to be backfilled without the spacing.
+
+    Both constraints exist because nothing upstream knows about spread: every
+    clip is scored alone, so the roads the van drove repeatedly score well
+    repeatedly and a set comes out denser and narrower than the corpus behind
+    it. Measured on the 300-round set that shipped: California is 33% of the
+    rounds against 17% of the corpus, ten of the corpus's 32 states have no
+    round at all, and 157 of 300 rounds sit within 5 km of another round --
+    including fifteen consecutive minutes of one day's drive, served as five
+    separate rounds. A player who notices the lean gets it as a free prior on
+    every round afterwards.
+
+    Backfilling rather than returning short: a crowded round still plays, and
+    the round count is what the daily draw's repeat rate depends on. The state
+    cap is *not* relaxed for the backfill -- it is the whole anti-skew guard,
+    and a set that can only be filled by breaking it should come out short and
+    say so.
+    """
+    chosen: list[dict] = []
+    taken: set[str] = set()
+    per_state: Counter = Counter()
+
+    def take(spacing: float) -> None:
+        for r in ranked:
+            if len(chosen) >= count:
+                return
+            if r["slug"] in taken:
+                continue
+            if state_cap and per_state[r["state"]] >= state_cap:
+                continue
+            if spacing and any(km(r, c) < spacing for c in chosen):
+                continue
+            chosen.append(r)
+            taken.add(r["slug"])
+            per_state[r["state"]] += 1
+
+    take(min_km)
+    spread = len(chosen)
+    take(0)
+    return chosen, len(chosen) - spread
+
+
+def extract_clip(row: dict, dest: Path) -> bool:
+    """Cut one HUD-free clip. Returns False if the source isn't readable.
+
+    A few seconds of motion rather than a still, because motion is the character
+    of the source material and parallax is real information: a still flattens the
+    depth cues that tell a hill from a backdrop.
+
+    Encoding choices, all of them size-driven -- a round set is ~300 of these and
+    none of them are in git:
+
+    - 30fps, halved from the source's 60. The stream keeps 60 because that is its
+      differentiator; a three-second loop of it is twice the bytes for nothing.
+    - CRF 28. 26 is visibly better on shadow detail and 32 is visibly worse --
+      distant signage goes to mush, and reading a sign after zooming in is the
+      mechanic, so there is a floor here that a pure size argument would blow
+      through.
+    - `-an`: the corpus has audio, autoplay requires muted anyway, and it is
+      bytes for something no player will ever hear.
+    - `veryslow`: this runs once per round on a laptop, offline. The frames are
+      the deliverable, so there is no reason to trade their size for encode time.
+      It buys about 2% over `slow` for 3.5x the time, which is a bad trade
+      anywhere the encode is on someone's critical path and a free one here.
+    - `+faststart` puts the moov atom first, so the browser can start playing on
+      the first bytes instead of waiting for the whole file.
+
+    Half the cores at a positive nice value cost wall-clock and nothing else, and
+    keep 25 minutes of x264 from taking the laptop it is running on.
+    """
+    src = CORPUS / f"{row['slug']}.MP4"
+    vf = f"crop=iw:ih-{HUD_STRIP_PX}:0:0,scale={WIDTH}:-2,fps={FPS}"
+    # A frame's timestamp can be the clip's last one, and a window starting there
+    # holds nothing: ffmpeg writes a valid, empty container, exits 0, and leaves a
+    # few hundred bytes on disk, so return code and file size both say it worked.
+    # The emptiness only surfaces in check.py, at the end of a run that spent
+    # twenty-five minutes encoding everything else. Cut the tail instead.
+    for ts in (row["ts"], max(0.0, row["ts"] - SECONDS)):
+        proc = subprocess.run(
+            [
+                "nice",
+                "-n",
+                str(NICENESS),
+                "ffmpeg",
+                "-y",
+                "-loglevel",
+                "error",
+                # Before -i, so ffmpeg seeks rather than decoding up to the mark.
+                # Output-accurate regardless, since everything downstream is
+                # re-encoded.
+                "-ss",
+                str(ts),
+                "-t",
+                str(SECONDS),
+                "-i",
+                str(src),
+                "-vf",
+                vf,
+                "-an",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryslow",
+                "-crf",
+                str(CRF),
+                # Baseline-compatible chroma and a leading moov atom: without
+                # yuv420p some encodes come out 4:4:4, which Safari refuses to play
+                # at all and which fails as a black pane rather than as an error.
+                "-pix_fmt",
+                "yuv420p",
+                "-movflags",
+                "+faststart",
+                "-threads",
+                str(THREADS),
+                str(dest),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0 or not dest.exists():
+            return False
+        try:
+            dimensions(dest)
+        except AssertionError:
+            continue  # no video track: the seek landed past the last frame
+        return True
+    return False
 
 
 def answers_sql(answers: list[dict]) -> str:
@@ -278,10 +514,10 @@ def swap_in(staging: Path, web: Path, root: Path | None = None) -> None:
     """Move a validated round set into place, keeping the old one until the last step.
 
     Renames rather than copies, so the served set is never half-written. A stale
-    `frames.old` means a previous run died mid-swap; it is safe to clear.
+    `clips.old` means a previous run died mid-swap; it is safe to clear.
 
     Checks the staged set is complete before touching anything under `web`: moving
-    the live frames aside and only then discovering there is nothing to replace them
+    the live clips aside and only then discovering there is nothing to replace them
     with would take the game down, which is the failure this whole path exists to
     prevent.
 
@@ -294,7 +530,7 @@ def swap_in(staging: Path, web: Path, root: Path | None = None) -> None:
         staging / "answers.json",
         staging / "answers.sql",
     )
-    if not (staging / "frames").is_dir() or not all(f.is_file() for f in required):
+    if not (staging / "clips").is_dir() or not all(f.is_file() for f in required):
         raise FileNotFoundError(f"{staging} is not a complete round set; nothing moved")
 
     # Answers first: they sit outside web/, so getting them into place costs the
@@ -302,13 +538,13 @@ def swap_in(staging: Path, web: Path, root: Path | None = None) -> None:
     for name in ("answers.json", "answers.sql"):
         os.replace(staging / name, root / name)
 
-    old = web / "frames.old"
+    old = web / "clips.old"
     shutil.rmtree(old, ignore_errors=True)
-    if (web / "frames").exists():
-        (web / "frames").rename(old)
-    (staging / "frames").rename(web / "frames")
-    # ponytail: frames land before the manifest, so for a few milliseconds the served
-    # manifest names frames from the previous set. Serving one 404 to whoever is
+    if (web / "clips").exists():
+        (web / "clips").rename(old)
+    (staging / "clips").rename(web / "clips")
+    # ponytail: clips land before the manifest, so for a few milliseconds the served
+    # manifest names clips from the previous set. Serving one 404 to whoever is
     # mid-request beats holding both sets on disk to make the pair truly atomic.
     os.replace(staging / "rounds.json", web / "rounds.json")
     shutil.rmtree(old, ignore_errors=True)
@@ -321,11 +557,43 @@ def main() -> int:
     ap.add_argument("--pool", type=int, default=400, help="clips to score")
     ap.add_argument("-k", "--neighbours", type=int, default=25)
     ap.add_argument(
+        "--per-clip",
+        type=int,
+        default=4,
+        help="candidate moments to score per clip, keeping the best of them. A "
+        "clip's frames vary more in quality than clips do, so 1 hands the round "
+        "whichever moment it drew. See SCORE_SQL.",
+    )
+    ap.add_argument(
         "--keep-fraction",
         type=float,
         default=0.5,
-        help="fraction of the scored pool to sample from, best-scoring first. "
-        "Sampling rather than taking the top N keeps the rounds varied.",
+        help="fraction of the scored pool to select from, best-scoring first. "
+        "A quality window: everything below it is out regardless of how well it "
+        "would have spread the set.",
+    )
+    ap.add_argument(
+        "--distinctiveness",
+        type=float,
+        default=0.25,
+        help="how much of a round's merit is having a visual signature of its "
+        "own rather than being locatable, 0 to 1. See rank() for why 0.25 and "
+        "not more; 0 ranks on locatability alone.",
+    )
+    ap.add_argument(
+        "--min-spacing",
+        type=float,
+        default=NEAR_KM,
+        help="kilometres a round must sit from every other round in the set. "
+        "0 turns the spacing off. See select() for what it is protecting "
+        "against.",
+    )
+    ap.add_argument(
+        "--state-cap",
+        type=float,
+        default=0.12,
+        help="most of the set any one state may be, as a fraction. 0 turns the "
+        "cap off, which lets the corpus's own skew through undamped.",
     )
     ap.add_argument(
         "--drop-generic",
@@ -334,28 +602,55 @@ def main() -> int:
         help="fraction of the scored pool to discard for having no visual "
         "signature of its own, lowest mean cosine distance first",
     )
-    ap.add_argument("--width", type=int, default=1280, help="output frame width")
-    ap.add_argument("--namespace", default="stage-1-data")
+    ap.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="score and select, report what the set would look like, and cut "
+        "nothing. Scoring a pool takes seconds and encoding it takes tens of "
+        "minutes, so this is how the knobs above get tuned by trying them.",
+    )
+    ap.add_argument(
+        "--namespace",
+        default="stage-1-data",
+        help="namespace holding postgres-0, for the kubectl exec route into the "
+        "database. Ignored when DATABASE_HOST is set, which is how anything "
+        "running inside the cluster reaches Postgres instead.",
+    )
     ap.add_argument(
         "--seed",
         type=int,
         default=None,
-        help="pin both the database's pool draw and the Python shuffle, so the "
-        "same seed rebuilds the same round set -- but only from an unchanged "
-        "corpus, since new clips change what the same draw selects. Without a "
-        "seed every run draws a fresh pool.",
+        help="pin the database's pool draw, so the same seed rebuilds the same "
+        "round set -- but only from an unchanged corpus, since new clips change "
+        "what the same draw selects. Everything after the draw is deterministic. "
+        "Without a seed every run draws a fresh pool.",
     )
     args = ap.parse_args()
 
-    random.seed(args.seed)
     shutil.rmtree(STAGING, ignore_errors=True)
-    frames = STAGING / "frames"
-    frames.mkdir(parents=True)
+    clips = STAGING / "clips"
+    # A dry run produces a manifest and its answers but no media, which is the
+    # same shape CI sees -- so check.py reports on the set and skips the media
+    # assertions on its own. Creating clips/ empty is what would turn that into
+    # a wall of missing-clip failures.
+    (STAGING if args.dry_run else clips).mkdir(parents=True)
 
-    scored = score_candidates(args.namespace, args.pool, args.neighbours, args.seed)
-    # Cut the visually generic clips by percentile rather than an absolute cosine
+    scored = available(
+        score_candidates(
+            args.namespace,
+            args.pool,
+            args.neighbours,
+            args.per_clip,
+            args.seed,
+        )
+    )
+    # Cut the visually generic moments by percentile rather than an absolute cosine
     # distance, so the filter stays honest if the corpus or the embedding model
     # changes. ponytail: the pool is a few hundred rows, so sorting it twice is free.
+    #
+    # A moment rather than a clip is the unit here and in --keep-fraction below,
+    # because --per-clip scores several of each: a clip stays in contention while
+    # any one of its moments clears the bar, and loses only the moments that don't.
     if scored and args.drop_generic:
         floor = sorted(r["mean_cos"] for r in scored)[
             int(len(scored) * args.drop_generic)
@@ -363,31 +658,47 @@ def main() -> int:
         before = len(scored)
         scored = [r for r in scored if r["mean_cos"] >= floor]
         print(
-            f"dropped {before - len(scored)} clips with no visual signature of "
+            f"dropped {before - len(scored)} moments with no visual signature of "
             f"their own (mean cosine distance < {floor:g})"
         )
 
     keep = max(args.count, int(len(scored) * args.keep_fraction))
-    eligible = scored[:keep]
-    cutoff = eligible[-1]["median_km"] if eligible else 0
+    eligible = rank(scored, args.distinctiveness)[:keep]
     print(
-        f"scored {len(scored)} clips; keeping the {len(eligible)} most locatable "
-        f"(median neighbour distance <= {cutoff:g} km)"
+        f"scored {len(scored)} moments across {len({r['slug'] for r in scored})} "
+        f"clips; selecting from the best {len(eligible)} on locatability and "
+        f"distinctiveness together"
     )
 
-    random.shuffle(eligible)
+    cap = max(1, int(args.count * args.state_cap)) if args.state_cap else 0
+    eligible, backfilled = select(eligible, args.count, args.min_spacing, cap)
+    if len(eligible) < args.count:
+        print(
+            f"only {len(eligible)} rounds fit under a {cap}-per-state cap -- "
+            f"raise --pool, or --state-cap to let one state take more"
+        )
+    if backfilled:
+        # Non-zero means the spacing pass ran out of well-spread candidates, so
+        # check.py's spread line below will report these rather than zero.
+        print(
+            f"{backfilled} rounds are closer than {args.min_spacing:g} km to "
+            f"another -- the pool ran out of spread before it ran out of rounds"
+        )
+
     rounds, answers = [], []
     for row in eligible:
-        if len(rounds) >= args.count:
-            break
-        name = f"{row['slug']}.jpg"
-        if not extract_frame(row, frames / name, args.width):
+        name = f"{row['slug']}.mp4"
+        if not args.dry_run and not extract_clip(row, clips / name):
             print(f"  skip {row['slug']} (unreadable)")
             continue
-        image = f"frames/{name}"
+        # `image` rather than `clip`: this string is the primary key of D1's
+        # `answers` table and a column of `plays`, so renaming it is a migration
+        # against live rows for no behavioural gain. A regeneration that resets
+        # `plays` is the cheap moment to rename it, if ever.
+        image = f"clips/{name}"
         # What the browser gets. The two scores stay -- median_km drives the
         # difficulty rating and the easy-to-hard ramp, and neither score says
-        # anything about *where* the frame is.
+        # anything about *where* the clip is.
         rounds.append(
             {
                 "image": image,
@@ -415,7 +726,8 @@ def main() -> int:
     (STAGING / "rounds.json").write_text(json.dumps(rounds, indent=1) + "\n")
     write_answers(answers, STAGING)
     states = {a["state"] for a in answers}
-    print(f"\nstaged {len(rounds)} rounds across {len(states)} states")
+    verb = "would stage" if args.dry_run else "staged"
+    print(f"\n{verb} {len(rounds)} rounds across {len(states)} states")
 
     validate = subprocess.run(
         [sys.executable, str(Path(__file__).parent / "check.py"), str(STAGING)]
@@ -427,13 +739,25 @@ def main() -> int:
         )
         return 1
 
+    if args.dry_run:
+        print(
+            f"\ndry run: nothing was cut and {WEB} is untouched. The manifest "
+            f"and answers this run would have produced are in {STAGING}.\n"
+            f"Rerun with the same --seed and no --dry-run to build this set for "
+            f"real, or change the knobs and look again."
+        )
+        return 0
+
     swap_in(STAGING, WEB)
-    print(f"swapped into {WEB}")
-    # The new rounds score nothing until their coords reach D1, and a deploy of
-    # this set without the push serves every round as "unknown round".
+    size_mb = sum(f.stat().st_size for f in (WEB / "clips").iterdir()) / 1e6
+    print(f"swapped into {WEB} ({size_mb:.0f} MB of clips)")
+    # Two out-of-band pushes, and a deploy that runs without either looks green
+    # while being unplayable: no clips is a black pane per round, no coords is
+    # "unknown round" on every guess. Neither is inferable from the deploy.
     print(
-        "\nnext: task answers:stage:push (and answers:prod:push) to seed the new "
-        "coords into D1 -- until then these rounds cannot be scored"
+        "\nnext, both of them, before deploying this set:\n"
+        "  task clips:push    -- the media, to R2\n"
+        "  task answers:stage:push (and answers:prod:push) -- the coords, to D1"
     )
     return 0
 

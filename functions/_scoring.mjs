@@ -1,7 +1,7 @@
 // Turning a guess into points. This is the whole reason the game has a backend:
-// web/rounds.json used to ship every round's true coordinates to the browser, so
-// any score could be read straight out of devtools -- or forged -- in seconds. A
-// leaderboard built on that would rank whoever cared least.
+// a round's true coordinates reaching the browser means any score can be read
+// straight out of devtools -- or forged -- in seconds, and a leaderboard built
+// on that would rank whoever cared least.
 //
 // Underscore-prefixed, so Pages leaves it out of the routing table and
 // functions/api/ can import it. Its one import is the alias wordlist, which is
@@ -55,6 +55,15 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // replay of the first's and drop it.
 export const MAX_HANDLE = 24;
 
+// Opaque and client-minted, so its only real constraints are that it is a
+// bounded string and that it is the same one next time. UUIDs are what the page
+// mints; anything longer is not one.
+//
+// Shared with /api/link, which takes two of these and nothing else: a player id
+// is the only credential the game has, so the check on what counts as one
+// belongs in a single place rather than beside each endpoint that reads one.
+export const isPlayerId = id => typeof id === 'string' && !!id && id.length <= 64;
+
 export function parsePlay(body) {
   if (!isPlay(body)) return null;
   const { date, player_id: playerId, handle } = body;
@@ -67,10 +76,7 @@ export function parsePlay(body) {
   const parsed = new Date(`${date}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return null;
   if (parsed.toISOString().slice(0, 10) !== date) return null;
-  // Opaque and client-minted, so its only real constraints are that it is a
-  // bounded string and that it is the same one next time. UUIDs are what the
-  // page mints; anything longer is not one.
-  if (typeof playerId !== 'string' || !playerId || playerId.length > 64) return null;
+  if (!isPlayerId(playerId)) return null;
   // Absent is legal -- a play still belongs on the board without a name, and a
   // browser that cannot keep localStorage cannot keep an alias either.
   if (handle !== undefined && handle !== null && typeof handle !== 'string') return null;

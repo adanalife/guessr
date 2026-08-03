@@ -2,7 +2,7 @@
 #
 # The game is static files plus one endpoint. `rounds` does all the work up
 # front — it needs the dashcam corpus mounted and kubectl access to the tripbot
-# Postgres — and what it produces is a directory of HTML, JS and JPEGs (web/,
+# Postgres — and what it produces is a directory of HTML, JS and mp4 clips (web/,
 # deployed) and the answer coords (answers.json / answers.sql, never deployed
 # and never committed; `answers:*:push` sends them to D1 instead).
 #
@@ -17,6 +17,12 @@ version: '3'
 
 vars:
   PORT: '{{.PORT | default "8000"}}'
+  # The round-set media. One bucket, not one per tier: a clip is the same bytes
+  # whichever tier serves it, and the manifest each deploy carries is what
+  # decides which of them that tier actually plays. The answers are the opposite
+  # -- those are per-tier, because a regenerated set diverges the moment one tier
+  # has it and the other doesn't.
+  BUCKET: 'adanalife-guessr-clips'
   # The local D1 wrangler keeps under .wrangler/, seeded from answers.sql. Not
   # the deployed database — `answers:{stage,prod}:push` target those by name.
   LOCAL_DB: 'guessr-answers-local'
@@ -27,8 +33,10 @@ tasks:
       - task --list
     silent: true
 
+  # Runs check.py itself before swapping the new set into web/, and refuses to
+  # swap if it fails -- so there is nothing to chain a validation onto afterwards.
   rounds:
-    desc: Build a round set (scores clips for locatability, extracts frames)
+    desc: Build a round set (scores clips for locatability, cuts their clips)
     cmds:
       - python3 make_rounds.py {{.CLI_ARGS}}
 
@@ -36,6 +44,27 @@ tasks:
     desc: Validate the generated round set
     cmds:
       - python3 check.py
+
+  # The media half of a round set. web/clips/ is gitignored -- a set is ~150 MB
+  # and this repo is public -- so the bucket is how a deploy gets it: the three
+  # deploy workflows run the pull side of this before handing web/ to
+  # `wrangler pages deploy`. See clips.sh for why the object is named after a
+  # hash of the manifest rather than something stable.
+  #
+  # check.py first, and not as a convenience: the HUD-crop assertion is the only
+  # thing standing between a clip with the coordinates burned into it and the
+  # served game, and the media never reaches CI -- so this is the last place it
+  # runs before the bytes leave the laptop.
+  clips:push:
+    desc: Upload web/clips/ to R2, which is where the deploy workflows read it from
+    deps: [check]
+    cmds:
+      - ./clips.sh push
+
+  clips:pull:
+    desc: Fetch the clips for the committed manifest (what the deploy workflows run)
+    cmds:
+      - ./clips.sh pull
 
   serve:
     desc: Serve the static game on $PORT (binds all interfaces, so a phone on
@@ -45,14 +74,21 @@ tasks:
 
   dev:
     desc: Run the game with scoring, against a local D1 seeded from answers.sql
-    deps: [schema:local:push, answers:local:push]
+    # Sequenced through cmds rather than listed as deps, because deps run in
+    # parallel and these two write the same SQLite file: concurrently they take
+    # it out with SQLITE_BUSY or SQLITE_READONLY, and the runtime then refuses to
+    # start on a database that reads as broken rather than unseeded. Ordinarily
+    # survivable only because a `.wrangler/` that already has the tables makes
+    # both a no-op -- so it bites hardest on a fresh checkout.
     cmds:
+      - task: schema:local:push
+      - task: answers:local:push
       - npx wrangler pages dev web/ --port {{.PORT}} --d1 ANSWERS={{.LOCAL_DB}}
 
   answers:local:push:
     desc: Seed answers.sql into the local D1 that `dev` binds
     cmds:
-      - npx wrangler d1 execute {{.LOCAL_DB}} --local --file answers.sql --yes
+      - npx wrangler d1 execute {{.LOCAL_DB}} --local --config wrangler.local.jsonc --file answers.sql --yes
 
   # The tables the game owns, as opposed to the rows a round set fills in.
   # Separate from answers:*:push because the two change on completely different
@@ -62,7 +98,7 @@ tasks:
   schema:local:push:
     desc: Apply schema.sql to the local D1 that `dev` binds
     cmds:
-      - npx wrangler d1 execute {{.LOCAL_DB}} --local --file schema.sql --yes
+      - npx wrangler d1 execute {{.LOCAL_DB}} --local --config wrangler.local.jsonc --file schema.sql --yes
 
   schema:stage:push:
     desc: Apply schema.sql to the staging D1
@@ -124,19 +160,45 @@ tasks:
     cmds:
       - npx wrangler d1 execute {{.DB}} --remote --json --command="$(cat stats.sql)" | jq '[.[].results]'
 
+  # Changelog (towncrier). Fragments live in changelog.d/, one per PR, and are
+  # collated into CHANGELOG.md at release time. Run via uvx — no project dep.
+  # The About panel links to that file, so the entries are written for players;
+  # towncrier.toml says what that means.
+  changelog:add:
+    desc: 'Scaffold a changelog fragment (TYPE=new, optional SLUG=my-thing; CI numbers it on push). Pass PR=123 to name it directly. Types: new changed fixed behind summary'
+    vars:
+      TYPE: '{{.TYPE | default "new"}}'
+      # No PR yet? Drop a "+" placeholder (towncrier's issue-less convention) —
+      # changelog-number.yml renames it to <PR#>.<type>.md once the PR is open.
+      NAME: '{{if .PR}}{{.PR}}{{else}}+{{.SLUG | default .TYPE}}{{end}}'
+    cmds:
+      - uvx towncrier create --config towncrier.toml {{.NAME}}.{{.TYPE}}.md
+
+  changelog:preview:
+    desc: Preview the pending changelog from the current fragments (towncrier draft)
+    cmds:
+      - uvx towncrier build --draft --config towncrier.toml --version {{.VERSION | default "Unreleased"}}
+
+  changelog:build:
+    desc: Collate fragments into CHANGELOG.md for a release + delete them (VERSION=0.9.0). CI does this on the release PR — this is for checking the result by hand
+    requires:
+      vars: [VERSION]
+    cmds:
+      - uvx towncrier build --yes --config towncrier.toml --version {{trimPrefix "v" .VERSION}}
+
   test:
     desc: Run the tests that need no corpus and no database to be running (daily
-      draw, leaderboard aliases and ranking, frame zoom, scoring, frame
-      dimensions, round-set swap, seeding)
+      draw, leaderboard aliases and ranking, frame zoom, scoring, the device
+      merge, frame dimensions, round-set swap, seeding, selection, db route)
+    # Globbed rather than listed, because a list of test files is a list that
+    # drifts: a test file nobody remembers to add to it is a test that never
+    # runs, and it fails by staying green. Adding a test_*.py or test_*.mjs is
+    # the whole job of wiring it up. `|| exit 1` because a shell for-loop exits
+    # with its *last* command's status, so without it a failure in the middle
+    # passes.
     cmds:
-      - node test_daily.mjs
-      - node test_alias.mjs
-      - node test_zoom.js
-      - node test_score.mjs
-      - node test_leaderboard.mjs
-      - python3 test_check.py
-      - python3 test_swap.py
-      - python3 test_seed.py
+      - for f in test_*.mjs test_*.js; do echo "== $f"; node "$f" || exit 1; done
+      - for f in test_*.py; do echo "== $f"; python3 "$f" || exit 1; done
 
   smoke:
     desc: "Check a deployed tier is actually playable: task smoke -- <base-url>.
@@ -144,9 +206,3 @@ tasks:
       after an answers push"
     cmds:
       - ./smoke.sh {{.CLI_ARGS}}
-
-  build:
-    desc: Generate a fresh round set and validate it
-    cmds:
-      - task: rounds
-      - task: check

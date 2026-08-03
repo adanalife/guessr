@@ -5,7 +5,7 @@ name: preview
 # preview deploys the Cloudflare→GitHub integration provides — so without this
 # workflow the earliest a change can be seen is after it lands on staging,
 # which is to say after it is merged. Nearly every change here is visual (a
-# regenerated round set is 27 MB of JPEGs no diff view can show), so a
+# regenerated round set is ~150 MB of footage no diff view can show), so a
 # reviewable URL is the review.
 #
 # The deploy goes into the *staging* Pages project on a branch alias, not a
@@ -58,7 +58,17 @@ jobs:
             > web/version.json
       # No build step: web/ is the site, round set included. `wrangler pages
       # deploy` uploads only the files whose hashes Cloudflare doesn't already
-      # hold, so the frames transfer once across all previews, not per deploy.
+      # hold, so a round set transfers once across all previews, not per deploy.
+      # The round-set media, which git does not carry: a set is ~150 MB of mp4
+      # and this repo is public. clips.sh keys the object on a hash of the
+      # committed manifest, so this can only ever pull the clips that were
+      # pushed alongside the rounds.json being deployed -- and fails loudly
+      # rather than deploying a game of black panes if they never were.
+      - name: Pull the round-set clips from R2
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: ./clips.sh pull
       - name: Deploy to Cloudflare Pages (preview alias)
         id: deploy
         env:
@@ -72,14 +82,30 @@ jobs:
         # built by concatenating the branch name is wrong for most branches
         # here. An empty capture fails the step rather than posting a comment
         # with a blank link.
+        #
+        # wrangler sometimes finishes a deploy cleanly and prints no alias line
+        # at all, which is the one case that guard reads wrong — a good deploy
+        # looks broken. The line only ever appears as part of a deploy, so the
+        # retry is the deploy: a re-upload is cheap (Cloudflare already holds
+        # every file hash) and sequential, so no two uploads race for the alias.
         run: |
           set -o pipefail
-          npx wrangler pages deploy web/ \
-            --project-name adanalife-guessr-staging \
-            --branch "$HEAD_REF" | tee wrangler.out
-          alias=$(grep 'alias URL:' wrangler.out | grep -oE 'https://[^[:space:]]+' | tail -1)
+          for attempt in 1 2 3; do
+            npx wrangler pages deploy web/ \
+              --project-name adanalife-guessr-staging \
+              --branch "$HEAD_REF" | tee wrangler.out
+            alias=$(grep 'alias URL:' wrangler.out | grep -oE 'https://[^[:space:]]+' | tail -1 || true)
+            if [ -n "$alias" ]; then break; fi
+            echo "::warning::wrangler printed no alias URL (attempt $attempt)"
+            sleep 5
+          done
           test -n "$alias"
           echo "alias=$alias" >> "$GITHUB_OUTPUT"
+      # smoke.sh measures the served clip to prove the HUD crop applied, and the
+      # runner image carries no ffmpeg. A cached static build is a few seconds;
+      # apt would pull the whole media stack for the one binary this needs.
+      - uses: AnimMouse/setup-ffmpeg@v1
+
       # The endpoints, against the deployment that will actually serve them.
       # Same script staging.yml and release.yml run, so a tier can't drift into
       # being the one nobody checks.

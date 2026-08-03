@@ -35,6 +35,63 @@ call() {
   printf '%s' "$out"
 }
 
+# Wait for the deployment under test rather than for whatever answers first.
+# Cloudflare takes a few seconds to cut over, so assertions that start the moment
+# `wrangler pages deploy` returns can land on the *previous* build: that is how
+# v0.7.0 went red on a deploy that had in fact succeeded, asserting a window
+# check which only existed in the build being deployed.
+#
+# version.json is stamped per deploy by every workflow that runs this -- the tag,
+# the commit, the PR number -- and is gitignored, so the copy sitting here is the
+# expectation and a laptop clone simply has none. No local copy, no gate.
+#
+# It pins only itself, though. Being stamped per deploy is what makes it a
+# reliable *version* signal and also what makes it a poor proxy for anything
+# else: it is new bytes every time, so it cuts over the instant the deployment
+# is live, while an asset whose bytes did not change can still be answered from
+# an edge cache for a while longer. The manifest pin below covers that, and the
+# function-wait after it covers routing.
+if [ -f web/version.json ]; then
+  want=$(jq -r .label web/version.json)
+  for _ in $(seq 1 40); do
+    got=$(curl -s "$BASE/version.json" | jq -r .label 2>/dev/null || true)
+    [ "$got" = "$want" ] && break
+    sleep 3
+  done
+  if [ "$got" != "$want" ]; then
+    echo "::error::$BASE still serves '$got', not the '$want' being deployed."
+    echo "::error::Every assertion below would have described the previous build."
+    exit 1
+  fi
+  echo "ok: serving the deployment under test -> $want"
+else
+  echo "note: no local web/version.json, so nothing pins which build answers"
+fi
+
+# And the round set, separately, because version.json moving does not mean it
+# has. rounds.json changes only when the round set does, so it is exactly the
+# asset that sits unchanged across deploys and lingers at the edge -- and it is
+# the one every assertion below reads. v1.0.0 failed here: version.json already
+# answered v1.0.0 while rounds.json was still the previous build's stills, so the
+# clip check reported a jpg on a deploy that had in fact shipped 300 mp4s.
+#
+# Compared as bytes, because Pages serves the file verbatim and there is nothing
+# cheaper that is actually conclusive -- spot-checking one round would pass a
+# regenerated set that happened to keep its first one.
+#
+# Unconditional, unlike the version gate: rounds.json is committed, so the
+# expectation is always here.
+for _ in $(seq 1 40); do
+  cmp -s <(curl -sf "$BASE/rounds.json") web/rounds.json && pinned=1 && break
+  sleep 3
+done
+if [ -z "${pinned:-}" ]; then
+  echo "::error::$BASE serves a rounds.json that is not the one being deployed."
+  echo "::error::Every assertion below would have described the previous round set."
+  exit 1
+fi
+echo "ok: serving the round set under test -> $(jq length web/rounds.json) rounds"
+
 # Wait on a Function, not on a static asset: rounds.json can be served from the
 # edge while /api/* still misses, which is how a green deploy produced an HTML
 # 404 mid-run. The unknown-board 400 is the cheapest deterministic Function
@@ -55,7 +112,62 @@ check() { # name, expected status, actual status, body
 post() { call -X POST "$BASE/api/score" \
   -H 'content-type: application/json' -d "$1"; }
 
-image=$(curl -sf "$BASE/rounds.json" | jq -r '.[0].image')
+# Read locally: the pin above proved the deployment serves these exact bytes, so
+# fetching them again would only add a way for the two to disagree.
+image=$(jq -r '.[0].image' web/rounds.json)
+
+# The media half of the round set, which is the half git does not carry: the
+# clips are pulled from R2 at deploy time, so a deploy that skipped the pull, or
+# a manifest naming a set that was never uploaded, produces a game of black panes.
+#
+# Status is no good for detecting it. Pages answers a path it has no file for
+# with the game's own HTML and a 200, so the missing-media case and the
+# everything-is-fine case are the same status code, the same colour in CI, and
+# distinguishable only by content type.
+#
+# Retried while the answer is text/html for the same reason call() retries a `<`
+# body: Pages answering a path it holds no file for is the not-yet-propagated
+# signature, and on the first try it is indistinguishable from a tarball that was
+# never pushed.
+for _ in $(seq 1 20); do
+  ctype=$(curl -s -o /dev/null -w '%{content_type}' "$BASE/$image")
+  [ "${ctype%%;*}" = "text/html" ] || break
+  sleep 3
+done
+if [ "${ctype%%;*}" != "video/mp4" ]; then
+  echo "::error::$image served as '$ctype', not video/mp4 -- the clips for this"
+  echo "::error::manifest never reached this deployment. Run \`task clips:push\`."
+  exit 1
+fi
+echo "ok: round media is served as video -> $image"
+
+# And the same clip is HUD-cropped, on the bytes that actually shipped. The
+# dashcam burns "49 MPH W71.606763 N42.822437" across the bottom of every frame,
+# so an uncropped clip hands the answer to the player -- a game that still runs,
+# still looks right, and is trivially cheatable.
+#
+# check.py asserts this too, but only where the media is, and the clips are
+# gitignored -- so that is the laptop that generated them and nowhere else. `task
+# clips:push` is the one gate, and it is a gate a human has to remember; the
+# deploy workflows run `clips.sh pull` and no check at all. So this is the same
+# assertion moved to the one place that sees every tier: a real deployment.
+#
+# Wider than 16:9 is the whole test. The crop takes a strip off the bottom and
+# changes nothing else, so it is the one thing that cannot be true of a frame
+# with the HUD still on it. Integers, because that is the arithmetic the shell
+# has -- and an unreadable clip leaves both at 0, which fails the same way.
+clip=$(mktemp); trap 'rm -f "$clip"' EXIT
+curl -sf "$BASE/$image" -o "$clip"
+dim=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height \
+  -of csv=p=0 "$clip" || true)
+w=${dim%%,*} h=${dim##*,}
+if [ "$((w * 9))" -le "$((h * 16))" ]; then
+  echo "::error::$image is '${dim:-unreadable}', which is not a cropped clip. The"
+  echo "::error::coordinates the dashcam burns across the bottom of every frame are"
+  echo "::error::in the footage this deployment is serving. Regenerate the set."
+  exit 1
+fi
+echo "ok: round media is HUD-cropped -> ${dim}"
 
 # A practice guess: scored, never recorded. Fails if the answers table has never
 # heard of the round set that just deployed.
@@ -64,7 +176,7 @@ check "practice guess scores" 200 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
 grep -q '"recorded":false' <<<"$out" || { echo "::error::practice guess was recorded"; exit 1; }
 
 # A round nobody has answers for.
-out=$(post '{"image":"frames/not-a-real-frame.jpg","lat":40,"lng":-100}')
+out=$(post '{"image":"clips/not-a-real-round.mp4","lat":40,"lng":-100}')
 check "unknown round is refused" 404 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
 
 # A date far enough out that no clock skew makes it open, so the window check is
@@ -85,3 +197,12 @@ done
 
 out=$(call "$BASE/api/leaderboard?board=weekly")
 check "an unknown board is refused" 400 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
+
+# The live-stream resolver. Asserted on the key and not on its value, because the
+# value is whether the channel happens to be streaming right this second and a
+# gate that fails when the van is parked is a gate nobody trusts. The key is the
+# part a deploy can lose, and it is the same missing-endpoint-serves-HTML trap the
+# boards guard against above.
+out=$(call "$BASE/api/live")
+check "the live resolver answers" 200 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
+grep -q '"videoId"' <<<"$out" || { echo "::error::/api/live had no videoId key"; exit 1; }

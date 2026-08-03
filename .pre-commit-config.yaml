@@ -1,5 +1,10 @@
-# Generated frames are extracted artefacts, not source.
-exclude: '^web/frames/'
+# Vendored third-party code, kept byte-for-byte as upstream ships it. The
+# formatting hooks would otherwise rewrite line endings and final newlines in
+# it, which breaks the one property that makes a version bump reviewable:
+# replacing the directory wholesale from the tarball should produce no
+# incidental diff. (The round-set media needs no entry -- web/clips/ is
+# gitignored, so it is never staged for a hook to see.)
+exclude: '^web/(et-book|leaflet)/'
 
 # Install both the pre-commit (file-content) hooks and the commit-msg hook
 # (the Conventional Commits check at the bottom) on a plain `pre-commit install`.
