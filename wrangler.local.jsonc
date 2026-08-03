@@ -1,5 +1,5 @@
-// Local-development config, and only that. `task dev` and `task
-// answers:local:push` pass it with an explicit --config; nothing else reads it.
+// Local-development config, and only that. The `*:local:push` tasks pass it with
+// an explicit --config; nothing else reads it.
 //
 // The deliberate part is the filename. Wrangler auto-loads wrangler.toml /
 // wrangler.json / wrangler.jsonc, so a config under any of those names would also

@@ -1,5 +1,9 @@
 # Changelog
 
+What changed in the game, release by release. Newest first.
+
+<!-- towncrier release notes start -->
+
 ## [0.8.0](https://github.com/adanalife/guessr/compare/v0.7.0...v0.8.0) (2026-08-02)
 
 

@@ -18,8 +18,9 @@ on:
     # most wants them, since it is looking at the top of a stack rather than at
     # a diff against main.
     #
-    # `edited` is what makes the title check re-run when a title is fixed.
-    types: [opened, edited, reopened, synchronize]
+    # `edited` is what makes the title check re-run when a title is fixed;
+    # `labeled`/`unlabeled` the same for the skip-changelog escape hatch.
+    types: [opened, edited, reopened, synchronize, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -52,7 +53,11 @@ jobs:
       # the scoring curve plus the validator on /api/score. All sub-second and
       # needing no corpus or database, which is why they belong here as a step
       # rather than a job.
+      # fetch-depth: 0 so the changelog gate below can diff against the base
+      # branch; nothing else here needs history.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version-file: .tool-versions
@@ -89,3 +94,20 @@ jobs:
         run: |
           sqlite3 /tmp/schema-check.db < schema.sql
           sqlite3 /tmp/schema-check.db < schema.sql
+
+      - uses: astral-sh/setup-uv@v8.2.0 # no floating major tag published
+
+      # Require every PR to add a towncrier changelog fragment under
+      # changelog.d/ (see README "Changelog"). CHANGELOG.md is linked from the
+      # game's About panel, so it is read by players rather than reconstructed
+      # by us at release time — this is what keeps it complete by construction.
+      #
+      # Escape hatch: the `skip-changelog` label, for PRs that genuinely warrant
+      # no entry (dependabot bumps, a round-set regeneration, a revert).
+      # release-please's own release PR is exempt by head branch — it collates
+      # the fragments, it doesn't add one.
+      - name: Require a changelog fragment
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-changelog') && github.head_ref != 'release-please--branches--main' }}
+        env:
+          BASE: ${{ github.base_ref }}
+        run: uvx towncrier check --config towncrier.toml --compare-with "origin/$BASE"

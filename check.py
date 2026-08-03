@@ -34,9 +34,9 @@ from pathlib import Path
 WEB = Path(__file__).parent / "web"
 ROUNDS_PER_GAME = 5  # must match web/index.html
 UNCROPPED_ASPECT = 16 / 9  # 1.778 -- what a clip looks like with the HUD still on it
-# Difficulty-band cutoffs in median_km, matching EASY_KM/HARD_KM in web/daily.js.
-# The page rates every round against these, so a set whose scores all land on one
-# side of them shows the same dots on every round and the rating means nothing.
+# Difficulty-band cutoffs in median_km, the terciles of the shipped round set.
+# A set whose scores all land on one side of them has no spread for the
+# easy-to-hard ramp to order, so every game plays at one difficulty.
 EASY_KM, HARD_KM = 32.0, 120.0
 # Two rounds closer together than this are the same answer wearing a different
 # frame. Reported, never asserted: a clustered set is a worse set, not a broken
@@ -160,7 +160,7 @@ def clustering(answers: list[dict]) -> tuple[int, str, float]:
 
 
 def band(median_km: float) -> int:
-    """1 (easiest) to 3 (hardest) -- the same reading as difficulty() in daily.js."""
+    """1 (easiest) to 3 (hardest)."""
     return 1 if median_km < EASY_KM else 2 if median_km < HARD_KM else 3
 
 
@@ -253,14 +253,14 @@ def main() -> int:
         assert a["state"] and a["filmed"], f"missing label: {a}"
 
     # The cutoffs are the terciles of one particular set, so a regeneration that
-    # skewed could empty a band -- which shows up in play only as every round
-    # wearing identical dots. median_km stays in the served manifest, so this
-    # bites whether or not the answers are alongside.
+    # skewed could empty a band -- which shows up in play only as a flat game,
+    # every round about as hard as the last. median_km stays in the served
+    # manifest, so this bites whether or not the answers are alongside.
     bands = Counter(band(r["median_km"]) for r in rounds)
     for level in (1, 2, 3):
         assert bands[level], (
-            f"no rounds in difficulty band {level} of 3 -- every game would show "
-            f"the same rating, so the cutoffs ({EASY_KM:g} / {HARD_KM:g} km) want "
+            f"no rounds in difficulty band {level} of 3 -- the ramp has nothing "
+            f"to order, so the cutoffs ({EASY_KM:g} / {HARD_KM:g} km) want "
             f"recomputing for this set"
         )
     band_line = (
