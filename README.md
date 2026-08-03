@@ -516,9 +516,11 @@ Two things the implementation has to get right:
   sublinear — four moments each on a 400-clip pool is 7.7s against 3.2s for one —
   and the encode, which is the slow half, still cuts one clip per round.
 
-Rounds are then *sampled* from the better-scoring half rather than taken
-strictly best-first, which drops the featureless rounds while keeping the set
-varied. `--keep-fraction` is the knob.
+Rounds are then taken from the better-scoring half of the pool, best-ranked
+first, skipping any clip too close to one already taken or from a state that has
+filled its share. `--keep-fraction` sets how much of the pool is in contention;
+`--min-spacing` and `--state-cap` are what keep the set from piling into the
+roads the van drove most.
 
 ### The second signal: distinctiveness
 
