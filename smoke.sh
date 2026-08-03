@@ -113,6 +113,34 @@ if [ "${ctype%%;*}" != "video/mp4" ]; then
 fi
 echo "ok: round media is served as video -> $image"
 
+# And the same clip is HUD-cropped, on the bytes that actually shipped. The
+# dashcam burns "49 MPH W71.606763 N42.822437" across the bottom of every frame,
+# so an uncropped clip hands the answer to the player -- a game that still runs,
+# still looks right, and is trivially cheatable.
+#
+# check.py asserts this too, but only where the media is, and since the clips
+# left git that is the laptop that generated them and nowhere else. `task
+# clips:push` is the one gate, and it is a gate a human has to remember; the
+# deploy workflows run `clips.sh pull` and no check at all. So this is the same
+# assertion moved to the one place that sees every tier: a real deployment.
+#
+# Wider than 16:9 is the whole test. The crop takes a strip off the bottom and
+# changes nothing else, so it is the one thing that cannot be true of a frame
+# with the HUD still on it. Integers, because that is the arithmetic the shell
+# has -- and an unreadable clip leaves both at 0, which fails the same way.
+clip=$(mktemp); trap 'rm -f "$clip"' EXIT
+curl -sf "$BASE/$image" -o "$clip"
+dim=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height \
+  -of csv=p=0 "$clip" || true)
+w=${dim%%,*} h=${dim##*,}
+if [ "$((w * 9))" -le "$((h * 16))" ]; then
+  echo "::error::$image is '${dim:-unreadable}', which is not a cropped clip. The"
+  echo "::error::coordinates the dashcam burns across the bottom of every frame are"
+  echo "::error::in the footage this deployment is serving. Regenerate the set."
+  exit 1
+fi
+echo "ok: round media is HUD-cropped -> ${dim}"
+
 # A practice guess: scored, never recorded. Fails if the answers table has never
 # heard of the round set that just deployed.
 out=$(post "{\"image\":\"$image\",\"lat\":40,\"lng\":-100}")
