@@ -74,50 +74,22 @@ FPS = 30
 THREADS = max(1, (os.cpu_count() or 2) // 2)
 NICENESS = 10
 
-# Scoring: a frame is a good round if visually similar frames come from nearby
-# places. Take each candidate's nearest neighbours in SigLIP2 embedding space and
-# measure how far their true locations sit from the candidate's. A tight cluster
-# means the image carries real location signal; neighbours scattered across the
-# continent mean it's anonymous interstate that could be anywhere.
+# What the two scores mean, why same-day frames are excluded, and why several
+# moments are scored per clip: README, "How rounds are chosen". The three things
+# that are about this query rather than about the scoring:
 #
-# Same-day frames are excluded because consecutive clips are the next few minutes
-# of the same road -- near-identical and a mile apart, so including them scores
-# every clip as perfectly locatable. Date is a rough proxy for "the same drive".
-#
-# The same neighbours also give a second, near-independent signal: how visually
-# distinctive the frame is, as the mean cosine distance to those neighbours. A
-# frame whose neighbours are near-identical is a stretch of road the corpus drove
-# many times on other days -- empty blacktop, fog, sky -- which scores as highly
-# locatable (the neighbours really are all in one place) while a human player has
-# nothing to work with. See the README for what that filter keeps and drops.
-#
-# Iterative scan matters: the day filter is applied during the HNSW scan, so
-# without it a candidate whose neighbourhood is mostly same-day returns only a
-# handful of rows (sometimes zero) and its median is noise. It is also ~5x faster
-# here than letting the scan fall back to exhaustive.
-#
-# `:per_clip` frames per clip, not one. A clip is ~3 minutes of driving with ~32
-# frame embeddings, and its worst moment scores nothing like its best: glare into
-# the lens, a truck filling the windscreen, nine-tenths blown-white sky. Those are
-# bad *moments* in clips that have good ones, so drawing a single frame per clip
-# throws the good ones away and hands the round whatever it happened to land on.
-#
-# Nothing downstream has to change to pick the best of them. select() already
-# skips a slug it has taken, so the first time a clip appears going down the
-# ranked list is its best frame by the same combined merit every other round is
-# chosen on -- and dropping the extras in SQL on median_km alone would decide it
-# without the distinctiveness half, which is exactly the ordering rank() exists to
-# correct.
-#
-# The cost is per candidate rather than per clip, since every candidate pays for
-# its own neighbour scan -- but sublinearly, because they share a warm index: on a
-# 400-clip pool, four moments each is 7.7s against 3.2s for one, four times the
-# candidates for a bit over twice the time. The encode is the slow half and is
-# untouched either way; it still cuts one clip per round.
-#
-# What this does not decide is where the cut sits relative to the scored frame.
-# extract_clip still opens on it (`-ss ts`), so the score describes the round's
-# first frame rather than its middle.
+# - `hnsw.iterative_scan` is load-bearing, not tuning. The day filter is applied
+#   during the scan, so without it a candidate whose neighbourhood is mostly
+#   same-day comes back with a handful of rows, sometimes zero, and its median is
+#   noise.
+# - `:per_clip` moments per clip means one clip appears several times over.
+#   Nothing downstream has to pick between them: select() skips a slug it has
+#   taken, so a clip's first appearance going down the ranked list is its best
+#   moment by the same merit every other round is chosen on. Dropping the extras
+#   here in SQL would have to do it on median_km alone, which is the ordering
+#   rank() exists to correct.
+# - The score describes the round's *first* frame, not its middle: extract_clip
+#   opens the cut on the scored timestamp (`-ss ts`).
 SCORE_SQL = """
 SET hnsw.ef_search = 100;
 SET hnsw.iterative_scan = relaxed_order;
@@ -326,18 +298,10 @@ def available(scored: list[dict]) -> list[dict]:
 def rank(scored: list[dict], weight: float) -> list[dict]:
     """Order a scored pool on both signals at once, best round first.
 
-    `scored` arrives ordered by median_km alone -- how tightly a clip's visual
-    neighbours cluster in the real world -- with mean_cos used only as a floor.
-    That ordering rewards frames it should be rejecting: empty blacktop the
-    corpus drove on many days has a tight neighbour cluster and nothing a player
-    can work with, and it survives the floor because the floor cuts a fixed
-    slice of the pool rather than holding a quality bar.
-
-    The two signals are close to independent (Spearman rho ~= 0.19 over a
-    400-clip pool, see the README), so combining them is real information rather
-    than the same measurement twice. Combined by *percentile* rather than by
-    value: kilometres and cosine distances share no scale, so a weight applied
-    to the raw numbers would mean something different for every pool.
+    What the two signals are and why both: README, "The second signal:
+    distinctiveness". Combined by *percentile* rather than by value, because
+    kilometres and cosine distances share no scale -- a weight applied to the raw
+    numbers would mean something different for every pool.
 
     The default weight is 0.25 rather than an even split, from sweeping it on a
     2000-clip pool against the 300-round set that shipped (`--dry-run`, seed 7):
