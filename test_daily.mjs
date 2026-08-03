@@ -11,7 +11,7 @@ import {
 } from './web/daily.js';
 
 const pool = Array.from({ length: 60 }, (_, i) => ({
-  image: `frames/clip_${String(i).padStart(3, '0')}.jpg`,
+  image: `clips/clip_${String(i).padStart(3, '0')}.mp4`,
   median_km: (i * 37) % 250,
 }));
 

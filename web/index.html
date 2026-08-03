@@ -63,7 +63,14 @@
   setTheme(savedTheme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
 </script>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<!-- Leaflet, vendored rather than loaded from unpkg. It is the only thing on
+     this page that has to load from somewhere else for the game to work at all:
+     no map means no way to answer, so a CDN outage is a total outage, and there
+     is no fallback a static page could take. Same reasoning as the ET Book
+     faces below. Byte-identical to what unpkg serves for 1.9.4; bump by
+     replacing web/leaflet/ wholesale from the npm tarball. Licence travels with
+     it in web/leaflet/LICENSE. -->
+<link rel="stylesheet" href="leaflet/leaflet.css">
 <style>
   /* Type and colour come from the blog: the same ET Book faces and the same
      `data-theme` palette, so the game reads as part of the same site. Tufte
@@ -176,15 +183,16 @@
          grid-template-columns: 1fr 1fr; min-height: 0; }
   /* touch-action: none so a pinch zooms the frame instead of the page. Leaflet
      owns its own gestures next door; the two panes never see each other's. */
-  #photo { position: relative; overflow: hidden; background: var(--color-bg);
+  #pane { position: relative; overflow: hidden; background: var(--color-bg);
            touch-action: none; cursor: grab; }
-  #photo.dragging { cursor: grabbing; }
+  #pane.dragging { cursor: grabbing; }
   #frame { position: absolute; top: 0; left: 0; transform-origin: 0 0;
            user-select: none; }
   /* Deliberately Leaflet's own control styling, in Leaflet's own corner: the
-     map pane next door has the identical pair, so a player who has used one
-     knows what these are without being told. This is the zoom affordance --
-     wheel, pinch and double-click are all undiscoverable on their own. */
+     map pane next door has the identical zoom pair, so a player who has used
+     one knows what these are without being told. It is also the only
+     affordance any of it has -- wheel, pinch, double-click and space are all
+     undiscoverable on their own. */
   #zoomctl { position: absolute; top: 10px; left: 10px; z-index: 400;
              display: flex; flex-direction: column;
              border-radius: 4px; overflow: hidden; border: 2px solid #0003; }
@@ -203,13 +211,13 @@
   #sheet button { position: relative; display: block; width: 100%;
                   margin: 0; padding: 0; border: 0; border-radius: 4px;
                   background: none; line-height: 0; }
-  #sheet img { width: 100%; display: block; border-radius: 4px; }
-  #sheet button.on img, #sheet button:focus-visible img { outline: 2px solid var(--color-text);
-                                                          outline-offset: 1px; }
+  #sheet video { width: 100%; display: block; border-radius: 4px; }
+  #sheet button.on video, #sheet button:focus-visible video { outline: 2px solid var(--color-text);
+                                                              outline-offset: 1px; }
   /* Same number and same band colour as the pin on the map, which is the only
      thing tying a thumbnail to the answer it belongs to.
      The badges here and on the map keep fixed colours and a sans face rather
-     than following the theme: both sit on top of a photograph or a map tile,
+     than following the theme: both sit on top of footage or a map tile,
      neither of which changes with it, and at 11px ET Book is mush. */
   #sheet .cap { position: absolute; top: 4px; left: 4px;
                 display: flex; align-items: center; gap: .3rem;
@@ -221,10 +229,10 @@
   #mapwrap { min-height: 0; }
   #map { height: 100%; background: var(--color-bg); }
   /* While a round is being guessed the frame takes the whole pane and the map
-     rides over its bottom-right corner. The frame is a 1280px still and
-     squinting at it is the entire game, whereas the map only matters for the
-     few seconds spent placing a pin — an even split spends half the window on
-     the half that matters least, and puts the frame well under 1:1.
+     rides over its bottom-right corner. The frame is 1280px wide and squinting
+     at it is the entire game, whereas the map only matters for the few seconds
+     spent placing a pin — an even split spends half the window on the half that
+     matters least, and puts the frame well under 1:1.
      Hover or keyboard focus grows it; `wide` pins it open once the answer is
      revealed, when the map becomes the thing worth reading. `minimap` comes off
      entirely for the end-of-game board and the all-time map, which want the
@@ -242,7 +250,8 @@
                             border-radius: 8px; overflow: hidden;
                             /* Unthemed, like the badges: this floats on the
                                frame, and a border in the page's own colours
-                               vanishes into whatever the photo happens to be. */
+                               vanishes into whatever the footage happens to
+                               be. */
                             border: 2px solid #0006;
                             box-shadow: 0 8px 24px rgba(0, 0, 0, .4); }
     main.minimap #mapwrap:hover, main.minimap #mapwrap:focus-within,
@@ -294,9 +303,12 @@
   <details id="about" class="stat">
     <summary>about<span class="dot" id="aboutDot" hidden></span></summary>
     <div class="panel">
-      <p>Every round is a real frame from a dashcam, filmed on a year-long drive
-        around the United States in 2018. Five rounds a day, the same five for
-        everyone. Practice rounds are unlimited.</p>
+      <p>Every round is a few seconds of real dashcam footage, filmed on a
+        year-long drive around the United States in 2018. Five rounds a day, the
+        same five for everyone. Practice rounds are unlimited.</p>
+      <p>The clip loops. Pause it with the button in its corner or the space
+        bar, and zoom in &mdash; a road sign or a storefront is often legible
+        close up and unreadable at a glance.</p>
       <p>The footage comes from <b>A Dana Life</b>, which streams that drive
         around the clock &mdash; the whole trip, in order, forever. On Twitch a
         chat bot runs the same game against the live feed: type !guess to call
@@ -341,26 +353,42 @@
   </details>
 </header>
 <dialog id="welcome">
-  <h2>Drop a pin where you think this dashcam screenshot was taken</h2>
-  <p>This photo was taken during a year of travel in a campervan.</p>
-  <p>Everyone gets the same photos, refreshing daily</p>
+  <h2>Drop a pin where you think this dashcam footage was filmed</h2>
+  <p>These few seconds were filmed during a year of travel in a campervan.</p>
+  <p>Everyone gets the same clips, refreshing daily</p>
   <div class="actions">
     <button id="welcomePlay" autofocus>Play</button>
     <button id="welcomeMore" class="secondary">Learn more</button>
   </div>
 </dialog>
 <main>
-  <div id="photo">
+  <div id="pane">
     <!-- draggable="false" is what stops a drag on the frame from starting a
-         native image drag instead of panning. It belongs in the markup rather
+         native drag instead of panning. It belongs in the markup rather
          than the stylesheet: `-webkit-user-drag` is WebKit-only, so on Firefox
          the browser takes over the gesture, fires pointercancel, and the pan is
-         torn down mid-swipe. -->
-    <img id="frame" alt="A dashcam frame to locate" draggable="false" hidden>
+         torn down mid-swipe.
+
+         muted and playsinline are both load-bearing rather than stylistic:
+         without muted no browser will autoplay at all, and without playsinline
+         iOS Safari takes the video fullscreen the moment it starts, burying the
+         map. There is no `controls` because a scrubber is a way to hunt for a
+         frame the round didn't mean to show. -->
+    <video id="frame" draggable="false" hidden
+           autoplay muted loop playsinline preload="auto"
+           aria-label="A few seconds of dashcam footage to locate"></video>
     <div id="zoomctl" hidden>
       <button id="zin" title="Zoom in — or scroll, pinch, or double-click the frame"
               aria-label="Zoom in">+</button>
       <button id="zout" title="Zoom out" aria-label="Zoom out">&minus;</button>
+      <!-- The glyphs carry U+FE0E, the text variation selector, or a platform
+           with emoji for these code points renders two coloured cartoons in a
+           row of monochrome map controls. The label is set from the video's own
+           play/pause events rather than on click, so it stays honest when
+           playback stops for a reason the page didn't ask for — an autoplay
+           block on iOS being the one that actually happens. -->
+      <button id="playpause" title="Pause — or press space"
+              aria-label="Pause">&#9208;&#xFE0E;</button>
     </div>
     <div id="sheet" hidden></div>
   </div>
@@ -380,13 +408,12 @@
           onclick="toggleTheme()">🌓</button>
 </footer>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="leaflet/leaflet.js"></script>
 <!-- QR encoding is Reed-Solomon over GF(256), block interleaving and mask
      scoring — a spec implementation rather than something to write, and one
      whose bugs are a code that scans on the phone it was tested with and not on
-     the next one. From unpkg like Leaflet above, and pinned the same way: the
-     page already gives that origin the run of itself, so this adds a request
-     rather than a trust boundary. -->
+     the next one. Pinned, and from unpkg: unlike the map, a QR code that fails
+     to load costs the page one optional button rather than any way to play. -->
 <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
 <script src="zoom.js"></script>
 <!-- A module, so daily.js can be imported here and by functions/api/score.js
@@ -528,7 +555,7 @@ const homeView = () => map.fitBounds(US_BOUNDS, { animate: false });
 homeView();
 
 const el = id => document.getElementById(id);
-const photo = el('photo'), go = el('go'), result = el('result');
+const pane = el('pane'), go = el('go'), result = el('result');
 const shareBtn = el('share'), practiceBtn = el('practice'), historyBtn = el('history');
 
 // Which of the two panes is dominant, as a pair of classes the stylesheet reads
@@ -551,15 +578,17 @@ const setLayout = (minimap, wide = false) => {
 // breakpoint flipping the whole layout.
 new ResizeObserver(() => map.invalidateSize({ animate: false })).observe(el('map'));
 
-// The frame is an <img> under a transform rather than a background-image, so a
+// The frame is a <video> under a transform rather than a background, so a
 // player can zoom in: a road sign or a storefront name is often legible in the
-// 1280px source and unreadable once it is scaled down to fit the pane.
+// 1280px source and unreadable once it is scaled down to fit the pane. The
+// transform applies to a playing video exactly as it did to an image, so
+// zoom.js is unchanged — only where the intrinsic size is read from moved.
 const frame = el('frame');
 let view = { scale: 1, x: 0, y: 0 };
 
-const imgSize = () => ({ w: frame.naturalWidth, h: frame.naturalHeight });
-const boxSize = () => ({ w: photo.clientWidth, h: photo.clientHeight });
-const ready = () => frame.naturalWidth > 0 && photo.clientWidth > 0;
+const imgSize = () => ({ w: frame.videoWidth, h: frame.videoHeight });
+const boxSize = () => ({ w: pane.clientWidth, h: pane.clientHeight });
+const ready = () => frame.videoWidth > 0 && pane.clientWidth > 0;
 
 function draw(next) {
   view = next;
@@ -575,13 +604,25 @@ function setFrame(url) {
   el('zoomctl').hidden = !url;
   if (!url) return;
   frame.src = url;
-  // A cached image fires no load event, so fit it here instead.
-  if (frame.complete) resetView();
+  // A player who paused wants a still, and wanting one on round 2 is a good
+  // guess that they want one on rounds 3 to 5 as well. So the preference
+  // carries across a game rather than resetting per round, which would make
+  // "play this like the old version" cost five clicks instead of one.
+  //
+  // Autoplay is a promise that rejects rather than throws, and iOS in Low Power
+  // Mode rejects it however muted the video is. Nothing to recover: the first
+  // frame is painted either way, so the round degrades to the still it used to
+  // be instead of to a blank pane. Swallowed explicitly, because an unhandled
+  // rejection here is a console error on every round on those devices.
+  if (paused) frame.pause();
+  else frame.play().catch(() => {});
+  // A cached video may already have its metadata, which fires no event.
+  if (frame.readyState >= 1) resetView();
 }
 
 // Box coordinates for a pointer or wheel event.
 function localPoint(e) {
-  const box = photo.getBoundingClientRect();
+  const box = pane.getBoundingClientRect();
   return [e.clientX - box.left, e.clientY - box.top];
 }
 
@@ -591,7 +632,7 @@ function zoom(px, py, factor) {
 
 // The buttons zoom about the middle of the pane, since a click on a control in
 // the corner says nothing about where the player is looking.
-const zoomCentre = factor => zoom(photo.clientWidth / 2, photo.clientHeight / 2, factor);
+const zoomCentre = factor => zoom(pane.clientWidth / 2, pane.clientHeight / 2, factor);
 
 const zoomctl = el('zoomctl');
 el('zin').addEventListener('click', () => zoomCentre(1.5));
@@ -601,10 +642,37 @@ el('zout').addEventListener('click', () => zoomCentre(1 / 1.5));
 ['pointerdown', 'dblclick'].forEach(type =>
   zoomctl.addEventListener(type, e => e.stopPropagation()));
 
-frame.addEventListener('load', resetView);
-new ResizeObserver(resetView).observe(photo);
+// Whether the player asked for a still. Held here rather than read off
+// frame.paused, because that is also true for the moment between rounds while a
+// new source loads — reading it there would carry a phantom pause into round 2.
+let paused = false;
+const playpause = el('playpause');
 
-photo.addEventListener('wheel', e => {
+function togglePlay() {
+  paused = !frame.paused;
+  if (paused) frame.pause();
+  else frame.play().catch(() => {});
+}
+
+playpause.addEventListener('click', togglePlay);
+
+// Driven by the element's own events, so the control reports what is actually
+// happening rather than what was last clicked: autoplay refused on iOS, or the
+// clip stalling on a slow connection, both land here and relabel the button
+// into the one that will fix it.
+['play', 'pause'].forEach(type => frame.addEventListener(type, () => {
+  const playing = !frame.paused;
+  playpause.innerHTML = playing ? '&#9208;&#xFE0E;' : '&#9654;&#xFE0E;';
+  playpause.title = playing ? 'Pause — or press space' : 'Play — or press space';
+  playpause.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+}));
+
+// loadedmetadata, not canplay: the intrinsic size is what the fit needs and it
+// is known well before enough data to play has arrived.
+frame.addEventListener('loadedmetadata', resetView);
+new ResizeObserver(resetView).observe(pane);
+
+pane.addEventListener('wheel', e => {
   e.preventDefault();
   const [px, py] = localPoint(e);
   zoom(px, py, Math.exp(-e.deltaY * 0.002));
@@ -612,7 +680,7 @@ photo.addEventListener('wheel', e => {
 
 // Double-click and double-tap both land here. It toggles rather than only
 // zooming in, which is the reset control as well.
-photo.addEventListener('dblclick', e => {
+pane.addEventListener('dblclick', e => {
   const [px, py] = localPoint(e);
   if (view.scale > fitScale(imgSize(), boxSize()) * 1.01) resetView();
   else zoom(px, py, 2.5);
@@ -628,14 +696,14 @@ const spread = () => {
   return Math.hypot(a[0] - b[0], a[1] - b[1]);
 };
 
-photo.addEventListener('pointerdown', e => {
-  photo.setPointerCapture(e.pointerId);
+pane.addEventListener('pointerdown', e => {
+  pane.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId, localPoint(e));
-  photo.classList.add('dragging');
+  pane.classList.add('dragging');
   if (pointers.size === 2) pinch = spread();
 });
 
-photo.addEventListener('pointermove', e => {
+pane.addEventListener('pointermove', e => {
   const prev = pointers.get(e.pointerId);
   if (!prev) return;
   const now = localPoint(e);
@@ -655,10 +723,10 @@ photo.addEventListener('pointermove', e => {
 const releasePointer = e => {
   pointers.delete(e.pointerId);
   if (pointers.size < 2) pinch = 0;
-  if (!pointers.size) photo.classList.remove('dragging');
+  if (!pointers.size) pane.classList.remove('dragging');
 };
-photo.addEventListener('pointerup', releasePointer);
-photo.addEventListener('pointercancel', releasePointer);
+pane.addEventListener('pointerup', releasePointer);
+pane.addEventListener('pointercancel', releasePointer);
 
 let pool = [], game = [], idx = 0, total = 0, guess = null, marks = [];
 let mode = 'daily', results = [], guesses = [];
@@ -923,10 +991,15 @@ function showSheet(rounds, played, res) {
   sheetRounds = rounds;
   sheetGuesses = played || [];
   const sheet = el('sheet');
+  // Left paused on a frame rather than looping: five clips playing at once is
+  // noise at the moment the player is reading their score, and five decoders is
+  // real work on a phone. `#t=1` is a media fragment — the browser seeks there
+  // and paints it, which is how you get a poster without generating one. The
+  // bytes are already in cache, since these are the five just played.
   sheet.innerHTML = rounds.map((r, i) => `
     <button type="button" data-i="${i}" title="Show round ${i + 1} on the map">
-      <img src="${r.image}" loading="lazy"
-           alt="Round ${i + 1}${r.state ? `, ${r.state} ${r.filmed}` : ''}">
+      <video src="${r.image}#t=1" preload="metadata" muted playsinline
+             aria-label="Round ${i + 1}${r.state ? `, ${r.state} ${r.filmed}` : ''}"></video>
       <span class="cap">
         <span class="n" style="background:${bandFor(res[i]).colour}">${i + 1}</span>
         ${r.state ? `${r.state} &middot; ` : ''}${res[i].toLocaleString()}
@@ -1061,6 +1134,16 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') about.open = false;
+  // Space toggles playback, unless something with a prior claim on it has
+  // focus. Guarding on where focus *is* rather than on a set of state flags
+  // covers each case at its source: a focused button already treats space as a
+  // click and would otherwise fire twice, a text field needs the literal
+  // character, and an open dialog owns the keyboard while it is up.
+  if (e.key === ' ' && !frame.hidden &&
+      !e.target.closest?.('input, textarea, select, button, dialog[open], [contenteditable]')) {
+    e.preventDefault();  // space scrolls the page otherwise
+    togglePlay();
+  }
 });
 
 // version.json is written into web/ by whichever workflow deployed this copy —

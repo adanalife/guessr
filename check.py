@@ -1,23 +1,31 @@
 #!/usr/bin/env python3
 """Validate a generated round set. Run after make_rounds.py.
 
-Takes the directory holding rounds.json, answers.json and frames/, defaulting to
+Takes the directory holding rounds.json, answers.json and clips/, defaulting to
 web/ (where a swapped-in set keeps its manifest; make_rounds.py runs this against
 its staging directory, where the answers still sit alongside). Only a set that
 passes gets swapped into web/, so these assertions are what stands between a bad
 generation and the served game.
 
 The check that matters is the aspect ratio: if the HUD crop ever stops applying,
-every frame ships with the answer ("W71.606763 N42.822437") printed across the
-bottom and the game is silently ruined. A 16:9 frame means the crop didn't run.
+every clip ships with the answer ("W71.606763 N42.822437") printed across the
+bottom and the game is silently ruined. A 16:9 clip means the crop didn't run.
 
 The second one is the split: rounds.json is served to the browser and must carry
 no coordinates, and every round in it needs an answer to score against. A round
 with no answer is unplayable (the API 404s it); a coordinate in the manifest hands
 the answer to the player.
+
+Two of the three things a round set is made of are absent in CI: the media is too
+big to commit and the answers are the answers. So a directory with no clips/ at
+all runs in manifest-only mode rather than failing, and the media assertions run
+where the media exists -- on the machine that generated it, before make_rounds.py
+swaps the set in, and again before `task clips:push` uploads it. A clips/ that
+exists but is missing a file the manifest names is a real failure, not that mode.
 """
 
 import json
+import math
 import struct
 import sys
 from collections import Counter
@@ -25,7 +33,7 @@ from pathlib import Path
 
 WEB = Path(__file__).parent / "web"
 ROUNDS_PER_GAME = 5  # must match web/index.html
-UNCROPPED_ASPECT = 16 / 9  # 1.778 -- what a frame looks like with the HUD still on it
+UNCROPPED_ASPECT = 16 / 9  # 1.778 -- what a clip looks like with the HUD still on it
 # Difficulty-band cutoffs in median_km, the terciles of the shipped round set.
 # A set whose scores all land on one side of them has no spread for the
 # easy-to-hard ramp to order, so every game plays at one difficulty.
@@ -34,36 +42,108 @@ EASY_KM, HARD_KM = 32.0, 120.0
 LAT_RANGE, LNG_RANGE = (24.0, 49.5), (-125.0, -66.0)
 
 
-def dimensions(path: Path) -> tuple[int, int]:
-    """Width and height, read straight out of the JPEG header.
+def boxes(f, end: int):
+    """Walk one level of ISO base media boxes, yielding (kind, start, stop).
 
-    A frame is a JPEG and its size is in the first few hundred bytes, so this
-    reads it rather than shelling out to ffprobe 300 times. ffmpeg is still
-    what *extracts* the frames -- it's just no longer needed to validate them,
-    which is the whole toolchain CI used to install.
+    An mp4 is a tree of length-prefixed boxes and nothing else, so finding a
+    field means walking to it. Reading the header rather than shelling out to
+    ffprobe once per round is the same trade the JPEG reader made before it:
+    ffmpeg is what *cuts* the clips, and keeping it off the validation path is
+    what lets CI check a round set without installing a media toolchain.
+    """
+    while f.tell() + 8 <= end:
+        start = f.tell()
+        header = f.read(8)
+        assert len(header) == 8, f"truncated box header at {start}"
+        size, kind = struct.unpack(">I4s", header)
+        if size == 1:
+            # 64-bit size, in the eight bytes after the type.
+            (size,) = struct.unpack(">Q", f.read(8))
+        elif size == 0:
+            size = end - start  # extends to the end of its parent
+        assert size >= 8 and start + size <= end, f"bad {kind!r} box size {size}"
+        yield kind, f.tell(), start + size
+        f.seek(start + size)
+
+
+def find(f, end: int, path: tuple[bytes, ...]):
+    """Descend a chain of nested box types, returning (start, stop) of the last."""
+    for depth, kind in enumerate(path):
+        for found, start, stop in boxes(f, end):
+            if found == kind:
+                f.seek(start)
+                end = stop
+                break
+        else:
+            raise AssertionError(f"no {b'/'.join(path[: depth + 1]).decode()} box")
+    return f.tell(), end
+
+
+def dimensions(path: Path) -> tuple[int, int]:
+    """Display width and height, read out of the video track's `tkhd` box.
+
+    `tkhd` is the one that carries what the browser will lay the element out at,
+    which is the number this file exists to check. Its width and height are the
+    last eight bytes of the box body as 16.16 fixed point, in both versions of
+    the box -- the version only changes the widths of the timestamp fields ahead
+    of them, so counting back from the end reads both without branching.
+
+    A file with more than one track would need the video one picked out; `-an`
+    means there is exactly one, and the assert below says so rather than
+    silently measuring whatever came first.
 
     Any malformed file raises rather than returning a plausible size: a wrong
-    answer here would pass an uncropped frame with the coordinates still on it.
+    answer here would pass an uncropped clip with the coordinates still on it.
     """
     with path.open("rb") as f:
-        assert f.read(2) == b"\xff\xd8", f"not a JPEG: {path}"
-        while True:
-            header = f.read(4)
-            assert len(header) == 4, f"ran off the end of {path} before its size"
-            marker, size = struct.unpack(">HH", header)
-            assert marker >> 8 == 0xFF, f"lost sync in {path} at {f.tell()}"
-            # SOF0..SOF15 carry the dimensions; the three in that range that
-            # aren't frame headers (DHT, JPG, DAC) do not.
-            if 0xFFC0 <= marker <= 0xFFCF and marker not in (0xFFC4, 0xFFC8, 0xFFCC):
-                # Segment body: 1 byte of precision, then height, then width.
-                height, width = struct.unpack(">HH", f.read(5)[1:])
-                return width, height
-            f.seek(size - 2, 1)
+        end = path.stat().st_size
+        assert end > 8, f"empty or truncated: {path}"
+        f.seek(0)
+        assert any(kind == b"moov" for kind, _, _ in boxes(f, end)), (
+            f"no moov box -- not an mp4: {path}"
+        )
+        f.seek(0)
+        moov_start, moov_end = find(f, end, (b"moov",))
+        tracks = sum(1 for kind, _, _ in boxes(f, moov_end) if kind == b"trak")
+        assert tracks == 1, f"expected one track, found {tracks}: {path}"
+
+        f.seek(moov_start)
+        tkhd_start, tkhd_end = find(f, moov_end, (b"trak", b"tkhd"))
+        f.seek(tkhd_end - 8)
+        width, height = struct.unpack(">II", f.read(8))
+        # 16.16 fixed point. Rounded rather than truncated: a dimension stored as
+        # 1279.99998 is 1280, and floor()ing it would report an aspect ratio a
+        # hair off the real one on every clip.
+        return round(width / 65536), round(height / 65536)
 
 
 def band(median_km: float) -> int:
     """1 (easiest) to 3 (hardest)."""
     return 1 if median_km < EASY_KM else 2 if median_km < HARD_KM else 3
+
+
+def repeat_rate(pool: int, days: int = 90) -> tuple[int, float]:
+    """Distinct rounds a daily player meets over `days`, and what share repeat.
+
+    dailyRounds() in web/daily.js reshuffles the *whole* pool for every day and
+    takes five. It does not deal the pool out into non-overlapping days, so
+    "pool / 5 days before anything repeats" -- which this file used to print --
+    describes a draw that was never implemented. Repeats begin in the first week
+    or two at any pool size worth having; what a bigger pool buys is how *often*
+    one comes round again, not whether.
+
+    Each of the `5 * days` draws is uniform over the pool and independent, so the
+    chance a given round is never drawn is (1 - 1/pool)**draws, i.e. e**-(d/pool)
+    for a pool of any size. Expected distinct rounds follows, and everything else
+    served was something the player had already seen.
+
+    Checked against the real draw in test_check.py rather than trusted: this is
+    the number that says whether a set is big enough, and being wrong about it in
+    the reassuring direction is how the previous one lasted.
+    """
+    draws = ROUNDS_PER_GAME * days
+    distinct = pool * (1 - math.exp(-draws / pool))
+    return round(distinct), (draws - distinct) / draws
 
 
 def main() -> int:
@@ -85,19 +165,31 @@ def main() -> int:
             answers = {a["image"]: a for a in json.loads(candidate.read_text())}
             break
 
+    # No clips/ at all is CI, which has the manifest and nothing else. A clips/
+    # that exists and is missing something the manifest names is a broken set --
+    # the distinction is deliberate, because "the media isn't here" must not be
+    # the same sentence as "the media is here and wrong".
+    media = (web / "clips").is_dir()
+
     seen = set()
     for r in rounds:
-        img = web / r["image"]
-        assert img.exists() and img.stat().st_size > 0, f"missing frame: {r['image']}"
+        clip = web / r["image"]
+        assert r["image"] == f"clips/{Path(r['image']).name}", (
+            f"round is not under clips/: {r['image']}"
+        )
         assert r["image"] not in seen, f"duplicate round: {r['image']}"
         seen.add(r["image"])
 
-        w, h = dimensions(img)
-        aspect = w / h
-        assert aspect > UNCROPPED_ASPECT + 0.05, (
-            f"{r['image']} is {w}x{h} (aspect {aspect:.3f}) -- the HUD crop did not "
-            f"apply, so the coordinates are still burned into the frame"
-        )
+        if media:
+            assert clip.exists() and clip.stat().st_size > 0, (
+                f"missing clip: {r['image']}"
+            )
+            w, h = dimensions(clip)
+            aspect = w / h
+            assert aspect > UNCROPPED_ASPECT + 0.05, (
+                f"{r['image']} is {w}x{h} (aspect {aspect:.3f}) -- the HUD crop did "
+                f"not apply, so the coordinates are still burned into the clip"
+            )
 
         # The manifest is public. A coordinate in it is the answer, handed over.
         leaked = {"lat", "lng", "state", "filmed"} & r.keys()
@@ -134,21 +226,34 @@ def main() -> int:
         f"(under {EASY_KM:g} / under {HARD_KM:g} km)"
     )
 
+    cropped = "all clips HUD-cropped" if media else "manifest only"
+    if media:
+        mb = sum((web / r["image"]).stat().st_size for r in rounds) / 1e6
+        size_line = (
+            f"    {mb:.0f} MB of clips, {mb * 1e3 / len(rounds):.0f} KB per round "
+            f"({mb * ROUNDS_PER_GAME / len(rounds):.1f} MB to play one game)"
+        )
+
     if not answers:
         print(
-            f"ok: {len(rounds)} rounds, all frames HUD-cropped, no coordinates in "
+            f"ok: {len(rounds)} rounds, {cropped}, no coordinates in "
             f"the served manifest"
         )
         print(band_line)
+        if media:
+            print(size_line)
+        else:
+            print("    (no clips/ here, so the HUD-crop check was skipped)")
         print("    (no answers.json here, so the answer cross-check was skipped)")
         return 0
 
     states = {answers[r["image"]]["state"] for r in rounds}
     spread = sorted(r["median_km"] for r in rounds)
-    print(f"ok: {len(rounds)} rounds, {len(states)} states, all frames HUD-cropped")
+    print(f"ok: {len(rounds)} rounds, {len(states)} states, {cropped}")
+    distinct, repeats = repeat_rate(len(rounds))
     print(
-        f"    enough for {len(rounds) // ROUNDS_PER_GAME} days of dailies "
-        f"before rounds start repeating"
+        f"    a daily player meets {distinct} of them over 90 days, with "
+        f"{repeats:.0%} of what they are served a round they have had before"
     )
     # Worth eyeballing: the corpus tops out past 4000 km, so a max anywhere near
     # that means the locatability filter stopped biting.
@@ -157,13 +262,15 @@ def main() -> int:
         f"median {spread[len(spread) // 2]:g}, worst {spread[-1]:g}"
     )
     print(band_line)
-    # The other half of the score: a low mean cosine distance means the frame has
+    # The other half of the score: a low mean cosine distance means the clip has
     # near-identical twins elsewhere in the corpus, i.e. road a human can't place.
     cos = sorted(r["mean_cos"] for r in rounds)
     print(
         f"    distinctiveness (mean neighbour cosine): least {cos[0]:g}, "
         f"median {cos[len(cos) // 2]:g}, most {cos[-1]:g}"
     )
+    if media:
+        print(size_line)
     return 0
 
 
