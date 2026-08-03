@@ -446,9 +446,6 @@ def extract_clip(row: dict, dest: Path) -> bool:
     keep 25 minutes of x264 from taking the laptop it is running on.
     """
     src = CORPUS / f"{row['slug']}.MP4"
-    if not src.exists():
-        return False
-
     vf = f"crop=iw:ih-{HUD_STRIP_PX}:0:0,scale={WIDTH}:-2,fps={FPS}"
     # A frame's timestamp can be the clip's last one, and a window starting there
     # holds nothing: ffmpeg writes a valid, empty container, exits 0, and leaves a
