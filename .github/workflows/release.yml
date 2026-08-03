@@ -46,6 +46,11 @@ jobs:
         # production branch ("main", set in infra's terraform and independent
         # of any git branch), which is the alias serving guessr.dana.lol.
         run: npx wrangler pages deploy web/ --project-name adanalife-guessr --branch main
+      # smoke.sh measures the served clip to prove the HUD crop applied, and the
+      # runner image carries no ffmpeg. A cached static build is a few seconds;
+      # apt would pull the whole media stack for the one binary this needs.
+      - uses: AnimMouse/setup-ffmpeg@v1
+
       # The tier this matters most on. A release carrying a new round set scores
       # nothing until `task answers:prod:push` runs, and until 2026-08-01 the
       # only thing coupling the two was remembering — v0.5.0 went live minutes

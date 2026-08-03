@@ -58,6 +58,11 @@ jobs:
         # infra's terraform and independent of any git branch), which is the
         # alias serving stage.guessr.dana.lol.
         run: npx wrangler pages deploy web/ --project-name adanalife-guessr-staging --branch main
+      # smoke.sh measures the served clip to prove the HUD crop applied, and the
+      # runner image carries no ffmpeg. A cached static build is a few seconds;
+      # apt would pull the whole media stack for the one binary this needs.
+      - uses: AnimMouse/setup-ffmpeg@v1
+
       # Nothing else couples a deploy to the answers push it needs: the deploy
       # runs here, the push runs from Dana's laptop, and a mismatch looks exactly
       # like a network error from the player's side. Same script preview.yml and

@@ -101,6 +101,11 @@ jobs:
           done
           test -n "$alias"
           echo "alias=$alias" >> "$GITHUB_OUTPUT"
+      # smoke.sh measures the served clip to prove the HUD crop applied, and the
+      # runner image carries no ffmpeg. A cached static build is a few seconds;
+      # apt would pull the whole media stack for the one binary this needs.
+      - uses: AnimMouse/setup-ffmpeg@v1
+
       # The endpoints, against the deployment that will actually serve them.
       # Same script staging.yml and release.yml run, so a tier can't drift into
       # being the one nobody checks.
