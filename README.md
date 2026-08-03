@@ -283,8 +283,8 @@ magick /tmp/card.jpg \
   -font Helvetica-Bold -fill white -gravity NorthWest \
   -pointsize 96 -annotate +60+52 'Guessr' \
   -font Helvetica -pointsize 36 -fill '#dfe6ea' \
-  -annotate +64+168 'GeoGuessr, but every round is dashcam footage' \
-  -annotate +64+214 'from a year of driving the United States' \
+  -annotate +64+168 'Like GeoGuessr, but every round is a dashcam clip' \
+  -annotate +64+214 'from a year-long roadtrip' \
   /tmp/mark-white.png -gravity NorthEast -geometry +60+46 -composite \
   -quality 88 -strip web/og.jpg
 ```
