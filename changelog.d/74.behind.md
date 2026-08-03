@@ -1,0 +1,1 @@
+The checks that stop a bad round set reaching the game — a clip with the location still printed on it, or a round whose answer was accidentally sent to your browser — are now tested themselves, so they cannot quietly stop working.
