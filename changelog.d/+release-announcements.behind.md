@@ -1,0 +1,1 @@
+New releases are announced in Discord now, so there is somewhere to hear that the game changed without watching this file. A release that fails to deploy raises an alert in a separate channel, which nothing said out loud before.
