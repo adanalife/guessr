@@ -87,12 +87,18 @@ jobs:
       - name: Validate the round set
         run: python3 check.py
 
+      # test_check.py builds clips with ffmpeg and measures them with ffprobe,
+      # and the runner image carries neither. Without this the dimension
+      # assertions -- the ones standing behind the HUD-crop check -- skip
+      # themselves and the step still passes green.
+      - uses: AnimMouse/setup-ffmpeg@v1
+
       # The python tests: the clip-dimension reader behind check.py's HUD-crop
       # assertion, the swap that puts a regenerated set into place, the seeding
       # that makes a regeneration reproducible, how a round set is selected, and
       # which route scoring takes to Postgres. Sub-second, and stdlib apart from
-      # the ffmpeg the runner image already carries. Globbed for the same reason
-      # as the node step above.
+      # the ffmpeg installed just above. Globbed for the same reason as the node
+      # step above.
       - name: Python tests
         run: for f in test_*.py; do echo "== $f"; python3 "$f" || exit 1; done
 

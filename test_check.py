@@ -12,6 +12,7 @@ exist -- on the laptop that generated them. These assertions are the only thing
 standing behind that one.
 """
 
+import os
 import shutil
 import subprocess
 import tempfile
@@ -22,11 +23,18 @@ from check import NEAR_KM, clustering, dimensions, km, repeat_rate
 HERE = Path(__file__).parent
 tmp = tempfile.TemporaryDirectory()
 
-# The reader, against files ffmpeg makes on the spot. Guarded rather than
-# assumed, and nothing is lost where it doesn't run: dimensions() only ever
-# reads media, media only exists where ffmpeg does, and both CI runners that
-# reach this file have it.
-if shutil.which("ffmpeg") and shutil.which("ffprobe"):
+have_ffmpeg = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
+# Skipping is fine on a laptop that has no ffmpeg -- it has no clips to read
+# either. In CI it is not: these assertions stand behind the HUD-crop check, and
+# a skip there is a green step that tested nothing, which is how the reader went
+# unverified for a whole PR. pr-gates.yml installs ffmpeg; this is what notices
+# if that ever stops being true.
+assert have_ffmpeg or not os.environ.get("CI"), (
+    "CI has no ffmpeg/ffprobe, so the clip-dimension reader would go unchecked"
+)
+
+# The reader, against files ffmpeg makes on the spot.
+if have_ffmpeg:
 
     def made(name: str, *args: str) -> Path:
         path = Path(tmp.name) / name
@@ -125,7 +133,7 @@ assert clustering([at(40, -100), at(40 + just_under, -100)])[0] == 2
 # The top state is the most common one, not the first one seen.
 assert clustering([at(0, 0, "ME"), at(0, 20, "CA"), at(0, 40, "CA")])[1] == "CA"
 
-if shutil.which("ffprobe"):
+if have_ffmpeg:
     print("ok: clip dimensions read correctly, and unreadable files raise")
 else:
     print("skip: no ffprobe here, so the dimension reader went unchecked")
