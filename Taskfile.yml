@@ -43,6 +43,13 @@ tasks:
     cmds:
       - python3 check.py
 
+  rounds:publish:
+    desc: "Generate a round set and publish all three legs: media to R2, answers
+      to both D1 tiers, manifest as a PR. Needs GITHUB_TOKEN + the Cloudflare
+      pair. Args pass through to make_rounds.py"
+    cmds:
+      - ./publish.sh {{.CLI_ARGS}}
+
   # The media half of a round set. web/clips/ is gitignored -- a set is ~150 MB
   # and this repo is public -- so the bucket is how a deploy gets it: the three
   # deploy workflows run the pull side of this before handing web/ to
