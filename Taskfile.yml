@@ -33,6 +33,8 @@ tasks:
       - task --list
     silent: true
 
+  # Runs check.py itself before swapping the new set into web/, and refuses to
+  # swap if it fails -- so there is nothing to chain a validation onto afterwards.
   rounds:
     desc: Build a round set (scores clips for locatability, cuts their clips)
     cmds:
@@ -196,9 +198,3 @@ tasks:
       after an answers push"
     cmds:
       - ./smoke.sh {{.CLI_ARGS}}
-
-  build:
-    desc: Generate a fresh round set and validate it
-    cmds:
-      - task: rounds
-      - task: check
