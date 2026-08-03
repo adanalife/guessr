@@ -92,5 +92,52 @@ assert sorted(r["state"] for r in chosen) == ["CA", "CA", "ME", "TX"], chosen
 chosen, _ = select([at("only", 40, -100)], count=5, min_km=5.0, state_cap=0)
 assert [r["slug"] for r in chosen] == ["only"], chosen
 
+
+def moment(ts, median_km, mean_cos):
+    # Moments of one clip share its coordinates -- they are the same video row.
+    return {
+        "slug": "clip",
+        "ts": ts,
+        "median_km": median_km,
+        "mean_cos": mean_cos,
+        "lat": 40,
+        "lng": -100,
+        "state": "CA",
+    }
+
+
+# `--per-clip` scores several moments of the same clip, so a slug arrives more
+# than once at different timestamps and different scores. Nothing dedupes them
+# explicitly: select() skips a slug it has taken, so the moment that survives is
+# whichever ranked highest -- which is what makes a clip contribute its best
+# moment rather than whichever one the draw happened to land on. Measured on the
+# stage corpus, one clip's four moments ranged 15.7 to 58.3 median km, so the
+# difference between best and drawn-at-random is most of the quality of a round.
+MOMENTS = [
+    moment(20.0, 300, 0.04),
+    moment(50.0, 8, 0.14),  # the best of them on both signals
+    moment(80.0, 250, 0.05),
+    {
+        "slug": "other",
+        "ts": 30.0,
+        "median_km": 150,
+        "mean_cos": 0.09,
+        "lat": 45,
+        "lng": -70,
+        "state": "ME",
+    },
+]
+chosen, _ = select(rank(MOMENTS, 0.25), count=4, min_km=5.0, state_cap=0)
+assert [r["slug"] for r in chosen] == ["clip", "other"], chosen
+assert chosen[0]["ts"] == 50.0, chosen[0]
+
+# The same three moments with the best one ranked last by both signals: the
+# survivor tracks rank rather than input order, so this is not passing by
+# accident of list position.
+reordered = [moment(20.0, 8, 0.14), moment(50.0, 300, 0.04), moment(80.0, 250, 0.05)]
+chosen, _ = select(rank(reordered, 0.25), count=3, min_km=5.0, state_cap=0)
+assert [r["ts"] for r in chosen] == [20.0], chosen
+
 print("ok: ranking weighs locatability against distinctiveness as intended")
 print("ok: selection spaces the set out, caps one state, and backfills honestly")
+print("ok: a clip scored at several moments contributes only its best one")
