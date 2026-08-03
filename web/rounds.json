@@ -1,152 +1,1502 @@
 [
  {
+  "image": "clips/2018_0701_211825_079_opt.mp4",
+  "median_km": 0.0,
+  "mean_cos": 0.1372
+ },
+ {
+  "image": "clips/2018_0609_143926_001_opt.mp4",
+  "median_km": 0.4,
+  "mean_cos": 0.1347
+ },
+ {
+  "image": "clips/2018_0610_140858_003_opt.mp4",
+  "median_km": 0.0,
+  "mean_cos": 0.1215
+ },
+ {
+  "image": "clips/2018_1101_155119_004_opt.mp4",
+  "median_km": 1.3,
+  "mean_cos": 0.1498
+ },
+ {
+  "image": "clips/2018_0831_213927_007_opt.mp4",
+  "median_km": 1.3,
+  "mean_cos": 0.1406
+ },
+ {
+  "image": "clips/2018_0603_200012_039_opt.mp4",
+  "median_km": 1.1,
+  "mean_cos": 0.1218
+ },
+ {
+  "image": "clips/2018_1113_200846_005_opt.mp4",
+  "median_km": 0.9,
+  "mean_cos": 0.1166
+ },
+ {
+  "image": "clips/2018_1001_135155_001_opt.mp4",
+  "median_km": 0.8,
+  "mean_cos": 0.1113
+ },
+ {
+  "image": "clips/2018_0516_154601_023_opt.mp4",
+  "median_km": 0.4,
+  "mean_cos": 0.0998
+ },
+ {
+  "image": "clips/2018_0828_140220_001_opt.mp4",
+  "median_km": 0.5,
+  "mean_cos": 0.0993
+ },
+ {
+  "image": "clips/2018_0514_001456_007_opt.mp4",
+  "median_km": 0.5,
+  "mean_cos": 0.0977
+ },
+ {
+  "image": "clips/2018_0516_013331_005_opt.mp4",
+  "median_km": 0.2,
+  "mean_cos": 0.095
+ },
+ {
+  "image": "clips/2018_0923_122825_012_opt.mp4",
+  "median_km": 2.5,
+  "mean_cos": 0.1134
+ },
+ {
+  "image": "clips/2018_0831_144127_026_RO_a_opt.mp4",
+  "median_km": 3.7,
+  "mean_cos": 0.1125
+ },
+ {
+  "image": "clips/2018_1206_182149_013_opt.mp4",
+  "median_km": 3.7,
+  "mean_cos": 0.1122
+ },
+ {
+  "image": "clips/2018_1014_221045_006_opt.mp4",
+  "median_km": 0.7,
+  "mean_cos": 0.091
+ },
+ {
+  "image": "clips/2018_0701_205725_072_opt.mp4",
+  "median_km": 8.7,
+  "mean_cos": 0.1504
+ },
+ {
+  "image": "clips/2018_0517_001120_001_opt.mp4",
+  "median_km": 6.1,
+  "mean_cos": 0.1117
+ },
+ {
+  "image": "clips/2018_0605_150057_008_opt.mp4",
+  "median_km": 3.3,
+  "mean_cos": 0.0973
+ },
+ {
+  "image": "clips/2018_1018_003417_011_opt.mp4",
+  "median_km": 1.0,
+  "mean_cos": 0.0894
+ },
+ {
+  "image": "clips/2018_1124_183636_006_opt.mp4",
+  "median_km": 13.2,
+  "mean_cos": 0.1411
+ },
+ {
+  "image": "clips/2018_1025_191101_001_opt.mp4",
+  "median_km": 0.3,
+  "mean_cos": 0.082
+ },
+ {
+  "image": "clips/2018_0531_203812_005_opt.mp4",
+  "median_km": 10.9,
+  "mean_cos": 0.1145
+ },
+ {
+  "image": "clips/2018_1121_231245_002_opt.mp4",
+  "median_km": 7.4,
+  "mean_cos": 0.1004
+ },
+ {
+  "image": "clips/2018_0701_173626_005_opt.mp4",
+  "median_km": 14.2,
+  "mean_cos": 0.1246
+ },
+ {
+  "image": "clips/2018_0514_195029_006_opt.mp4",
+  "median_km": 14.8,
+  "mean_cos": 0.1236
+ },
+ {
+  "image": "clips/2018_0514_225401_015_opt.mp4",
+  "median_km": 0.9,
+  "mean_cos": 0.08
+ },
+ {
+  "image": "clips/2018_1113_202347_010_opt.mp4",
+  "median_km": 17.3,
+  "mean_cos": 0.1278
+ },
+ {
+  "image": "clips/2018_0701_194226_047_opt.mp4",
+  "median_km": 20.0,
+  "mean_cos": 0.1679
+ },
+ {
+  "image": "clips/2018_0517_181848_022_opt.mp4",
+  "median_km": 18.6,
+  "mean_cos": 0.1241
+ },
+ {
+  "image": "clips/2018_0601_233319_061_a_opt.mp4",
+  "median_km": 0.1,
+  "mean_cos": 0.0765
+ },
+ {
+  "image": "clips/2018_1206_182748_015_opt.mp4",
+  "median_km": 1.8,
+  "mean_cos": 0.0803
+ },
+ {
+  "image": "clips/2018_0910_130933_005_opt.mp4",
+  "median_km": 11.4,
+  "mean_cos": 0.0966
+ },
+ {
+  "image": "clips/2018_0603_000126_051_opt.mp4",
+  "median_km": 4.5,
+  "mean_cos": 0.0843
+ },
+ {
+  "image": "clips/2018_0516_003243_001_opt.mp4",
+  "median_km": 13.5,
+  "mean_cos": 0.1004
+ },
+ {
+  "image": "clips/2018_1023_150741_022_opt.mp4",
+  "median_km": 2.1,
+  "mean_cos": 0.08
+ },
+ {
+  "image": "clips/2018_0831_200020_001_a_opt.mp4",
+  "median_km": 0.1,
+  "mean_cos": 0.0749
+ },
+ {
+  "image": "clips/2018_0917_165129_001_opt.mp4",
+  "median_km": 0.8,
+  "mean_cos": 0.0762
+ },
+ {
+  "image": "clips/2018_0924_132355_001_opt.mp4",
+  "median_km": 15.1,
+  "mean_cos": 0.1024
+ },
+ {
+  "image": "clips/2018_1005_182020_002_opt.mp4",
+  "median_km": 20.6,
+  "mean_cos": 0.1191
+ },
+ {
+  "image": "clips/2018_0513_181730_004_opt.mp4",
+  "median_km": 12.7,
+  "mean_cos": 0.0932
+ },
+ {
+  "image": "clips/2018_1113_234005_005_RO_opt.mp4",
+  "median_km": 12.7,
+  "mean_cos": 0.093
+ },
+ {
+  "image": "clips/2018_1017_213827_012_opt.mp4",
+  "median_km": 23.8,
+  "mean_cos": 0.1313
+ },
+ {
+  "image": "clips/2018_0517_171548_001_opt.mp4",
+  "median_km": 15.7,
+  "mean_cos": 0.0994
+ },
+ {
+  "image": "clips/2018_0514_171259_026_opt.mp4",
+  "median_km": 26.3,
+  "mean_cos": 0.16
+ },
+ {
+  "image": "clips/2018_1012_215735_050_opt.mp4",
+  "median_km": 9.1,
+  "mean_cos": 0.0859
+ },
+ {
+  "image": "clips/2018_0731_210857_031_opt.mp4",
+  "median_km": 4.6,
+  "mean_cos": 0.0797
+ },
+ {
+  "image": "clips/2018_0517_005321_015_opt.mp4",
+  "median_km": 24.3,
+  "mean_cos": 0.1171
+ },
+ {
+  "image": "clips/2018_1016_000444_012_opt.mp4",
+  "median_km": 3.1,
+  "mean_cos": 0.0772
+ },
+ {
+  "image": "clips/2018_1012_210635_033_opt.mp4",
+  "median_km": 16.8,
+  "mean_cos": 0.0947
+ },
+ {
+  "image": "clips/2018_0517_180648_018_opt.mp4",
+  "median_km": 3.4,
+  "mean_cos": 0.077
+ },
+ {
+  "image": "clips/2018_0515_120736_011_opt.mp4",
+  "median_km": 27.6,
+  "mean_cos": 0.126
+ },
+ {
+  "image": "clips/2018_0513_131718_026_opt.mp4",
+  "median_km": 14.4,
+  "mean_cos": 0.0906
+ },
+ {
+  "image": "clips/2018_0516_222155_002_opt.mp4",
+  "median_km": 33.0,
+  "mean_cos": 0.173
+ },
+ {
+  "image": "clips/2018_0611_185837_002_opt.mp4",
+  "median_km": 21.0,
+  "mean_cos": 0.0976
+ },
+ {
+  "image": "clips/2018_0904_130912_014_opt.mp4",
+  "median_km": 22.1,
+  "mean_cos": 0.0992
+ },
+ {
+  "image": "clips/2018_1121_203313_013_opt.mp4",
+  "median_km": 13.8,
+  "mean_cos": 0.0853
+ },
+ {
+  "image": "clips/2018_1017_000519_016_opt.mp4",
+  "median_km": 6.7,
+  "mean_cos": 0.0778
+ },
+ {
+  "image": "clips/2018_1015_212620_024_opt.mp4",
+  "median_km": 23.4,
+  "mean_cos": 0.096
+ },
+ {
+  "image": "clips/2018_1211_202846_005_opt.mp4",
+  "median_km": 30.9,
+  "mean_cos": 0.1065
+ },
+ {
+  "image": "clips/2018_0918_221008_006_opt.mp4",
+  "median_km": 3.5,
+  "mean_cos": 0.0723
+ },
+ {
+  "image": "clips/2018_1017_012020_041_opt.mp4",
+  "median_km": 35.4,
+  "mean_cos": 0.1179
+ },
+ {
+  "image": "clips/2018_1031_173734_037_opt.mp4",
+  "median_km": 17.8,
+  "mean_cos": 0.0856
+ },
+ {
+  "image": "clips/2018_0828_140521_002_opt.mp4",
+  "median_km": 40.3,
+  "mean_cos": 0.1382
+ },
+ {
+  "image": "clips/2018_1024_004247_012_opt.mp4",
+  "median_km": 7.6,
+  "mean_cos": 0.0758
+ },
+ {
+  "image": "clips/2018_0603_193312_030_opt.mp4",
+  "median_km": 18.8,
+  "mean_cos": 0.0849
+ },
+ {
+  "image": "clips/2018_1016_002544_019_opt.mp4",
+  "median_km": 20.9,
+  "mean_cos": 0.0869
+ },
+ {
+  "image": "clips/2018_1024_010947_021_opt.mp4",
+  "median_km": 20.8,
+  "mean_cos": 0.0867
+ },
+ {
+  "image": "clips/2018_0517_191903_003_opt.mp4",
+  "median_km": 38.2,
+  "mean_cos": 0.1195
+ },
+ {
+  "image": "clips/2018_0923_115825_002_opt.mp4",
+  "median_km": 29.0,
+  "mean_cos": 0.0967
+ },
+ {
+  "image": "clips/2018_0603_003126_061_opt.mp4",
+  "median_km": 35.3,
+  "mean_cos": 0.1048
+ },
+ {
+  "image": "clips/2018_0611_155156_004_opt.mp4",
+  "median_km": 36.9,
+  "mean_cos": 0.1052
+ },
+ {
+  "image": "clips/2018_1101_183959_020_opt.mp4",
+  "median_km": 27.8,
+  "mean_cos": 0.0912
+ },
+ {
+  "image": "clips/2018_0923_000046_026_opt.mp4",
+  "median_km": 9.9,
+  "mean_cos": 0.074
+ },
+ {
+  "image": "clips/2018_1015_190519_013_opt.mp4",
+  "median_km": 11.5,
+  "mean_cos": 0.0748
+ },
+ {
+  "image": "clips/2018_1015_180646_008_opt.mp4",
+  "median_km": 6.1,
+  "mean_cos": 0.0704
+ },
+ {
+  "image": "clips/2018_0831_192319_017_opt.mp4",
+  "median_km": 23.1,
+  "mean_cos": 0.0832
+ },
+ {
+  "image": "clips/2018_0517_235251_009_opt.mp4",
+  "median_km": 41.0,
+  "mean_cos": 0.103
+ },
+ {
+  "image": "clips/2018_0831_155327_050_opt.mp4",
+  "median_km": 29.7,
+  "mean_cos": 0.0874
+ },
+ {
+  "image": "clips/2018_0730_133604_002_opt.mp4",
+  "median_km": 49.8,
+  "mean_cos": 0.112
+ },
+ {
+  "image": "clips/2018_0922_235146_023_opt.mp4",
+  "median_km": 14.1,
+  "mean_cos": 0.0755
+ },
+ {
+  "image": "clips/2018_0605_202237_010_opt.mp4",
+  "median_km": 29.6,
+  "mean_cos": 0.0867
+ },
+ {
+  "image": "clips/2018_1016_234419_009_opt.mp4",
+  "median_km": 21.4,
+  "mean_cos": 0.08
+ },
+ {
+  "image": "clips/2018_1016_232319_002_opt.mp4",
+  "median_km": 20.9,
+  "mean_cos": 0.0795
+ },
+ {
+  "image": "clips/2018_1206_202501_005_b_opt.mp4",
+  "median_km": 61.3,
+  "mean_cos": 0.1656
+ },
+ {
+  "image": "clips/2018_0917_112352_002_opt.mp4",
+  "median_km": 2.2,
+  "mean_cos": 0.0656
+ },
+ {
+  "image": "clips/2018_0514_162458_010_opt.mp4",
+  "median_km": 59.6,
+  "mean_cos": 0.1412
+ },
+ {
+  "image": "clips/2018_0731_211157_032_opt.mp4",
+  "median_km": 8.9,
+  "mean_cos": 0.0708
+ },
+ {
+  "image": "clips/2018_1206_234435_008_opt.mp4",
+  "median_km": 37.7,
+  "mean_cos": 0.0936
+ },
+ {
+  "image": "clips/2018_1015_211120_019_opt.mp4",
+  "median_km": 16.8,
+  "mean_cos": 0.0761
+ },
+ {
+  "image": "clips/2018_0731_214157_042_opt.mp4",
+  "median_km": 64.8,
+  "mean_cos": 0.141
+ },
+ {
+  "image": "clips/2018_0811_165716_047_opt.mp4",
+  "median_km": 4.4,
+  "mean_cos": 0.0662
+ },
+ {
+  "image": "clips/2018_0925_223218_066_opt.mp4",
+  "median_km": 5.4,
+  "mean_cos": 0.067
+ },
+ {
+  "image": "clips/2018_0910_140804_001_opt.mp4",
+  "median_km": 45.2,
+  "mean_cos": 0.0964
+ },
+ {
+  "image": "clips/2018_1017_003219_025_opt.mp4",
+  "median_km": 13.7,
+  "mean_cos": 0.0723
+ },
+ {
+  "image": "clips/2018_1007_180719_006_opt.mp4",
+  "median_km": 27.4,
+  "mean_cos": 0.0816
+ },
+ {
+  "image": "clips/2018_0731_215357_046_opt.mp4",
+  "median_km": 52.9,
+  "mean_cos": 0.1041
+ },
+ {
+  "image": "clips/2018_0516_010136_001_a_opt.mp4",
+  "median_km": 17.5,
+  "mean_cos": 0.0747
+ },
+ {
+  "image": "clips/2018_0825_182648_005_opt.mp4",
+  "median_km": 53.7,
+  "mean_cos": 0.1045
+ },
+ {
+  "image": "clips/2018_0904_130612_013_opt.mp4",
+  "median_km": 29.6,
+  "mean_cos": 0.0824
+ },
+ {
+  "image": "clips/2018_0516_230151_008_opt.mp4",
+  "median_km": 35.9,
+  "mean_cos": 0.0864
+ },
+ {
+  "image": "clips/2018_0730_133539_001_b_opt.mp4",
+  "median_km": 56.6,
+  "mean_cos": 0.108
+ },
+ {
+  "image": "clips/2018_0522_224817_028_opt.mp4",
+  "median_km": 20.0,
+  "mean_cos": 0.075
+ },
+ {
+  "image": "clips/2018_1012_204235_025_opt.mp4",
+  "median_km": 43.4,
+  "mean_cos": 0.0905
+ },
+ {
+  "image": "clips/2018_0611_175558_029_opt.mp4",
+  "median_km": 11.0,
+  "mean_cos": 0.069
+ },
+ {
+  "image": "clips/2018_1031_172834_034_opt.mp4",
+  "median_km": 33.9,
+  "mean_cos": 0.083
+ },
+ {
+  "image": "clips/2018_0516_233751_020_opt.mp4",
+  "median_km": 28.0,
+  "mean_cos": 0.0791
+ },
+ {
+  "image": "clips/2018_0522_230017_032_opt.mp4",
+  "median_km": 21.7,
+  "mean_cos": 0.075
+ },
+ {
+  "image": "clips/2018_0920_145720_003_opt.mp4",
+  "median_km": 63.0,
+  "mean_cos": 0.0992
+ },
+ {
+  "image": "clips/2018_0902_171631_001_opt.mp4",
+  "median_km": 56.4,
+  "mean_cos": 0.093
+ },
+ {
   "image": "clips/2018_1008_002230_039_opt.mp4",
-  "median_km": 50.4,
-  "mean_cos": 0.0713
+  "median_km": 45.2,
+  "mean_cos": 0.0849
  },
  {
-  "image": "clips/2018_1015_205320_013_opt.mp4",
-  "median_km": 31.1,
-  "mean_cos": 0.0576
+  "image": "clips/2018_0904_132412_019_opt.mp4",
+  "median_km": 54.2,
+  "mean_cos": 0.091
  },
  {
-  "image": "clips/2018_0831_151427_037_a_opt.mp4",
-  "median_km": 120.9,
-  "mean_cos": 0.1203
+  "image": "clips/2018_0917_171230_008_opt.mp4",
+  "median_km": 78.7,
+  "mean_cos": 0.1111
+ },
+ {
+  "image": "clips/2018_0522_220017_012_opt.mp4",
+  "median_km": 53.9,
+  "mean_cos": 0.088
+ },
+ {
+  "image": "clips/2018_0519_003146_002_opt.mp4",
+  "median_km": 0.5,
+  "mean_cos": 0.0566
+ },
+ {
+  "image": "clips/2018_0825_184448_011_opt.mp4",
+  "median_km": 66.2,
+  "mean_cos": 0.0928
+ },
+ {
+  "image": "clips/2018_0603_004626_066_opt.mp4",
+  "median_km": 58.0,
+  "mean_cos": 0.0886
+ },
+ {
+  "image": "clips/2018_0516_234840_001_opt.mp4",
+  "median_km": 36.5,
+  "mean_cos": 0.0771
+ },
+ {
+  "image": "clips/2018_0517_193703_009_opt.mp4",
+  "median_km": 50.6,
+  "mean_cos": 0.0828
+ },
+ {
+  "image": "clips/2018_0902_163448_006_opt.mp4",
+  "median_km": 49.0,
+  "mean_cos": 0.0808
+ },
+ {
+  "image": "clips/2018_0514_194729_005_opt.mp4",
+  "median_km": 13.5,
+  "mean_cos": 0.0644
+ },
+ {
+  "image": "clips/2018_0517_194303_011_opt.mp4",
+  "median_km": 56.8,
+  "mean_cos": 0.0838
+ },
+ {
+  "image": "clips/2018_0522_215117_009_opt.mp4",
+  "median_km": 91.2,
+  "mean_cos": 0.1084
+ },
+ {
+  "image": "clips/2018_0611_171358_015_opt.mp4",
+  "median_km": 52.2,
+  "mean_cos": 0.0794
+ },
+ {
+  "image": "clips/2018_0802_155933_003_opt.mp4",
+  "median_km": 47.9,
+  "mean_cos": 0.0774
+ },
+ {
+  "image": "clips/2018_0824_215313_001_opt.mp4",
+  "median_km": 12.6,
+  "mean_cos": 0.0618
+ },
+ {
+  "image": "clips/2018_0923_120425_004_opt.mp4",
+  "median_km": 21.7,
+  "mean_cos": 0.0663
+ },
+ {
+  "image": "clips/2018_0831_151727_038_b_opt.mp4",
+  "median_km": 102.4,
+  "mean_cos": 0.128
+ },
+ {
+  "image": "clips/2018_0811_160016_028_opt.mp4",
+  "median_km": 83.5,
+  "mean_cos": 0.0941
+ },
+ {
+  "image": "clips/2018_0917_123253_025_opt.mp4",
+  "median_km": 34.1,
+  "mean_cos": 0.0715
+ },
+ {
+  "image": "clips/2018_0918_212852_025_opt.mp4",
+  "median_km": 69.5,
+  "mean_cos": 0.0848
+ },
+ {
+  "image": "clips/2018_0814_221416_006_opt.mp4",
+  "median_km": 106.6,
+  "mean_cos": 0.1458
+ },
+ {
+  "image": "clips/2018_0517_200703_019_opt.mp4",
+  "median_km": 88.7,
+  "mean_cos": 0.0976
+ },
+ {
+  "image": "clips/2018_0603_121548_001_opt.mp4",
+  "median_km": 96.8,
+  "mean_cos": 0.107
+ },
+ {
+  "image": "clips/2018_1009_233706_026_opt.mp4",
+  "median_km": 82.7,
+  "mean_cos": 0.0885
+ },
+ {
+  "image": "clips/2018_0814_183339_044_opt.mp4",
+  "median_km": 38.3,
+  "mean_cos": 0.0715
+ },
+ {
+  "image": "clips/2018_0814_182439_041_opt.mp4",
+  "median_km": 29.4,
+  "mean_cos": 0.0675
+ },
+ {
+  "image": "clips/2018_0919_122626_006_opt.mp4",
+  "median_km": 12.5,
+  "mean_cos": 0.0599
+ },
+ {
+  "image": "clips/2018_0925_001030_037_opt.mp4",
+  "median_km": 20.2,
+  "mean_cos": 0.0631
+ },
+ {
+  "image": "clips/2018_0925_000730_036_opt.mp4",
+  "median_km": 15.2,
+  "mean_cos": 0.061
+ },
+ {
+  "image": "clips/2018_1007_234330_026_opt.mp4",
+  "median_km": 34.8,
+  "mean_cos": 0.0691
  },
  {
   "image": "clips/2018_0815_173809_006_opt.mp4",
   "median_km": 102.4,
-  "mean_cos": 0.116
+  "mean_cos": 0.1035
  },
  {
-  "image": "clips/2018_1007_174026_002_opt.mp4",
-  "median_km": 2.4,
-  "mean_cos": 0.0712
+  "image": "clips/2018_0731_214757_044_opt.mp4",
+  "median_km": 33.7,
+  "mean_cos": 0.0682
  },
  {
-  "image": "clips/2018_0518_191916_033_opt.mp4",
-  "median_km": 195.3,
-  "mean_cos": 0.0525
+  "image": "clips/2018_0514_223001_007_opt.mp4",
+  "median_km": 3.6,
+  "mean_cos": 0.0543
  },
  {
-  "image": "clips/2018_0519_145758_003_opt.mp4",
-  "median_km": 243.4,
-  "mean_cos": 0.0494
+  "image": "clips/2018_0514_160658_004_opt.mp4",
+  "median_km": 74.8,
+  "mean_cos": 0.0819
  },
  {
-  "image": "clips/2018_0602_224026_024_opt.mp4",
-  "median_km": 241.0,
-  "mean_cos": 0.0509
+  "image": "clips/2018_0809_140915_002_opt.mp4",
+  "median_km": 6.3,
+  "mean_cos": 0.0559
  },
  {
-  "image": "clips/2018_1023_142241_007_opt.mp4",
-  "median_km": 16.5,
-  "mean_cos": 0.0526
+  "image": "clips/2018_0522_210419_025_opt.mp4",
+  "median_km": 114.4,
+  "mean_cos": 0.133
  },
  {
-  "image": "clips/2018_1007_212904_003_opt.mp4",
-  "median_km": 282.6,
+  "image": "clips/2018_0516_231651_013_opt.mp4",
+  "median_km": 33.1,
+  "mean_cos": 0.0675
+ },
+ {
+  "image": "clips/2018_0514_154106_007_opt.mp4",
+  "median_km": 84.1,
+  "mean_cos": 0.085
+ },
+ {
+  "image": "clips/2018_0517_231417_018_opt.mp4",
+  "median_km": 94.6,
+  "mean_cos": 0.0916
+ },
+ {
+  "image": "clips/2018_0514_184752_015_b_opt.mp4",
+  "median_km": 35.2,
+  "mean_cos": 0.0676
+ },
+ {
+  "image": "clips/2018_0910_133333_013_opt.mp4",
+  "median_km": 13.8,
+  "mean_cos": 0.0589
+ },
+ {
+  "image": "clips/2018_0925_222018_062_opt.mp4",
+  "median_km": 43.0,
+  "mean_cos": 0.0699
+ },
+ {
+  "image": "clips/2018_0517_195203_014_opt.mp4",
+  "median_km": 63.4,
+  "mean_cos": 0.0757
+ },
+ {
+  "image": "clips/2018_0809_165854_005_opt.mp4",
+  "median_km": 104.4,
+  "mean_cos": 0.0966
+ },
+ {
+  "image": "clips/2018_0923_121925_009_opt.mp4",
+  "median_km": 22.1,
+  "mean_cos": 0.0614
+ },
+ {
+  "image": "clips/2018_0609_185314_032_opt.mp4",
+  "median_km": 99.7,
+  "mean_cos": 0.0908
+ },
+ {
+  "image": "clips/2018_0805_214652_043_opt.mp4",
+  "median_km": 32.3,
+  "mean_cos": 0.0649
+ },
+ {
+  "image": "clips/2018_0904_123612_003_opt.mp4",
+  "median_km": 49.5,
   "mean_cos": 0.0702
  },
  {
-  "image": "clips/2018_1114_000105_012_opt.mp4",
-  "median_km": 0.3,
-  "mean_cos": 0.0666
+  "image": "clips/2018_0518_000451_013_opt.mp4",
+  "median_km": 11.2,
+  "mean_cos": 0.0559
  },
  {
-  "image": "clips/2018_0601_225419_048_opt.mp4",
-  "median_km": 81.8,
-  "mean_cos": 0.0739
- },
- {
-  "image": "clips/2018_0917_120253_015_opt.mp4",
-  "median_km": 206.1,
-  "mean_cos": 0.0726
- },
- {
-  "image": "clips/2018_0512_231821_021_opt.mp4",
-  "median_km": 148.0,
-  "mean_cos": 0.0643
+  "image": "clips/2018_0701_185726_032_opt.mp4",
+  "median_km": 49.3,
+  "mean_cos": 0.0697
  },
  {
   "image": "clips/2018_1008_002830_041_opt.mp4",
-  "median_km": 74.8,
-  "mean_cos": 0.0817
+  "median_km": 101.5,
+  "mean_cos": 0.0894
  },
  {
-  "image": "clips/2018_0831_135327_010_opt.mp4",
-  "median_km": 139.9,
-  "mean_cos": 0.0825
+  "image": "clips/2018_0923_000346_027_opt.mp4",
+  "median_km": 25.9,
+  "mean_cos": 0.0619
  },
  {
-  "image": "clips/2018_0517_201003_020_opt.mp4",
-  "median_km": 171.1,
-  "mean_cos": 0.0638
+  "image": "clips/2018_1009_231006_017_opt.mp4",
+  "median_km": 104.1,
+  "mean_cos": 0.0908
  },
  {
-  "image": "clips/2018_0609_181114_018_opt.mp4",
-  "median_km": 89.9,
-  "mean_cos": 0.0545
+  "image": "clips/2018_0815_170734_037_opt.mp4",
+  "median_km": 86.9,
+  "mean_cos": 0.0806
  },
  {
-  "image": "clips/2018_1113_235505_010_opt.mp4",
-  "median_km": 1.1,
-  "mean_cos": 0.062
+  "image": "clips/2018_0805_202852_017_RO_opt.mp4",
+  "median_km": 110.6,
+  "mean_cos": 0.0969
  },
  {
-  "image": "clips/2018_0814_180339_034_opt.mp4",
-  "median_km": 94.9,
-  "mean_cos": 0.0635
+  "image": "clips/2018_0513_125917_020_opt.mp4",
+  "median_km": 109.7,
+  "mean_cos": 0.0961
  },
  {
-  "image": "clips/2018_0824_204033_017_opt.mp4",
-  "median_km": 50.4,
+  "image": "clips/2018_0701_174526_008_opt.mp4",
+  "median_km": 46.1,
+  "mean_cos": 0.0677
+ },
+ {
+  "image": "clips/2018_0902_172832_005_opt.mp4",
+  "median_km": 8.2,
+  "mean_cos": 0.0535
+ },
+ {
+  "image": "clips/2018_0824_203733_016_opt.mp4",
+  "median_km": 91.8,
+  "mean_cos": 0.082
+ },
+ {
+  "image": "clips/2018_0603_002226_058_opt.mp4",
+  "median_km": 61.9,
+  "mean_cos": 0.0714
+ },
+ {
+  "image": "clips/2018_0809_193622_018_opt.mp4",
+  "median_km": 20.1,
+  "mean_cos": 0.0584
+ },
+ {
+  "image": "clips/2018_0609_193214_045_opt.mp4",
+  "median_km": 40.6,
+  "mean_cos": 0.0658
+ },
+ {
+  "image": "clips/2018_0609_191114_038_opt.mp4",
+  "median_km": 70.1,
+  "mean_cos": 0.0732
+ },
+ {
+  "image": "clips/2018_0902_151647_025_opt.mp4",
+  "median_km": 122.3,
+  "mean_cos": 0.104
+ },
+ {
+  "image": "clips/2018_0831_151127_036_opt.mp4",
+  "median_km": 75.5,
+  "mean_cos": 0.0743
+ },
+ {
+  "image": "clips/2018_0824_204333_018_opt.mp4",
+  "median_km": 80.8,
+  "mean_cos": 0.0751
+ },
+ {
+  "image": "clips/2018_0924_235830_033_opt.mp4",
+  "median_km": 5.1,
+  "mean_cos": 0.0506
+ },
+ {
+  "image": "clips/2018_0814_173039_023_opt.mp4",
+  "median_km": 49.8,
+  "mean_cos": 0.0663
+ },
+ {
+  "image": "clips/2018_0924_121922_005_opt.mp4",
+  "median_km": 12.7,
+  "mean_cos": 0.0536
+ },
+ {
+  "image": "clips/2018_0917_124453_029_opt.mp4",
+  "median_km": 15.5,
+  "mean_cos": 0.0551
+ },
+ {
+  "image": "clips/2018_0522_221217_016_opt.mp4",
+  "median_km": 42.5,
+  "mean_cos": 0.0631
+ },
+ {
+  "image": "clips/2018_0602_235226_048_opt.mp4",
+  "median_km": 18.7,
+  "mean_cos": 0.0553
+ },
+ {
+  "image": "clips/2018_0519_150658_006_opt.mp4",
+  "median_km": 91.6,
+  "mean_cos": 0.0767
+ },
+ {
+  "image": "clips/2018_0825_182048_003_opt.mp4",
+  "median_km": 46.0,
   "mean_cos": 0.0636
  },
  {
-  "image": "clips/2018_0814_152606_003_opt.mp4",
-  "median_km": 133.1,
-  "mean_cos": 0.0641
+  "image": "clips/2018_0814_180639_035_opt.mp4",
+  "median_km": 133.6,
+  "mean_cos": 0.1019
  },
  {
-  "image": "clips/2018_0824_165917_005_opt.mp4",
-  "median_km": 99.9,
-  "mean_cos": 0.0633
+  "image": "clips/2018_0902_172532_004_opt.mp4",
+  "median_km": 25.8,
+  "mean_cos": 0.0576
  },
  {
-  "image": "clips/2018_0515_115836_008_opt.mp4",
-  "median_km": 78.5,
-  "mean_cos": 0.0516
+  "image": "clips/2018_0602_234626_046_opt.mp4",
+  "median_km": 22.6,
+  "mean_cos": 0.0561
  },
  {
-  "image": "clips/2018_0811_151815_014_opt.mp4",
-  "median_km": 15.5,
-  "mean_cos": 0.0509
+  "image": "clips/2018_0918_172508_023_opt.mp4",
+  "median_km": 99.7,
+  "mean_cos": 0.0778
  },
  {
-  "image": "clips/2018_1206_233235_004_opt.mp4",
-  "median_km": 106.5,
-  "mean_cos": 0.0644
+  "image": "clips/2018_0814_161106_018_opt.mp4",
+  "median_km": 137.1,
+  "mean_cos": 0.104
  },
  {
-  "image": "clips/2018_0521_233447_060_opt.mp4",
-  "median_km": 85.3,
-  "mean_cos": 0.068
+  "image": "clips/2018_0831_153827_045_opt.mp4",
+  "median_km": 82.3,
+  "mean_cos": 0.0714
  },
  {
-  "image": "clips/2018_0531_235612_071_opt.mp4",
-  "median_km": 267.4,
+  "image": "clips/2018_0731_223857_061_opt.mp4",
+  "median_km": 24.0,
+  "mean_cos": 0.0562
+ },
+ {
+  "image": "clips/2018_1008_235612_044_opt.mp4",
+  "median_km": 38.2,
   "mean_cos": 0.0606
  },
  {
-  "image": "clips/2018_0513_020452_033_opt.mp4",
-  "median_km": 236.9,
-  "mean_cos": 0.0724
+  "image": "clips/2018_0605_234757_028_opt.mp4",
+  "median_km": 48.1,
+  "mean_cos": 0.0626
  },
  {
-  "image": "clips/2018_0701_191826_039_opt.mp4",
-  "median_km": 24.6,
-  "mean_cos": 0.1261
+  "image": "clips/2018_0904_131512_016_opt.mp4",
+  "median_km": 144.5,
+  "mean_cos": 0.1114
+ },
+ {
+  "image": "clips/2018_0922_233046_016_opt.mp4",
+  "median_km": 81.2,
+  "mean_cos": 0.0699
+ },
+ {
+  "image": "clips/2018_0522_214517_007_opt.mp4",
+  "median_km": 81.4,
+  "mean_cos": 0.0699
+ },
+ {
+  "image": "clips/2018_0606_214313_044_opt.mp4",
+  "median_km": 134.6,
+  "mean_cos": 0.0944
+ },
+ {
+  "image": "clips/2018_0609_172613_003_opt.mp4",
+  "median_km": 148.5,
+  "mean_cos": 0.1094
+ },
+ {
+  "image": "clips/2018_0923_121025_006_opt.mp4",
+  "median_km": 25.4,
+  "mean_cos": 0.0557
+ },
+ {
+  "image": "clips/2018_0805_205552_026_opt.mp4",
+  "median_km": 150.9,
+  "mean_cos": 0.1105
+ },
+ {
+  "image": "clips/2018_0902_154047_033_opt.mp4",
+  "median_km": 134.4,
+  "mean_cos": 0.0932
+ },
+ {
+  "image": "clips/2018_1008_235912_045_opt.mp4",
+  "median_km": 16.8,
+  "mean_cos": 0.052
+ },
+ {
+  "image": "clips/2018_0609_192614_043_opt.mp4",
+  "median_km": 53.7,
+  "mean_cos": 0.0627
+ },
+ {
+  "image": "clips/2018_0814_225915_005_opt.mp4",
+  "median_km": 107.6,
+  "mean_cos": 0.0784
+ },
+ {
+  "image": "clips/2018_0811_155116_025_opt.mp4",
+  "median_km": 68.9,
+  "mean_cos": 0.0658
+ },
+ {
+  "image": "clips/2018_0519_180257_005_opt.mp4",
+  "median_km": 125.5,
+  "mean_cos": 0.0863
+ },
+ {
+  "image": "clips/2018_0814_185739_052_opt.mp4",
+  "median_km": 84.8,
+  "mean_cos": 0.0697
+ },
+ {
+  "image": "clips/2018_0825_163137_008_opt.mp4",
+  "median_km": 139.3,
+  "mean_cos": 0.0938
+ },
+ {
+  "image": "clips/2018_0809_193022_016_opt.mp4",
+  "median_km": 83.3,
+  "mean_cos": 0.0686
+ },
+ {
+  "image": "clips/2018_0825_155043_005_opt.mp4",
+  "median_km": 104.6,
+  "mean_cos": 0.0756
+ },
+ {
+  "image": "clips/2018_0731_220557_050_opt.mp4",
+  "median_km": 55.6,
+  "mean_cos": 0.0624
+ },
+ {
+  "image": "clips/2018_0809_194222_020_opt.mp4",
+  "median_km": 51.4,
+  "mean_cos": 0.0609
+ },
+ {
+  "image": "clips/2018_0824_165617_004_opt.mp4",
+  "median_km": 79.4,
+  "mean_cos": 0.067
+ },
+ {
+  "image": "clips/2018_0910_142004_005_opt.mp4",
+  "median_km": 140.7,
+  "mean_cos": 0.0933
+ },
+ {
+  "image": "clips/2018_0831_185019_006_opt.mp4",
+  "median_km": 114.2,
+  "mean_cos": 0.0786
+ },
+ {
+  "image": "clips/2018_1007_181320_008_opt.mp4",
+  "median_km": 68.0,
+  "mean_cos": 0.064
+ },
+ {
+  "image": "clips/2018_0701_180926_016_opt.mp4",
+  "median_km": 36.6,
+  "mean_cos": 0.0573
+ },
+ {
+  "image": "clips/2018_0805_191725_007_opt.mp4",
+  "median_km": 73.1,
+  "mean_cos": 0.0651
+ },
+ {
+  "image": "clips/2018_0814_181839_039_opt.mp4",
+  "median_km": 59.2,
+  "mean_cos": 0.062
+ },
+ {
+  "image": "clips/2018_0831_141727_018_opt.mp4",
+  "median_km": 136.4,
+  "mean_cos": 0.087
+ },
+ {
+  "image": "clips/2018_0902_143447_011_opt.mp4",
+  "median_km": 141.7,
+  "mean_cos": 0.0899
+ },
+ {
+  "image": "clips/2018_0809_144515_014_opt.mp4",
+  "median_km": 102.2,
+  "mean_cos": 0.072
+ },
+ {
+  "image": "clips/2018_0811_144815_004_opt.mp4",
+  "median_km": 94.6,
+  "mean_cos": 0.0697
+ },
+ {
+  "image": "clips/2018_0904_124512_006_opt.mp4",
+  "median_km": 32.5,
+  "mean_cos": 0.0548
+ },
+ {
+  "image": "clips/2018_0811_155716_027_opt.mp4",
+  "median_km": 69.4,
+  "mean_cos": 0.0629
+ },
+ {
+  "image": "clips/2018_0904_133312_022_opt.mp4",
+  "median_km": 66.0,
+  "mean_cos": 0.0619
+ },
+ {
+  "image": "clips/2018_0519_180557_006_opt.mp4",
+  "median_km": 129.5,
+  "mean_cos": 0.0815
+ },
+ {
+  "image": "clips/2018_0522_004233_008_opt.mp4",
+  "median_km": 104.3,
+  "mean_cos": 0.0717
+ },
+ {
+  "image": "clips/2018_0910_142904_008_opt.mp4",
+  "median_km": 119.6,
+  "mean_cos": 0.0774
+ },
+ {
+  "image": "clips/2018_0831_152927_042_opt.mp4",
+  "median_km": 126.0,
+  "mean_cos": 0.0798
+ },
+ {
+  "image": "clips/2018_0831_142927_022_opt.mp4",
+  "median_km": 165.3,
+  "mean_cos": 0.1047
+ },
+ {
+  "image": "clips/2018_0522_201318_008_opt.mp4",
+  "median_km": 143.1,
+  "mean_cos": 0.0882
+ },
+ {
+  "image": "clips/2018_1007_233130_022_opt.mp4",
+  "median_km": 136.0,
+  "mean_cos": 0.0834
+ },
+ {
+  "image": "clips/2018_1007_182820_013_opt.mp4",
+  "median_km": 52.9,
+  "mean_cos": 0.0587
+ },
+ {
+  "image": "clips/2018_0923_113157_009_opt.mp4",
+  "median_km": 86.7,
+  "mean_cos": 0.0658
+ },
+ {
+  "image": "clips/2018_0902_150447_021_opt.mp4",
+  "median_km": 163.4,
+  "mean_cos": 0.098
+ },
+ {
+  "image": "clips/2018_0814_170338_014_opt.mp4",
+  "median_km": 113.7,
+  "mean_cos": 0.0734
+ },
+ {
+  "image": "clips/2018_1008_001630_037_opt.mp4",
+  "median_km": 45.6,
+  "mean_cos": 0.0561
+ },
+ {
+  "image": "clips/2018_0902_145547_018_opt.mp4",
+  "median_km": 44.9,
+  "mean_cos": 0.0557
+ },
+ {
+  "image": "clips/2018_1009_223106_004_opt.mp4",
+  "median_km": 153.0,
+  "mean_cos": 0.0859
+ },
+ {
+  "image": "clips/2018_0815_164334_029_opt.mp4",
+  "median_km": 66.9,
+  "mean_cos": 0.0595
+ },
+ {
+  "image": "clips/2018_0609_190214_035_opt.mp4",
+  "median_km": 71.7,
+  "mean_cos": 0.0605
+ },
+ {
+  "image": "clips/2018_0814_184839_049_opt.mp4",
+  "median_km": 184.2,
+  "mean_cos": 0.1068
+ },
+ {
+  "image": "clips/2018_0902_144947_016_opt.mp4",
+  "median_km": 89.5,
+  "mean_cos": 0.0639
+ },
+ {
+  "image": "clips/2018_0925_001330_038_opt.mp4",
+  "median_km": 25.3,
+  "mean_cos": 0.049
+ },
+ {
+  "image": "clips/2018_0809_184822_002_opt.mp4",
+  "median_km": 199.6,
+  "mean_cos": 0.1221
+ },
+ {
+  "image": "clips/2018_0605_232357_020_opt.mp4",
+  "median_km": 88.2,
+  "mean_cos": 0.0631
+ },
+ {
+  "image": "clips/2018_0904_140912_034_opt.mp4",
+  "median_km": 139.9,
+  "mean_cos": 0.0788
+ },
+ {
+  "image": "clips/2018_0809_191822_012_opt.mp4",
+  "median_km": 30.7,
+  "mean_cos": 0.0502
+ },
+ {
+  "image": "clips/2018_0910_143804_011_opt.mp4",
+  "median_km": 206.9,
+  "mean_cos": 0.1341
+ },
+ {
+  "image": "clips/2018_0701_181526_018_opt.mp4",
+  "median_km": 73.5,
+  "mean_cos": 0.0596
+ },
+ {
+  "image": "clips/2018_0731_221158_052_a_opt.mp4",
+  "median_km": 214.6,
+  "mean_cos": 0.1888
+ },
+ {
+  "image": "clips/2018_0601_211218_014_opt.mp4",
+  "median_km": 187.0,
+  "mean_cos": 0.1027
+ },
+ {
+  "image": "clips/2018_0603_191212_023_opt.mp4",
+  "median_km": 46.3,
+  "mean_cos": 0.0538
+ },
+ {
+  "image": "clips/2018_0831_142327_020_opt.mp4",
+  "median_km": 153.9,
+  "mean_cos": 0.0823
+ },
+ {
+  "image": "clips/2018_0521_233747_061_opt.mp4",
+  "median_km": 80.6,
+  "mean_cos": 0.0602
+ },
+ {
+  "image": "clips/2018_0522_010634_016_opt.mp4",
+  "median_km": 153.8,
+  "mean_cos": 0.082
+ },
+ {
+  "image": "clips/2018_0519_181157_008_opt.mp4",
+  "median_km": 132.4,
+  "mean_cos": 0.075
+ },
+ {
+  "image": "clips/2018_0805_212252_035_opt.mp4",
+  "median_km": 51.5,
+  "mean_cos": 0.0547
+ },
+ {
+  "image": "clips/2018_0902_161947_001_opt.mp4",
+  "median_km": 120.0,
+  "mean_cos": 0.071
+ },
+ {
+  "image": "clips/2018_0815_155834_014_a_opt.mp4",
+  "median_km": 149.6,
+  "mean_cos": 0.0802
+ },
+ {
+  "image": "clips/2018_0902_141347_004_opt.mp4",
+  "median_km": 156.9,
+  "mean_cos": 0.0826
+ },
+ {
+  "image": "clips/2018_0824_200433_005_RO_opt.mp4",
+  "median_km": 112.8,
+  "mean_cos": 0.0683
+ },
+ {
+  "image": "clips/2018_0522_000147_069_opt.mp4",
+  "median_km": 152.6,
+  "mean_cos": 0.0798
+ },
+ {
+  "image": "clips/2018_0917_122953_024_opt.mp4",
+  "median_km": 39.4,
+  "mean_cos": 0.0516
+ },
+ {
+  "image": "clips/2018_0522_202519_012_opt.mp4",
+  "median_km": 171.5,
+  "mean_cos": 0.0893
+ },
+ {
+  "image": "clips/2018_0922_232747_015_opt.mp4",
+  "median_km": 77.2,
+  "mean_cos": 0.0585
+ },
+ {
+  "image": "clips/2018_0814_164838_009_opt.mp4",
+  "median_km": 122.6,
+  "mean_cos": 0.0706
+ },
+ {
+  "image": "clips/2018_1008_233212_036_opt.mp4",
+  "median_km": 84.3,
+  "mean_cos": 0.06
+ },
+ {
+  "image": "clips/2018_0522_203419_015_opt.mp4",
+  "median_km": 158.1,
+  "mean_cos": 0.0804
+ },
+ {
+  "image": "clips/2018_0531_234412_067_opt.mp4",
+  "median_km": 175.8,
+  "mean_cos": 0.0881
+ },
+ {
+  "image": "clips/2018_0902_162848_004_opt.mp4",
+  "median_km": 44.2,
+  "mean_cos": 0.0515
+ },
+ {
+  "image": "clips/2018_0910_133033_012_opt.mp4",
+  "median_km": 120.8,
+  "mean_cos": 0.0689
+ },
+ {
+  "image": "clips/2018_0814_155006_011_opt.mp4",
+  "median_km": 229.8,
+  "mean_cos": 0.1292
+ },
+ {
+  "image": "clips/2018_1008_144119_005_opt.mp4",
+  "median_km": 178.9,
+  "mean_cos": 0.0875
+ },
+ {
+  "image": "clips/2018_0605_234157_026_opt.mp4",
+  "median_km": 77.2,
+  "mean_cos": 0.0569
+ },
+ {
+  "image": "clips/2018_1009_231906_020_opt.mp4",
+  "median_km": 74.1,
+  "mean_cos": 0.0565
+ },
+ {
+  "image": "clips/2018_0531_211112_016_opt.mp4",
+  "median_km": 135.8,
+  "mean_cos": 0.0721
+ },
+ {
+  "image": "clips/2018_0904_135712_030_opt.mp4",
+  "median_km": 108.4,
+  "mean_cos": 0.0645
+ },
+ {
+  "image": "clips/2018_0603_001626_056_opt.mp4",
+  "median_km": 67.7,
+  "mean_cos": 0.0549
+ },
+ {
+  "image": "clips/2018_0805_211052_031_opt.mp4",
+  "median_km": 68.4,
+  "mean_cos": 0.0551
+ },
+ {
+  "image": "clips/2018_0811_154816_024_opt.mp4",
+  "median_km": 114.5,
+  "mean_cos": 0.0656
+ },
+ {
+  "image": "clips/2018_0609_184114_028_opt.mp4",
+  "median_km": 95.0,
+  "mean_cos": 0.0604
+ },
+ {
+  "image": "clips/2018_0521_232247_056_opt.mp4",
+  "median_km": 99.5,
+  "mean_cos": 0.0609
+ },
+ {
+  "image": "clips/2018_1008_234112_039_opt.mp4",
+  "median_km": 98.5,
+  "mean_cos": 0.0607
+ },
+ {
+  "image": "clips/2018_0811_161816_034_opt.mp4",
+  "median_km": 97.7,
+  "mean_cos": 0.0605
+ },
+ {
+  "image": "clips/2018_1008_001330_036_opt.mp4",
+  "median_km": 40.5,
+  "mean_cos": 0.0486
+ },
+ {
+  "image": "clips/2018_0811_161516_033_opt.mp4",
+  "median_km": 93.4,
+  "mean_cos": 0.0594
+ },
+ {
+  "image": "clips/2018_0606_211013_033_opt.mp4",
+  "median_km": 128.6,
+  "mean_cos": 0.068
+ },
+ {
+  "image": "clips/2018_1007_230430_013_opt.mp4",
+  "median_km": 222.0,
+  "mean_cos": 0.0991
+ },
+ {
+  "image": "clips/2018_0605_232657_021_opt.mp4",
+  "median_km": 87.9,
+  "mean_cos": 0.0574
+ },
+ {
+  "image": "clips/2018_0601_225719_049_opt.mp4",
+  "median_km": 145.5,
+  "mean_cos": 0.0719
+ },
+ {
+  "image": "clips/2018_0918_205252_013_opt.mp4",
+  "median_km": 137.0,
+  "mean_cos": 0.0694
+ },
+ {
+  "image": "clips/2018_0805_210452_029_opt.mp4",
+  "median_km": 71.7,
+  "mean_cos": 0.0536
+ },
+ {
+  "image": "clips/2018_0606_183937_005_opt.mp4",
+  "median_km": 222.6,
+  "mean_cos": 0.0956
+ },
+ {
+  "image": "clips/2018_0521_221947_035_opt.mp4",
+  "median_km": 244.6,
+  "mean_cos": 0.1119
+ },
+ {
+  "image": "clips/2018_0918_171908_021_opt.mp4",
+  "median_km": 96.9,
+  "mean_cos": 0.0585
+ },
+ {
+  "image": "clips/2018_0602_213725_003_opt.mp4",
+  "median_km": 108.6,
+  "mean_cos": 0.0612
+ },
+ {
+  "image": "clips/2018_0805_204352_022_opt.mp4",
+  "median_km": 221.6,
+  "mean_cos": 0.0933
  }
 ]
