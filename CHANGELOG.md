@@ -4,6 +4,34 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.0.0 — 2026-08-03
+
+Rounds move now. Every one of them is a few seconds of the road going past instead of a single frozen frame, which is how the footage looked from the driver's seat in the first place.
+
+### New
+
+- Play on your phone and your laptop and it counts as one player. Scan the code from one device on the other, and everything either of them has scored ends up under a single name on the board. ([#52](https://github.com/adanalife/guessr/pull/52))
+- You can pause a round to study it — the button sits with the zoom controls, and the space bar does the same thing. A round you pause stays paused for the rest of the game. ([#53](https://github.com/adanalife/guessr/pull/53))
+
+### Changed
+
+- Every round is now a few seconds of moving footage instead of a single frozen frame. The road goes past, and how things shift against each other is another clue about where you are. ([#53](https://github.com/adanalife/guessr/pull/53))
+- The header no longer announces how hard a round is. On a phone it was pushing the other stats onto a second line and taking room the footage wants. A game still ramps from easier to harder as you play it — it just doesn't say so. ([#56](https://github.com/adanalife/guessr/pull/56))
+- Rounds are drawn from further apart. The old set kept coming back to the same handful of well-driven roads — half of it sat within a few kilometres of another round, and a third of it was California. A day now spans more of the country, and more states show up at all. ([#58](https://github.com/adanalife/guessr/pull/58))
+- Rounds are picked from several moments of each stretch of driving rather than one moment chosen at random, so a round is less likely to open on glare, on a truck filling the windscreen, or on a frame that is mostly sky. ([#63](https://github.com/adanalife/guessr/pull/63))
+- The intro and the About panel say things more plainly, and point at the stream in one place instead of three. ([#67](https://github.com/adanalife/guessr/pull/67))
+- The code for linking a second device no longer sits in a bright white square — it takes the panel's own colours now, dark or light. ([#67](https://github.com/adanalife/guessr/pull/67))
+
+### Behind the scenes
+
+- Tapping the version number in the About panel now leads to a changelog written for players, instead of a list of commit subjects. ([#57](https://github.com/adanalife/guessr/pull/57))
+- Building a new set of rounds is faster to get right: the picking can be tried out on its own without cutting any footage, and a round whose clip comes out empty is re-cut rather than sinking the whole batch. ([#58](https://github.com/adanalife/guessr/pull/58))
+- A new version is now checked against itself once it goes out, rather than against whichever version happened to still be answering — so an update no longer gets reported as broken when it was fine. And putting an older version back works the same way as shipping a new one, instead of having to be done by hand. ([#62](https://github.com/adanalife/guessr/pull/62))
+- Building a new set of rounds no longer has to happen on a laptop, which is a step towards new rounds arriving on their own rather than when someone remembers to make them. ([#64](https://github.com/adanalife/guessr/pull/64))
+- The check that stops a round shipping with the dashcam's location readout still printed across it now measures the footage with the same tool that cut it, instead of a hand-written reader kept alongside. Same guarantee, a lot less to go wrong in. ([#68](https://github.com/adanalife/guessr/pull/68))
+- Nothing changes about how a round looks. The settings that decide how the footage is compressed are now written down in one place rather than passed in every time, which makes them harder to change by accident. ([#69](https://github.com/adanalife/guessr/pull/69))
+- A little dead weight gone: a check that ran twice over the same round set, and a line in the page that could never do anything. ([#71](https://github.com/adanalife/guessr/pull/71))
+
 ## [0.8.0](https://github.com/adanalife/guessr/compare/v0.7.0...v0.8.0) (2026-08-02)
 
 
