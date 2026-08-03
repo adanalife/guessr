@@ -580,9 +580,7 @@ new ResizeObserver(() => map.invalidateSize({ animate: false })).observe(el('map
 
 // The frame is a <video> under a transform rather than a background, so a
 // player can zoom in: a road sign or a storefront name is often legible in the
-// 1280px source and unreadable once it is scaled down to fit the pane. The
-// transform applies to a playing video exactly as it did to an image, so
-// zoom.js is unchanged — only where the intrinsic size is read from moved.
+// 1280px source and unreadable once it is scaled down to fit the pane.
 const frame = el('frame');
 let view = { scale: 1, x: 0, y: 0 };
 
@@ -606,14 +604,14 @@ function setFrame(url) {
   frame.src = url;
   // A player who paused wants a still, and wanting one on round 2 is a good
   // guess that they want one on rounds 3 to 5 as well. So the preference
-  // carries across a game rather than resetting per round, which would make
-  // "play this like the old version" cost five clicks instead of one.
+  // carries across a game rather than resetting per round, which would cost
+  // five clicks a game to someone who wants to play it as stills.
   //
   // Autoplay is a promise that rejects rather than throws, and iOS in Low Power
   // Mode rejects it however muted the video is. Nothing to recover: the first
-  // frame is painted either way, so the round degrades to the still it used to
-  // be instead of to a blank pane. Swallowed explicitly, because an unhandled
-  // rejection here is a console error on every round on those devices.
+  // frame is painted either way, so the round degrades to a still rather than
+  // to a blank pane. Swallowed explicitly, because an unhandled rejection here
+  // is a console error on every round on those devices.
   if (paused) frame.pause();
   else frame.play().catch(() => {});
 }
@@ -732,10 +730,9 @@ let mode = 'daily', results = [], guesses = [];
 // rather than re-read from the clock. A game started at 23:58 is still that day's
 // game at 00:02, and everything downstream has to agree: the rounds were drawn
 // from this day, so the score posts against this date, the progress record saves
-// under this day, and the share string names it. Re-reading today() per use meant
-// a game that crossed local midnight posted tomorrow's date against tonight's
-// rounds -- and, before any of this, resumed the next day holding the previous
-// day's results.
+// under this day, and the share string names it. Re-reading today() per use would
+// have a game that crossed local midnight post tomorrow's date against tonight's
+// rounds, and resume the next day holding the previous day's results.
 let gameDay = 0;
 
 function clearMarks() { marks.forEach(m => map.removeLayer(m)); marks = []; }
@@ -1085,8 +1082,8 @@ function showFinished(saved) {
 
   // Rebuild the board from the saved day. The rounds themselves aren't stored —
   // the draw is deterministic, so replaying it reconstructs exactly what was
-  // played. The guesses are stored, and a save written before that shipped has
-  // none: it still gets the contact sheet, just no lines on the map.
+  // played. The guesses are stored, and an older save has none: it still gets
+  // the contact sheet, just no lines on the map.
   const rounds = rampEasyToHard(dailyRounds(pool, saved.day, ROUNDS_PER_GAME));
   restoreTruths(rounds, saved);
   showSheet(rounds, saved.guesses, saved.results);

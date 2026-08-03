@@ -2,7 +2,7 @@
 #
 # The game is static files plus one endpoint. `rounds` does all the work up
 # front — it needs the dashcam corpus mounted and kubectl access to the tripbot
-# Postgres — and what it produces is a directory of HTML, JS and JPEGs (web/,
+# Postgres — and what it produces is a directory of HTML, JS and mp4 clips (web/,
 # deployed) and the answer coords (answers.json / answers.sql, never deployed
 # and never committed; `answers:*:push` sends them to D1 instead).
 #
@@ -53,8 +53,8 @@ tasks:
   #
   # check.py first, and not as a convenience: the HUD-crop assertion is the only
   # thing standing between a clip with the coordinates burned into it and the
-  # served game, and now that the media never reaches CI this is the last place
-  # it runs before the bytes leave the laptop.
+  # served game, and the media never reaches CI -- so this is the last place it
+  # runs before the bytes leave the laptop.
   clips:push:
     desc: Upload web/clips/ to R2, which is where the deploy workflows read it from
     deps: [check]
@@ -184,10 +184,11 @@ tasks:
       draw, leaderboard aliases and ranking, frame zoom, scoring, the device
       merge, frame dimensions, round-set swap, seeding, selection, db route)
     # Globbed rather than listed, because a list of test files is a list that
-    # drifts: test_select.py sat here unrun by anything from the day it was
-    # added. Adding a test_*.py or test_*.mjs is now the whole job of wiring it
-    # up. `|| exit 1` because a shell for-loop exits with its *last* command's
-    # status, so without it a failure in the middle passes.
+    # drifts: a test file nobody remembers to add to it is a test that never
+    # runs, and it fails by staying green. Adding a test_*.py or test_*.mjs is
+    # the whole job of wiring it up. `|| exit 1` because a shell for-loop exits
+    # with its *last* command's status, so without it a failure in the middle
+    # passes.
     cmds:
       - for f in test_*.mjs test_*.js; do echo "== $f"; node "$f" || exit 1; done
       - for f in test_*.py; do echo "== $f"; python3 "$f" || exit 1; done

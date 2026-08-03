@@ -118,8 +118,8 @@ echo "ok: round media is served as video -> $image"
 # so an uncropped clip hands the answer to the player -- a game that still runs,
 # still looks right, and is trivially cheatable.
 #
-# check.py asserts this too, but only where the media is, and since the clips
-# left git that is the laptop that generated them and nowhere else. `task
+# check.py asserts this too, but only where the media is, and the clips are
+# gitignored -- so that is the laptop that generated them and nowhere else. `task
 # clips:push` is the one gate, and it is a gate a human has to remember; the
 # deploy workflows run `clips.sh pull` and no check at all. So this is the same
 # assertion moved to the one place that sees every tier: a real deployment.

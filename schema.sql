@@ -12,9 +12,9 @@
 -- One row per player per round per date: the record of a daily play, and the
 -- leaderboard's entire storage. Both boards are one query over this.
 --
--- It exists because /api/score used to be stateless, so a client could score the
--- same round over and over and keep the best number. A board on top of that
--- ranks whoever re-guessed most, not who guessed best.
+-- It exists because scoring on its own is stateless: with no record of a play, a
+-- client can score the same round over and over and keep the best number, and a
+-- board on top of that ranks whoever re-guessed most, not who guessed best.
 CREATE TABLE IF NOT EXISTS plays (
   -- The calendar date of the round set played, YYYY-MM-DD. The date itself
   -- rather than the day number, so a re-epoch or an off-by-one in dayNumber()
@@ -33,8 +33,8 @@ CREATE TABLE IF NOT EXISTS plays (
   -- rather than a fresh distance beside a stale point total.
   km REAL NOT NULL,
   points INTEGER NOT NULL,
-  -- A display label, nullable: the page has no name input yet, and a play still
-  -- belongs on the board before one lands.
+  -- A display label, nullable: a browser that cannot keep localStorage has no
+  -- name to send, and a play still belongs on the board without one.
   handle TEXT,
   played_at TEXT NOT NULL DEFAULT (datetime('now')),
   -- First write wins, which is the whole point of the table. As the primary key

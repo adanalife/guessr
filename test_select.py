@@ -3,10 +3,10 @@
 
 These two functions decide what the game actually is: rank() weighs the two
 signals against each other and select() refuses a set that is the same place
-twice. Both failed silently before they existed -- the shipped 300-round set
-has California at twice its share of the corpus and 157 rounds within 5 km of
-another one, and nothing reported it. So the properties are pinned here rather
-than eyeballed off a contact sheet.
+twice. Both fail silently -- a 300-round set with California at twice its share
+of the corpus and 157 rounds within 5 km of another one plays fine and reports
+nothing. So the properties are pinned here rather than eyeballed off a contact
+sheet.
 """
 
 from make_rounds import rank, select
@@ -32,8 +32,8 @@ assert order(1.0)[0] == "distinct", order(1.0)
 # In between, a clip that is good at both beats one that is excellent at one and
 # worst at the other. This is the whole point of combining them: `locatable` is
 # the most locatable clip in the pool and still loses, because being locatable
-# while looking like every other stretch of road is what the old ordering kept
-# rewarding.
+# while looking like every other stretch of road is what locatability alone
+# rewards.
 assert order(0.5)[0] == "both", order(0.5)
 assert order(0.5)[-1] == "neither", order(0.5)
 

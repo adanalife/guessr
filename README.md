@@ -279,11 +279,13 @@ aliases existed, or from a browser that can't keep `localStorage` — renders as
 If typed names ever land, an allowlist lands with them and joins into the board
 query; until then it would be a table with nothing to hold.
 
-One thing this does *not* buy yet: the round sets published before scoring moved
-server-side had their coordinates in `rounds.json`, and that file is in this
-repo's git history. Until the set is regenerated, the answers are still one
-`git log` away for anyone who looks — so the endpoint is the mechanism, not yet
-the guarantee. A leaderboard needs the regeneration first.
+One thing this does *not* buy outright: the round sets published before scoring
+moved server-side carried their coordinates in `rounds.json`, and that file is in
+this repo's git history. The current set is a later regeneration and most of it
+is clear of them, but 34 of its 300 rounds are cut from a clip that also appeared
+in one of those sets — and ground truth is clip-level, so for those the answer is
+a `git log` away. The endpoint is the mechanism; a set with no overlap at all is
+what would make it the guarantee.
 
 A regeneration replaces every clip under `web/clips/` and rewrites the
 manifest that gets committed — so **a generation that fails leaves the current
@@ -357,13 +359,12 @@ sinks into whatever foliage is behind it, and white matches the title.
 Swapping the frame means re-running that and updating `og:image:alt`. Keep it
 1200x630 — that's the aspect every scraper crops to.
 
-The recipe names a corpus clip and a timestamp, which is what makes it
-reproducible. It used to name `web/frames/<frame>.jpg` from whatever round set
-was current, and the frame it wanted had long since left the set — so the recipe
-built a *new* card rather than the committed one, and the only way to change
-anything was to composite onto the existing image. Keying it to the corpus fixes
-that for good: a round set is regenerable, and the corpus clip behind this frame
-is not going anywhere.
+The recipe names a corpus clip and a timestamp rather than a file from the
+current round set, which is what makes it reproducible. A round set is
+regenerable and its frames turn over, so a recipe keyed to one rebuilds a
+*different* card the moment that frame leaves the set — leaving compositing onto
+the existing image as the only way to change anything. The corpus clip behind
+this frame is not going anywhere.
 
 (The source frame was recovered by scanning every San Francisco clip in the
 corpus for the one whose untexted lower band matched the committed card: 0.039
@@ -449,7 +450,7 @@ deterministic, every player simply gets different rounds, nothing errors, and
 the share string quietly stops meaning anything. The test pins determinism,
 independence from the order `rounds.json` was written in, that the ramp reorders
 the five without changing which five, and that a DST boundary doesn't skip or
-repeat a day number. It matters twice over now that `/api/score` draws from the
+repeat a day number. It matters twice over because `/api/score` draws from the
 same module to check a play: a draw that shifted would have the server rejecting
 rounds the page had just handed out.
 
@@ -549,7 +550,7 @@ the top: a ferry deck, a signed visitor centre, a harbour full of boats, a
 grocery storefront. At the bottom: five near-identical shots of empty Wyoming
 highway, a foggy field, and a frame that is mostly cloud.
 
-**Known limitation, unchanged:** the score still measures locatability *within
+**Known limitation:** the score measures locatability *within
 this corpus*. A landmark visited on exactly one day has its real visual matches
 excluded along with the rest of that day, so it can score as generic and be
 dropped. Rescuing those by their high cosine distance was the original reason to
