@@ -334,6 +334,45 @@ Commits and PR titles follow [Conventional Commits](https://www.conventionalcomm
 PRs squash-merge, so the PR title becomes the subject in history and is what
 release-please reads to compute the next version.
 
+### Changelog
+
+`CHANGELOG.md` is assembled by [towncrier](https://towncrier.readthedocs.io)
+from one fragment per PR, so every PR adds one:
+
+```sh
+task changelog:add TYPE=new     # writes changelog.d/+new.new.md — open it and write the line
+task changelog:preview          # what the next release will say
+```
+
+Types are `new`, `changed`, `fixed`, `behind` (behind the scenes) and `summary`
+(a lead paragraph for the release, when one is warranted). You don't need the PR
+number: `changelog-number.yml` renames the `+` placeholder to `<PR#>.<type>.md`
+on push, which is what puts a PR link on each entry. A PR that genuinely
+warrants no entry — a dependabot bump, a round-set regeneration, a revert —
+carries the `skip-changelog` label instead, and `gates` fails without one.
+
+**Write the entry for a player.** That file is what the version number in the
+About panel links to, so it's read by someone who just finished a round and
+tapped it — not by anyone who will ever open this repo. Say what changed for
+them, in their words, in the present tense:
+
+> The map remembers how far you zoomed in.
+
+not
+
+> persist zoom level to localStorage
+
+No file names, no endpoints, no repo jargon; if a line only parses next to the
+diff, it belongs in the PR description. Plumbing still gets a line, under
+**Behind the scenes** — plainly, not in the jargon that section might seem to
+invite.
+
+Releases assemble it automatically: release-please's standing PR carries the
+version bump, and a step on that branch collates the fragments into
+`CHANGELOG.md` so the notes and the bump land together. Entries from before
+towncrier are still in the old release-please style below the
+`<!-- towncrier release notes start -->` marker.
+
 ## The daily round
 
 Everyone playing on the same calendar day draws the same five rounds. There is
