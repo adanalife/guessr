@@ -11,8 +11,12 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
-import { label, query } from './functions/api/leaderboard.js';
+import { label, onRequestGet, query } from './functions/api/leaderboard.js';
 import { ADJECTIVES, NOUNS } from './web/alias.js';
+import { lastClosedDate, monthOf } from './web/daily.js';
+import { d1 } from './_d1.mjs';
+
+const SCHEMA = readFileSync('schema.sql', 'utf8');
 
 const DAILY = query('= ?');
 const MONTHLY = query("LIKE ? || '-%'");
@@ -24,7 +28,7 @@ const at = () => `2026-08-01 12:00:${String(tick++).padStart(2, '0')}`;
 
 function db(rows) {
   const d = new DatabaseSync(':memory:');
-  d.exec(readFileSync('schema.sql', 'utf8'));
+  d.exec(SCHEMA);
   const insert = d.prepare(`INSERT INTO plays
     (date, player_id, image, km, points, handle, played_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)`);
@@ -158,3 +162,153 @@ console.log('ok: a reroll renames a player on every board, back through history'
 console.log('ok: a nameless play does not cost a player their name');
 console.log('ok: the boards still rank by summed points over their own span');
 console.log('ok: players sharing an alias are numbered apart on the board');
+
+// The handler over that query: which board was asked for, which span that means,
+// and what a row looks like by the time the overlay reads it.
+//
+// The span is the whole risk. Both boards are the same SQL and differ only in
+// the period bound into it, so swapping which one a request gets is invisible
+// everywhere -- the response is well-formed, the names are real, the totals add
+// up, and it renders as an ordinary board carrying a month's scores under
+// today's date. Inverting that fork survived the suite until this ran.
+//
+// No clock is injected because the handler takes none: it calls lastClosedDate()
+// and monthOf() itself. So the test asks those same functions what today means
+// and seeds against the answer, which also keeps it honest across a month
+// boundary -- on the 1st and 2nd the last closed date is in the previous month,
+// and a test that assumed otherwise would fail twice a month for the wrong
+// reason.
+{
+  const DAY = lastClosedDate();
+  const MONTH = monthOf();
+  // A second date inside the month that is not the daily one, so the two boards
+  // cannot agree by accident and a swapped fork has something to be caught by.
+  const OTHER = `${MONTH}-15` === DAY ? `${MONTH}-16` : `${MONTH}-15`;
+  const dayIsInMonth = DAY.startsWith(MONTH);
+
+  const get = board => ({
+    url: 'https://guessr.dana.lol/api/leaderboard'
+      + (board === undefined ? '' : `?board=${board}`),
+  });
+
+  function env(rows) {
+    const binding = d1(SCHEMA);
+    const insert = binding.db.prepare(`INSERT INTO plays
+      (date, player_id, image, km, points, handle) VALUES (?, ?, ?, ?, ?, ?)`);
+    for (const [date, player, points, handle] of rows) {
+      insert.run(date, player, 'a.jpg', 1.0, points, handle);
+    }
+    return { ANSWERS: binding };
+  }
+
+  const rows = [
+    [DAY, 'p-day', 100, 'Amber Basin'],
+    [OTHER, 'p-month', 900, 'Winding Valley'],
+  ];
+
+  // The daily board is one date -- the last one that can no longer change --
+  // and must not pick up the rest of the month.
+  {
+    const res = await onRequestGet({ request: get('daily'), env: env(rows) });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.board, 'daily');
+    assert.equal(body.period, DAY, 'the daily board is not the last closed date');
+    assert.deepEqual(body.rows, [['Amber Basin', 100]],
+      'the daily board carried scores from outside its date');
+  }
+
+  // The monthly board is the running month, today included.
+  {
+    const res = await onRequestGet({ request: get('monthly'), env: env(rows) });
+    const body = await res.json();
+    assert.equal(body.board, 'monthly');
+    assert.equal(body.period, MONTH, 'the monthly board is not the current month');
+    assert.deepEqual(body.rows, dayIsInMonth
+      ? [['Winding Valley', 900], ['Amber Basin', 100]]
+      : [['Winding Valley', 900]],
+      'the monthly board is not the whole month, best first');
+  }
+
+  // No parameter is the daily board. The overlay omits it, so this is the path
+  // that actually runs on the stream.
+  {
+    const body = await (await onRequestGet({ request: get(), env: env(rows) })).json();
+    assert.equal(body.board, 'daily');
+    assert.equal(body.period, DAY, 'the default board is not the daily one');
+  }
+
+  // An empty value is the same as no value: `?board=` reads as unset and gets
+  // the default, rather than being a typo worth a 400. Pinned because it is the
+  // one input where "refuse anything unrecognised" and "default when absent"
+  // disagree, and a bot building the URL from an empty variable produces exactly
+  // this.
+  {
+    const body = await (await onRequestGet({ request: get(''), env: env(rows) })).json();
+    assert.equal(body.board, 'daily', '?board= should read as unset');
+    assert.equal(body.period, DAY);
+  }
+
+  // Anything else is refused rather than quietly served as a daily board, which
+  // would make a typo in the bot look like a working request.
+  for (const bad of ['weekly', 'DAILY', 'Daily', 'daily ', 'all', '1', 'monthly;--']) {
+    const res = await onRequestGet({ request: get(encodeURIComponent(bad)), env: env(rows) });
+    assert.equal(res.status, 400, `accepted board=${JSON.stringify(bad)}`);
+    assert.deepEqual(await res.json(), { error: 'board must be daily or monthly' });
+  }
+
+  // A player with no name renders as the placeholder rather than a null the
+  // overlay would have to handle, and several of them are numbered apart.
+  {
+    const res = await onRequestGet({
+      request: get('daily'),
+      env: env([
+        [DAY, 'p1', 300, null],
+        [DAY, 'p2', 200, null],
+        [DAY, 'p3', 100, 'Amber Basin'],
+      ]),
+    });
+    assert.deepEqual((await res.json()).rows,
+      [['anonymous (1)', 300], ['anonymous (2)', 200], ['Amber Basin', 100]],
+      'nameless players did not render as numbered placeholders');
+  }
+
+  // Numbering is applied by the handler, not just available from label().
+  {
+    const res = await onRequestGet({
+      request: get('daily'),
+      env: env([[DAY, 'p1', 300, 'Amber Basin'], [DAY, 'p2', 100, 'Amber Basin']]),
+    });
+    assert.deepEqual((await res.json()).rows,
+      [['Amber Basin (1)', 300], ['Amber Basin (2)', 100]],
+      'two players sharing an alias reached the overlay as one name twice');
+  }
+
+  // Ten rows, however many played. The overlay renders five; the rest is room
+  // for the bot to filter without a second request.
+  {
+    const many = Array.from({ length: 14 }, (_, i) => [DAY, `p${i}`, (i + 1) * 100, null]);
+    const body = await (await onRequestGet({ request: get('daily'), env: env(many) })).json();
+    assert.equal(body.rows.length, 10, `the board returned ${body.rows.length} rows`);
+    assert.equal(body.rows[0][1], 1400, 'the board is not the top scores');
+  }
+
+  // An empty board is an empty board, not an error -- a date nobody played is
+  // ordinary, and the bot drops a rotation slot rather than logging a failure.
+  {
+    const res = await onRequestGet({ request: get('daily'), env: env([]) });
+    assert.equal(res.status, 200);
+    assert.deepEqual((await res.json()).rows, []);
+  }
+
+  // The bot polls on its own timer, so the cache header is what stops a retry
+  // loop reaching D1 on every tick.
+  {
+    const res = await onRequestGet({ request: get('daily'), env: env(rows) });
+    assert.equal(res.headers.get('content-type'), 'application/json');
+    assert.match(res.headers.get('cache-control'), /max-age=\d+/,
+      'the board is served uncached, so a polling bot hits D1 every time');
+  }
+
+  console.log('ok: each board is served for its own span, and nothing else is served at all');
+}
