@@ -40,7 +40,20 @@ enough for most UI work; a guess in it fails with "could not reach the scorer".
 Both bind all interfaces, so a phone on the tailnet can reach them at
 `http://<this-machine>:8000`.
 
-Round generation is the only step with real dependencies.
+Round generation is the only step with real dependencies: the corpus, and the
+corpus metadata in the tripbot Postgres.
+
+It reaches that database two ways, and `DATABASE_HOST` is the switch. Unset — the
+laptop — there is no route to it at all, since it sits in the cluster behind no
+ingress, so `make_rounds.py` exec's a `psql` that is already inside the pod
+(`--namespace` names where). Set, the script connects straight to the Service and
+`--namespace` is ignored, which is what lets this run *as* a job in the cluster
+rather than from a laptop with `kubectl`. That route needs a `psql` on `PATH` and
+reads the same project-wide `DATABASE_USER` / `DATABASE_PASS` / `DATABASE_DB` /
+`DATABASE_PORT` vars as tripbot and video-pipeline. `GUESSR_CORPUS` moves the
+corpus path off the laptop's SMB mount for the same reason.
+
+Nothing schedules it yet — see *Not built yet*.
 
 ## Deploying
 
@@ -571,6 +584,13 @@ upload a set that fails it.
   `/api/leaderboard` serves both boards. What's left is tripbot fetching it —
   two new `leaderboardKind`s in its rotation, which currently splits one
   five-minute slot three ways and would need re-weighting for five.
+- **A schedule for round generation.** The script can now run in the cluster
+  rather than only on a laptop (above), which was the part that made a scheduled
+  job impossible. What is left is the job itself: an image carrying `ffmpeg` and
+  `psql` with the corpus mounted, a CPU limit low enough not to make the live
+  stream choppy, and a credential that can push the media to R2, seed the
+  answers, and commit the manifest. Media and answers both have to land *before*
+  the manifest, since the manifest is what a deploy keys off.
 - **A round set whose answers aren't in git.** The sets published before scoring
   moved server-side had their coordinates in `rounds.json`, and that file is in
   this repo's history (see *The answers* above), so a score is only worth as much

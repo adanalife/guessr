@@ -47,7 +47,10 @@ from pathlib import Path
 
 from check import NEAR_KM, dimensions, km
 
-CORPUS = Path("/Volumes/ADanaLife/dashcam/_opt/clips")
+# The laptop mounts the corpus over SMB at this path; in the cluster it is an NFS
+# mount at whatever path the pod spec picks. The default is the laptop's, so an
+# unset environment behaves as it always has.
+CORPUS = Path(os.environ.get("GUESSR_CORPUS", "/Volumes/ADanaLife/dashcam/_opt/clips"))
 WEB = Path(__file__).parent / "web"
 STAGING = WEB / ".staging"
 
@@ -182,6 +185,61 @@ def score_sql(seed: int | None) -> str:
     return f"SELECT setseed({pg_seed(seed)!r});\n{SCORE_SQL}"
 
 
+def psql_invocation(
+    namespace: str, pool: int, k: int, per_clip: int
+) -> tuple[list[str], dict[str, str]]:
+    """How to run the scoring query: straight at Postgres, or via kubectl exec.
+
+    `DATABASE_HOST` is the switch, because it is the thing that is only true in
+    one of the two places. From the laptop there is no route to the database at
+    all -- it lives in the cluster with no ingress -- so the only way in is to
+    exec a psql that is already inside, which is what this has always done. A
+    process running *in* the cluster reaches the Service directly and has no
+    business shelling out to kubectl for it, nor the RBAC to.
+
+    Names follow the project-wide DATABASE_* vars that tripbot's Go and
+    video-pipeline's db.py already read, so an in-cluster deployment configures
+    this the same way it configures everything else. The defaults reproduce the
+    laptop path exactly, so an unset environment behaves as it did.
+    """
+    query = [
+        "psql",
+        "-U",
+        os.environ.get("DATABASE_USER", "tripbot"),
+        "-d",
+        os.environ.get("DATABASE_DB", "tripbot"),
+        "-At",
+        "-F",
+        "\t",
+        # ON_ERROR_STOP because psql otherwise exits 0 on a SQL error, which
+        # arrives here as an empty result and reads as "no clips matched".
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-v",
+        f"pool={pool}",
+        "-v",
+        f"k={k}",
+        "-v",
+        f"per_clip={per_clip}",
+        "-f",
+        "-",
+    ]
+    host = os.environ.get("DATABASE_HOST")
+    if not host:
+        exec_argv = ["kubectl", "-n", namespace, "exec", "-i", "postgres-0", "--"]
+        return [*exec_argv, *query], dict(os.environ)
+
+    # PG* is how libpq takes a host and a password. Only the local psql reads
+    # them, which is why they belong to this branch: on the kubectl path the psql
+    # that matters is inside the pod and connects over its own loopback.
+    return query, {
+        **os.environ,
+        "PGHOST": host,
+        "PGPORT": os.environ.get("DATABASE_PORT", "5432"),
+        "PGPASSWORD": os.environ.get("DATABASE_PASS", ""),
+    }
+
+
 def score_candidates(
     namespace: str, pool: int, k: int, per_clip: int = 4, seed: int | None = None
 ) -> list[dict]:
@@ -190,41 +248,24 @@ def score_candidates(
     Returns up to `per_clip` candidate moments per clip, so one clip can appear
     several times over. select() keeps the best of them.
     """
-    out = subprocess.run(
-        [
-            "kubectl",
-            "-n",
-            namespace,
-            "exec",
-            "-i",
-            "postgres-0",
-            "--",
-            "psql",
-            "-U",
-            "tripbot",
-            "-d",
-            "tripbot",
-            "-At",
-            "-F",
-            "\t",
-            # ON_ERROR_STOP because psql otherwise exits 0 on a SQL error, which
-            # arrives here as an empty result and reads as "no clips matched".
-            "-v",
-            "ON_ERROR_STOP=1",
-            "-v",
-            f"pool={pool}",
-            "-v",
-            f"k={k}",
-            "-v",
-            f"per_clip={per_clip}",
-            "-f",
-            "-",
-        ],
-        input=score_sql(seed),
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
+    argv, env = psql_invocation(namespace, pool, k, per_clip)
+    try:
+        out = subprocess.run(
+            argv,
+            env=env,
+            input=score_sql(seed),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    except FileNotFoundError:
+        # The two routes need different binaries, and an unattended run should say
+        # which one is missing rather than raise a traceback out of subprocess.
+        sys.exit(
+            f"{argv[0]}: not found. Scoring reaches Postgres either by exec'ing "
+            "into the pod, which needs kubectl, or straight over the network when "
+            "DATABASE_HOST is set, which needs a psql client on PATH."
+        )
 
     rows = []
     for line in out.splitlines():
@@ -634,7 +675,13 @@ def main() -> int:
         help="scheduling niceness for the encode, so it loses every contest for "
         "a core rather than winning some of them",
     )
-    ap.add_argument("--namespace", default="stage-1-data")
+    ap.add_argument(
+        "--namespace",
+        default="stage-1-data",
+        help="namespace holding postgres-0, for the kubectl exec route into the "
+        "database. Ignored when DATABASE_HOST is set, which is how anything "
+        "running inside the cluster reaches Postgres instead.",
+    )
     ap.add_argument(
         "--seed",
         type=int,
