@@ -35,6 +35,37 @@ call() {
   printf '%s' "$out"
 }
 
+# Wait for the deployment under test rather than for whatever answers first.
+# Cloudflare takes a few seconds to cut over, so assertions that start the moment
+# `wrangler pages deploy` returns can land on the *previous* build: that is how
+# v0.7.0 went red on a deploy that had in fact succeeded, asserting a window
+# check which only existed in the build being deployed.
+#
+# version.json is stamped per deploy by every workflow that runs this -- the tag,
+# the commit, the PR number -- and is gitignored, so the copy sitting here is the
+# expectation and a laptop clone simply has none. No local copy, no gate.
+#
+# This pins the static half of the deploy: the manifest, the clips, the page. A
+# Worker can still be the previous one briefly after its assets are live, so this
+# narrows that window rather than closing it, and the function-wait below is what
+# covers routing.
+if [ -f web/version.json ]; then
+  want=$(jq -r .label web/version.json)
+  for _ in $(seq 1 40); do
+    got=$(curl -s "$BASE/version.json" | jq -r .label 2>/dev/null || true)
+    [ "$got" = "$want" ] && break
+    sleep 3
+  done
+  if [ "$got" != "$want" ]; then
+    echo "::error::$BASE still serves '$got', not the '$want' being deployed."
+    echo "::error::Every assertion below would have described the previous build."
+    exit 1
+  fi
+  echo "ok: serving the deployment under test -> $want"
+else
+  echo "note: no local web/version.json, so nothing pins which build answers"
+fi
+
 # Wait on a Function, not on a static asset: rounds.json can be served from the
 # edge while /api/* still misses, which is how a green deploy produced an HTML
 # 404 mid-run. The unknown-board 400 is the cheapest deterministic Function
@@ -65,7 +96,16 @@ image=$(curl -sf "$BASE/rounds.json" | jq -r '.[0].image')
 # with the game's own HTML and a 200, so the missing-media case and the
 # everything-is-fine case are the same status code, the same colour in CI, and
 # distinguishable only by content type.
-ctype=$(curl -s -o /dev/null -w '%{content_type}' "$BASE/$image")
+#
+# Retried while the answer is text/html for the same reason call() retries a `<`
+# body: Pages answering a path it holds no file for is the not-yet-propagated
+# signature, and on the first try it is indistinguishable from a tarball that was
+# never pushed.
+for _ in $(seq 1 20); do
+  ctype=$(curl -s -o /dev/null -w '%{content_type}' "$BASE/$image")
+  [ "${ctype%%;*}" = "text/html" ] || break
+  sleep 3
+done
 if [ "${ctype%%;*}" != "video/mp4" ]; then
   echo "::error::$image served as '$ctype', not video/mp4 -- the clips for this"
   echo "::error::manifest never reached this deployment. Run \`task clips:push\`."

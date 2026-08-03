@@ -59,6 +59,16 @@ case "${1:?usage: clips.sh push|pull|key}" in
 
   pull)
     k=$(key)
+    # A manifest of stills names no clips, and no tarball was ever pushed for one
+    # -- so keying against it misses by construction. That matters for exactly one
+    # thing: redeploying a pre-clips tag. The pull runs before the deploy step, so
+    # a hard failure here means `release.yml` at v0.8.0 or earlier never reaches
+    # Cloudflare at all, and the only way back is the Pages dashboard. Nothing to
+    # pull is not a failure; it is what every release before video rounds is.
+    if ! grep -q '"clips/' "$WEB/rounds.json"; then
+      echo "ok: web/rounds.json names no clips -- nothing to pull"
+      exit 0
+    fi
     # Bare mktemp, no -t: BSD treats its argument as a prefix and GNU treats it
     # as a template needing literal X's, so the portable spelling is neither.
     tmp=$(mktemp); trap 'rm -f "$tmp"' EXIT
