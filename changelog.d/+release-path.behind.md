@@ -1,0 +1,1 @@
+A new version is now checked against itself once it goes out, rather than against whichever version happened to still be answering — so an update no longer gets reported as broken when it was fine. And putting an older version back works the same way as shipping a new one, instead of having to be done by hand.
