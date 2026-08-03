@@ -4,6 +4,27 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.0.1 — 2026-08-03
+
+### New
+
+- The empty sixth square on the end-of-game board now holds the live stream the footage comes from, playing muted alongside the five clips you just guessed. When the stream is off it is a plain link instead. ([#76](https://github.com/adanalife/guessr/pull/76))
+
+### Fixed
+
+- The five clips on the end-of-game board are clickable again. Tapping one puts it back on screen at full size, so you can replay it and zoom in on whatever you missed; Escape brings you back to all five. This was most obvious after a reload, where the tiles did nothing at all. ([#76](https://github.com/adanalife/guessr/pull/76))
+
+### Behind the scenes
+
+- The dashcam prints where it is along the bottom of every frame, and that strip gets cut off before a round is built from it. Each release now re-checks that on the footage it has just published, so a batch that slipped through uncropped is caught before anyone plays a round with the answer written across it. ([#66](https://github.com/adanalife/guessr/pull/66))
+- No change to the game. The write-up of how rounds get picked lived in two places and had already started to disagree with itself; there is one copy of it now. ([#70](https://github.com/adanalife/guessr/pull/70))
+- The test that backs the crop check was quietly skipping itself in the automated checks. It runs now, and refuses to be skipped there again. ([#72](https://github.com/adanalife/guessr/pull/72))
+- The share string — the coloured squares, the total, and the link back to the game — is now covered by tests, so a result you paste keeps saying what it should. ([#74](https://github.com/adanalife/guessr/pull/74))
+- Linking a device to itself — scanning your own code on the phone that drew it — is now covered by a test, so it stays the harmless no-op it is meant to be rather than something that could clear your history. ([#74](https://github.com/adanalife/guessr/pull/74))
+- The checks that stop a bad round set reaching the game — a clip with the location still printed on it, or a round whose answer was accidentally sent to your browser — are now tested themselves, so they cannot quietly stop working. ([#74](https://github.com/adanalife/guessr/pull/74))
+- A release now waits for the new set of rounds to actually reach the site before it checks them over. The v1.0.0 release was reported as a failure because those checks read the previous set of rounds while the new one was already live — the game was fine, and the report was wrong about it. ([#75](https://github.com/adanalife/guessr/pull/75))
+- Running the game locally from a clean checkout works again — its two database setup steps were racing each other and leaving the database in a state the game refused to start against. ([#77](https://github.com/adanalife/guessr/pull/77))
+
 ## v1.0.0 — 2026-08-03
 
 Rounds move now. Every one of them is a few seconds of the road going past instead of a single frozen frame, which is how the footage looked from the driver's seat in the first place.
