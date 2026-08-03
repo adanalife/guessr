@@ -26,7 +26,7 @@ exists but is missing a file the manifest names is a real failure, not that mode
 
 import json
 import math
-import struct
+import subprocess
 import sys
 from collections import Counter
 from pathlib import Path
@@ -47,79 +47,47 @@ NEAR_KM = 5.0
 LAT_RANGE, LNG_RANGE = (24.0, 49.5), (-125.0, -66.0)
 
 
-def boxes(f, end: int):
-    """Walk one level of ISO base media boxes, yielding (kind, start, stop).
-
-    An mp4 is a tree of length-prefixed boxes and nothing else, so finding a
-    field means walking to it. Reading the header rather than shelling out to
-    ffprobe once per round is the same trade the JPEG reader made before it:
-    ffmpeg is what *cuts* the clips, and keeping it off the validation path is
-    what lets CI check a round set without installing a media toolchain.
-    """
-    while f.tell() + 8 <= end:
-        start = f.tell()
-        header = f.read(8)
-        assert len(header) == 8, f"truncated box header at {start}"
-        size, kind = struct.unpack(">I4s", header)
-        if size == 1:
-            # 64-bit size, in the eight bytes after the type.
-            (size,) = struct.unpack(">Q", f.read(8))
-        elif size == 0:
-            size = end - start  # extends to the end of its parent
-        assert size >= 8 and start + size <= end, f"bad {kind!r} box size {size}"
-        yield kind, f.tell(), start + size
-        f.seek(start + size)
-
-
-def find(f, end: int, path: tuple[bytes, ...]):
-    """Descend a chain of nested box types, returning (start, stop) of the last."""
-    for depth, kind in enumerate(path):
-        for found, start, stop in boxes(f, end):
-            if found == kind:
-                f.seek(start)
-                end = stop
-                break
-        else:
-            raise AssertionError(f"no {b'/'.join(path[: depth + 1]).decode()} box")
-    return f.tell(), end
-
-
 def dimensions(path: Path) -> tuple[int, int]:
-    """Display width and height, read out of the video track's `tkhd` box.
+    """Width and height of a clip's one video stream.
 
-    `tkhd` is the one that carries what the browser will lay the element out at,
-    which is the number this file exists to check. Its width and height are the
-    last eight bytes of the box body as 16.16 fixed point, in both versions of
-    the box -- the version only changes the widths of the timestamp fields ahead
-    of them, so counting back from the end reads both without branching.
+    Every caller is already on a machine with ffmpeg, because ffmpeg is what cut
+    the clip: this runs from the media branch below, and from make_rounds.py
+    immediately after an encode. CI is the case that would want a dependency-free
+    reader, and CI never reaches here -- the clips are gitignored, so check.py
+    runs there in manifest-only mode.
 
-    A file with more than one track would need the video one picked out; `-an`
-    means there is exactly one, and the assert below says so rather than
-    silently measuring whatever came first.
-
-    Any malformed file raises rather than returning a plausible size: a wrong
-    answer here would pass an uncropped clip with the coordinates still on it.
+    Anything that isn't a readable single-video-stream file raises rather than
+    returning a plausible size, because a wrong answer here would pass an
+    uncropped clip with the coordinates still burned into it. An empty container
+    -- what a seek past the last frame produces, which ffmpeg writes and exits 0
+    on -- carries no video stream, so it fails here rather than downstream.
     """
-    with path.open("rb") as f:
-        end = path.stat().st_size
-        assert end > 8, f"empty or truncated: {path}"
-        f.seek(0)
-        assert any(kind == b"moov" for kind, _, _ in boxes(f, end)), (
-            f"no moov box -- not an mp4: {path}"
-        )
-        f.seek(0)
-        moov_start, moov_end = find(f, end, (b"moov",))
-        tracks = sum(1 for kind, _, _ in boxes(f, moov_end) if kind == b"trak")
-        assert tracks == 1, f"expected one track, found {tracks}: {path}"
-
-        f.seek(moov_start)
-        tkhd_start, tkhd_end = find(f, moov_end, (b"trak", b"tkhd"))
-        f.seek(tkhd_end - 8)
-        width, height = struct.unpack(">II", f.read(8))
-        # 16.16 fixed point. Rounded rather than truncated: a dimension stored as
-        # 1279.99998 is 1280, and floor()ing it would report an aspect ratio a
-        # hair off the real one on every clip.
-        return round(width / 65536), round(height / 65536)
+    proc = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            # Every video stream, not just the first: one is what an encode with
+            # a single input produces, and anything else is ambiguous enough
+            # that measuring one of them is a guess.
+            "-select_streams",
+            "v",
+            "-show_entries",
+            "stream=width,height",
+            "-of",
+            "csv=p=0",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    streams = proc.stdout.split()
+    assert len(streams) == 1, (
+        f"expected one video stream, found {len(streams)}: {path}"
+        + (f" -- {proc.stderr.strip()}" if proc.stderr.strip() else "")
+    )
+    width, height = (int(n) for n in streams[0].split(","))
+    return width, height
 
 
 def km(a: dict, b: dict) -> float:
