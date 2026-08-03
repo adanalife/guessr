@@ -1,0 +1,1 @@
+Rounds are picked from several moments of each stretch of driving rather than one moment chosen at random, so a round is less likely to open on glare, on a truck filling the windscreen, or on a frame that is mostly sky.

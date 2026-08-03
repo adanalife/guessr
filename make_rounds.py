@@ -77,6 +77,29 @@ HUD_STRIP_PX = 70
 # without it a candidate whose neighbourhood is mostly same-day returns only a
 # handful of rows (sometimes zero) and its median is noise. It is also ~5x faster
 # here than letting the scan fall back to exhaustive.
+#
+# `:per_clip` frames per clip, not one. A clip is ~3 minutes of driving with ~32
+# frame embeddings, and its worst moment scores nothing like its best: glare into
+# the lens, a truck filling the windscreen, nine-tenths blown-white sky. Those are
+# bad *moments* in clips that have good ones, so drawing a single frame per clip
+# throws the good ones away and hands the round whatever it happened to land on.
+#
+# Nothing downstream has to change to pick the best of them. select() already
+# skips a slug it has taken, so the first time a clip appears going down the
+# ranked list is its best frame by the same combined merit every other round is
+# chosen on -- and dropping the extras in SQL on median_km alone would decide it
+# without the distinctiveness half, which is exactly the ordering rank() exists to
+# correct.
+#
+# The cost is per candidate rather than per clip, since every candidate pays for
+# its own neighbour scan -- but sublinearly, because they share a warm index: on a
+# 400-clip pool, four moments each is 7.7s against 3.2s for one, four times the
+# candidates for a bit over twice the time. The encode is the slow half and is
+# untouched either way; it still cuts one clip per round.
+#
+# What this does not decide is where the cut sits relative to the scored frame.
+# extract_clip still opens on it (`-ss ts`), so the score describes the round's
+# first frame rather than its middle.
 SCORE_SQL = """
 SET hnsw.ef_search = 100;
 SET hnsw.iterative_scan = relaxed_order;
@@ -90,13 +113,16 @@ WITH picked AS (
   LIMIT :pool
 ),
 cand AS (
-  SELECT DISTINCT ON (p.id)
-         p.id AS vid, p.slug, p.lat, p.lng, p.state, p.date_filmed,
+  SELECT p.id AS vid, p.slug, p.lat, p.lng, p.state, p.date_filmed,
          f.embedding, f.ts_sec
   FROM picked p
-  JOIN frame_embeddings f ON f.video_id = p.id
-  WHERE f.ts_sec > 15
-  ORDER BY p.id, random()
+  CROSS JOIN LATERAL (
+    SELECT embedding, ts_sec
+    FROM frame_embeddings
+    WHERE video_id = p.id AND ts_sec > 15
+    ORDER BY random()
+    LIMIT :per_clip
+  ) f
 )
 SELECT c.slug, c.ts_sec, c.lat, c.lng, c.state, c.date_filmed,
        nb.median_km, nb.n, nb.mean_cos
@@ -147,7 +173,9 @@ def score_sql(seed: int | None) -> str:
 
     Only against an unchanged corpus, though: adding a row to `videos` or
     `frame_embeddings` changes which clips the same sequence of random values
-    picks out.
+    picks out. `--per-clip` does the same, for the same reason -- it changes how
+    many values the frame draw consumes, so a seed reproduces a set only alongside
+    the depth it was generated at.
     """
     if seed is None:
         return SCORE_SQL
@@ -155,9 +183,13 @@ def score_sql(seed: int | None) -> str:
 
 
 def score_candidates(
-    namespace: str, pool: int, k: int, seed: int | None = None
+    namespace: str, pool: int, k: int, per_clip: int = 4, seed: int | None = None
 ) -> list[dict]:
-    """Score a random pool of clips for locatability. Best (tightest) first."""
+    """Score a random pool of clips for locatability. Best (tightest) first.
+
+    Returns up to `per_clip` candidate moments per clip, so one clip can appear
+    several times over. select() keeps the best of them.
+    """
     out = subprocess.run(
         [
             "kubectl",
@@ -183,6 +215,8 @@ def score_candidates(
             f"pool={pool}",
             "-v",
             f"k={k}",
+            "-v",
+            f"per_clip={per_clip}",
             "-f",
             "-",
         ],
@@ -521,6 +555,14 @@ def main() -> int:
     ap.add_argument("--pool", type=int, default=400, help="clips to score")
     ap.add_argument("-k", "--neighbours", type=int, default=25)
     ap.add_argument(
+        "--per-clip",
+        type=int,
+        default=4,
+        help="candidate moments to score per clip, keeping the best of them. A "
+        "clip's frames vary more in quality than clips do, so 1 hands the round "
+        "whichever moment it drew. See SCORE_SQL.",
+    )
+    ap.add_argument(
         "--keep-fraction",
         type=float,
         default=0.5,
@@ -613,11 +655,21 @@ def main() -> int:
     (STAGING if args.dry_run else clips).mkdir(parents=True)
 
     scored = available(
-        score_candidates(args.namespace, args.pool, args.neighbours, args.seed)
+        score_candidates(
+            args.namespace,
+            args.pool,
+            args.neighbours,
+            args.per_clip,
+            args.seed,
+        )
     )
-    # Cut the visually generic clips by percentile rather than an absolute cosine
+    # Cut the visually generic moments by percentile rather than an absolute cosine
     # distance, so the filter stays honest if the corpus or the embedding model
     # changes. ponytail: the pool is a few hundred rows, so sorting it twice is free.
+    #
+    # A moment rather than a clip is the unit here and in --keep-fraction below,
+    # because --per-clip scores several of each: a clip stays in contention while
+    # any one of its moments clears the bar, and loses only the moments that don't.
     if scored and args.drop_generic:
         floor = sorted(r["mean_cos"] for r in scored)[
             int(len(scored) * args.drop_generic)
@@ -625,15 +677,16 @@ def main() -> int:
         before = len(scored)
         scored = [r for r in scored if r["mean_cos"] >= floor]
         print(
-            f"dropped {before - len(scored)} clips with no visual signature of "
+            f"dropped {before - len(scored)} moments with no visual signature of "
             f"their own (mean cosine distance < {floor:g})"
         )
 
     keep = max(args.count, int(len(scored) * args.keep_fraction))
     eligible = rank(scored, args.distinctiveness)[:keep]
     print(
-        f"scored {len(scored)} clips; selecting from the best {len(eligible)} "
-        f"on locatability and distinctiveness together"
+        f"scored {len(scored)} moments across {len({r['slug'] for r in scored})} "
+        f"clips; selecting from the best {len(eligible)} on locatability and "
+        f"distinctiveness together"
     )
 
     cap = max(1, int(args.count * args.state_cap)) if args.state_cap else 0

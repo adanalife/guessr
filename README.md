@@ -493,6 +493,15 @@ Two things the implementation has to get right:
   without `hnsw.iterative_scan` a candidate whose neighbourhood is mostly
   same-day comes back with a handful of neighbours, sometimes zero, and its
   median is noise. It's also about 5x faster than the exhaustive fallback.
+- **Score several moments per clip.** A clip is ~3 minutes of driving with ~32
+  frame embeddings, and its moments vary in quality far more than clips do —
+  glare into the lens, a truck filling the windscreen, nine-tenths blown-white
+  sky are bad *moments* in clips that have good ones. One clip's four sampled
+  moments came back spanning 15.7 to 58.3 median km. `--per-clip` is the knob
+  (default `4`); a clip contributes only its best-ranked moment, because
+  selection takes each clip once and rank order decides which. The cost is
+  sublinear — four moments each on a 400-clip pool is 7.7s against 3.2s for one —
+  and the encode, which is the slow half, still cuts one clip per round.
 
 Rounds are then *sampled* from the better-scoring half rather than taken
 strictly best-first, which drops the featureless rounds while keeping the set
@@ -515,8 +524,10 @@ information rather than the same measurement twice.
 So the bottom slice of the pool by mean cosine distance is discarded before
 ranking. `--drop-generic` is the knob (default `0.15`); the cut is a percentile
 rather than an absolute distance, so it survives a change of corpus or embedding
-model. On a 400-clip pool that drops about 40 of the ~200 clips the geographic
-score would have kept, and admits about 10 in their place.
+model. Measured on a 400-clip pool at one moment per clip, that drops about 40 of
+the ~200 clips the geographic score would have kept, and admits about 10 in their
+place. The unit is a moment rather than a clip, so with `--per-clip` above 1 the
+counts scale with it while the proportions hold.
 
 Sorting the kept set by this signal is the clearest way to see what it does. At
 the top: a ferry deck, a signed visitor centre, a harbour full of boats, a
