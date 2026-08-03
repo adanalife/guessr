@@ -1,0 +1,1 @@
+The empty sixth square on the end-of-game board now holds the live stream the footage comes from, playing muted alongside the five clips you just guessed. When the stream is off it is a plain link instead.
