@@ -74,8 +74,15 @@ tasks:
 
   dev:
     desc: Run the game with scoring, against a local D1 seeded from answers.sql
-    deps: [schema:local:push, answers:local:push]
+    # Sequenced through cmds rather than listed as deps, because deps run in
+    # parallel and these two write the same SQLite file: concurrently they take
+    # it out with SQLITE_BUSY or SQLITE_READONLY, and the runtime then refuses to
+    # start on a database that reads as broken rather than unseeded. Ordinarily
+    # survivable only because a `.wrangler/` that already has the tables makes
+    # both a no-op -- so it bites hardest on a fresh checkout.
     cmds:
+      - task: schema:local:push
+      - task: answers:local:push
       - npx wrangler pages dev web/ --port {{.PORT}} --d1 ANSWERS={{.LOCAL_DB}}
 
   answers:local:push:
