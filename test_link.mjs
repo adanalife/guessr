@@ -15,8 +15,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
-import { MOVE, SWEEP } from './functions/api/link.js';
+import { MOVE, SWEEP, onRequestPost } from './functions/api/link.js';
 import { linkUrl, parseLink } from './web/link.js';
+import { d1, post } from './_d1.mjs';
+
+const SCHEMA = readFileSync('schema.sql', 'utf8');
 
 const PHONE = 'phone-id', DESKTOP = 'desktop-id', STRANGER = 'stranger-id';
 
@@ -138,4 +141,74 @@ const owned = (d, player) => d.prepare(
     assert.equal(parseLink(hash), null, `${hash || '(empty)'} parsed as a link`);
   }
   console.log('ok: the code carries an id and a name across origins, and back');
+}
+
+// The guard that decides whether any of the above runs at all.
+//
+// Worth reaching through the handler for rather than exporting as a predicate:
+// what needs pinning is not that `from === to` compares two strings, it is that
+// a self-link never reaches the statements. They are destructive on their own
+// terms -- MOVE sets every row's player_id to the value it already holds, and
+// SWEEP then deletes by that same id -- so on from === to the pair is a plain
+// "delete this player's history", with the OR IGNORE that makes the merge safe
+// contributing nothing.
+//
+// It is reachable: the page hands the id to the other device in a URL fragment,
+// and opening your own link on the browser that drew it is the obvious misuse.
+{
+  const env = { ANSWERS: d1(SCHEMA) };
+  const insert = env.ANSWERS.db.prepare(`INSERT INTO plays
+    (date, player_id, image, km, points, handle) VALUES (?, ?, ?, ?, ?, ?)`);
+  for (const image of ['a.jpg', 'b.jpg', 'c.jpg']) {
+    insert.run('2026-08-02', PHONE, image, 1.0, 4000, 'Amber Basin');
+  }
+
+  const res = await onRequestPost({ request: post({ from: PHONE, to: PHONE }), env });
+  assert.equal(res.status, 200, 'a self-link should be a no-op, not an error');
+  assert.deepEqual(await res.json(), { moved: 0 });
+  assert.equal(owned(env.ANSWERS.db, PHONE).length, 3,
+    'a self-link deleted the player\'s entire history');
+
+  console.log('ok: linking a browser to itself moves nothing and deletes nothing');
+}
+
+// The ids are the only credential the game has, so a request carrying anything
+// that isn't one is refused before it can name rows.
+{
+  const env = { ANSWERS: d1(SCHEMA) };
+  for (const body of [
+    undefined,                            // not JSON at all
+    null, 'string', 42,
+    {}, { from: PHONE }, { to: DESKTOP },
+    { from: '', to: DESKTOP },
+    { from: PHONE, to: '' },
+    { from: 42, to: DESKTOP },
+    { from: PHONE, to: null },
+    { from: 'x'.repeat(65), to: DESKTOP },
+  ]) {
+    const res = await onRequestPost({ request: post(body), env });
+    assert.equal(res.status, 400, `accepted a bad link body: ${JSON.stringify(body)}`);
+  }
+
+  console.log('ok: a link request that is not two player ids is refused');
+}
+
+// And the ordinary merge, end to end through the handler rather than through the
+// statements -- the batch is one transaction, so a half-applied merge would drop
+// plays instead of moving them.
+{
+  const env = { ANSWERS: d1(SCHEMA) };
+  const insert = env.ANSWERS.db.prepare(`INSERT INTO plays
+    (date, player_id, image, km, points, handle) VALUES (?, ?, ?, ?, ?, ?)`);
+  insert.run('2026-08-02', PHONE, 'a.jpg', 1.0, 100, 'Amber Basin');
+  insert.run('2026-08-02', PHONE, 'b.jpg', 1.0, 200, 'Amber Basin');
+  insert.run('2026-08-02', DESKTOP, 'b.jpg', 1.0, 300, 'Amber Basin');
+
+  const res = await onRequestPost({ request: post({ from: PHONE, to: DESKTOP }), env });
+  assert.deepEqual(await res.json(), { moved: 1 }, 'the collision should not count as moved');
+  assert.deepEqual(owned(env.ANSWERS.db, PHONE), [], 'the old id kept rows after a merge');
+  // b.jpg keeps the 300 already on record under the target: first write wins.
+  assert.deepEqual(owned(env.ANSWERS.db, DESKTOP), [['a.jpg', 100], ['b.jpg', 300]]);
+
+  console.log('ok: the endpoint merges two devices in one transaction');
 }

@@ -1,0 +1,1 @@
+Linking a device to itself — scanning your own code on the phone that drew it — is now covered by a test, so it stays the harmless no-op it is meant to be rather than something that could clear your history.
