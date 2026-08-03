@@ -616,8 +616,6 @@ function setFrame(url) {
   // rejection here is a console error on every round on those devices.
   if (paused) frame.pause();
   else frame.play().catch(() => {});
-  // A cached video may already have its metadata, which fires no event.
-  if (frame.readyState >= 1) resetView();
 }
 
 // Box coordinates for a pointer or wheel event.
