@@ -71,31 +71,30 @@ jobs:
       # One webhook is one channel, so telling them apart needs two secrets --
       # there is no per-message routing.
       #
-      # `DISCORD_WEBHOOK` is the fleet-wide name, and in every repo that has it
-      # (tripbot, website, platform-gateway, tripbot-console, obs) it carries
-      # exactly this: the release announcement. Keeping that meaning here means
-      # the alert channel is what gets the new name, rather than six repos
-      # quietly pointing at a different channel than their name suggests.
+      # `DISCORD_WEBHOOK` is the fleet-wide name, and in every other repo that
+      # has it it carries exactly this: the release announcement. Keeping that
+      # meaning here means the alert channel is what gets the new name, rather
+      # than seven repos quietly pointing at a different channel than their
+      # name suggests.
       #
       # Both are best-effort. A rotated webhook 404s, and neither a shipped
       # release nor a failure it was meant to report should turn into a second
       # failure about the notification.
-      - name: Announce the release in Discord
+      - name: Discord notification
         continue-on-error: true
         uses: Ilshidur/action-discord@0.4.0
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           VERSION_TAG: ${{ github.ref_name }}
         with:
-          # The release notes are publishable as-is: towncrier's fragments are
-          # written for players (towncrier.toml says so) and the game's About
-          # panel already links CHANGELOG.md. So this links them rather than
-          # restating them.
+          # Link the tagged CHANGELOG.md, not a payload `compare` URL: releases
+          # dispatch via workflow_dispatch, whose event payload has no `compare`.
           #
-          # The game's URL is left bare on purpose -- Discord unfurls it into the
-          # share card, which is a better advert for a guessing game than any
-          # sentence here, and masking it in a markdown link suppresses that.
-          args: 'Guessr [{{ VERSION_TAG }}]({{ EVENT_PAYLOAD.repository.html_url }}/releases/tag/{{ VERSION_TAG }}) is live — https://guessr.dana.lol'
+          # One wording fleet-wide, so a release reads the same whichever repo
+          # it came from. The notes are publishable as-is here: towncrier's
+          # fragments are written for players (towncrier.toml says so) and the
+          # game's About panel already links CHANGELOG.md.
+          args: 'New release for [{{ EVENT_PAYLOAD.repository.full_name }}]({{ EVENT_PAYLOAD.repository.html_url }}): [{{ VERSION_TAG }}]({{ EVENT_PAYLOAD.repository.html_url }}/blob/{{ VERSION_TAG }}/CHANGELOG.md)'
       # Nothing else says a production deploy went red. The release PR merges
       # green long before the tag runs, so the only record is this run's own
       # entry in a list nobody is watching at 04:00.
@@ -116,4 +115,4 @@ jobs:
           # claiming which -- and claims nothing about what the site is serving.
           # That distinction is not academic here: v1.0.0's run went red on a
           # smoke test racing its own deploy, while the site was fine.
-          args: 'Production deploy failed for [{{ EVENT_PAYLOAD.repository.full_name }}]({{ EVENT_PAYLOAD.repository.html_url }}) at {{ VERSION_TAG }}: [run log]({{ RUN_URL }})'
+          args: 'Release failed for [{{ EVENT_PAYLOAD.repository.full_name }}]({{ EVENT_PAYLOAD.repository.html_url }}) at {{ VERSION_TAG }}: [run log]({{ RUN_URL }})'
