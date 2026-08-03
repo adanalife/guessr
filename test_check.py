@@ -103,6 +103,9 @@ for bad in (
     mp4(1280, 674)[:20],
     box(b"ftyp", b"isom"),  # no moov
     mp4(1280, 674, tracks=2),
+    # What a seek past the last frame produces: a well-formed container holding
+    # no video at all, which ffmpeg writes and exits 0 on.
+    mp4(1280, 674, tracks=0),
     box(b"ftyp", b"isom" + b"\0" * 8) + box(b"moov", box(b"trak", b"")),  # no tkhd
 ):
     try:

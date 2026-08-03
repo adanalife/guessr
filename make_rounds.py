@@ -45,7 +45,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-from check import NEAR_KM, km
+from check import NEAR_KM, dimensions, km
 
 CORPUS = Path("/Volumes/ADanaLife/dashcam/_opt/clips")
 WEB = Path(__file__).parent / "web"
@@ -374,48 +374,61 @@ def extract_clip(
         return False
 
     vf = f"crop=iw:ih-{HUD_STRIP_PX}:0:0,scale={width}:-2,fps={fps}"
-    proc = subprocess.run(
-        [
-            "nice",
-            "-n",
-            str(niceness),
-            "ffmpeg",
-            "-y",
-            "-loglevel",
-            "error",
-            # Before -i, so ffmpeg seeks rather than decoding up to the mark.
-            # Output-accurate regardless, since everything downstream is
-            # re-encoded.
-            "-ss",
-            str(row["ts"]),
-            "-t",
-            str(seconds),
-            "-i",
-            str(src),
-            "-vf",
-            vf,
-            "-an",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryslow",
-            "-crf",
-            str(crf),
-            # Baseline-compatible chroma and a leading moov atom: without
-            # yuv420p some encodes come out 4:4:4, which Safari refuses to play
-            # at all and which fails as a black pane rather than as an error.
-            "-pix_fmt",
-            "yuv420p",
-            "-movflags",
-            "+faststart",
-            "-threads",
-            str(threads),
-            str(dest),
-        ],
-        capture_output=True,
-        text=True,
-    )
-    return proc.returncode == 0 and dest.exists() and dest.stat().st_size > 0
+    # A frame's timestamp can be the clip's last one, and a window starting there
+    # holds nothing: ffmpeg writes a valid, empty container, exits 0, and leaves a
+    # few hundred bytes on disk, so return code and file size both say it worked.
+    # The emptiness only surfaces in check.py, at the end of a run that spent
+    # twenty-five minutes encoding everything else. Cut the tail instead.
+    for ts in (row["ts"], max(0.0, row["ts"] - seconds)):
+        proc = subprocess.run(
+            [
+                "nice",
+                "-n",
+                str(niceness),
+                "ffmpeg",
+                "-y",
+                "-loglevel",
+                "error",
+                # Before -i, so ffmpeg seeks rather than decoding up to the mark.
+                # Output-accurate regardless, since everything downstream is
+                # re-encoded.
+                "-ss",
+                str(ts),
+                "-t",
+                str(seconds),
+                "-i",
+                str(src),
+                "-vf",
+                vf,
+                "-an",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryslow",
+                "-crf",
+                str(crf),
+                # Baseline-compatible chroma and a leading moov atom: without
+                # yuv420p some encodes come out 4:4:4, which Safari refuses to play
+                # at all and which fails as a black pane rather than as an error.
+                "-pix_fmt",
+                "yuv420p",
+                "-movflags",
+                "+faststart",
+                "-threads",
+                str(threads),
+                str(dest),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0 or not dest.exists():
+            return False
+        try:
+            dimensions(dest)
+        except AssertionError:
+            continue  # no video track: the seek landed past the last frame
+        return True
+    return False
 
 
 def answers_sql(answers: list[dict]) -> str:
