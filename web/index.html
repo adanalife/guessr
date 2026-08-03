@@ -427,11 +427,8 @@ import {
 } from './daily.js';
 import { aliasFrom, isAlias } from './alias.js';
 import { linkUrl, parseLink } from './link.js';
+import { bandFor, scoreLine, shareText } from './share.js';
 
-// Only the share line's denominator. The scoring itself is server-side, and
-// functions/_scoring.mjs owns the real value -- rounds.json ships no
-// coordinates, so the browser has nothing to score with.
-const MAX_ROUND_SCORE = 5000;
 // Records the day you last finished, so today's round can't be replayed for a
 // better share string. The daily draw itself lives in daily.js.
 const STORE_KEY = 'guessr-daily';
@@ -445,11 +442,6 @@ const HISTORY_KEY = 'guessr-history';
 // per round), and how legible the result is — past a few hundred lines the map
 // is a smear rather than a record.
 const MAX_HISTORY = 250;
-// The share string is pasted where the link outlives the session that made it,
-// so it names the canonical host rather than wherever this copy is served from
-// — a result shared off localhost or a preview deploy still sends people here.
-const HOME_URL = 'https://guessr.dana.lol';
-
 // What a scored round tells us about where it was, as opposed to how it went.
 // Kept apart because it is also what gets stored and replayed: a resumed or
 // finished day rebuilds its board from these, the frames coming from the
@@ -525,18 +517,6 @@ async function scoreGuess(image, latlng, date) {
   }
   return res.json();
 }
-
-// Score bands, ordered best first. One table so a round's square in the share
-// string and its line on the end-of-game map are always the same colour.
-const BANDS = [
-  { min: 4000, square: '🟩', colour: '#4ade80' },
-  { min: 2500, square: '🟨', colour: '#facc15' },
-  { min: 1000, square: '🟧', colour: '#fb923c' },
-  { min: 0, square: '⬜', colour: '#9ca3af' },
-];
-
-const bandFor = pts => BANDS.find(b => pts >= b.min);
-const squareFor = pts => bandFor(pts).square;
 
 const map = L.map('map', { worldCopyJump: false });
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -840,15 +820,6 @@ async function reveal() {
   else go.textContent = 'Next round';
 }
 
-function shareText(day, res, sum) {
-  return [
-    `Guessr #${day}`,
-    res.map(squareFor).join(''),
-    `${sum.toLocaleString()} / ${(res.length * MAX_ROUND_SCORE).toLocaleString()}`,
-    HOME_URL,
-  ].join('\n');
-}
-
 // Saved after every reveal rather than only at the end, so a reload mid-game
 // resumes. Saving only the finished game let a player abandon a bad run, reload
 // into a fresh copy of the same five rounds, and replay them knowing the answers.
@@ -1034,11 +1005,6 @@ el('sheet').addEventListener('click', e => {
     map.setView(truth, 8, { animate: false });
   }
 });
-
-function scoreLine(res, sum) {
-  return `<span class="squares">${res.map(squareFor).join('')}</span>
-    <b>${sum.toLocaleString()}</b> / ${(res.length * MAX_ROUND_SCORE).toLocaleString()}`;
-}
 
 function finish() {
   if (mode === 'daily') {
