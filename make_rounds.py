@@ -59,6 +59,21 @@ STAGING = WEB / ".staging"
 # the text baseline sits around y=1075, so 70px clears it with room to spare.
 HUD_STRIP_PX = 70
 
+# The encode. Settled by measurement (see extract_clip) and constants rather than
+# flags: sweeping these means regenerating a set and looking at it, which is a
+# day's work and a decision, not something a run gets to vary on its way past.
+# The knobs that *are* swept -- pool, per-clip, distinctiveness, spacing, seed --
+# are arguments, because --dry-run makes trying them cost seconds.
+WIDTH = 1280
+SECONDS = 3.0
+CRF = 28
+FPS = 30
+# Bound what the encode may take rather than trusting it to be modest: ~300 of
+# these is ~25 minutes of x264 that will use every core it is given, and the
+# machine running it is a laptop being typed on.
+THREADS = max(1, (os.cpu_count() or 2) // 2)
+NICENESS = 10
+
 # Scoring: a frame is a good round if visually similar frames come from nearby
 # places. Take each candidate's nearest neighbours in SigLIP2 embedding space and
 # measure how far their true locations sit from the candidate's. A tight cluster
@@ -402,16 +417,7 @@ def select(
     return chosen, len(chosen) - spread
 
 
-def extract_clip(
-    row: dict,
-    dest: Path,
-    width: int,
-    seconds: float,
-    crf: int,
-    fps: int,
-    threads: int,
-    niceness: int,
-) -> bool:
+def extract_clip(row: dict, dest: Path) -> bool:
     """Cut one HUD-free clip. Returns False if the source isn't readable.
 
     A few seconds of motion rather than a still, because motion is the character
@@ -436,30 +442,25 @@ def extract_clip(
     - `+faststart` puts the moov atom first, so the browser can start playing on
       the first bytes instead of waiting for the whole file.
 
-    `nice` and `-threads` bound what the encode can take rather than trusting it
-    to be modest. Three hundred of these is ~25 minutes of x264 that will use
-    every core it is given, and the machines that would run it are machines with
-    something else to do: a laptop being typed on, or -- if round generation ever
-    moves to the minipc -- a node that is also playing out the live stream, where
-    CPU contention is a known cause of a choppy broadcast. Half the cores and a
-    positive nice value cost wall-clock and nothing else.
+    Half the cores at a positive nice value cost wall-clock and nothing else, and
+    keep 25 minutes of x264 from taking the laptop it is running on.
     """
     src = CORPUS / f"{row['slug']}.MP4"
     if not src.exists():
         return False
 
-    vf = f"crop=iw:ih-{HUD_STRIP_PX}:0:0,scale={width}:-2,fps={fps}"
+    vf = f"crop=iw:ih-{HUD_STRIP_PX}:0:0,scale={WIDTH}:-2,fps={FPS}"
     # A frame's timestamp can be the clip's last one, and a window starting there
     # holds nothing: ffmpeg writes a valid, empty container, exits 0, and leaves a
     # few hundred bytes on disk, so return code and file size both say it worked.
     # The emptiness only surfaces in check.py, at the end of a run that spent
     # twenty-five minutes encoding everything else. Cut the tail instead.
-    for ts in (row["ts"], max(0.0, row["ts"] - seconds)):
+    for ts in (row["ts"], max(0.0, row["ts"] - SECONDS)):
         proc = subprocess.run(
             [
                 "nice",
                 "-n",
-                str(niceness),
+                str(NICENESS),
                 "ffmpeg",
                 "-y",
                 "-loglevel",
@@ -470,7 +471,7 @@ def extract_clip(
                 "-ss",
                 str(ts),
                 "-t",
-                str(seconds),
+                str(SECONDS),
                 "-i",
                 str(src),
                 "-vf",
@@ -481,7 +482,7 @@ def extract_clip(
                 "-preset",
                 "veryslow",
                 "-crf",
-                str(crf),
+                str(CRF),
                 # Baseline-compatible chroma and a leading moov atom: without
                 # yuv420p some encodes come out 4:4:4, which Safari refuses to play
                 # at all and which fails as a black pane rather than as an error.
@@ -490,7 +491,7 @@ def extract_clip(
                 "-movflags",
                 "+faststart",
                 "-threads",
-                str(threads),
+                str(THREADS),
                 str(dest),
             ],
             capture_output=True,
@@ -641,39 +642,12 @@ def main() -> int:
         help="fraction of the scored pool to discard for having no visual "
         "signature of its own, lowest mean cosine distance first",
     )
-    ap.add_argument("--width", type=int, default=1280, help="output clip width")
-    ap.add_argument(
-        "--seconds", type=float, default=3.0, help="length of each round's clip"
-    )
-    ap.add_argument(
-        "--crf",
-        type=int,
-        default=28,
-        help="x264 quality, lower is better and bigger. See extract_clip for why "
-        "28 rather than the smaller numbers a size argument alone would pick.",
-    )
-    ap.add_argument("--fps", type=int, default=30, help="output frame rate")
     ap.add_argument(
         "--dry-run",
         action="store_true",
         help="score and select, report what the set would look like, and cut "
         "nothing. Scoring a pool takes seconds and encoding it takes tens of "
         "minutes, so this is how the knobs above get tuned by trying them.",
-    )
-    ap.add_argument(
-        "--threads",
-        type=int,
-        default=max(1, (os.cpu_count() or 2) // 2),
-        help="cores x264 may use, half of them by default. See extract_clip: "
-        "the encode is long enough to be worth bounding on a machine that has "
-        "anything else to do.",
-    )
-    ap.add_argument(
-        "--nice",
-        type=int,
-        default=10,
-        help="scheduling niceness for the encode, so it loses every contest for "
-        "a core rather than winning some of them",
     )
     ap.add_argument(
         "--namespace",
@@ -754,16 +728,7 @@ def main() -> int:
     rounds, answers = [], []
     for row in eligible:
         name = f"{row['slug']}.mp4"
-        if not args.dry_run and not extract_clip(
-            row,
-            clips / name,
-            args.width,
-            args.seconds,
-            args.crf,
-            args.fps,
-            args.threads,
-            args.nice,
-        ):
+        if not args.dry_run and not extract_clip(row, clips / name):
             print(f"  skip {row['slug']} (unreadable)")
             continue
         # `image` rather than `clip`: this string is the primary key of D1's
