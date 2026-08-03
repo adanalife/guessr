@@ -49,10 +49,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # The node tests: the daily-round draw, the frame-pane viewport math, and
-      # the scoring curve plus the validator on /api/score. All sub-second and
-      # needing no corpus or database, which is why they belong here as a step
-      # rather than a job.
       # fetch-depth: 0 so the changelog gate below can diff against the base
       # branch; nothing else here needs history.
       - uses: actions/checkout@v7
@@ -61,8 +57,20 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version-file: .tool-versions
+
+      # The node tests: the daily-round draw, the frame-pane viewport math, the
+      # scoring curve plus the validator on /api/score, the leaderboard boards,
+      # the generated aliases and the device merge. All sub-second and needing no
+      # corpus or database, which is why they belong here as a step rather than a
+      # job.
+      #
+      # Globbed, not listed. A listed test file is one somebody has to remember to
+      # add to two places, and both had drifted: four tests ran nowhere in CI, and
+      # test_select.py -- which pins how a round set is chosen -- ran nowhere at
+      # all. `|| exit 1` because a for-loop reports its last command's status, so
+      # without it a failure anywhere but the end passes.
       - name: Node tests
-        run: node test_daily.mjs && node test_zoom.js && node test_score.mjs
+        run: for f in test_*.mjs test_*.js; do echo "== $f"; node "$f" || exit 1; done
 
       - uses: actions/setup-python@v7
         with:
@@ -79,10 +87,12 @@ jobs:
         run: python3 check.py
 
       # The python tests: the mp4 header reader check.py validates clips with,
-      # the swap that puts a regenerated set into place, and the seeding that
-      # makes a regeneration reproducible. All stdlib-only and sub-second.
+      # the swap that puts a regenerated set into place, the seeding that makes a
+      # regeneration reproducible, how a round set is selected, and which route
+      # scoring takes to Postgres. All stdlib-only and sub-second. Globbed for the
+      # same reason as the node step above.
       - name: Python tests
-        run: python3 test_check.py && python3 test_swap.py && python3 test_seed.py
+        run: for f in test_*.py; do echo "== $f"; python3 "$f" || exit 1; done
 
       # schema.sql is hand-written DDL that nothing else parses until someone
       # runs `task schema:prod:push`, where a typo is discovered against the

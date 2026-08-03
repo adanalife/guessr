@@ -180,17 +180,15 @@ tasks:
   test:
     desc: Run the tests that need no corpus and no database to be running (daily
       draw, leaderboard aliases and ranking, frame zoom, scoring, the device
-      merge, frame dimensions, round-set swap, seeding)
+      merge, frame dimensions, round-set swap, seeding, selection, db route)
+    # Globbed rather than listed, because a list of test files is a list that
+    # drifts: test_select.py sat here unrun by anything from the day it was
+    # added. Adding a test_*.py or test_*.mjs is now the whole job of wiring it
+    # up. `|| exit 1` because a shell for-loop exits with its *last* command's
+    # status, so without it a failure in the middle passes.
     cmds:
-      - node test_daily.mjs
-      - node test_alias.mjs
-      - node test_zoom.js
-      - node test_score.mjs
-      - node test_leaderboard.mjs
-      - node test_link.mjs
-      - python3 test_check.py
-      - python3 test_swap.py
-      - python3 test_seed.py
+      - for f in test_*.mjs test_*.js; do echo "== $f"; node "$f" || exit 1; done
+      - for f in test_*.py; do echo "== $f"; python3 "$f" || exit 1; done
 
   smoke:
     desc: "Check a deployed tier is actually playable: task smoke -- <base-url>.
