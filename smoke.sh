@@ -45,10 +45,12 @@ call() {
 # the commit, the PR number -- and is gitignored, so the copy sitting here is the
 # expectation and a laptop clone simply has none. No local copy, no gate.
 #
-# This pins the static half of the deploy: the manifest, the clips, the page. A
-# Worker can still be the previous one briefly after its assets are live, so this
-# narrows that window rather than closing it, and the function-wait below is what
-# covers routing.
+# It pins only itself, though. Being stamped per deploy is what makes it a
+# reliable *version* signal and also what makes it a poor proxy for anything
+# else: it is new bytes every time, so it cuts over the instant the deployment
+# is live, while an asset whose bytes did not change can still be answered from
+# an edge cache for a while longer. The manifest pin below covers that, and the
+# function-wait after it covers routing.
 if [ -f web/version.json ]; then
   want=$(jq -r .label web/version.json)
   for _ in $(seq 1 40); do
@@ -65,6 +67,30 @@ if [ -f web/version.json ]; then
 else
   echo "note: no local web/version.json, so nothing pins which build answers"
 fi
+
+# And the round set, separately, because version.json moving does not mean it
+# has. rounds.json changes only when the round set does, so it is exactly the
+# asset that sits unchanged across deploys and lingers at the edge -- and it is
+# the one every assertion below reads. v1.0.0 failed here: version.json already
+# answered v1.0.0 while rounds.json was still the previous build's stills, so the
+# clip check reported a jpg on a deploy that had in fact shipped 300 mp4s.
+#
+# Compared as bytes, because Pages serves the file verbatim and there is nothing
+# cheaper that is actually conclusive -- spot-checking one round would pass a
+# regenerated set that happened to keep its first one.
+#
+# Unconditional, unlike the version gate: rounds.json is committed, so the
+# expectation is always here.
+for _ in $(seq 1 40); do
+  cmp -s <(curl -sf "$BASE/rounds.json") web/rounds.json && pinned=1 && break
+  sleep 3
+done
+if [ -z "${pinned:-}" ]; then
+  echo "::error::$BASE serves a rounds.json that is not the one being deployed."
+  echo "::error::Every assertion below would have described the previous round set."
+  exit 1
+fi
+echo "ok: serving the round set under test -> $(jq length web/rounds.json) rounds"
 
 # Wait on a Function, not on a static asset: rounds.json can be served from the
 # edge while /api/* still misses, which is how a green deploy produced an HTML
@@ -86,7 +112,9 @@ check() { # name, expected status, actual status, body
 post() { call -X POST "$BASE/api/score" \
   -H 'content-type: application/json' -d "$1"; }
 
-image=$(curl -sf "$BASE/rounds.json" | jq -r '.[0].image')
+# Read locally: the pin above proved the deployment serves these exact bytes, so
+# fetching them again would only add a way for the two to disagree.
+image=$(jq -r '.[0].image' web/rounds.json)
 
 # The media half of the round set, which is the half git does not carry: the
 # clips are pulled from R2 at deploy time, so a deploy that skipped the pull, or
