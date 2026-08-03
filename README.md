@@ -574,7 +574,7 @@ every frame reading `49 MPH W71.606763 N42.822437` plus the date — the answer,
 in text, on screen. `make_rounds.py` crops that strip off and `check.py` fails
 if a clip ever ships uncropped, since the failure is otherwise invisible: the
 game still runs, it's just trivially cheatable. That check runs on the laptop
-now rather than in CI, which never sees the media — `task clips:push` will not
+rather than in CI, which never sees the media — `task clips:push` will not
 upload a set that fails it.
 
 ## Not built yet
@@ -587,15 +587,16 @@ upload a set that fails it.
   `/api/leaderboard` serves both boards. What's left is tripbot fetching it —
   two new `leaderboardKind`s in its rotation, which currently splits one
   five-minute slot three ways and would need re-weighting for five.
-- **A schedule for round generation.** The script can now run in the cluster
-  rather than only on a laptop (above), which was the part that made a scheduled
-  job impossible. What is left is the job itself: an image carrying `ffmpeg` and
+- **A schedule for round generation.** The script runs in the cluster as well as
+  on a laptop (above), which is what makes a scheduled job possible at all.
+  What is left is the job itself: an image carrying `ffmpeg` and
   `psql` with the corpus mounted, a CPU limit low enough not to make the live
   stream choppy, and a credential that can push the media to R2, seed the
   answers, and commit the manifest. Media and answers both have to land *before*
   the manifest, since the manifest is what a deploy keys off.
-- **A round set whose answers aren't in git.** The sets published before scoring
-  moved server-side had their coordinates in `rounds.json`, and that file is in
-  this repo's history (see *The answers* above), so a score is only worth as much
-  as the player's disinclination to run `git log`. Fine for a beta; the set gets
-  regenerated before this is something people compete at.
+- **A round set with no source clip in common with the pre-server-side sets.**
+  Those sets carried their coordinates in `rounds.json`, which is in this repo's
+  history (see *The answers* above). 34 of the current 300 rounds are cut from a
+  clip one of them used, and truth is clip-level — so those 34 are worth only as
+  much as the player's disinclination to run `git log`. Fine for a beta; a
+  regeneration that avoids those clips closes it.
