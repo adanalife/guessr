@@ -48,8 +48,7 @@ from pathlib import Path
 from check import NEAR_KM, dimensions, km
 
 # The laptop mounts the corpus over SMB at this path; in the cluster it is an NFS
-# mount at whatever path the pod spec picks. The default is the laptop's, so an
-# unset environment behaves as it always has.
+# mount at whatever path the pod spec picks. The default is the laptop's.
 CORPUS = Path(os.environ.get("GUESSR_CORPUS", "/Volumes/ADanaLife/dashcam/_opt/clips"))
 WEB = Path(__file__).parent / "web"
 STAGING = WEB / ".staging"
@@ -180,14 +179,14 @@ def psql_invocation(
     `DATABASE_HOST` is the switch, because it is the thing that is only true in
     one of the two places. From the laptop there is no route to the database at
     all -- it lives in the cluster with no ingress -- so the only way in is to
-    exec a psql that is already inside, which is what this has always done. A
-    process running *in* the cluster reaches the Service directly and has no
-    business shelling out to kubectl for it, nor the RBAC to.
+    exec a psql that is already inside. A process running *in* the cluster
+    reaches the Service directly and has no business shelling out to kubectl for
+    it, nor the RBAC to.
 
     Names follow the project-wide DATABASE_* vars that tripbot's Go and
     video-pipeline's db.py already read, so an in-cluster deployment configures
-    this the same way it configures everything else. The defaults reproduce the
-    laptop path exactly, so an unset environment behaves as it did.
+    this the same way it configures everything else. The defaults are the laptop
+    path, so an unset environment takes the kubectl route.
     """
     query = [
         "psql",
@@ -579,7 +578,7 @@ def main() -> int:
         default=0.25,
         help="how much of a round's merit is having a visual signature of its "
         "own rather than being locatable, 0 to 1. See rank() for why 0.25 and "
-        "not more; 0 reproduces the old locatability-only ordering.",
+        "not more; 0 ranks on locatability alone.",
     )
     ap.add_argument(
         "--min-spacing",
@@ -694,8 +693,8 @@ def main() -> int:
             continue
         # `image` rather than `clip`: this string is the primary key of D1's
         # `answers` table and a column of `plays`, so renaming it is a migration
-        # against live rows for no behavioural gain. The pre-launch regeneration
-        # resets `plays` anyway -- that is the cheap moment to rename it, if ever.
+        # against live rows for no behavioural gain. A regeneration that resets
+        # `plays` is the cheap moment to rename it, if ever.
         image = f"clips/{name}"
         # What the browser gets. The two scores stay -- median_km drives the
         # difficulty rating and the easy-to-hard ramp, and neither score says

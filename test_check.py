@@ -6,10 +6,9 @@ the served game, and it is only as good as the dimensions it reads. A reader
 that returned a plausible wrong size would pass clips with the answer printed
 across the bottom, so the sizes are pinned here rather than trusted.
 
-This matters more than it did when a round was a JPEG. The media is no longer
-committed, so CI never sees it and the HUD-crop check runs only where the clips
-exist -- on the laptop that generated them. These assertions are the only thing
-standing behind that one.
+The media is not committed, so CI never sees it and the HUD-crop check runs only
+where the clips exist -- on the laptop that generated them. These assertions are
+the only thing standing behind that one.
 """
 
 import os

@@ -52,10 +52,10 @@ jobs:
       - uses: AnimMouse/setup-ffmpeg@v1
 
       # The tier this matters most on. A release carrying a new round set scores
-      # nothing until `task answers:prod:push` runs, and until 2026-08-01 the
-      # only thing coupling the two was remembering — v0.5.0 went live minutes
-      # before its seed and very likely served an unscoreable game meanwhile.
-      # Red here says so; nothing else would have.
+      # nothing until `task answers:prod:push` runs, and nothing but memory
+      # couples the two — v0.5.0 went live minutes before its seed and very
+      # likely served an unscoreable game meanwhile. Red here says so; nothing
+      # else does.
       #
       # Against pages.dev rather than guessr.dana.lol: a custom domain serves the
       # previous build for up to a minute after a green deploy, which would

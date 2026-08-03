@@ -137,10 +137,10 @@ def repeat_rate(pool: int, days: int = 90) -> tuple[int, float]:
 
     dailyRounds() in web/daily.js reshuffles the *whole* pool for every day and
     takes five. It does not deal the pool out into non-overlapping days, so
-    "pool / 5 days before anything repeats" -- which this file used to print --
-    describes a draw that was never implemented. Repeats begin in the first week
-    or two at any pool size worth having; what a bigger pool buys is how *often*
-    one comes round again, not whether.
+    "pool / 5 days before anything repeats" describes a draw this game does not
+    implement. Repeats begin in the first week or two at any pool size worth
+    having; what a bigger pool buys is how *often* one comes round again, not
+    whether.
 
     Each of the `5 * days` draws is uniform over the pool and independent, so the
     chance a given round is never drawn is (1 - 1/pool)**draws, i.e. e**-(d/pool)
@@ -148,8 +148,8 @@ def repeat_rate(pool: int, days: int = 90) -> tuple[int, float]:
     served was something the player had already seen.
 
     Checked against the real draw in test_check.py rather than trusted: this is
-    the number that says whether a set is big enough, and being wrong about it in
-    the reassuring direction is how the previous one lasted.
+    the number that says whether a set is big enough, and a wrong one in the
+    reassuring direction goes unnoticed indefinitely.
     """
     draws = ROUNDS_PER_GAME * days
     distinct = pool * (1 - math.exp(-draws / pool))

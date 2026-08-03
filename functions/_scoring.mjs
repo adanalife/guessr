@@ -1,7 +1,7 @@
 // Turning a guess into points. This is the whole reason the game has a backend:
-// web/rounds.json used to ship every round's true coordinates to the browser, so
-// any score could be read straight out of devtools -- or forged -- in seconds. A
-// leaderboard built on that would rank whoever cared least.
+// a round's true coordinates reaching the browser means any score can be read
+// straight out of devtools -- or forged -- in seconds, and a leaderboard built
+// on that would rank whoever cared least.
 //
 // Underscore-prefixed, so Pages leaves it out of the routing table and
 // functions/api/ can import it. Its one import is the alias wordlist, which is

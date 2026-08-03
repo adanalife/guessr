@@ -13,10 +13,10 @@ name: pr-gates
 
 on:
   pull_request:
-    # Every PR, whatever it targets. Filtering to `branches: [main]` meant a PR
-    # stacked on another feature branch ran no tests at all — the review that
-    # most wants them, since it is looking at the top of a stack rather than at
-    # a diff against main.
+    # Every PR, whatever it targets. Filtering to `branches: [main]` would leave
+    # a PR stacked on another feature branch running no tests at all — the review
+    # that most wants them, since it is looking at the top of a stack rather than
+    # at a diff against main.
     #
     # `edited` is what makes the title check re-run when a title is fixed;
     # `labeled`/`unlabeled` the same for the skip-changelog escape hatch.
