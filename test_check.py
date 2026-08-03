@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the mp4 header reader in check.py. Run with `python3 test_check.py`.
+"""Check the reporting in check.py. Run with `python3 test_check.py`.
 
 check.py's aspect-ratio assertion is what stands between an uncropped clip and
 the served game, and it is only as good as the dimensions it reads. A reader
@@ -12,108 +12,57 @@ exist -- on the laptop that generated them. These assertions are the only thing
 standing behind that one.
 """
 
-import struct
+import shutil
+import subprocess
 import tempfile
 from pathlib import Path
 
 from check import NEAR_KM, clustering, dimensions, km, repeat_rate
 
 HERE = Path(__file__).parent
-
-
-def box(kind: bytes, body: bytes) -> bytes:
-    return struct.pack(">I4s", len(body) + 8, kind) + body
-
-
-def tkhd(width: int, height: int, version: int = 0) -> bytes:
-    """A track header. Version only changes the width of the timestamp fields.
-
-    Which is the point of pinning both: the reader counts back from the end of
-    the box rather than seeking to a fixed offset, so a version-1 file has to
-    come out the same as a version-0 one.
-    """
-    times = b"\0" * (20 if version == 0 else 32)
-    return box(
-        b"tkhd",
-        bytes([version])
-        + b"\0\0\1"  # flags
-        + times
-        + b"\0" * 8  # reserved
-        + b"\0" * 8  # layer, alternate_group, volume, reserved
-        + b"\0" * 36  # matrix
-        + struct.pack(">II", width << 16, height << 16),
-    )
-
-
-def mp4(width: int, height: int, version: int = 0, tracks: int = 1) -> bytes:
-    trak = box(b"trak", tkhd(width, height, version))
-    return box(b"ftyp", b"isom" + b"\0" * 8) + box(b"moov", trak * tracks)
-
-
 tmp = tempfile.TemporaryDirectory()
-count = 0
 
+# The reader, against files ffmpeg makes on the spot. Guarded rather than
+# assumed, and nothing is lost where it doesn't run: dimensions() only ever
+# reads media, media only exists where ffmpeg does, and both CI runners that
+# reach this file have it.
+if shutil.which("ffmpeg") and shutil.which("ffprobe"):
 
-def written(data: bytes) -> Path:
-    global count
-    count += 1
-    path = Path(tmp.name) / f"{count}.mp4"
-    path.write_bytes(data)
-    return path
+    def made(name: str, *args: str) -> Path:
+        path = Path(tmp.name) / name
+        subprocess.run(
+            ["ffmpeg", "-y", "-loglevel", "error", *args, str(path)], check=True
+        )
+        return path
 
+    def sized(name: str, w: int, h: int) -> Path:
+        return made(
+            name, "-f", "lavfi", "-i", f"testsrc=size={w}x{h}", "-frames:v", "1"
+        )
 
-# Width and height are the right way round -- swapping them is the mistake that
-# turns a cropped 1280x674 clip into an aspect the check would still accept.
-assert dimensions(written(mp4(1280, 674))) == (1280, 674)
-assert dimensions(written(mp4(674, 1280))) == (674, 1280)
+    # Width and height the right way round -- swapping them is the mistake that
+    # turns a cropped 1280x674 clip into an aspect the check would still accept.
+    assert dimensions(sized("wide.mp4", 1280, 674)) == (1280, 674)
+    assert dimensions(sized("tall.mp4", 674, 1280)) == (674, 1280)
 
-# A version-1 tkhd puts eight-byte timestamps ahead of the dimensions, so a
-# reader seeking to a fixed offset would be twelve bytes off and silently wrong.
-assert dimensions(written(mp4(1280, 674, version=1))) == (1280, 674)
-
-# 16.16 fixed point, so a dimension that isn't a whole number of pixels has to
-# round to the pixel rather than truncate toward zero.
-almost = box(b"ftyp", b"isom" + b"\0" * 8) + box(
-    b"moov",
-    box(
-        b"trak",
-        box(
-            b"tkhd",
-            b"\0\0\0\1" + b"\0" * 72 + struct.pack(">II", (1280 << 16) - 1, 674 << 16),
-        ),
-    ),
-)
-assert dimensions(written(almost)) == (1280, 674)
-
-# A 64-bit box size (size field of 1, real size in the next eight bytes) is legal
-# and appears on large files. Reading the 1 as the size would walk off into noise.
-body = box(b"trak", tkhd(1280, 674))
-large = box(b"ftyp", b"isom" + b"\0" * 8) + (
-    struct.pack(">I4sQ", 1, b"moov", len(body) + 16) + body
-)
-assert dimensions(written(large)) == (1280, 674)
-
-# Anything that isn't a readable single-track mp4 must raise rather than return
-# something the aspect check would wave through: a wrong answer here ships the
-# coordinates. Two tracks means -an stopped applying, so the reader would be
-# measuring whichever track came first rather than the video.
-for bad in (
-    b"not an mp4 at all!!!",
-    b"",
-    mp4(1280, 674)[:20],
-    box(b"ftyp", b"isom"),  # no moov
-    mp4(1280, 674, tracks=2),
-    # What a seek past the last frame produces: a well-formed container holding
-    # no video at all, which ffmpeg writes and exits 0 on.
-    mp4(1280, 674, tracks=0),
-    box(b"ftyp", b"isom" + b"\0" * 8) + box(b"moov", box(b"trak", b"")),  # no tkhd
-):
-    try:
-        dimensions(written(bad))
-    except (AssertionError, struct.error):
-        pass
-    else:
-        raise AssertionError(f"expected a failure reading {bad[:16]!r}")
+    # Anything that isn't a readable single-video-stream file must raise rather
+    # than return something the aspect check would wave through: a wrong answer
+    # here ships the coordinates.
+    junk = Path(tmp.name) / "junk.mp4"
+    junk.write_bytes(b"not an mp4 at all!!!")
+    empty = Path(tmp.name) / "empty.mp4"
+    empty.write_bytes(b"")
+    # A container with no video track at all is what a seek past the last frame
+    # produces -- ffmpeg writes it and exits 0, so it is the case that has to
+    # fail here rather than reaching a player as a black pane.
+    audio = made("audio.mp4", "-f", "lavfi", "-i", "sine=d=1", "-c:a", "aac")
+    for bad in (junk, empty, audio, Path(tmp.name) / "absent.mp4"):
+        try:
+            dimensions(bad)
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError(f"expected a failure reading {bad.name}")
 
 # And a real clip, if one has been generated here -- the thing it actually reads.
 # web/clips/ is gitignored, so this is a no-op in CI and bites on the laptop.
@@ -176,6 +125,9 @@ assert clustering([at(40, -100), at(40 + just_under, -100)])[0] == 2
 # The top state is the most common one, not the first one seen.
 assert clustering([at(0, 0, "ME"), at(0, 20, "CA"), at(0, 40, "CA")])[1] == "CA"
 
-print("ok: mp4 dimensions read correctly, and bad files raise")
+if shutil.which("ffprobe"):
+    print("ok: clip dimensions read correctly, and unreadable files raise")
+else:
+    print("skip: no ffprobe here, so the dimension reader went unchecked")
 print("ok: the repeat estimate matches a simulation of the real daily draw")
 print("ok: the spread report measures real distances and counts rounds, not pairs")

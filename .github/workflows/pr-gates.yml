@@ -82,15 +82,17 @@ jobs:
       # image, and a coordinate in rounds.json means the answer went to the
       # browser. The answers themselves aren't committed, so the cross-check that
       # every round *has* one runs at generation time, not here.
-      # Stdlib-only, so there is no toolchain to install first.
+      # Nothing to install: web/clips/ is gitignored, so this runs in
+      # manifest-only mode and never reaches the ffprobe the media branch uses.
       - name: Validate the round set
         run: python3 check.py
 
-      # The python tests: the mp4 header reader check.py validates clips with,
-      # the swap that puts a regenerated set into place, the seeding that makes a
-      # regeneration reproducible, how a round set is selected, and which route
-      # scoring takes to Postgres. All stdlib-only and sub-second. Globbed for the
-      # same reason as the node step above.
+      # The python tests: the clip-dimension reader behind check.py's HUD-crop
+      # assertion, the swap that puts a regenerated set into place, the seeding
+      # that makes a regeneration reproducible, how a round set is selected, and
+      # which route scoring takes to Postgres. Sub-second, and stdlib apart from
+      # the ffmpeg the runner image already carries. Globbed for the same reason
+      # as the node step above.
       - name: Python tests
         run: for f in test_*.py; do echo "== $f"; python3 "$f" || exit 1; done
 
