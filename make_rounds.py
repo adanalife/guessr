@@ -15,6 +15,12 @@ A run builds into web/.staging and only moves the result into place once check.p
 passes on it. A run that dies on an unmounted corpus or an unreachable database
 has to leave the current set exactly as it was rather than deleting it first.
 
+Selecting a set costs seconds and encoding one costs tens of minutes, so
+`--dry-run` stops between the two: it scores, selects, writes the manifest and
+the answers, and reports what the set would look like without cutting a single
+clip. That is the loop for tuning the knobs below, which otherwise can only be
+compared by paying for two full generations.
+
 web/clips/ is not committed -- a round set is ~125 MB and the repo is public, so
 committing one would add that to history on every regeneration, permanently. The
 manifest is committed and the media is uploaded separately (`task clips:push`),
@@ -29,14 +35,17 @@ only a couple of miles, so clip coords are close enough to score against.
 """
 
 import argparse
+import bisect
 import hashlib
 import json
 import os
-import random
 import shutil
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
+
+from check import NEAR_KM, dimensions, km
 
 CORPUS = Path("/Volumes/ADanaLife/dashcam/_opt/clips")
 WEB = Path(__file__).parent / "web"
@@ -206,8 +215,127 @@ def score_candidates(
     return rows
 
 
+def available(scored: list[dict]) -> list[dict]:
+    """Drop candidates whose source clip isn't in the corpus, in one directory read.
+
+    `videos` is derived from the corpus, so the two agreeing is the normal case
+    and this drops nothing -- but when it does drop something, doing it here is
+    what lets select() below return exactly the count it was asked for instead
+    of discovering the gap one encode at a time.
+
+    One listdir rather than a stat() per candidate: the corpus is an SMB mount,
+    where a stat costs ~4ms and a pool of a couple of thousand would spend
+    several seconds finding out what one directory read answers in ten
+    milliseconds. An unmounted corpus raises here, which is the right moment --
+    before anything under web/ has been touched.
+    """
+    present = set(os.listdir(CORPUS))
+    return [r for r in scored if f"{r['slug']}.MP4" in present]
+
+
+def rank(scored: list[dict], weight: float) -> list[dict]:
+    """Order a scored pool on both signals at once, best round first.
+
+    `scored` arrives ordered by median_km alone -- how tightly a clip's visual
+    neighbours cluster in the real world -- with mean_cos used only as a floor.
+    That ordering rewards frames it should be rejecting: empty blacktop the
+    corpus drove on many days has a tight neighbour cluster and nothing a player
+    can work with, and it survives the floor because the floor cuts a fixed
+    slice of the pool rather than holding a quality bar.
+
+    The two signals are close to independent (Spearman rho ~= 0.19 over a
+    400-clip pool, see the README), so combining them is real information rather
+    than the same measurement twice. Combined by *percentile* rather than by
+    value: kilometres and cosine distances share no scale, so a weight applied
+    to the raw numbers would mean something different for every pool.
+
+    The default weight is 0.25 rather than an even split, from sweeping it on a
+    2000-clip pool against the 300-round set that shipped (`--dry-run`, seed 7):
+
+        weight   states  top state   locatability med/worst   distinctiveness
+        shipped      23    CA  29%              84 / 230               0.0677
+        0.00         25    WY  12%              67 / 177               0.0622
+        0.25         26    CA  12%              72 / 313               0.0737
+        0.50         30    CA  12%             107 / 1144              0.0858
+
+    Half and half buys four more states and keeps climbing on distinctiveness,
+    but it pays in rounds nobody can answer: a worst case of 1144 km is a clip
+    whose visual neighbours average a thousand kilometres away, and the set goes
+    from a third hard to nearly half hard. At 0.25 the set beats the shipped one
+    on every axis at once, locatability included -- spreading a set out turns
+    out to *improve* how locatable it is, because it stops the selection piling
+    into a handful of well-driven clusters.
+    """
+    by_km = sorted(r["median_km"] for r in scored)
+    by_cos = sorted(r["mean_cos"] for r in scored)
+
+    def merit(r: dict) -> float:
+        # Locatability is better when smaller, distinctiveness when larger.
+        locatable = 1 - bisect.bisect_left(by_km, r["median_km"]) / len(scored)
+        distinct = bisect.bisect_left(by_cos, r["mean_cos"]) / len(scored)
+        return locatable * (1 - weight) + distinct * weight
+
+    return sorted(scored, key=merit, reverse=True)
+
+
+def select(
+    ranked: list[dict], count: int, min_km: float, state_cap: int
+) -> tuple[list[dict], int]:
+    """Take the best `count` rounds that aren't the same place twice.
+
+    Greedy down the ranked list, skipping any clip within `min_km` of one
+    already taken, or from a state that has already filled its share. Returns
+    the set and how many of it had to be backfilled without the spacing.
+
+    Both constraints exist because nothing upstream knows about spread: every
+    clip is scored alone, so the roads the van drove repeatedly score well
+    repeatedly and a set comes out denser and narrower than the corpus behind
+    it. Measured on the 300-round set that shipped: California is 33% of the
+    rounds against 17% of the corpus, ten of the corpus's 32 states have no
+    round at all, and 157 of 300 rounds sit within 5 km of another round --
+    including fifteen consecutive minutes of one day's drive, served as five
+    separate rounds. A player who notices the lean gets it as a free prior on
+    every round afterwards.
+
+    Backfilling rather than returning short: a crowded round still plays, and
+    the round count is what the daily draw's repeat rate depends on. The state
+    cap is *not* relaxed for the backfill -- it is the whole anti-skew guard,
+    and a set that can only be filled by breaking it should come out short and
+    say so.
+    """
+    chosen: list[dict] = []
+    taken: set[str] = set()
+    per_state: Counter = Counter()
+
+    def take(spacing: float) -> None:
+        for r in ranked:
+            if len(chosen) >= count:
+                return
+            if r["slug"] in taken:
+                continue
+            if state_cap and per_state[r["state"]] >= state_cap:
+                continue
+            if spacing and any(km(r, c) < spacing for c in chosen):
+                continue
+            chosen.append(r)
+            taken.add(r["slug"])
+            per_state[r["state"]] += 1
+
+    take(min_km)
+    spread = len(chosen)
+    take(0)
+    return chosen, len(chosen) - spread
+
+
 def extract_clip(
-    row: dict, dest: Path, width: int, seconds: float, crf: int, fps: int
+    row: dict,
+    dest: Path,
+    width: int,
+    seconds: float,
+    crf: int,
+    fps: int,
+    threads: int,
+    niceness: int,
 ) -> bool:
     """Cut one HUD-free clip. Returns False if the source isn't readable.
 
@@ -228,51 +356,79 @@ def extract_clip(
       bytes for something no player will ever hear.
     - `veryslow`: this runs once per round on a laptop, offline. The frames are
       the deliverable, so there is no reason to trade their size for encode time.
+      It buys about 2% over `slow` for 3.5x the time, which is a bad trade
+      anywhere the encode is on someone's critical path and a free one here.
     - `+faststart` puts the moov atom first, so the browser can start playing on
       the first bytes instead of waiting for the whole file.
+
+    `nice` and `-threads` bound what the encode can take rather than trusting it
+    to be modest. Three hundred of these is ~25 minutes of x264 that will use
+    every core it is given, and the machines that would run it are machines with
+    something else to do: a laptop being typed on, or -- if round generation ever
+    moves to the minipc -- a node that is also playing out the live stream, where
+    CPU contention is a known cause of a choppy broadcast. Half the cores and a
+    positive nice value cost wall-clock and nothing else.
     """
     src = CORPUS / f"{row['slug']}.MP4"
     if not src.exists():
         return False
 
     vf = f"crop=iw:ih-{HUD_STRIP_PX}:0:0,scale={width}:-2,fps={fps}"
-    proc = subprocess.run(
-        [
-            "ffmpeg",
-            "-y",
-            "-loglevel",
-            "error",
-            # Before -i, so ffmpeg seeks rather than decoding up to the mark.
-            # Output-accurate regardless, since everything downstream is
-            # re-encoded.
-            "-ss",
-            str(row["ts"]),
-            "-t",
-            str(seconds),
-            "-i",
-            str(src),
-            "-vf",
-            vf,
-            "-an",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryslow",
-            "-crf",
-            str(crf),
-            # Baseline-compatible chroma and a leading moov atom: without
-            # yuv420p some encodes come out 4:4:4, which Safari refuses to play
-            # at all and which fails as a black pane rather than as an error.
-            "-pix_fmt",
-            "yuv420p",
-            "-movflags",
-            "+faststart",
-            str(dest),
-        ],
-        capture_output=True,
-        text=True,
-    )
-    return proc.returncode == 0 and dest.exists() and dest.stat().st_size > 0
+    # A frame's timestamp can be the clip's last one, and a window starting there
+    # holds nothing: ffmpeg writes a valid, empty container, exits 0, and leaves a
+    # few hundred bytes on disk, so return code and file size both say it worked.
+    # The emptiness only surfaces in check.py, at the end of a run that spent
+    # twenty-five minutes encoding everything else. Cut the tail instead.
+    for ts in (row["ts"], max(0.0, row["ts"] - seconds)):
+        proc = subprocess.run(
+            [
+                "nice",
+                "-n",
+                str(niceness),
+                "ffmpeg",
+                "-y",
+                "-loglevel",
+                "error",
+                # Before -i, so ffmpeg seeks rather than decoding up to the mark.
+                # Output-accurate regardless, since everything downstream is
+                # re-encoded.
+                "-ss",
+                str(ts),
+                "-t",
+                str(seconds),
+                "-i",
+                str(src),
+                "-vf",
+                vf,
+                "-an",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryslow",
+                "-crf",
+                str(crf),
+                # Baseline-compatible chroma and a leading moov atom: without
+                # yuv420p some encodes come out 4:4:4, which Safari refuses to play
+                # at all and which fails as a black pane rather than as an error.
+                "-pix_fmt",
+                "yuv420p",
+                "-movflags",
+                "+faststart",
+                "-threads",
+                str(threads),
+                str(dest),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0 or not dest.exists():
+            return False
+        try:
+            dimensions(dest)
+        except AssertionError:
+            continue  # no video track: the seek landed past the last frame
+        return True
+    return False
 
 
 def answers_sql(answers: list[dict]) -> str:
@@ -368,8 +524,32 @@ def main() -> int:
         "--keep-fraction",
         type=float,
         default=0.5,
-        help="fraction of the scored pool to sample from, best-scoring first. "
-        "Sampling rather than taking the top N keeps the rounds varied.",
+        help="fraction of the scored pool to select from, best-scoring first. "
+        "A quality window: everything below it is out regardless of how well it "
+        "would have spread the set.",
+    )
+    ap.add_argument(
+        "--distinctiveness",
+        type=float,
+        default=0.25,
+        help="how much of a round's merit is having a visual signature of its "
+        "own rather than being locatable, 0 to 1. See rank() for why 0.25 and "
+        "not more; 0 reproduces the old locatability-only ordering.",
+    )
+    ap.add_argument(
+        "--min-spacing",
+        type=float,
+        default=NEAR_KM,
+        help="kilometres a round must sit from every other round in the set. "
+        "0 turns the spacing off. See select() for what it is protecting "
+        "against.",
+    )
+    ap.add_argument(
+        "--state-cap",
+        type=float,
+        default=0.12,
+        help="most of the set any one state may be, as a fraction. 0 turns the "
+        "cap off, which lets the corpus's own skew through undamped.",
     )
     ap.add_argument(
         "--drop-generic",
@@ -390,24 +570,51 @@ def main() -> int:
         "28 rather than the smaller numbers a size argument alone would pick.",
     )
     ap.add_argument("--fps", type=int, default=30, help="output frame rate")
+    ap.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="score and select, report what the set would look like, and cut "
+        "nothing. Scoring a pool takes seconds and encoding it takes tens of "
+        "minutes, so this is how the knobs above get tuned by trying them.",
+    )
+    ap.add_argument(
+        "--threads",
+        type=int,
+        default=max(1, (os.cpu_count() or 2) // 2),
+        help="cores x264 may use, half of them by default. See extract_clip: "
+        "the encode is long enough to be worth bounding on a machine that has "
+        "anything else to do.",
+    )
+    ap.add_argument(
+        "--nice",
+        type=int,
+        default=10,
+        help="scheduling niceness for the encode, so it loses every contest for "
+        "a core rather than winning some of them",
+    )
     ap.add_argument("--namespace", default="stage-1-data")
     ap.add_argument(
         "--seed",
         type=int,
         default=None,
-        help="pin both the database's pool draw and the Python shuffle, so the "
-        "same seed rebuilds the same round set -- but only from an unchanged "
-        "corpus, since new clips change what the same draw selects. Without a "
-        "seed every run draws a fresh pool.",
+        help="pin the database's pool draw, so the same seed rebuilds the same "
+        "round set -- but only from an unchanged corpus, since new clips change "
+        "what the same draw selects. Everything after the draw is deterministic. "
+        "Without a seed every run draws a fresh pool.",
     )
     args = ap.parse_args()
 
-    random.seed(args.seed)
     shutil.rmtree(STAGING, ignore_errors=True)
     clips = STAGING / "clips"
-    clips.mkdir(parents=True)
+    # A dry run produces a manifest and its answers but no media, which is the
+    # same shape CI sees -- so check.py reports on the set and skips the media
+    # assertions on its own. Creating clips/ empty is what would turn that into
+    # a wall of missing-clip failures.
+    (STAGING if args.dry_run else clips).mkdir(parents=True)
 
-    scored = score_candidates(args.namespace, args.pool, args.neighbours, args.seed)
+    scored = available(
+        score_candidates(args.namespace, args.pool, args.neighbours, args.seed)
+    )
     # Cut the visually generic clips by percentile rather than an absolute cosine
     # distance, so the filter stays honest if the corpus or the embedding model
     # changes. ponytail: the pool is a few hundred rows, so sorting it twice is free.
@@ -423,21 +630,39 @@ def main() -> int:
         )
 
     keep = max(args.count, int(len(scored) * args.keep_fraction))
-    eligible = scored[:keep]
-    cutoff = eligible[-1]["median_km"] if eligible else 0
+    eligible = rank(scored, args.distinctiveness)[:keep]
     print(
-        f"scored {len(scored)} clips; keeping the {len(eligible)} most locatable "
-        f"(median neighbour distance <= {cutoff:g} km)"
+        f"scored {len(scored)} clips; selecting from the best {len(eligible)} "
+        f"on locatability and distinctiveness together"
     )
 
-    random.shuffle(eligible)
+    cap = max(1, int(args.count * args.state_cap)) if args.state_cap else 0
+    eligible, backfilled = select(eligible, args.count, args.min_spacing, cap)
+    if len(eligible) < args.count:
+        print(
+            f"only {len(eligible)} rounds fit under a {cap}-per-state cap -- "
+            f"raise --pool, or --state-cap to let one state take more"
+        )
+    if backfilled:
+        # Non-zero means the spacing pass ran out of well-spread candidates, so
+        # check.py's spread line below will report these rather than zero.
+        print(
+            f"{backfilled} rounds are closer than {args.min_spacing:g} km to "
+            f"another -- the pool ran out of spread before it ran out of rounds"
+        )
+
     rounds, answers = [], []
     for row in eligible:
-        if len(rounds) >= args.count:
-            break
         name = f"{row['slug']}.mp4"
-        if not extract_clip(
-            row, clips / name, args.width, args.seconds, args.crf, args.fps
+        if not args.dry_run and not extract_clip(
+            row,
+            clips / name,
+            args.width,
+            args.seconds,
+            args.crf,
+            args.fps,
+            args.threads,
+            args.nice,
         ):
             print(f"  skip {row['slug']} (unreadable)")
             continue
@@ -476,7 +701,8 @@ def main() -> int:
     (STAGING / "rounds.json").write_text(json.dumps(rounds, indent=1) + "\n")
     write_answers(answers, STAGING)
     states = {a["state"] for a in answers}
-    print(f"\nstaged {len(rounds)} rounds across {len(states)} states")
+    verb = "would stage" if args.dry_run else "staged"
+    print(f"\n{verb} {len(rounds)} rounds across {len(states)} states")
 
     validate = subprocess.run(
         [sys.executable, str(Path(__file__).parent / "check.py"), str(STAGING)]
@@ -487,6 +713,15 @@ def main() -> int:
             f"The rejected one is at {STAGING} to look at."
         )
         return 1
+
+    if args.dry_run:
+        print(
+            f"\ndry run: nothing was cut and {WEB} is untouched. The manifest "
+            f"and answers this run would have produced are in {STAGING}.\n"
+            f"Rerun with the same --seed and no --dry-run to build this set for "
+            f"real, or change the knobs and look again."
+        )
+        return 0
 
     swap_in(STAGING, WEB)
     size_mb = sum(f.stat().st_size for f in (WEB / "clips").iterdir()) / 1e6

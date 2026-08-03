@@ -16,7 +16,7 @@ import struct
 import tempfile
 from pathlib import Path
 
-from check import dimensions, repeat_rate
+from check import NEAR_KM, clustering, dimensions, km, repeat_rate
 
 HERE = Path(__file__).parent
 
@@ -103,6 +103,9 @@ for bad in (
     mp4(1280, 674)[:20],
     box(b"ftyp", b"isom"),  # no moov
     mp4(1280, 674, tracks=2),
+    # What a seek past the last frame produces: a well-formed container holding
+    # no video at all, which ffmpeg writes and exits 0 on.
+    mp4(1280, 674, tracks=0),
     box(b"ftyp", b"isom" + b"\0" * 8) + box(b"moov", box(b"trak", b"")),  # no tkhd
 ):
     try:
@@ -141,5 +144,38 @@ assert repeat_rate(5)[1] > 0.98, repeat_rate(5)
 # And the estimate must never read as roomier than the pool actually is.
 assert repeat_rate(300)[0] <= 300
 
+# The spread report. A wrong distance here reads as a well-spread set, which is
+# the direction that gets a clustered set shipped without anyone noticing.
+# One degree of latitude is 111.19 km on this sphere, anywhere.
+assert abs(km({"lat": 40, "lng": -100}, {"lat": 41, "lng": -100}) - 111.19) < 0.1
+# A degree of longitude shrinks with the cosine of the latitude; at 60N it halves.
+assert abs(km({"lat": 60, "lng": 0}, {"lat": 60, "lng": 1}) - 111.19 / 2) < 0.5
+assert km({"lat": 40, "lng": -100}, {"lat": 40, "lng": -100}) == 0
+
+
+def at(lat, lng, state="CA"):
+    return {"lat": lat, "lng": lng, "state": state}
+
+
+# Both halves of a close pair count as crowded, and a third point far away does
+# not -- the count is rounds involved, not pairs, because that is what says how
+# much of the set plays as somewhere it has already been.
+near = 0.01  # ~1.1 km, comfortably inside NEAR_KM
+crowded, state, pct = clustering([at(40, -100), at(40 + near, -100), at(45, -110)])
+assert crowded == 2, crowded
+assert (state, pct) == ("CA", 100.0), (state, pct)
+
+# A set with nothing within NEAR_KM of anything else is clean.
+assert clustering([at(40, -100), at(41, -100), at(42, -100)])[0] == 0
+# And the pair either side of the threshold resolves the way it reads.
+just_over = (NEAR_KM + 1) / 111.19
+assert clustering([at(40, -100), at(40 + just_over, -100)])[0] == 0
+just_under = (NEAR_KM - 1) / 111.19
+assert clustering([at(40, -100), at(40 + just_under, -100)])[0] == 2
+
+# The top state is the most common one, not the first one seen.
+assert clustering([at(0, 0, "ME"), at(0, 20, "CA"), at(0, 40, "CA")])[1] == "CA"
+
 print("ok: mp4 dimensions read correctly, and bad files raise")
 print("ok: the repeat estimate matches a simulation of the real daily draw")
+print("ok: the spread report measures real distances and counts rounds, not pairs")

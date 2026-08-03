@@ -38,6 +38,11 @@ UNCROPPED_ASPECT = 16 / 9  # 1.778 -- what a clip looks like with the HUD still 
 # A set whose scores all land on one side of them has no spread for the
 # easy-to-hard ramp to order, so every game plays at one difficulty.
 EASY_KM, HARD_KM = 32.0, 120.0
+# Two rounds closer together than this are the same answer wearing a different
+# frame. Reported, never asserted: a clustered set is a worse set, not a broken
+# one, and where the line sits is a judgement about the game rather than a fact
+# about the data.
+NEAR_KM = 5.0
 # Lower 48, generously bounded.
 LAT_RANGE, LNG_RANGE = (24.0, 49.5), (-125.0, -66.0)
 
@@ -115,6 +120,43 @@ def dimensions(path: Path) -> tuple[int, int]:
         # 1279.99998 is 1280, and floor()ing it would report an aspect ratio a
         # hair off the real one on every clip.
         return round(width / 65536), round(height / 65536)
+
+
+def km(a: dict, b: dict) -> float:
+    """Great-circle distance between two answers, in kilometres."""
+    lat1, lng1, lat2, lng2 = map(math.radians, (a["lat"], a["lng"], b["lat"], b["lng"]))
+    return (
+        2
+        * 6371
+        * math.asin(
+            math.sqrt(
+                math.sin((lat2 - lat1) / 2) ** 2
+                + math.cos(lat1) * math.cos(lat2) * math.sin((lng2 - lng1) / 2) ** 2
+            )
+        )
+    )
+
+
+def clustering(answers: list[dict]) -> tuple[int, str, float]:
+    """How much of a set is the same place twice: crowded rounds, and the top state.
+
+    Nothing in the selection knows about spread -- make_rounds.py ranks each clip
+    on its own merits -- so a road the corpus drove on many different days can
+    supply a dozen rounds within sight of each other, and the states the van
+    lived in crowd out the ones it merely drove through. Both play as a narrower
+    game than the corpus actually holds: once a player learns the set leans one
+    way, that lean is a free prior on every round.
+
+    ponytail: O(n^2) over a few hundred rounds, which is milliseconds. Grid the
+    points into cells if a set ever gets big enough to feel it.
+    """
+    crowded = set()
+    for i, a in enumerate(answers):
+        for j, b in enumerate(answers[i + 1 :], start=i + 1):
+            if km(a, b) < NEAR_KM:
+                crowded.update((i, j))
+    state, n = Counter(a["state"] for a in answers).most_common(1)[0]
+    return len(crowded), state, 100 * n / len(answers)
 
 
 def band(median_km: float) -> int:
@@ -247,9 +289,15 @@ def main() -> int:
         print("    (no answers.json here, so the answer cross-check was skipped)")
         return 0
 
-    states = {answers[r["image"]]["state"] for r in rounds}
+    coords = [answers[r["image"]] for r in rounds]
+    states = {a["state"] for a in coords}
     spread = sorted(r["median_km"] for r in rounds)
     print(f"ok: {len(rounds)} rounds, {len(states)} states, {cropped}")
+    crowded, top_state, top_pct = clustering(coords)
+    print(
+        f"    spread: {crowded} of {len(rounds)} rounds sit within {NEAR_KM:g} km "
+        f"of another round; {top_state} is {top_pct:.0f}% of the set"
+    )
     distinct, repeats = repeat_rate(len(rounds))
     print(
         f"    a daily player meets {distinct} of them over 90 days, with "
