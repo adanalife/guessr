@@ -5,9 +5,11 @@
 // comes from, and a live embed needs a video id that changes with every
 // broadcast. The two obvious ways to get one both fail:
 //
-//   - `/embed/live_stream?channel=<id>` used to resolve it inside the player and
-//     needed no server at all. It is retired: it answers "This video is
-//     unavailable" for a channel that is demonstrably live.
+//   - `/embed/live_stream?channel=<id>` resolves it inside the player and needs
+//     no server at all; the project's admin console has served that URL for
+//     weeks against this same channel. What it renders for a *dark* channel is
+//     unmeasured, and a grey "video unavailable" panel would be worse in this
+//     cell than a line of text -- that gap is the only thing this endpoint buys.
 //   - The YouTube Data API would answer it properly, but it needs a key, and a
 //     key in a static page is a public key. Quota is already the binding
 //     constraint on that API elsewhere in this project's fleet, and a 24/7
