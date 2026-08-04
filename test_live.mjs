@@ -48,7 +48,8 @@ const withFetch = async (impl) => {
 let res = await withFetch(async () => new Response(live, { status: 200 }));
 let body = await res.json();
 assert.equal(body.videoId, 'Uhln8S-ZCMI');
-assert.deepEqual(body.why, { status: 200, bytes: live.length, liveFlag: true, canonical: true });
+assert.deepEqual(body.why, { status: 200, bytes: live.length, liveFlag: true,
+  canonical: 'https://www.youtube.com/watch?v=Uhln8S-ZCMI' });
 assert.match(res.headers.get('cache-control'), /^public, max-age=\d+$/,
   'the answer is cacheable, so one upstream read serves many finished games');
 
@@ -57,8 +58,9 @@ assert.match(res.headers.get('cache-control'), /^public, max-age=\d+$/,
 res = await withFetch(async () => new Response(dark, { status: 200 }));
 body = await res.json();
 assert.equal(body.videoId, null);
-assert.deepEqual(body.why, { status: 200, bytes: dark.length, liveFlag: false, canonical: false },
-  'a dark channel is a full 200 page with neither marker');
+assert.deepEqual(body.why, { status: 200, bytes: dark.length, liveFlag: false,
+  canonical: 'https://www.youtube.com/channel/UC8Q7uFC1Xyr2ZnTWOk9Aizg' },
+  'a dark channel is a full 200 page canonicalising to the channel, not a video');
 
 res = await withFetch(async () => new Response('nope', { status: 500 }));
 body = await res.json();

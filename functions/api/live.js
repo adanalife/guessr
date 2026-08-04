@@ -50,9 +50,12 @@ export function liveVideoId(html) {
 // A null carries the reason it is null, because from the outside a resolver that
 // can never resolve anything is indistinguishable from a channel that happens to
 // be dark: the board keeps its link either way, and smoke.sh asserts that the
-// videoId key exists rather than what it holds. The four fields separate the
-// cases that need different fixes -- a non-200 upstream, a body far too small to
-// be the watch page, or a full page whose markers are simply absent.
+// videoId key exists rather than what it holds.
+//
+// `canonical` is the href rather than a yes/no because which page came back is
+// the whole diagnosis: a /watch canonical without the live flag is a finished
+// broadcast, a /channel canonical is the dark permalink, and anything else means
+// the upstream served something that was never the watch page at all.
 export async function onRequestGet() {
   let videoId = null;
   const why = {};
@@ -65,7 +68,7 @@ export async function onRequestGet() {
       const html = await res.text();
       why.bytes = html.length;
       why.liveFlag = html.includes('"isLiveNow":true');
-      why.canonical = CANONICAL_WATCH.test(html);
+      why.canonical = html.match(/<link rel="canonical" href="([^"]*)"/)?.[1] ?? null;
       videoId = liveVideoId(html);
     }
   } catch (e) {
