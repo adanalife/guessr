@@ -51,11 +51,16 @@ case "${1:?usage: clips.sh push|pull}" in
     # too. An object stored as octet-stream is a <video> that plays nothing and
     # reports nothing, and belt-and-braces is cheap on the one failure mode that is
     # invisible from both ends.
+    # The bucket and the file arrive as $1 and $2 rather than being interpolated
+    # into the script text: nesting a quote inside a single-quoted `sh -c` string
+    # works but reads as a mistake, and this way the inner script is literal.
+    # shellcheck disable=SC2016  # deliberate: $1/$2/$3 are the inner sh's own
+    # positional parameters, passed after the script, not this shell's.
     find "$WEB/clips" -name '*.mp4' -print0 \
-      | xargs -0 -P "$JOBS" -I{} sh -c '
-          npx wrangler r2 object put "'"$BUCKET"'/clips/$(basename "$1")" \
-            --file "$1" --content-type video/mp4 --remote >/dev/null
-        ' sh {}
+      | xargs -0 -P "$JOBS" -I{} sh -c \
+        'npx wrangler r2 object put "$1/clips/$(basename "$2")" \
+           --file "$2" --content-type video/mp4 --remote >/dev/null' \
+        sh "$BUCKET" {}
     echo "ok: a manifest naming these clips can now be deployed"
     ;;
 
@@ -65,12 +70,14 @@ case "${1:?usage: clips.sh push|pull}" in
     # request time, which is the whole point -- so this is a development
     # convenience, and a way to check by hand that a push landed.
     mkdir -p "$WEB/clips"
+    # shellcheck disable=SC2016  # deliberate: $1/$2/$3 are the inner sh's own
+    # positional parameters, passed after the script, not this shell's.
     manifest_clips | tr '\n' '\0' \
-      | xargs -0 -P "$JOBS" -I{} sh -c '
-          test -f "'"$WEB"'/clips/$1" && exit 0
-          npx wrangler r2 object get "'"$BUCKET"'/clips/$1" \
-            --file "'"$WEB"'/clips/$1" --remote >/dev/null
-        ' sh {}
+      | xargs -0 -P "$JOBS" -I{} sh -c \
+        'test -f "$2/clips/$3" && exit 0
+         npx wrangler r2 object get "$1/clips/$3" \
+           --file "$2/clips/$3" --remote >/dev/null' \
+        sh "$BUCKET" "$WEB" {}
     have=$(find "$WEB/clips" -name '*.mp4' | wc -l | tr -d ' ')
     want=$(manifest_clips | wc -l | tr -d ' ')
     # A shortfall means the committed manifest names clips that were never pushed
