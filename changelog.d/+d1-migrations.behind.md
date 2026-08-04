@@ -1,0 +1,1 @@
+The game's database structure is now managed as numbered migrations, so each environment records what it has applied and can be checked rather than guessed at. Nothing changes about how the game plays.

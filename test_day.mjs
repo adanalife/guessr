@@ -11,12 +11,11 @@
 // Against the real schema.sql over node:sqlite, so the queries are the ones that
 // will run and the primary keys are the ones that will be enforced.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 
-import { d1 } from './_d1.mjs';
+import { d1, schema } from './_d1.mjs';
 import { onRequestGet } from './functions/api/day.js';
 
-const env = { ANSWERS: d1(readFileSync('schema.sql', 'utf8')) };
+const env = { ANSWERS: d1(schema()) };
 
 // A date whose window is long shut, one in the future, and the boundary between
 // them. Fixed dates rather than offsets from now, because the play window is the
@@ -142,7 +141,7 @@ for (const bad of ['', 'date=', 'date=2026-8-1', 'date=yesterday', 'date=2026-08
 // Practice against a database where nothing has closed yet says so, rather than
 // handing back an empty game the page would render as a zero-round daily.
 {
-  const empty = { ANSWERS: d1(readFileSync('schema.sql', 'utf8')) };
+  const empty = { ANSWERS: d1(schema()) };
   const res = await onRequestGet({
     request: new Request('https://guessr.dana.lol/api/day?practice'),
     env: empty,

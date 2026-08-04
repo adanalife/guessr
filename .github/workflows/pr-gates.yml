@@ -107,16 +107,46 @@ jobs:
       - name: Python tests
         run: for f in test_*.py; do echo "== $f"; python3 "$f" || exit 1; done
 
-      # schema.sql is hand-written DDL that nothing else parses until someone
-      # runs `task schema:prod:push`, where a typo is discovered against the
-      # production database. sqlite3 is D1's own engine and ships on the runner,
-      # so loading it into a scratch database costs nothing and moves that
-      # discovery here. Idempotent by construction, hence running it twice: the
-      # push targets are documented as safe to re-run.
-      - name: Schema loads, twice
+      # The migrations are hand-written DDL that nothing else parses until
+      # someone runs `task schema:prod:apply`, where a typo is discovered against
+      # the production database. sqlite3 is D1's own engine and ships on the
+      # runner, so replaying them into a scratch database costs nothing and moves
+      # that discovery here.
+      #
+      # In filename order, which is the order wrangler applies them in, so this
+      # catches a migration that only works if run before one that precedes it.
+      # Once each: from 0002 onward the `d1_migrations` ledger is what guarantees
+      # single application, so the DDL is bare and re-running would rightly fail.
+      - name: Migrations replay in order
         run: |
-          sqlite3 /tmp/schema-check.db < schema.sql
-          sqlite3 /tmp/schema-check.db < schema.sql
+          for m in migrations/*.sql; do
+            echo "== $m"
+            sqlite3 /tmp/schema-check.db < "$m"
+          done
+
+      # The baseline is the exception, and its exemption is load-bearing: it has
+      # to be a no-op against staging and production, which were built by hand
+      # before there was a ledger to record that they had been. If it stops being
+      # re-runnable, adopting an existing database fails instead.
+      - name: The baseline migration is idempotent
+        run: |
+          sqlite3 /tmp/baseline-check.db < migrations/0001_initial_schema.sql
+          sqlite3 /tmp/baseline-check.db < migrations/0001_initial_schema.sql
+
+      # And the whole game against a real local D1 -- workerd's own SQLite via
+      # `wrangler --local`, and `wrangler pages dev` for the runtime. The steps
+      # above prove the migrations parse; the node tests above prove the handlers'
+      # logic against a stub of the binding. Neither can say whether Pages routes
+      # to a handler, whether the binding is wired, or how a real D1 answers, and
+      # those are the failures that have cost a deploy each: an endpoint that
+      # 500s on a table nobody created reads as a perfectly green build.
+      #
+      # No new dependency and no service container -- wrangler is already how
+      # this repo deploys. The cost is one uncached `npx wrangler` download per
+      # run, because the repo has no package.json to cache against; worth adding
+      # one if this step ever dominates the job.
+      - name: The game runs against a real local D1
+        run: ./integration.sh
 
       - uses: astral-sh/setup-uv@v9.0.0 # no floating major tag published
 

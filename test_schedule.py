@@ -16,7 +16,7 @@ of five would satisfy every other assertion here and produce a month that gets
 steadily harder instead of a game that does -- a failure nobody would see until
 week three, and never as an error.
 
-The SQL half runs against the real schema.sql over stdlib sqlite3, which is D1's
+The SQL half replays the real migrations over stdlib sqlite3, which is D1's
 own engine: a generated script that will not load is a publish that dies after
 25 minutes of encoding, and this is the cheapest place to find out.
 """
@@ -28,7 +28,13 @@ from pathlib import Path
 
 from make_rounds import ROUNDS_PER_GAME, rounds_sql, schedule
 
-SCHEMA = (Path(__file__).parent / "schema.sql").read_text()
+# Every migration in the order wrangler applies them, rather than one file
+# describing the shape: a migration that only works after another, or a table
+# added to the baseline instead of to a new migration, both pass a
+# read-one-file test and fail against a deployed database.
+SCHEMA = "\n".join(
+    f.read_text() for f in sorted((Path(__file__).parent / "migrations").glob("*.sql"))
+)
 START = date(2026, 9, 1)
 
 

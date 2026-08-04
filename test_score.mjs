@@ -14,12 +14,11 @@
 // likes, and it reads the schedule rather than recomputing a draw.
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import {
   MAX_HANDLE, MAX_ROUND_SCORE, haversineKm, isPlay, parseGuess, parsePlay, scoreFor,
 } from './functions/_scoring.mjs';
 import { ADJECTIVES, NOUNS, aliasFrom } from './web/alias.js';
-import { d1, post } from './_d1.mjs';
+import { d1, post, schema } from './_d1.mjs';
 import { onRequestPost } from './functions/api/score.js';
 
 const SF = { lat: 37.7749, lng: -122.4194 };
@@ -174,7 +173,7 @@ assert.ok(parsePlay({ ...play, date: '2028-02-29' }), 'rejected a real leap day'
 // one that was never scheduled at all -- otherwise five known images buy an
 // unlimited score on every open date at once.
 {
-  const env = { ANSWERS: d1(readFileSync('schema.sql', 'utf8')) };
+  const env = { ANSWERS: d1(schema()) };
   const MINE = 'clips/a-010000.mp4';
   const THEIRS = 'clips/b-020000.mp4';
   const LOOSE = 'clips/c-030000.mp4';

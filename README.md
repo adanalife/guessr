@@ -34,13 +34,22 @@ task rounds   # needs the corpus mounted + kubectl access to the tripbot DB
 task check    # validates the round set
 task clips:push  # uploads the media to R2, which is where the game reads it from
 task test     # scheduling, scoring, the endpoints, the swap; needs neither
+task test:integration  # the whole game against a throwaway local D1
 task dev      # http://localhost:8000, with scoring
 task serve    # http://localhost:8000, static only — no rounds, no scoring
 ```
 
-`task dev` runs `wrangler pages dev` against a local D1 — `schema.sql` applied,
+`task dev` runs `wrangler pages dev` against a local D1 — migrations applied,
 then `rounds.sql` and `answers.sql` seeded — so a game loads and guessing works
 end to end, including the record a daily play leaves behind.
+
+`task test:integration` is the same stack without a corpus: it fabricates a round
+set through the *real* SQL generators, applies the migrations to a throwaway
+local D1, starts `wrangler pages dev`, and asserts the endpoints answer. It runs
+in CI, and it is the tier that catches what the other two cannot — `task test`
+runs handlers against a stub of the D1 binding, so it proves logic and says
+nothing about routing, bindings, or how a real database answers, while `smoke.sh`
+needs something already deployed.
 
 `task serve` is a plain `http.server`, and it no longer serves a playable game:
 the rounds come from `/api/day` and the clips from a Function, neither of which a
@@ -225,21 +234,51 @@ tier has its own so a regeneration on one doesn't strand the other.
 
 ### The tables the game owns
 
-Every table definition is in `schema.sql` — `rounds`, `round_days`, `answers`,
-and `plays`, one row per player per round per date, which is the whole storage
-behind the leaderboard. Hand-written, idempotent, and applied once per database:
+Every table definition lives in numbered migrations under `migrations/` —
+`rounds`, `round_days`, `answers`, and `plays`, one row per player per round per
+date, which is the whole storage behind the leaderboard.
 
 ```sh
-task schema:stage:push
-task schema:prod:push
+task schema:stage:status   # what this tier has not applied yet
+task schema:stage:apply
+task schema:prod:apply
 ```
 
 **A fresh database needs this before any seed will land.** The definitions are
 kept out of the generated files because the two change on completely different
 clocks: `rounds.sql` and `answers.sql` are rewritten with every round set, while
-`schema.sql` moves when the shape does. Folding them together would put the
-definition of a table of player scores inside a gitignored file that only exists
-on whichever laptop last built a round set.
+the shape moves rarely. Folding them together would put the definition of a table
+of player scores inside a gitignored file that only exists on whichever laptop
+last built a round set.
+
+**Why a ledger and not one idempotent file.** `wrangler d1 migrations apply`
+records what it has run in each database's own `d1_migrations` table, so
+`:status` answers *"how far behind is this tier"* — a question a hand-run push
+can only answer by trying something and seeing whether it 500s. It also unblocks
+`ALTER TABLE`, which SQLite gives no `IF NOT EXISTS`, so a re-runnable single
+file can only ever add tables and never change one.
+
+Writing one: `npx wrangler d1 migrations create <db> <description> --config
+wrangler.d1.jsonc`, then fill in the file. The conventions, which are tripbot's
+minus the parts D1 will not take:
+
+- **`NNNN_snake_case_description.sql`**, four digits, applied in filename order.
+  (tripbot uses three; wrangler's `create` generates four and renaming them by
+  hand to match would drift the moment somebody uses the tool.)
+- **A header comment saying *why*, not *what*.** Same as tripbot's — the schema
+  is where the reasoning behind a shape has somewhere permanent to live.
+- **No `.down.sql`, and this one is a trap rather than a preference.** Wrangler
+  globs `migrations/*.sql` and applies everything unapplied in order, so a down
+  file is treated as *the next migration* and would undo its own up on the same
+  run. D1 migrations are forward-only; to reverse something, write a new one.
+- **Bare DDL.** The ledger guarantees single application, so a guard would only
+  hide a numbering mistake. `0001` is the sole exception and says why in its own
+  header: it has to be adoptable by the databases that predate the ledger.
+
+`wrangler.d1.jsonc` is where the three databases are declared, and its header
+explains the one asymmetry worth knowing: `d1 execute` resolves a bare database
+name against the API, `d1 migrations` refuses to run without a config *and* a
+`database_id`.
 
 A row is written the first time a player answers a round on a given date, and
 never updated: guessing that round again returns the score already on record.

@@ -15,7 +15,23 @@
 //
 // Underscore-prefixed to match functions/_scoring.mjs, and so `task test`'s
 // test_*.mjs glob doesn't try to run it as a test.
+import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
+
+// Every migration, concatenated in the order wrangler applies them.
+//
+// Tests build their database the way a real one is built, rather than from a
+// single file that describes the shape. That matters more than it sounds: a
+// migration that only works when run after another one, or a table that was
+// added to the baseline instead of to a new migration, both pass a
+// read-one-file test and fail against a deployed database.
+export function schema() {
+  return readdirSync('migrations')
+    .filter(f => f.endsWith('.sql'))
+    .sort()
+    .map(f => readFileSync(`migrations/${f}`, 'utf8'))
+    .join('\n');
+}
 
 class Statement {
   constructor(db, sql, args = []) {

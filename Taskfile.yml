@@ -12,8 +12,8 @@
 #
 # The same D1 holds the tables all of it lives in — `rounds`, `round_days`,
 # `answers`, and `plays`, which records a daily result once per player per round.
-# Those are hand-written DDL in schema.sql, applied by `schema:*:push`, and a
-# fresh database needs that before any of the seeds will land.
+# Those are numbered migrations under migrations/, applied by `schema:*:apply`,
+# and a fresh database needs them before any of the seeds will land.
 #
 # So there are two ways to run it locally: `serve` for anything that isn't
 # scoring, and `dev` when a guess has to actually come back with points.
@@ -28,7 +28,7 @@ vars:
   # because a regenerated set diverges the moment one tier has it and the other
   # doesn't.
   BUCKET: 'adanalife-guessr-clips'
-  # The local D1 wrangler keeps under .wrangler/, seeded from schema.sql plus the
+  # The local D1 wrangler keeps under .wrangler/, migrated then seeded from the
   # two generated files. Not the deployed databases — those are targeted by name.
   LOCAL_DB: 'guessr-answers-local'
 
@@ -97,7 +97,7 @@ tasks:
     # survivable only because a `.wrangler/` that already has the tables makes
     # both a no-op -- so it bites hardest on a fresh checkout.
     cmds:
-      - task: schema:local:push
+      - task: schema:local:apply
       - task: answers:local:push
       - task: rounds:local:push
       # A tier for /admin/day to read. It gates on the deployed version.json and
@@ -111,7 +111,7 @@ tasks:
   answers:local:push:
     desc: Seed answers.sql into the local D1 that `dev` binds
     cmds:
-      - npx wrangler d1 execute {{.LOCAL_DB}} --local --config wrangler.local.jsonc --file answers.sql --yes
+      - npx wrangler d1 execute {{.LOCAL_DB}} --local --config wrangler.d1.jsonc --file answers.sql --yes
 
   # Without this a local `dev` serves a game with no rounds in it: /api/day reads
   # the schedule, and an unseeded database has none. It is the one seed step the
@@ -120,29 +120,59 @@ tasks:
   rounds:local:push:
     desc: Seed rounds.sql (the pool and the schedule) into the local D1 that `dev` binds
     cmds:
-      - npx wrangler d1 execute {{.LOCAL_DB}} --local --config wrangler.local.jsonc --file rounds.sql --yes
+      - npx wrangler d1 execute {{.LOCAL_DB}} --local --config wrangler.d1.jsonc --file rounds.sql --yes
 
-  # The tables the game owns, as opposed to the rows a round set fills in.
-  # Separate from answers:*:push because the two change on completely different
-  # clocks: answers.sql is regenerated and re-pushed with every round set, while
-  # schema.sql is idempotent DDL that a database needs once. Re-running either is
-  # harmless.
-  schema:local:push:
-    desc: Apply schema.sql to the local D1 that `dev` binds
+  # The tables, as opposed to the rows a round set fills in. Numbered migrations
+  # under migrations/, applied in order and recorded in each database's own
+  # `d1_migrations` ledger — so "which tier is at which version" is a question
+  # with an answer (`schema:*:status`) rather than something to infer from
+  # whether a query 500s. See README, "The schema".
+  #
+  # Separate from the seed pushes because the two change on completely different
+  # clocks: a round set rewrites rounds.sql and answers.sql every time, while the
+  # shape moves rarely and only forwards.
+  #
+  # `apply` auto-confirms its prompt when stdout is not a terminal, so these are
+  # safe from a script; run by hand you get the confirmation.
+  schema:local:apply:
+    desc: Apply pending migrations to the local D1 that `dev` binds
     cmds:
-      - npx wrangler d1 execute {{.LOCAL_DB}} --local --config wrangler.local.jsonc --file schema.sql --yes
+      - npx wrangler d1 migrations apply {{.LOCAL_DB}} --local --config wrangler.d1.jsonc
 
-  schema:stage:push:
-    desc: Apply schema.sql to the staging D1
+  schema:stage:apply:
+    desc: Apply pending migrations to the staging D1
     cmds:
-      - task: _d1:push
-        vars: {DB: adanalife-guessr-answers-staging, FILE: schema.sql}
+      - task: _d1:migrate
+        vars: {DB: adanalife-guessr-answers-staging, VERB: apply}
 
-  schema:prod:push:
-    desc: Apply schema.sql to the production D1
+  schema:prod:apply:
+    desc: Apply pending migrations to the production D1
     cmds:
-      - task: _d1:push
-        vars: {DB: adanalife-guessr-answers, FILE: schema.sql}
+      - task: _d1:migrate
+        vars: {DB: adanalife-guessr-answers, VERB: apply}
+
+  # What a hand-run `schema.sql` push could never tell you: how far behind a tier
+  # is. Read-only, so it is safe against production and is the thing to run
+  # before assuming a deploy is broken.
+  schema:stage:status:
+    desc: List migrations the staging D1 has not applied
+    cmds:
+      - task: _d1:migrate
+        vars: {DB: adanalife-guessr-answers-staging, VERB: list}
+
+  schema:prod:status:
+    desc: List migrations the production D1 has not applied
+    cmds:
+      - task: _d1:migrate
+        vars: {DB: adanalife-guessr-answers, VERB: list}
+
+  # --config, unlike _d1:push. `d1 execute` resolves a bare database name against
+  # the API; `d1 migrations` refuses to run without a config file and refuses
+  # again without a database_id in it. See wrangler.d1.jsonc.
+  _d1:migrate:
+    internal: true
+    cmds:
+      - npx wrangler d1 migrations {{.VERB}} {{.DB}} --remote --config wrangler.d1.jsonc
 
   # The coords, into the deployed databases. Separate targets per environment
   # rather than one with a flag, so nothing reaches production by defaulting
@@ -247,6 +277,16 @@ tasks:
     cmds:
       - for f in test_*.mjs test_*.js; do echo "== $f"; node "$f" || exit 1; done
       - for f in test_*.py; do echo "== $f"; python3 "$f" || exit 1; done
+
+  # The tier between `test` and `smoke`: a real D1 and a real workerd, both
+  # disposable. `test` proves handler logic against a stub of the binding;
+  # `smoke` proves a deployed tier; this proves the two ends meet -- migrations
+  # apply, Pages routes, the binding is wired, the endpoints answer. It writes
+  # rounds.sql and answers.sql, and refuses to run if those hold a real set.
+  test:integration:
+    desc: Run the game end to end against a throwaway local D1 (no corpus needed)
+    cmds:
+      - ./integration.sh
 
   smoke:
     desc: "Check a deployed tier is actually playable: task smoke -- <base-url>.

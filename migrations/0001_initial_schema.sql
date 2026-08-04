@@ -5,16 +5,28 @@
 --
 -- Kept apart from the generated rounds.sql / answers.sql for that reason: those
 -- are written by make_rounds.py, gitignored (answers.sql is the answer key, and
--- this is a public repo) and re-pushed on every regeneration, while this file is
--- hand-written, tracked, and pushed once per database. Folding them together
--- would mean a table of player scores whose definition only existed on whichever
--- laptop last built a round set.
+-- this is a public repo) and rewritten on every regeneration, while this moves
+-- only when the shape does. Folding them together would mean a table of player
+-- scores whose definition only existed on whichever laptop last built a set.
 --
--- So `schema:*:push` comes first on a fresh database. A rounds.sql pushed into
--- one that never got this fails loudly on a missing table, which is the right
--- way round.
+-- So this comes first on a fresh database. A rounds.sql pushed into one that
+-- never got it fails loudly on a missing table, which is the right way round.
 --
--- Idempotent, so `task schema:{local,stage,prod}:push` is safe to re-run.
+-- ---------------------------------------------------------------------------
+--
+-- THE BASELINE, and the only migration that gets to use IF NOT EXISTS.
+--
+-- Ordinarily a migration writes plain DDL: the `d1_migrations` ledger is what
+-- guarantees it runs once, so guarding it would only hide a numbering mistake.
+-- This one is different because it is adopting databases that already exist --
+-- staging and production were built by hand-run pushes before there was a
+-- ledger, so applying this to them has to be a no-op that records a row rather
+-- than an error that leaves them unadopted. Every migration after this one
+-- declares its DDL bare.
+--
+-- The corollary: this file is frozen. A change to any table below belongs in a
+-- new numbered migration, because every database that has applied 0001 will
+-- never read it again.
 
 -- The pool: every round ever generated, and everything about one that is not its
 -- location. This is what web/rounds.json used to be, moved out of the deploy --
