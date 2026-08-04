@@ -113,7 +113,7 @@ jobs:
           sqlite3 /tmp/schema-check.db < schema.sql
           sqlite3 /tmp/schema-check.db < schema.sql
 
-      - uses: astral-sh/setup-uv@v8.2.0 # no floating major tag published
+      - uses: astral-sh/setup-uv@v9.0.0 # no floating major tag published
 
       # Require every PR to add a towncrier changelog fragment under
       # changelog.d/ (see README "Changelog"). CHANGELOG.md is linked from the
