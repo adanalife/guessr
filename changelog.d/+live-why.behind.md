@@ -1,0 +1,1 @@
+The end-of-game board's sixth cell has been offering a link to the stream instead of playing it, even while the channel was live. This doesn't fix that yet — it makes the bit that looks up the current broadcast say *why* it came back empty, so the cause is visible instead of silent.
