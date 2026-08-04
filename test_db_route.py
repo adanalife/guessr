@@ -31,7 +31,9 @@ def env(**kwargs):
 # No DATABASE_HOST is the laptop: exec into the pod, in the named namespace, and
 # pass nothing to libpq -- the psql that connects is the one inside the pod.
 env()
-argv, environ = psql_invocation("stage-1-data", pool=400, k=25, per_clip=4)
+argv, environ = psql_invocation(
+    "stage-1-data", pool=400, k=25, per_clip=4, min_conf=0.8
+)
 assert argv[:6] == ["kubectl", "-n", "stage-1-data", "exec", "-i", "postgres-0"], argv
 assert argv[6] == "--" and argv[7] == "psql", argv
 assert "PGHOST" not in environ, "a host libpq would use on a route where it cannot"
@@ -39,7 +41,9 @@ assert "PGHOST" not in environ, "a host libpq would use on a route where it cann
 # DATABASE_HOST is in-cluster: psql runs here and talks to the Service, so
 # kubectl must not appear at all.
 env(DATABASE_HOST="postgres.stage-1-data.svc", DATABASE_PASS="s3cret")
-argv, environ = psql_invocation("stage-1-data", pool=400, k=25, per_clip=4)
+argv, environ = psql_invocation(
+    "stage-1-data", pool=400, k=25, per_clip=4, min_conf=0.8
+)
 assert argv[0] == "psql", argv
 assert "kubectl" not in argv, argv
 assert environ["PGHOST"] == "postgres.stage-1-data.svc", environ["PGHOST"]
@@ -48,20 +52,20 @@ assert environ["PGPASSWORD"] == "s3cret"
 assert environ["PGPORT"] == "5432", environ["PGPORT"]
 
 env(DATABASE_HOST="db", DATABASE_PORT="15432")
-assert psql_invocation("ns", 1, 1, 1)[1]["PGPORT"] == "15432"
+assert psql_invocation("ns", 1, 1, 1, 0.8)[1]["PGPORT"] == "15432"
 
 # The query itself is the same either way -- same parameters, same stdin script.
 # A route that quietly scored a different pool would be the worst version of this.
 env()
-laptop, _ = psql_invocation("stage-1-data", pool=400, k=25, per_clip=4)
+laptop, _ = psql_invocation("stage-1-data", pool=400, k=25, per_clip=4, min_conf=0.8)
 env(DATABASE_HOST="db")
-cluster, _ = psql_invocation("stage-1-data", pool=400, k=25, per_clip=4)
+cluster, _ = psql_invocation("stage-1-data", pool=400, k=25, per_clip=4, min_conf=0.8)
 assert laptop[laptop.index("psql") :] == cluster, (laptop, cluster)
 
 # The user and database default to what the laptop path has always passed, so an
 # unset environment is not a behaviour change.
 env()
-argv, _ = psql_invocation("stage-1-data", 400, 25, 4)
+argv, _ = psql_invocation("stage-1-data", 400, 25, 4, 0.8)
 assert argv[argv.index("-U") + 1] == "tripbot", argv
 assert argv[argv.index("-d") + 1] == "tripbot", argv
 

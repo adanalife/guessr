@@ -1,0 +1,1 @@
+Future rounds are answered with the coordinate the dashcam printed on the frame you were shown, instead of one averaged over the whole three minutes of footage it was cut from. The answer used to land a mile or so up the road from the street in the clip; now it lands on it. Rounds already in the game are unchanged — this applies to the next batch built.

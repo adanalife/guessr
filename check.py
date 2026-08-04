@@ -26,6 +26,7 @@ exists but is missing a file the manifest names is a real failure, not that mode
 
 import json
 import math
+import re
 import subprocess
 import sys
 from collections import Counter
@@ -43,8 +44,19 @@ EASY_KM, HARD_KM = 32.0, 120.0
 # one, and where the line sits is a judgement about the game rather than a fact
 # about the data.
 NEAR_KM = 5.0
+# An answer is a circle, because a round plays for a few seconds and the van keeps
+# moving: radius_m is how far it gets. The floor is what the coordinate itself is
+# worth -- a HUD read is good to a few metres, and the nearest track sample can sit
+# up to a second away -- and the ceiling is where make_rounds.py drops the round
+# instead of widening the circle, since past it either the van was on a motorway,
+# where nobody can name the spot, or its track is lying about where it went.
+MIN_RADIUS_M, MAX_RADIUS_M = 25.0, 250.0
 # Lower 48, generously bounded.
 LAT_RANGE, LNG_RANGE = (24.0, 49.5), (-125.0, -66.0)
+# A round's filename has to name the moment it was cut from, not just the clip:
+# `clips/<slug>-<milliseconds>.mp4`. That is what lets a deleted clip be rebuilt
+# to the same URL, and what makes a long immutable cache header safe.
+CLIP_NAME = re.compile(r"^clips/(.+)-(\d{6,})\.mp4$")
 
 
 def dimensions(path: Path) -> tuple[int, int]:
@@ -187,6 +199,10 @@ def main() -> int:
         assert r["image"] == f"clips/{Path(r['image']).name}", (
             f"round is not under clips/: {r['image']}"
         )
+        assert CLIP_NAME.match(r["image"]), (
+            f"{r['image']} does not name the moment it was cut from -- a round is "
+            f"clips/<slug>-<milliseconds>.mp4, so a rebuild lands at the same URL"
+        )
         assert r["image"] not in seen, f"duplicate round: {r['image']}"
         seen.add(r["image"])
 
@@ -219,6 +235,28 @@ def main() -> int:
         assert LAT_RANGE[0] < a["lat"] < LAT_RANGE[1], f"lat out of range: {a}"
         assert LNG_RANGE[0] < a["lng"] < LNG_RANGE[1], f"lng out of range: {a}"
         assert a["state"] and a["filmed"], f"missing label: {a}"
+
+        # The provenance of the moment. Only answers.json carries these -- D1 gets
+        # the five columns it always had -- and they are the only record of which
+        # frame a round is, so a set that loses them cannot be rebuilt or corrected.
+        assert a.get("slug") and a["image"].startswith(f"clips/{a['slug']}-"), (
+            f"answer's slug does not match its filename: {a}"
+        )
+        for field in ("source_ts_sec", "clip_ts_sec"):
+            assert a.get(field) is not None and a[field] >= 0, (
+                f"missing {field}, so this round cannot be re-cut: {a}"
+            )
+        # A clip is a window into its original, so a moment is at least as far
+        # into the original as it is into the clip -- equal for the 97% that are
+        # not trims. Catches the two timelines being confused for each other,
+        # which reads as a coordinate that is merely a bit off.
+        assert a["source_ts_sec"] >= a["clip_ts_sec"], (
+            f"source_ts_sec is before clip_ts_sec, so the two timelines have been "
+            f"mixed up: {a}"
+        )
+        assert MIN_RADIUS_M <= a.get("radius_m", 0) <= MAX_RADIUS_M, (
+            f"radius_m outside {MIN_RADIUS_M:g}-{MAX_RADIUS_M:g} m: {a}"
+        )
 
     # The cutoffs are the terciles of one particular set, so a regeneration that
     # skewed could empty a band -- which shows up in play only as a flat game,
@@ -278,6 +316,14 @@ def main() -> int:
         f"median {spread[len(spread) // 2]:g}, worst {spread[-1]:g}"
     )
     print(band_line)
+    # How wide the answers actually are. The tight end is the van stopped or
+    # crawling; the wide end is a few seconds of motorway, where the answer is
+    # genuinely a stretch of road rather than a place.
+    radii = sorted(a["radius_m"] for a in coords)
+    print(
+        f"    answer circles: tightest {radii[0]:.0f} m, median "
+        f"{radii[len(radii) // 2]:.0f} m, widest {radii[-1]:.0f} m"
+    )
     # The other half of the score: a low mean cosine distance means the clip has
     # near-identical twins elsewhere in the corpus, i.e. road a human can't place.
     cos = sorted(r["mean_cos"] for r in rounds)
