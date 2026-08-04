@@ -2,7 +2,19 @@ version: 2
 updates:
   # Keeps the workflow action pins current; the repo has no package manifest
   # (the scripts are stdlib-only), so there is no second ecosystem to watch.
+  #
+  # Minor and patch bumps batch into one PR per ecosystem. A major is left out
+  # of every group so a breaking change arrives on its own, attributable to a
+  # single dependency instead of hiding among a dozen safe ones. Security
+  # updates ignore groups entirely and always arrive alone.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      actions:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
