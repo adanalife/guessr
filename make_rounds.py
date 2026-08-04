@@ -28,10 +28,16 @@ which means the two can disagree: a deploy whose clips were never uploaded serve
 a black pane per round. check.py catches that locally; smoke.sh catches it
 against a real deployment.
 
-Ground truth is the clip-level lat/lng in `videos`. The dashcam also burns
-per-frame coords into the HUD, which would be a finer-grained truth if it were
-OCR'd (video-pipeline's hud.py already reads that strip) -- but a clip covers
-only a couple of miles, so clip coords are close enough to score against.
+Ground truth is per-moment, from `video_coords`: the coordinate the dashcam
+printed onto the frame the score describes, not the one coordinate `videos`
+carries for the whole three-minute clip. The difference is not subtle -- the
+clip-level answer sat a median 1,317 m from the road the player was actually
+shown -- and it matters more now a round is a named street rather than a state.
+
+Because a round plays for SECONDS and the van keeps moving, the answer is a
+circle rather than a point: `radius_m` is how far it travels while the clip runs.
+That is a statement about what the truth *is*, not leeway granted to the player;
+the scoring curve cannot perceive a few hundred metres either way.
 """
 
 import argparse
@@ -45,7 +51,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-from check import NEAR_KM, dimensions, km
+from check import MAX_RADIUS_M, MIN_RADIUS_M, NEAR_KM, dimensions, km
 
 # The laptop mounts the corpus over SMB at this path; in the cluster it is an NFS
 # mount at whatever path the pod spec picks. The default is the laptop's.
@@ -73,8 +79,14 @@ FPS = 30
 THREADS = max(1, (os.cpu_count() or 2) // 2)
 NICENESS = 10
 
+# How much of a clip's coordinate track has to hold up before the clip may supply
+# a round. Below this the coords stage's own reads disagreed with each other or
+# implied a path nothing could have driven, so the answer would be confident and
+# wrong -- which is worse than no round. 81% of the corpus clears it.
+MIN_CONFIDENCE = 0.8
+
 # What the two scores mean, why same-day frames are excluded, and why several
-# moments are scored per clip: README, "How rounds are chosen". The three things
+# moments are scored per clip: README, "How rounds are chosen". The four things
 # that are about this query rather than about the scoring:
 #
 # - `hnsw.iterative_scan` is load-bearing, not tuning. The day filter is applied
@@ -89,50 +101,125 @@ NICENESS = 10
 #   rank() exists to correct.
 # - The score describes the round's *first* frame, not its middle: extract_clip
 #   opens the cut on the scored timestamp (`-ss ts`).
+# - `video_coords` answers the round, and it also measures the neighbours.
+#   `videos.lat/lng` is one coordinate for three minutes of driving -- ~4.6 km of
+#   travel, on top of its own ~1.7 km read error -- so using it put a median
+#   1,317 m between the answer pin and the road the player was shown, and blurred
+#   the neighbour distances that decide which rounds exist at all. Both are joined
+#   per moment below. The grids do not line up (`frame_embeddings` samples every
+#   5 s, the coords track every 2 s), so these are nearest-sample joins with the
+#   window set to the track's own step rather than equality joins.
 SCORE_SQL = """
 SET hnsw.ef_search = 100;
 SET hnsw.iterative_scan = relaxed_order;
 SET hnsw.max_scan_tuples = 40000;
 
 WITH picked AS (
-  SELECT id, slug, lat, lng, state, date_filmed
+  SELECT id, slug, state, date_filmed
   FROM videos
-  WHERE lat <> 0 AND lng <> 0 AND state IS NOT NULL AND NOT flagged
+  WHERE state IS NOT NULL AND NOT flagged
+    -- A clip whose track is not worth believing is not worth a round. This is
+    -- strictly stronger than the old `lat <> 0` gate: a confidence means the
+    -- coords stage read the clip and its reads agreed with each other.
+    AND coord_confidence >= :min_conf
   ORDER BY random()
   LIMIT :pool
 ),
 cand AS (
-  SELECT p.id AS vid, p.slug, p.lat, p.lng, p.state, p.date_filmed,
-         f.embedding, f.ts_sec
+  SELECT p.id AS vid, p.slug, p.state, p.date_filmed,
+         f.embedding, f.ts_sec, f.source_ts_sec, f.lat, f.lng, f.travel_m
   FROM picked p
   CROSS JOIN LATERAL (
-    SELECT embedding, ts_sec
-    FROM frame_embeddings
-    WHERE video_id = p.id AND ts_sec > 15
+    SELECT fe.embedding, fe.ts_sec, here.lat, here.lng,
+           -- This round's moment on the source timeline, which is its stable
+           -- identity: `here` is up to a second away, so its own source_ts_sec
+           -- names a different moment. What travels is the *offset* between the
+           -- two timelines -- zero for the 97% of clips that are not trims --
+           -- applied to the frame the round is actually cut at.
+           fe.ts_sec + (here.source_ts_sec - here.ts_sec) AS source_ts_sec,
+           -- How far the van moves over the seconds the round plays. The answer
+           -- is that stretch of road rather than the point it starts at, and this
+           -- is what radius_m ends up describing.
+           2*6371000*asin(sqrt(
+             power(sin(radians(COALESCE(ahead.lat, here.lat) - here.lat)/2), 2) +
+             cos(radians(here.lat))*cos(radians(COALESCE(ahead.lat, here.lat)))*
+             power(sin(radians(COALESCE(ahead.lng, here.lng) - here.lng)/2), 2)
+           )) AS travel_m
+    FROM frame_embeddings fe
+    -- The coordinate this round is answered with, and it has to be one the
+    -- dashcam actually printed on the frame: `source = 'ocr'` excludes the rows
+    -- interpolation filled in. 78% of sampled moments have one within a second,
+    -- which is far more candidate moments than :per_clip needs.
+    --
+    -- The BETWEEN is not an optimisation. It bounds the search to the track's own
+    -- 2 s step, so a moment sitting inside a gap in the track drops out of
+    -- contention entirely instead of being answered from the far side of the gap.
+    CROSS JOIN LATERAL (
+      SELECT lat, lng, ts_sec, source_ts_sec
+      FROM video_coords
+      WHERE video_id = fe.video_id AND source = 'ocr'
+        AND ts_sec BETWEEN fe.ts_sec - 1.5 AND fe.ts_sec + 1.5
+      ORDER BY abs(ts_sec - fe.ts_sec)
+      LIMIT 1
+    ) here
+    -- Where the van has got to by the time the round stops playing. LEFT, because
+    -- a moment near the end of a clip has nothing ahead of it and is still a
+    -- perfectly good round -- travel_m comes out 0 and the caller floors it.
+    LEFT JOIN LATERAL (
+      SELECT lat, lng
+      FROM video_coords
+      WHERE video_id = fe.video_id AND ts_sec IS NOT NULL
+        AND ts_sec BETWEEN fe.ts_sec + :clip_secs - 2.5
+                       AND fe.ts_sec + :clip_secs + 2.5
+      ORDER BY abs(ts_sec - (fe.ts_sec + :clip_secs))
+      LIMIT 1
+    ) ahead ON true
+    WHERE fe.video_id = p.id AND fe.ts_sec > 15
     ORDER BY random()
     LIMIT :per_clip
   ) f
 )
-SELECT c.slug, c.ts_sec, c.lat, c.lng, c.state, c.date_filmed,
-       nb.median_km, nb.n, nb.mean_cos
+SELECT c.slug, c.ts_sec, c.source_ts_sec, c.lat, c.lng, c.travel_m,
+       c.state, c.date_filmed, nb.median_km, nb.n, nb.mean_cos
 FROM cand c
 CROSS JOIN LATERAL (
-  SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY km) AS median_km,
+  SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY nn.km) AS median_km,
          count(*) AS n,
-         avg(cos_d) AS mean_cos
+         avg(nn.cos_d) AS mean_cos
   FROM (
-    SELECT 2*6371*asin(sqrt(
-             power(sin(radians(v2.lat - c.lat)/2), 2) +
-             cos(radians(c.lat))*cos(radians(v2.lat))*
-             power(sin(radians(v2.lng - c.lng)/2), 2))) AS km,
-           f2.embedding <=> c.embedding AS cos_d
-    FROM frame_embeddings f2
-    JOIN videos v2 ON v2.id = f2.video_id
-    WHERE v2.lat <> 0
-      AND v2.date_filmed::date <> c.date_filmed::date
-    ORDER BY f2.embedding <=> c.embedding
-    LIMIT :k
-  ) neighbours
+    -- Distance from the candidate's real position to each neighbour's. The
+    -- neighbour's own per-moment coordinate where it has one, its clip's
+    -- otherwise: about a fifth of the corpus has no trusted track, and a median
+    -- over :k neighbours barely moves when a few of them are clip-level, while
+    -- dropping them thins the neighbourhood the HNSW scan is walking.
+    SELECT n.cos_d,
+           2*6371*asin(sqrt(
+             power(sin(radians(COALESCE(nc.lat, nv.lat) - c.lat)/2), 2) +
+             cos(radians(c.lat))*cos(radians(COALESCE(nc.lat, nv.lat)))*
+             power(sin(radians(COALESCE(nc.lng, nv.lng) - c.lng)/2), 2)
+           )) AS km
+    -- The k nearest first, coords joined after. Joining them inside this
+    -- subquery would evaluate a lateral per row the scan touches -- thousands --
+    -- rather than :k times.
+    FROM (
+      SELECT f2.video_id, f2.ts_sec, f2.embedding <=> c.embedding AS cos_d
+      FROM frame_embeddings f2
+      JOIN videos vf ON vf.id = f2.video_id
+      WHERE vf.lat <> 0
+        AND vf.date_filmed::date <> c.date_filmed::date
+      ORDER BY f2.embedding <=> c.embedding
+      LIMIT :k
+    ) n
+    JOIN videos nv ON nv.id = n.video_id
+    LEFT JOIN LATERAL (
+      SELECT lat, lng
+      FROM video_coords
+      WHERE video_id = n.video_id AND ts_sec IS NOT NULL
+        AND ts_sec BETWEEN n.ts_sec - 1.5 AND n.ts_sec + 1.5
+      ORDER BY abs(ts_sec - n.ts_sec)
+      LIMIT 1
+    ) nc ON true
+  ) nn
 ) nb
 ORDER BY nb.median_km NULLS LAST;
 """
@@ -172,7 +259,7 @@ def score_sql(seed: int | None) -> str:
 
 
 def psql_invocation(
-    namespace: str, pool: int, k: int, per_clip: int
+    namespace: str, pool: int, k: int, per_clip: int, min_conf: float
 ) -> tuple[list[str], dict[str, str]]:
     """How to run the scoring query: straight at Postgres, or via kubectl exec.
 
@@ -207,6 +294,12 @@ def psql_invocation(
         f"k={k}",
         "-v",
         f"per_clip={per_clip}",
+        "-v",
+        f"min_conf={min_conf}",
+        # The encode's own clip length, so the query can measure how far the van
+        # travels over exactly the seconds a player will watch.
+        "-v",
+        f"clip_secs={SECONDS}",
         "-f",
         "-",
     ]
@@ -227,14 +320,26 @@ def psql_invocation(
 
 
 def score_candidates(
-    namespace: str, pool: int, k: int, per_clip: int = 4, seed: int | None = None
+    namespace: str,
+    pool: int,
+    k: int,
+    per_clip: int = 4,
+    seed: int | None = None,
+    min_conf: float = MIN_CONFIDENCE,
+    max_radius_m: float = MAX_RADIUS_M,
 ) -> list[dict]:
     """Score a random pool of clips for locatability. Best (tightest) first.
 
     Returns up to `per_clip` candidate moments per clip, so one clip can appear
     several times over. select() keeps the best of them.
+
+    Each row carries the coordinate the dashcam printed on that frame, the offset
+    into the original recording that identifies it (see the per-moment-data-keyed-
+    to-source decision -- a re-trim shifts clip offsets and leaves this one
+    alone), and the radius the answer needs because the van keeps moving while the
+    round plays.
     """
-    argv, env = psql_invocation(namespace, pool, k, per_clip)
+    argv, env = psql_invocation(namespace, pool, k, per_clip, min_conf)
     try:
         out = subprocess.run(
             argv,
@@ -256,17 +361,37 @@ def score_candidates(
     rows = []
     for line in out.splitlines():
         parts = line.split("\t")
-        if len(parts) != 9:  # skip the SET / setseed acknowledgements
+        if len(parts) != 11:  # skip the SET / setseed acknowledgements
             continue
-        slug, ts, lat, lng, state, filmed, median_km, n, mean_cos = parts
+        (
+            slug,
+            ts,
+            source_ts,
+            lat,
+            lng,
+            travel_m,
+            state,
+            filmed,
+            median_km,
+            n,
+            mean_cos,
+        ) = parts
         if not median_km or int(n) < k:
             continue  # too few neighbours survived the filter to trust the median
+        # A round whose circle would be wider than the ceiling is dropped rather
+        # than widened: see MAX_RADIUS_M. Floored the other way, because the
+        # coordinate is not exact even where the van was stopped.
+        radius_m = max(float(travel_m), MIN_RADIUS_M)
+        if radius_m > max_radius_m:
+            continue
         rows.append(
             {
                 "slug": slug,
                 "ts": float(ts),
+                "source_ts": float(source_ts),
                 "lat": float(lat),
                 "lng": float(lng),
+                "radius_m": round(radius_m, 1),
                 "state": state,
                 "filmed": filmed[:10],
                 "median_km": round(float(median_km), 1),
@@ -467,6 +592,29 @@ def extract_clip(row: dict, dest: Path) -> bool:
     return False
 
 
+def clip_name(row: dict) -> str:
+    """The filename for a round: its source clip, and the moment within it.
+
+    The moment is in the name because a clip supplies several candidate moments
+    and only one becomes a round -- but mostly because two things downstream need
+    a name that cannot mean two different sets of bytes:
+
+    - `task rounds:rebuild` re-cuts a clip that was deleted or corrupted, and it
+      can only land the result back at the same URL if the URL says which moment
+      it was.
+    - a long `immutable` cache header is only safe if a regeneration cannot put
+      different footage at a name someone already has cached. Under the old
+      `<slug>.mp4` it could, which is why web/clips/ has no _headers rule.
+
+    Milliseconds as an integer, so nothing depends on how a float formats.
+
+    ponytail: the name is not a content hash, so a libx264 upgrade changes the
+    bytes behind a stable URL. It changes them to the same three seconds of road,
+    which is the whole of what the URL promises.
+    """
+    return f"{row['slug']}-{round(row['ts'] * 1000):06d}.mp4"
+
+
 def answers_sql(answers: list[dict]) -> str:
     """The seed script for D1's answers table.
 
@@ -603,6 +751,21 @@ def main() -> int:
         "signature of its own, lowest mean cosine distance first",
     )
     ap.add_argument(
+        "--min-confidence",
+        type=float,
+        default=MIN_CONFIDENCE,
+        help="how far a clip's coordinate track has to be trusted before it may "
+        "supply a round, 0 to 1. 0 lets every clip through, including the ones "
+        "whose reads contradicted each other. See MIN_CONFIDENCE.",
+    )
+    ap.add_argument(
+        "--max-radius",
+        type=float,
+        default=MAX_RADIUS_M,
+        help="metres of road a round may cover before it is dropped rather than "
+        "answered with a wider circle. See MAX_RADIUS_M.",
+    )
+    ap.add_argument(
         "--dry-run",
         action="store_true",
         help="score and select, report what the set would look like, and cut "
@@ -642,6 +805,8 @@ def main() -> int:
             args.neighbours,
             args.per_clip,
             args.seed,
+            args.min_confidence,
+            args.max_radius,
         )
     )
     # Cut the visually generic moments by percentile rather than an absolute cosine
@@ -687,7 +852,7 @@ def main() -> int:
 
     rounds, answers = [], []
     for row in eligible:
-        name = f"{row['slug']}.mp4"
+        name = clip_name(row)
         if not args.dry_run and not extract_clip(row, clips / name):
             print(f"  skip {row['slug']} (unreadable)")
             continue
@@ -706,7 +871,14 @@ def main() -> int:
                 "mean_cos": row["mean_cos"],
             }
         )
-        # What it does not.
+        # What it does not. The first five go to D1; the rest stay in
+        # answers.json, which is the record of how a round was made.
+        #
+        # ponytail: `answers` in D1 keeps its five columns for now. Adding one
+        # means an ALTER against two live databases, and nothing consumes these
+        # four yet -- the reveal circle, `rounds:rebuild` and a coords report all
+        # want them, and all three land with the D1 schema that carries the round
+        # pool. See vault/guessr/round-pipeline-design.md.
         answers.append(
             {
                 "image": image,
@@ -714,6 +886,15 @@ def main() -> int:
                 "lng": row["lng"],
                 "state": row["state"],
                 "filmed": row["filmed"],
+                "slug": row["slug"],
+                # The stable identity of the moment: an offset into the original
+                # recording, which nothing ever re-cuts. `clip_ts_sec` is what
+                # ffmpeg was actually given, and the two differ only for the 122
+                # trimmed clips once a trim point is corrected.
+                "source_ts_sec": row["source_ts"],
+                "clip_ts_sec": row["ts"],
+                # How wide the answer really is, in metres.
+                "radius_m": row["radius_m"],
             }
         )
         print(
