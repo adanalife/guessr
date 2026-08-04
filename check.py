@@ -199,10 +199,6 @@ def main() -> int:
         assert r["image"] == f"clips/{Path(r['image']).name}", (
             f"round is not under clips/: {r['image']}"
         )
-        assert CLIP_NAME.match(r["image"]), (
-            f"{r['image']} does not name the moment it was cut from -- a round is "
-            f"clips/<slug>-<milliseconds>.mp4, so a rebuild lands at the same URL"
-        )
         assert r["image"] not in seen, f"duplicate round: {r['image']}"
         seen.add(r["image"])
 
@@ -239,6 +235,17 @@ def main() -> int:
         # The provenance of the moment. Only answers.json carries these -- D1 gets
         # the five columns it always had -- and they are the only record of which
         # frame a round is, so a set that loses them cannot be rebuilt or corrected.
+        #
+        # These run only where the answers are, which means on a freshly generated
+        # set rather than on the committed manifest CI sees. That is deliberate for
+        # now: the set in git predates moment-named clips, and regenerating it
+        # needs the corpus coords pass to finish. Make the naming check
+        # unconditional once a set built by this code is what is committed --
+        # `rounds:rebuild` and an immutable cache header both depend on it.
+        assert CLIP_NAME.match(r["image"]), (
+            f"{r['image']} does not name the moment it was cut from -- a round is "
+            f"clips/<slug>-<milliseconds>.mp4, so a rebuild lands at the same URL"
+        )
         assert a.get("slug") and a["image"].startswith(f"clips/{a['slug']}-"), (
             f"answer's slug does not match its filename: {a}"
         )

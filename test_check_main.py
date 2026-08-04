@@ -182,11 +182,17 @@ def main() -> None:
         # A name with no moment in it. Under the old `<slug>.mp4` a regeneration
         # could put different footage at a URL somebody already had cached, and a
         # deleted clip could not be rebuilt to the name that referenced it.
+        #
+        # Built with answers, because that is where the check runs: the committed
+        # manifest predates the rule, so CI's manifest-only shape is exempt until a
+        # set built by this code is what is in git.
         for name in ("clips/clip_0.mp4", "clips/clip_0-42.mp4", "clips/clip_0-abc.mp4"):
             momentless = rounds()
+            coords = answers(momentless)
             momentless[0]["image"] = name
+            coords[0]["image"] = name
             rejects(
-                build(root, f"moment-{abs(hash(name))}", momentless),
+                build(root, f"moment-{abs(hash(name))}", momentless, coords),
                 f"names a clip without its moment: {name}",
             )
 
