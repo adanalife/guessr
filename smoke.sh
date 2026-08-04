@@ -83,16 +83,30 @@ fi
 # the day before it and closes at 12:00 UTC on the day after.
 today=$(date -u +%F)
 for _ in $(seq 1 40); do
-  day=$(curl -sf "$BASE/api/day?date=$today" || true)
-  rounds=$(printf '%s' "$day" | jq -r '.rounds | length' 2>/dev/null || echo 0)
+  status=$(curl -s -o /tmp/smoke-day.json -w '%{http_code}' "$BASE/api/day?date=$today")
+  rounds=$(jq -r '.rounds | length' /tmp/smoke-day.json 2>/dev/null || echo 0)
   [ "${rounds:-0}" -gt 0 ] && break
   sleep 3
 done
+day=$(cat /tmp/smoke-day.json)
 if [ "${rounds:-0}" -eq 0 ]; then
   echo "::error::$BASE serves no game for $today, so it is not playable."
-  echo "::error::Either /api/day never routed, or round_days has nothing for" >&2
-  echo "::error::today -- run \`task rounds:stage:push\` with a set whose" >&2
-  echo "::error::schedule covers it." >&2
+  # Three failures land here and they have three different fixes. Saying which is
+  # the whole value of the check -- the alternative is what the clips endpoint did
+  # on 2026-08-03, where a 500 was reported as "the media was never pushed" and
+  # the suggested fix could not have worked.
+  case "$status" in
+    500) echo "::error::The endpoint threw, which at this point means the query" >&2
+         echo "::error::hit a table that is not there. schema.sql has never been" >&2
+         echo "::error::applied to this tier's database -- run \`task" >&2
+         echo "::error::schema:stage:push\`. Pushing a round set will not fix it." >&2 ;;
+    404) echo "::error::The endpoint answered, and round_days has nothing for" >&2
+         echo "::error::today. Run \`task rounds:stage:push\` with a set whose" >&2
+         echo "::error::schedule covers this date." >&2 ;;
+    *)   echo "::error::HTTP $status, which is neither a missing table (500) nor" >&2
+         echo "::error::an unscheduled date (404) -- so /api/day is not routing." >&2
+         echo "::error::Response: $(head -c 200 /tmp/smoke-day.json)" >&2 ;;
+  esac
   exit 1
 fi
 echo "ok: serving a game for $today -> $rounds rounds"
