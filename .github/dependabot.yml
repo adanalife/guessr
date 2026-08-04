@@ -1,5 +1,25 @@
 version: 2
 updates:
+  # Three settings are repeated on every entry below, since Dependabot has no
+  # place to state a default once:
+  #
+  #   cooldown        holds a new release for 7 days before it becomes a PR, so
+  #                   a release that gets yanked or immediately patched never
+  #                   costs a review. A major waits 14 -- but only where the
+  #                   ecosystem has a SemVer model: Dependabot rejects the
+  #                   semver-* keys for github-actions and docker, so those
+  #                   carry the flat 7. The asymmetry is required, not an
+  #                   oversight.
+  #                   Dependabot already applies 3 days by default; this widens
+  #                   it. Security updates ignore cooldown entirely, so nothing
+  #                   urgent waits.
+  #   rebase-strategy is disabled. The default rebases every open bump PR
+  #                   whenever main moves and re-runs all of their checks, which
+  #                   costs far more CI than it saves; no ruleset here needs
+  #                   a branch to be up to date before merging.
+  #   schedule        is weekly on Monday 13:00 UTC, so a week's bumps arrive as
+  #                   one batch to review rather than trickling in daily.
+  #
   # Keeps the workflow action pins current; the repo has no package manifest
   # (the scripts are stdlib-only), so there is no second ecosystem to watch.
   #
@@ -24,6 +44,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+      day: monday
+      time: "13:00"
     groups:
       actions:
         patterns:
@@ -32,3 +54,6 @@ updates:
       - dependencies
       - github_actions
       - skip-changelog
+    cooldown:
+      default-days: 7
+    rebase-strategy: disabled
