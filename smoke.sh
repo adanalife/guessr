@@ -116,9 +116,10 @@ post() { call -X POST "$BASE/api/score" \
 # fetching them again would only add a way for the two to disagree.
 image=$(jq -r '.[0].image' web/rounds.json)
 
-# The media half of the round set, which is the half git does not carry: the
-# clips are pulled from R2 at deploy time, so a deploy that skipped the pull, or
-# a manifest naming a set that was never uploaded, produces a game of black panes.
+# The media half of the round set, which is the half git does not carry: each clip
+# is streamed out of R2 by functions/clips/[[path]].js at request time, so a
+# manifest naming a set that was never pushed produces a game of black panes even
+# though the deploy itself had nothing to get wrong.
 #
 # Status is no good for detecting it. Pages answers a path it has no file for
 # with the game's own HTML and a 200, so the missing-media case and the
@@ -148,9 +149,9 @@ echo "ok: round media is served as video -> $image"
 #
 # check.py asserts this too, but only where the media is, and the clips are
 # gitignored -- so that is the laptop that generated them and nowhere else. `task
-# clips:push` is the one gate, and it is a gate a human has to remember; the
-# deploy workflows run `clips.sh pull` and no check at all. So this is the same
-# assertion moved to the one place that sees every tier: a real deployment.
+# clips:push` is the one gate, and it is a gate a human has to remember; nothing
+# in CI ever sees a clip. So this is the same assertion moved to the one place
+# that sees every tier: a real deployment.
 #
 # Wider than 16:9 is the whole test. The crop takes a strip off the bottom and
 # changes nothing else, so it is the one thing that cannot be true of a frame

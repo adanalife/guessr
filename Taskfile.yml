@@ -53,23 +53,26 @@ tasks:
       - ./publish.sh {{.CLI_ARGS}}
 
   # The media half of a round set. web/clips/ is gitignored -- a set is ~150 MB
-  # and this repo is public -- so the bucket is how a deploy gets it: the three
-  # deploy workflows run the pull side of this before handing web/ to
-  # `wrangler pages deploy`. See clips.sh for why the object is named after a
-  # hash of the manifest rather than something stable.
+  # and this repo is public -- so the bucket is where the served game reads it
+  # from: functions/clips/[[path]].js streams each clip out of R2 at request
+  # time. No deploy is involved, which is what lets a round set change without
+  # one. See clips.sh for why it is one object per clip rather than a tarball.
   #
   # check.py first, and not as a convenience: the HUD-crop assertion is the only
   # thing standing between a clip with the coordinates burned into it and the
   # served game, and the media never reaches CI -- so this is the last place it
   # runs before the bytes leave the laptop.
   clips:push:
-    desc: Upload web/clips/ to R2, which is where the deploy workflows read it from
+    desc: Upload web/clips/ to R2, which is where the served game reads them from
     deps: [check]
     cmds:
       - ./clips.sh push
 
+  # Not part of any deploy any more -- the endpoint reads the bucket directly.
+  # This is for a machine with no corpus that wants to play the committed set, and
+  # for checking by hand that a push landed.
   clips:pull:
-    desc: Fetch the clips for the committed manifest (what the deploy workflows run)
+    desc: Download the committed manifest's clips into web/clips/ (no corpus needed)
     cmds:
       - ./clips.sh pull
 

@@ -1,91 +1,89 @@
 #!/usr/bin/env bash
-# Move a round set's media between the laptop that cuts it and the deploys that
-# serve it. `clips.sh push` from the laptop, `clips.sh pull` from CI.
+# Move a round set's media between the laptop that cuts it and the bucket that
+# serves it. `clips.sh push` after generating; `clips.sh pull` to get a playable
+# copy onto a machine with no corpus.
 #
-# web/clips/ is gitignored: a set is ~150 MB of mp4 and this is a public repo,
-# so committing one would add that to history on every regeneration, for good.
-# The manifest stays in git and the media comes through R2 instead.
+# web/clips/ is gitignored: a set is ~150 MB of mp4 and this repo is public, so
+# committing one would add that to history on every regeneration, for good.
 #
-# THE OBJECT IS NAMED AFTER THE MANIFEST, which is the part worth understanding.
-# The key is a hash of web/rounds.json, so a given manifest can only ever find
-# the media that was pushed alongside it. Under a fixed name like clips.tar, a
-# regeneration would overwrite the tarball that production -- still serving an
-# older release, with an older manifest in it -- pulls on its next deploy, and
-# production would come back up naming clips that are no longer in the bucket.
-# Content-addressing the object makes that unrepresentable rather than merely
-# unlikely: a manifest with no matching object fails the pull loudly, and one
-# with a matching object provably has its own media.
+# ONE OBJECT PER CLIP, keyed by the name the manifest uses. The key is exactly the
+# `image` value a round carries (`clips/<name>.mp4`), so there is no mapping to
+# keep in step: what a round says it is, is where its bytes are.
 #
-# The corollary is that nothing here ever deletes. An old tarball is what some
-# deployed manifest still points at.
+# It used to be one tarball per *set*, named after a hash of web/rounds.json. That
+# was the right shape while the clips were deployed assets -- content-addressing
+# the archive made "this manifest, these clips" unrepresentable rather than merely
+# unlikely -- and it is the wrong shape now they are read from the bucket at
+# request time. Under the tarball a round set could only reach players through a
+# deploy, because a deploy was the thing that unpacked it. Per-object also means a
+# single clip can be replaced without republishing 300, and a regeneration uploads
+# only what is new.
 #
-# One tarball rather than 300 objects because a deploy is then one request
-# instead of 300 -- about ten seconds against four minutes, on every deploy of
-# every tier.
+# Nothing here ever deletes. An object is load-bearing for as long as any round
+# names it, and at ~0.5 MB a clip against 10 GB of free storage there is no
+# pressure to work out which. The old clips-*.tar objects are left alone for the
+# same reason: a release tagged before this change still pulls one.
 set -euo pipefail
 
 BUCKET="${BUCKET:-adanalife-guessr-clips}"
 WEB="$(cd "$(dirname "$0")" && pwd)/web"
+# Eight at a time. Each object is its own `npx wrangler` process, so this is almost
+# entirely spent waiting on the network; sequentially a 300-clip set takes minutes
+# rather than seconds. Not higher, because wrangler is a node startup each time and
+# the laptop is being typed on.
+JOBS="${JOBS:-8}"
 
-# sha256sum on the Linux runners, shasum on macOS. Same digest either way.
-digest() {
-  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi
+# Every clip the committed manifest names. That is the list a deployment will ask
+# for, which makes it the right list to pull -- a file in web/clips/ no round names
+# is a leftover, and an object no round names is history.
+manifest_clips() {
+  test -f "$WEB/rounds.json" || { echo "no web/rounds.json to read" >&2; exit 1; }
+  jq -r '.[].image | sub("^clips/"; "")' "$WEB/rounds.json"
 }
 
-# Sixteen hex characters. This names an object in a private bucket rather than
-# defending against anything, and a full digest makes the log lines unreadable.
-key() {
-  test -f "$WEB/rounds.json" || { echo "no web/rounds.json to key against" >&2; exit 1; }
-  printf 'clips-%.16s.tar\n' "$(digest "$WEB/rounds.json" | cut -d' ' -f1)"
-}
-
-case "${1:?usage: clips.sh push|pull|key}" in
-  key) key ;;
-
+case "${1:?usage: clips.sh push|pull}" in
   push)
-    k=$(key)
     test -d "$WEB/clips" || { echo "no web/clips/ to push -- run \`task rounds\`" >&2; exit 1; }
-    # Bare mktemp, no -t: BSD treats its argument as a prefix and GNU treats it
-    # as a template needing literal X's, so the portable spelling is neither.
-    tmp=$(mktemp); trap 'rm -f "$tmp"' EXIT
-    # -C so the archive holds clips/x.mp4 rather than the absolute path, which
-    # is what lets the pull side extract straight into web/.
-    tar -cf "$tmp" -C "$WEB" clips
-    echo "pushing $k ($(du -h "$tmp" | cut -f1), $(find "$WEB/clips" -name '*.mp4' | wc -l | tr -d ' ') clips)"
-    npx wrangler r2 object put "$BUCKET/$k" \
-      --file "$tmp" --content-type application/x-tar --remote
-    echo "ok: web/rounds.json can now be deployed"
+    count=$(find "$WEB/clips" -name '*.mp4' | wc -l | tr -d ' ')
+    test "$count" -gt 0 || { echo "web/clips/ holds no mp4s" >&2; exit 1; }
+    echo "pushing $count clips to $BUCKET, $JOBS at a time"
+    # --content-type explicitly, even though the endpoint sets it on the way out
+    # too. An object stored as octet-stream is a <video> that plays nothing and
+    # reports nothing, and belt-and-braces is cheap on the one failure mode that is
+    # invisible from both ends.
+    find "$WEB/clips" -name '*.mp4' -print0 \
+      | xargs -0 -P "$JOBS" -I{} sh -c '
+          npx wrangler r2 object put "'"$BUCKET"'/clips/$(basename "$1")" \
+            --file "$1" --content-type video/mp4 --remote >/dev/null
+        ' sh {}
+    echo "ok: a manifest naming these clips can now be deployed"
     ;;
 
   pull)
-    k=$(key)
-    # A manifest of stills names no clips, and no tarball was ever pushed for one
-    # -- so keying against it misses by construction. That matters for exactly one
-    # thing: redeploying a pre-clips tag. The pull runs before the deploy step, so
-    # a hard failure here means `release.yml` at v0.8.0 or earlier never reaches
-    # Cloudflare at all, and the only way back is the Pages dashboard. Nothing to
-    # pull is not a failure; it is what every release before video rounds is.
-    if ! grep -q '"clips/' "$WEB/rounds.json"; then
-      echo "ok: web/rounds.json names no clips -- nothing to pull"
-      exit 0
-    fi
-    # Bare mktemp, no -t: BSD treats its argument as a prefix and GNU treats it
-    # as a template needing literal X's, so the portable spelling is neither.
-    tmp=$(mktemp); trap 'rm -f "$tmp"' EXIT
-    # A miss here is the whole reason this is content-addressed: it means the
-    # committed manifest names a set that was never uploaded, which is otherwise
-    # a green deploy full of black panes.
-    if ! npx wrangler r2 object get "$BUCKET/$k" --file "$tmp" --remote 2>&1; then
-      echo "::error::could not fetch $k from $BUCKET. Either the media for the"
-      echo "::error::committed web/rounds.json was never pushed -- run \`task clips:push\`"
-      echo "::error::from the laptop that generated it -- or this token is missing"
-      echo "::error::R2 read on the bucket. wrangler's own error is above; it says"
-      echo "::error::which."
+    # For a machine with no corpus that wants to play the committed set locally.
+    # The deploy workflows no longer run this -- the endpoint reads the bucket at
+    # request time, which is the whole point -- so this is a development
+    # convenience, and a way to check by hand that a push landed.
+    mkdir -p "$WEB/clips"
+    manifest_clips | tr '\n' '\0' \
+      | xargs -0 -P "$JOBS" -I{} sh -c '
+          test -f "'"$WEB"'/clips/$1" && exit 0
+          npx wrangler r2 object get "'"$BUCKET"'/clips/$1" \
+            --file "'"$WEB"'/clips/$1" --remote >/dev/null
+        ' sh {}
+    have=$(find "$WEB/clips" -name '*.mp4' | wc -l | tr -d ' ')
+    want=$(manifest_clips | wc -l | tr -d ' ')
+    # A shortfall means the committed manifest names clips that were never pushed
+    # -- which, now a deployment reads the bucket at request time, is a game of
+    # 404s rather than a deploy that fails.
+    test "$have" -ge "$want" || {
+      echo "::error::have $have of $want clips. The media for the committed" >&2
+      echo "::error::web/rounds.json was never pushed -- run \`task clips:push\`" >&2
+      echo "::error::from the laptop that generated it." >&2
       exit 1
-    fi
-    tar -xf "$tmp" -C "$WEB"
-    echo "ok: pulled $(find "$WEB/clips" -name '*.mp4' | wc -l | tr -d ' ') clips from $k"
+    }
+    echo "ok: $want clips in web/clips/"
     ;;
 
-  *) echo "usage: clips.sh push|pull|key" >&2; exit 1 ;;
+  *) echo "usage: clips.sh push|pull" >&2; exit 1 ;;
 esac
