@@ -17,7 +17,8 @@ import { liveVideoId, onRequestGet } from './functions/api/live.js';
 const CANONICAL = id => `<link rel="canonical" href="https://www.youtube.com/watch?v=${id}">`;
 const CHANNEL_CANONICAL =
   '<link rel="canonical" href="https://www.youtube.com/channel/UC8Q7uFC1Xyr2ZnTWOk9Aizg">';
-const page = (...parts) => `<!DOCTYPE html><html><head>${parts.join('')}</head><body></body></html>`;
+const page = (...parts) =>
+  `<!DOCTYPE html><html><head><title>A Dana Life</title>${parts.join('')}</head><body></body></html>`;
 
 const live = page(CANONICAL('Uhln8S-ZCMI'), '<script>var x = {"isLiveNow":true};</script>');
 const dark = page(CHANNEL_CANONICAL, '<script>var x = {};</script>');
@@ -49,7 +50,7 @@ let res = await withFetch(async () => new Response(live, { status: 200 }));
 let body = await res.json();
 assert.equal(body.videoId, 'Uhln8S-ZCMI');
 assert.deepEqual(body.why, { status: 200, bytes: live.length, liveFlag: true,
-  canonical: 'https://www.youtube.com/watch?v=Uhln8S-ZCMI' });
+  canonical: 'https://www.youtube.com/watch?v=Uhln8S-ZCMI', title: 'A Dana Life' });
 assert.match(res.headers.get('cache-control'), /^public, max-age=\d+$/,
   'the answer is cacheable, so one upstream read serves many finished games');
 
@@ -59,7 +60,7 @@ res = await withFetch(async () => new Response(dark, { status: 200 }));
 body = await res.json();
 assert.equal(body.videoId, null);
 assert.deepEqual(body.why, { status: 200, bytes: dark.length, liveFlag: false,
-  canonical: 'https://www.youtube.com/channel/UC8Q7uFC1Xyr2ZnTWOk9Aizg' },
+  canonical: 'https://www.youtube.com/channel/UC8Q7uFC1Xyr2ZnTWOk9Aizg', title: 'A Dana Life' },
   'a dark channel is a full 200 page canonicalising to the channel, not a video');
 
 res = await withFetch(async () => new Response('nope', { status: 500 }));

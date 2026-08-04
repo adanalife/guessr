@@ -69,6 +69,7 @@ export async function onRequestGet() {
       why.bytes = html.length;
       why.liveFlag = html.includes('"isLiveNow":true');
       why.canonical = html.match(/<link rel="canonical" href="([^"]*)"/)?.[1] ?? null;
+      why.title = html.match(/<title>([^<]{0,120})/)?.[1] ?? null;
       videoId = liveVideoId(html);
     }
   } catch (e) {
