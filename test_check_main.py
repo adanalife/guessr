@@ -45,9 +45,11 @@ BANDS = [EASY_KM - 10, EASY_KM + 10, HARD_KM + 10, EASY_KM - 5, HARD_KM + 50]
 
 
 def rounds(n: int = ROUNDS_PER_GAME) -> list[dict]:
+    # The moment is part of the filename, so a rebuild lands at the same URL --
+    # `clip_0-020000.mp4` is clip_0 at 20 s.
     return [
         {
-            "image": f"clips/clip_{i}.mp4",
+            "image": f"clips/clip_{i}-{(i + 1) * 20000:06d}.mp4",
             "median_km": BANDS[i % len(BANDS)],
             "mean_cos": 0.07,
         }
@@ -63,8 +65,12 @@ def answers(manifest: list[dict]) -> list[dict]:
             "lng": -100.0,
             "state": "CA",
             "filmed": "2018-01-01",
+            "slug": f"clip_{i}",
+            "source_ts_sec": (i + 1) * 20.0,
+            "clip_ts_sec": (i + 1) * 20.0,
+            "radius_m": 60.0,
         }
-        for r in manifest
+        for i, r in enumerate(manifest)
     ]
 
 
@@ -164,10 +170,31 @@ def main() -> None:
 
         # Paths must stay under clips/. Anything else is a manifest pointing at
         # a file the deploy never uploaded, or out of the served directory.
-        for path in ("clip_0.mp4", "../secrets/clip_0.mp4", "clips/nested/clip_0.mp4"):
+        for path in (
+            "clip_0-020000.mp4",
+            "../secrets/clip_0-020000.mp4",
+            "clips/nested/clip_0-020000.mp4",
+        ):
             stray = rounds()
             stray[0]["image"] = path
             rejects(build(root, f"path-{abs(hash(path))}", stray), f"points at {path}")
+
+        # A name with no moment in it. Under the old `<slug>.mp4` a regeneration
+        # could put different footage at a URL somebody already had cached, and a
+        # deleted clip could not be rebuilt to the name that referenced it.
+        #
+        # Built with answers, because that is where the check runs: the committed
+        # manifest predates the rule, so CI's manifest-only shape is exempt until a
+        # set built by this code is what is in git.
+        for name in ("clips/clip_0.mp4", "clips/clip_0-42.mp4", "clips/clip_0-abc.mp4"):
+            momentless = rounds()
+            coords = answers(momentless)
+            momentless[0]["image"] = name
+            coords[0]["image"] = name
+            rejects(
+                build(root, f"moment-{abs(hash(name))}", momentless, coords),
+                f"names a clip without its moment: {name}",
+            )
 
         # The scores the ramp and the band report are built from.
         for field in ("median_km", "mean_cos"):
@@ -205,6 +232,36 @@ def main() -> None:
             rejects(
                 build(root, f"answer-{field}-{value}", manifest, coords),
                 f"has {field}={value!r} in its answers",
+            )
+
+        # The provenance of the moment, which lives only in answers.json. Without
+        # it a round cannot be re-cut and a wrong coordinate cannot be corrected,
+        # and neither failure is visible in the game -- it plays perfectly.
+        for field in ("slug", "source_ts_sec", "clip_ts_sec", "radius_m"):
+            coords = answers(manifest)
+            del coords[0][field]
+            rejects(
+                build(root, f"no-answer-{field}", manifest, coords),
+                f"is missing {field} in its answers",
+            )
+
+        # A slug that does not match the filename means the two disagree about
+        # which corpus clip this is, so a rebuild would cut the wrong footage.
+        mismatched = answers(manifest)
+        mismatched[0]["slug"] = "some_other_clip"
+        rejects(
+            build(root, "answer-slug-mismatch", manifest, mismatched),
+            "has an answer whose slug is not the one in its filename",
+        )
+
+        # The answer circle. Too tight claims more precision than a HUD read has;
+        # too wide is a round make_rounds.py should have dropped.
+        for radius in (0.0, check.MIN_RADIUS_M - 1, check.MAX_RADIUS_M + 1, 5000.0):
+            coords = answers(manifest)
+            coords[0]["radius_m"] = radius
+            rejects(
+                build(root, f"answer-radius-{radius:g}", manifest, coords),
+                f"has radius_m={radius:g}",
             )
 
         print(
