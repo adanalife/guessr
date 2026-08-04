@@ -1014,7 +1014,6 @@ function showSheet(rounds, played, res) {
       </span>
     </button>`).join('') + LIVE_TILE;
   sheet.hidden = false;
-  fillLiveTile();
 }
 
 // The sixth cell of a five-round grid, which is otherwise a hole. A player who
@@ -1022,46 +1021,35 @@ function showSheet(rounds, played, res) {
 // the one place the game has earned the right to point at the stream it comes
 // from.
 //
-// It starts as the link and grows a player only once /api/live says the channel
-// is streaming. That order is deliberate: the retired embed endpoint answered a
-// dark channel with YouTube's own "This video is unavailable" panel, and a grey
-// error box is worse in this cell than a line of text. So the cheap thing
-// renders first and the player is the upgrade.
-const LIVE_TILE = `
-  <div class="live">
-    <span class="cap">
-      <a href="https://youtube.com/@adanalife_/live" target="_blank" rel="noopener">
-        Watch live on YouTube &rarr;</a>
-    </span>
-  </div>`;
-
+// `live_stream?channel=` resolves the channel's current broadcast inside the
+// player, which is the only place it can be resolved: YouTube does not resolve
+// the /live route server-side for a datacenter caller. Asked from a Cloudflare
+// Worker it answers 200 with a 1.1 MB app shell carrying no entity at all --
+// `<title> - YouTube</title>`, `canonical="undefined"`, no live flag -- so no
+// amount of header tuning gets a video id out of it. The player runs in the
+// player's own session, so it has the context the Worker lacks.
+//
 // `mute=1` is not politeness, it is what makes this play at all: no browser
 // autoplays an unmuted embed, so without it the cell is a still with a play
 // button on it. The nocookie host serves the same player without setting
 // YouTube's cookies, which keeps what this game has to disclose down to its own
 // localStorage.
-async function fillLiveTile() {
-  const box = el('sheet').querySelector('.live');
-  if (!box) return;
-  let videoId = null;
-  try {
-    ({ videoId } = await (await fetch('/api/live')).json());
-  } catch { /* the cell stays the link, which is the point of it being one */ }
-  // Checked here and not only at the endpoint: this id goes into a URL, and a
-  // page should not put a response it did not validate into one.
-  if (!videoId || !/^[\w-]{11}$/.test(videoId)) return;
-  // The board may have been left in the meantime -- a slow answer must not paint
-  // a player into a sheet that has since been rebuilt or replaced by a round.
-  if (!box.isConnected) return;
-
-  const player = document.createElement('iframe');
-  player.src = `https://www.youtube-nocookie.com/embed/${videoId}?mute=1&autoplay=1&playsinline=1`;
-  player.title = 'A Dana Life — the 24/7 dashcam stream, live on YouTube';
-  player.allow = 'autoplay; encrypted-media; picture-in-picture';
-  player.referrerPolicy = 'strict-origin-when-cross-origin';
-  player.allowFullscreen = true;
-  box.prepend(player);
-}
+//
+// The caption stays under the player rather than being replaced by it: it is the
+// way out to the stream itself, and the only thing on screen if the embed has
+// nothing to show.
+const LIVE_CHANNEL = 'UC8Q7uFC1Xyr2ZnTWOk9Aizg';
+const LIVE_TILE = `
+  <div class="live">
+    <iframe src="https://www.youtube-nocookie.com/embed/live_stream?channel=${LIVE_CHANNEL}&mute=1&autoplay=1&playsinline=1"
+      title="A Dana Life — the 24/7 dashcam stream, live on YouTube"
+      allow="autoplay; encrypted-media; picture-in-picture"
+      referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+    <span class="cap">
+      <a href="https://youtube.com/@adanalife_/live" target="_blank" rel="noopener">
+        Watch live on YouTube &rarr;</a>
+    </span>
+  </div>`;
 
 // A tile opens its round: the clip goes back into the pane with the zoom, pan
 // and playback it had during the round, and the map fits that one round.

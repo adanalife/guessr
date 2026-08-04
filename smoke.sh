@@ -197,12 +197,3 @@ done
 
 out=$(call "$BASE/api/leaderboard?board=weekly")
 check "an unknown board is refused" 400 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
-
-# The live-stream resolver. Asserted on the key and not on its value, because the
-# value is whether the channel happens to be streaming right this second and a
-# gate that fails when the van is parked is a gate nobody trusts. The key is the
-# part a deploy can lose, and it is the same missing-endpoint-serves-HTML trap the
-# boards guard against above.
-out=$(call "$BASE/api/live")
-check "the live resolver answers" 200 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
-grep -q '"videoId"' <<<"$out" || { echo "::error::/api/live had no videoId key"; exit 1; }
