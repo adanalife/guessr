@@ -136,8 +136,24 @@ for _ in $(seq 1 20); do
   sleep 3
 done
 if [ "${ctype%%;*}" != "video/mp4" ]; then
-  echo "::error::$image served as '$ctype', not video/mp4 -- the clips for this"
-  echo "::error::manifest never reached this deployment. Run \`task clips:push\`."
+  # Say which of the two it is, because they have different fixes and the
+  # symptom is identical: a clip that will not play. A 404 is the endpoint
+  # working and finding nothing, so the media was never uploaded. A 500 is the
+  # endpoint throwing, which at this point in its life means `env.CLIPS` is
+  # undefined -- the bucket is not bound to this Pages project, and no amount of
+  # pushing clips will help.
+  status=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/$image")
+  echo "::error::$image served as '$ctype' (HTTP $status), not video/mp4."
+  case "$status" in
+    404) echo "::error::The endpoint found no such object, so the media for the" >&2
+         echo "::error::committed web/rounds.json was never pushed. Run" >&2
+         echo "::error::\`task clips:push\` from the laptop that generated it." >&2 ;;
+    500) echo "::error::The endpoint threw, which means the CLIPS binding is" >&2
+         echo "::error::missing from this Pages project -- see infra's" >&2
+         echo "::error::cloudflare-pages-guessr.tf. Pushing clips will not fix it." >&2 ;;
+    *)   echo "::error::Neither a missing object (404) nor a missing binding" >&2
+         echo "::error::(500), so this is something else -- look at the response." >&2 ;;
+  esac
   exit 1
 fi
 echo "ok: round media is served as video -> $image"
