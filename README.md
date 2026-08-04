@@ -53,6 +53,28 @@ reads the same project-wide `DATABASE_USER` / `DATABASE_PASS` / `DATABASE_DB` /
 `DATABASE_PORT` vars as tripbot and video-pipeline. `GUESSR_CORPUS` moves the
 corpus path off the laptop's SMB mount for the same reason.
 
+`publish.sh` (`task rounds:publish`) is the whole publish sequence in one place —
+generate, validate, then the three legs a round set arrives as:
+
+1. **the media**, a tarball in R2 named after a hash of the manifest
+2. **the coordinates**, rows in the D1 of *both* tiers
+3. **the manifest**, `web/rounds.json`, as a pull request
+
+**Media and answers before the manifest**, always, because the manifest is what a
+deploy keys off. Each missing leg fails differently and only the first is loud: no
+tarball fails `clips.sh pull` and nothing deploys, while no answers deploys a set
+that looks perfect and returns `unknown round` on every guess.
+
+Answers go to both tiers on every run even though merging the PR only moves
+staging. They are additive — `INSERT OR REPLACE` keyed on the image, deleting
+nothing — so seeding production early is harmless, and *not* seeding it is how a
+release deploy months later serves an unscoreable game.
+
+The manifest goes up as a PR rather than a push to `main` because `pr-gates` runs
+`check.py` over the committed manifest: the PR is where a bad generated set is
+caught by something other than the script that made it. Players see a new set at
+the next release, not on merge.
+
 Nothing schedules it yet — see *Not built yet*.
 
 ## Deploying
