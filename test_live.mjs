@@ -46,16 +46,28 @@ const withFetch = async (impl) => {
 };
 
 let res = await withFetch(async () => new Response(live, { status: 200 }));
-assert.deepEqual(await res.json(), { videoId: 'Uhln8S-ZCMI' });
+let body = await res.json();
+assert.equal(body.videoId, 'Uhln8S-ZCMI');
+assert.deepEqual(body.why, { status: 200, bytes: live.length, liveFlag: true, canonical: true });
 assert.match(res.headers.get('cache-control'), /^public, max-age=\d+$/,
   'the answer is cacheable, so one upstream read serves many finished games');
 
+// Each failure is dark to the board and distinct in `why`, which is the whole
+// point of carrying it: these three nulls need three different fixes.
 res = await withFetch(async () => new Response(dark, { status: 200 }));
-assert.deepEqual(await res.json(), { videoId: null });
+body = await res.json();
+assert.equal(body.videoId, null);
+assert.deepEqual(body.why, { status: 200, bytes: dark.length, liveFlag: false, canonical: false },
+  'a dark channel is a full 200 page with neither marker');
 
 res = await withFetch(async () => new Response('nope', { status: 500 }));
-assert.deepEqual(await res.json(), { videoId: null }, 'an upstream error reads as dark');
+body = await res.json();
+assert.equal(body.videoId, null, 'an upstream error reads as dark');
+assert.deepEqual(body.why, { status: 500 },
+  'a non-200 is reported as the status it was, not as a dark channel');
 
 res = await withFetch(async () => { throw new Error('network'); });
-assert.deepEqual(await res.json(), { videoId: null }, 'a thrown fetch reads as dark');
+body = await res.json();
+assert.equal(body.videoId, null, 'a thrown fetch reads as dark');
+assert.match(body.why.error, /network/, 'a thrown fetch reports the throw');
 console.log('ok: the endpoint answers JSON, stays cacheable, and treats every failure as dark');

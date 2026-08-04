@@ -36,24 +36,42 @@ const TTL = 120;
 // Exported for test_live.mjs, which runs it over saved copies of a live page and
 // a dark one rather than a second copy of the logic. Pages only looks for the
 // onRequest* exports.
+const CANONICAL_WATCH =
+  /<link rel="canonical" href="https:\/\/www\.youtube\.com\/watch\?v=([\w-]{11})">/;
+
 export function liveVideoId(html) {
   if (!html.includes('"isLiveNow":true')) return null;
-  const m = html.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/watch\?v=([\w-]{11})">/);
+  const m = html.match(CANONICAL_WATCH);
   return m ? m[1] : null;
 }
 
+// A null carries the reason it is null, because from the outside a resolver that
+// can never resolve anything is indistinguishable from a channel that happens to
+// be dark: the board keeps its link either way, and smoke.sh asserts that the
+// videoId key exists rather than what it holds. The four fields separate the
+// cases that need different fixes -- a non-200 upstream, a body far too small to
+// be the watch page, or a full page whose markers are simply absent.
 export async function onRequestGet() {
   let videoId = null;
+  const why = {};
   try {
     const res = await fetch(LIVE_PERMALINK, {
       cf: { cacheTtl: TTL, cacheEverything: true },
     });
-    if (res.ok) videoId = liveVideoId(await res.text());
-  } catch {
+    why.status = res.status;
+    if (res.ok) {
+      const html = await res.text();
+      why.bytes = html.length;
+      why.liveFlag = html.includes('"isLiveNow":true');
+      why.canonical = CANONICAL_WATCH.test(html);
+      videoId = liveVideoId(html);
+    }
+  } catch (e) {
     // Dark is the safe answer: it degrades the board to a link, where a thrown
     // error would degrade it to a console message and an empty cell.
+    why.error = String(e);
   }
-  return new Response(JSON.stringify({ videoId }), {
+  return new Response(JSON.stringify({ videoId, why }), {
     headers: {
       'content-type': 'application/json',
       'cache-control': `public, max-age=${TTL}`,
