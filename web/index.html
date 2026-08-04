@@ -447,10 +447,7 @@
      to be the same code. Classic scripts above run first, so Leaflet's `L` and
      zoom.js's globals are in place by the time this executes. -->
 <script type="module">
-import {
-  ROUNDS_PER_GAME, dailyRounds, dailyState, dateForDay,
-  effectiveDay, pick, rampEasyToHard,
-} from './daily.js';
+import { ROUNDS_PER_GAME, dailyState, dateForDay, effectiveDay } from './daily.js';
 import { aliasFrom, isAlias } from './alias.js';
 import { linkUrl, parseLink } from './link.js';
 import { bandFor, scoreLine, shareText } from './share.js';
@@ -556,7 +553,7 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
 const US_BOUNDS = L.latLngBounds([24, -125], [49.5, -66]);
 const homeView = () => map.fitBounds(US_BOUNDS, { animate: false });
 // Straight away, not only at the first round: a Leaflet map with no view set
-// throws on the first interaction, and rounds.json failing to load would
+// throws on the first interaction, and /api/day failing to answer would
 // otherwise leave it in that state.
 homeView();
 
@@ -741,7 +738,7 @@ const releasePointer = e => {
 pane.addEventListener('pointerup', releasePointer);
 pane.addEventListener('pointercancel', releasePointer);
 
-let pool = [], game = [], idx = 0, total = 0, guess = null, marks = [];
+let game = [], idx = 0, total = 0, guess = null, marks = [];
 let mode = 'daily', results = [], guesses = [];
 // The day the board on screen belongs to, fixed when that board is established
 // rather than re-read from the clock. A game started at 23:58 is still that day's
@@ -882,14 +879,29 @@ function savedDaily() {
 // disagree about which day it is.
 const today = () => effectiveDay(savedDaily());
 
+// Which rounds a game is made of, from the server. They arrive in the order they
+// are meant to be played -- the easy-to-hard ramp is applied when a date is
+// scheduled, so there is nothing left for the page to sort.
+//
+// One function for both modes because the only difference is the query: a date
+// for the daily, `practice` for a random draw over days that have finished.
+async function loadRounds(query) {
+  const res = await fetch(`/api/day?${query}`);
+  if (res.ok) return (await res.json()).rounds;
+  // The endpoint says why in the body — no game scheduled, or a date that has
+  // not opened. A request that never reached it has no body worth reading.
+  const { error } = await res.json().catch(() => ({}));
+  throw new Error(error || 'Could not reach the rounds');
+}
+
 // Entering the daily, from a page load or from the practice toggle: pick an
 // unfinished day back up where it left off, and give a finished one its summary
 // rather than a second run.
-function startDaily() {
+async function startDaily() {
   const saved = savedDaily();
   const state = dailyState(saved, effectiveDay(saved), ROUNDS_PER_GAME);
   if (state === 'finished') return showFinished(saved);
-  newGame('daily', state === 'unfinished' ? saved : null);
+  return newGame('daily', state === 'unfinished' ? saved : null);
 }
 
 // The end-of-game map: all five rounds at once, each guess joined to its truth
@@ -1131,7 +1143,7 @@ function offerHistory() {
   historyBtn.hidden = loadHistory().length <= ROUNDS_PER_GAME;
 }
 
-function showFinished(saved) {
+async function showFinished(saved) {
   mode = 'daily';
   gameDay = saved.day;
   total = saved.total;
@@ -1148,13 +1160,19 @@ function showFinished(saved) {
   practiceBtn.textContent = 'Practice rounds';
 
   // Rebuild the board from the saved day. The rounds themselves aren't stored —
-  // the draw is deterministic, so replaying it reconstructs exactly what was
-  // played. The guesses are stored, and an older save has none: it still gets
-  // the contact sheet, just no lines on the map.
-  const rounds = rampEasyToHard(dailyRounds(pool, saved.day, ROUNDS_PER_GAME));
-  restoreTruths(rounds, saved);
-  showSheet(rounds, saved.guesses, saved.results);
-  if (saved.guesses) showSummary(rounds, saved.guesses, saved.results);
+  // the schedule is, so asking for that date returns exactly what was played.
+  // The guesses are stored, and an older save has none: it still gets the
+  // contact sheet, just no lines on the map.
+  //
+  // A failure here costs the board and nothing else: the score came out of local
+  // storage and is already on screen, so showing the number beats showing an
+  // error over the top of it.
+  const rounds = await loadRounds(`date=${dateForDay(saved.day)}`).catch(() => []);
+  if (rounds.length) {
+    restoreTruths(rounds, saved);
+    showSheet(rounds, saved.guesses, saved.results);
+    if (saved.guesses) showSummary(rounds, saved.guesses, saved.results);
+  }
   offerHistory();
   result.innerHTML = `Today's round is done &mdash;
     ${scoreLine(saved.results, saved.total)}. Come back tomorrow, or play
@@ -1396,19 +1414,22 @@ el('welcomeMore').addEventListener('click', e => {
 // `saved` resumes an unfinished daily. The draw is the same five rounds for the
 // day either way, so resuming needs only the scores and guesses already banked
 // carried over; the next unplayed round follows from how many there are.
-function newGame(which, saved = null) {
+async function newGame(which, saved = null) {
   mode = which;
   const day = gameDay = today();
-  if (mode === 'daily') {
-    game = dailyRounds(pool, day, ROUNDS_PER_GAME);
-    el('label').textContent = `Daily #${day}`;
-  } else {
-    game = pick(pool, ROUNDS_PER_GAME, Math.random);
-    el('label').textContent = 'Practice';
+  try {
+    game = await loadRounds(mode === 'daily' ? `date=${dateForDay(day)}` : 'practice');
+  } catch (e) {
+    // Nothing to play, and no state has changed yet -- the mode swap above is
+    // the only thing this got to, and the buttons below stay as they were. Say
+    // what the server said rather than a generic failure, because "no game is
+    // scheduled" and "could not reach the rounds" want different reactions.
+    result.textContent = `${e.message}.`;
+    return;
   }
-  // Both modes ramp. The draw picks which rounds; this only orders them, so the
-  // daily set for a given day is untouched.
-  game = rampEasyToHard(game);
+  el('label').textContent = mode === 'daily' ? `Daily #${day}` : 'Practice';
+  // Not always five: practice comes up short until enough dates have finished
+  // playing, and a game reads its length from what it was handed.
   el('roundTot').textContent = game.length;
   results = saved ? [...saved.results] : [];
   guesses = saved ? [...(saved.guesses || [])] : [];
@@ -1419,13 +1440,10 @@ function newGame(which, saved = null) {
   startRound();
 }
 
-fetch('rounds.json')
-  .then(r => r.json())
-  .then(data => {
-    pool = data;
-    startDaily();
-  })
-  .catch(() => { result.textContent = 'No rounds.json yet — run make_rounds.py first.'; });
+// The rounds come from /api/day, which newGame fetches — so there is nothing to
+// load before starting, and a failure to reach it is reported by the game rather
+// than by a bootstrap step that has to guess what went wrong.
+startDaily();
 </script>
 </body>
 </html>

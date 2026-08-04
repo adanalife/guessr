@@ -6,37 +6,46 @@ a year of driving the United States in 2018.
 Five rounds a day, the same five for everyone, with a spoiler-free share string
 at the end. Practice rounds are unlimited.
 
-The game is static files plus one endpoint. `make_rounds.py` does all the work up
-front (query the corpus metadata, cut the clips, write a manifest); `web/` is
-then a plain directory of HTML, JS and mp4. The map is Leaflet over
+The game is static files plus a few endpoints. `make_rounds.py` does all the work
+up front (query the corpus metadata, cut the clips, write the rows describing
+them); `web/` is then a plain directory of HTML and JS. The map is Leaflet over
 OpenStreetMap tiles.
+
+**A round set is data, not a deploy artifact.** The pool, the day-by-day schedule
+and the answers are rows in D1; the clips are objects in R2, streamed back by a
+Pages Function. So changing what the game plays is three pushes and no deploy —
+and cutting a release went back to being purely about code.
 
 A round plays on a loop and can be paused — the button in the frame's corner, or
 the space bar. Motion is what places a scene; a still is what lets you read the
 sign in it.
 
-The endpoint is `POST /api/score`, a Cloudflare Pages Function, and it exists
-because the answers can't ship to the browser. `web/rounds.json` names each
-round's clip and how hard it is, and nothing else — the coordinates live in a D1
-database the client can't read, so a player learns where a clip was taken only
-by committing a guess and getting the score back.
+The endpoints are Cloudflare Pages Functions, and they exist because the answers
+can't ship to the browser. `GET /api/day` hands out a date's five rounds by name
+and nothing else; `POST /api/score` is the only thing that ever reads a
+coordinate. They are two tables in the same database, so the endpoint that serves
+a game physically cannot leak the answer to it — a player learns where a clip was
+taken only by committing a guess and getting the score back.
 
 ## Play locally
 
 ```sh
 task rounds   # needs the corpus mounted + kubectl access to the tripbot DB
 task check    # validates the round set
-task clips:push  # uploads the media to R2, without which a deploy has none
-task test     # daily draw, scoring, round-set swap; needs neither
+task clips:push  # uploads the media to R2, which is where the game reads it from
+task test     # scheduling, scoring, the endpoints, the swap; needs neither
 task dev      # http://localhost:8000, with scoring
-task serve    # http://localhost:8000, static only — guesses don't score
+task serve    # http://localhost:8000, static only — no rounds, no scoring
 ```
 
-`task dev` runs `wrangler pages dev` against a local D1 — `schema.sql` applied
-and `answers.sql` seeded — so guessing works end to end, including the record a
-daily play leaves behind. `task serve` is a plain
-`http.server` for everything else — layout, zoom, the About panel — and is
-enough for most UI work; a guess in it fails with "could not reach the scorer".
+`task dev` runs `wrangler pages dev` against a local D1 — `schema.sql` applied,
+then `rounds.sql` and `answers.sql` seeded — so a game loads and guessing works
+end to end, including the record a daily play leaves behind.
+
+`task serve` is a plain `http.server`, and it no longer serves a playable game:
+the rounds come from `/api/day` and the clips from a Function, neither of which a
+static server has. It is still the quickest way to work on anything that is not
+the game itself — the About panel, the changelog, layout above the fold.
 Both bind all interfaces, so a phone on the tailnet can reach them at
 `http://<this-machine>:8000`.
 
@@ -56,24 +65,32 @@ corpus path off the laptop's SMB mount for the same reason.
 `publish.sh` (`task rounds:publish`) is the whole publish sequence in one place —
 generate, validate, then the three legs a round set arrives as:
 
-1. **the media**, a tarball in R2 named after a hash of the manifest
-2. **the coordinates**, rows in the D1 of *both* tiers
-3. **the manifest**, `web/rounds.json`, as a pull request
+1. **the media**, one R2 object per clip, keyed by the name the round carries
+2. **the answers**, rows in the `answers` table
+3. **the pool and the schedule**, rows in `rounds` and `round_days`
 
-**Media and answers before the manifest**, always, because the manifest is what a
-deploy keys off. Each missing leg fails differently and only the first is loud: no
-tarball fails `clips.sh pull` and nothing deploys, while no answers deploys a set
-that looks perfect and returns `unknown round` on every guess.
+**The schedule last**, always, because it is the only one of the three that makes
+a date playable. Get the order wrong and a player reaches a round whose clip is a
+black pane (no media) or whose every guess comes back `unknown round` (no
+answers). Push it last and the worst case is a date that is not scheduled yet,
+which nobody can see.
 
-Answers go to both tiers on every run even though merging the PR only moves
-staging. They are additive — `INSERT OR REPLACE` keyed on the image, deleting
-nothing — so seeding production early is harmless, and *not* seeding it is how a
-release deploy months later serves an unscoreable game.
+**Staging only.** Production is a promotion run by hand after a review pass, not a
+second destination for a fresh set. That is what lets this run on a schedule at
+all: a job that can write the production database is a job that can ruin the game
+unattended.
 
-The manifest goes up as a PR rather than a push to `main` because `pr-gates` runs
-`check.py` over the committed manifest: the PR is where a bad generated set is
-caught by something other than the script that made it. Players see a new set at
-the next release, not on merge.
+No git, no deploy, no pull request. This used to open a PR to commit
+`web/rounds.json`, because the round set was a file and a deploy was the only way
+it could reach anyone — which meant a scheduled job would have needed a token with
+write access to a public repo's default branch. Rows in D1 need none of that.
+
+The trade, stated plainly rather than discovered later: `pr-gates` used to run
+`check.py` over the committed manifest, and there is no longer a PR for it to run
+on. `check.py` runs inside `publish.sh` before anything is pushed instead —
+earlier than the gate did, but on the generating machine's word alone — and
+`smoke.sh` measures a *deployed* clip's aspect ratio against every tier, which is
+the assertion that catches an uncropped HUD.
 
 Nothing schedules it yet — see *Not built yet*.
 
@@ -115,26 +132,29 @@ The Pages projects and the DNS records are terraform, in the `infra` repo under
 
 `web/` holds `index.html`, its scripts (`daily.js`, `zoom.js`,
 `changelog.js`), `manifest.json`, the icon and share-card assets (`favicon.svg`,
-`apple-touch-icon.png`, `icon-512.png`, `og.jpg`), the ET Book faces under
-`et-book/`, and the round set — `rounds.json` plus ~300 clips under `clips/`.
+`apple-touch-icon.png`, `icon-512.png`, `og.jpg`), and the ET Book faces under
+`et-book/`.
 
-**Only the manifest is committed.** A round set is ~150 MB of mp4 and this repo
-is public, so committing one would add that to git history on every
-regeneration, permanently. `web/clips/` is gitignored and the media lives in an
-R2 bucket instead; the three deploy workflows pull it into `web/` before
-uploading. `rounds.json` has to stay in git regardless, because
-`functions/api/score.js` imports it at build time — that is what makes the five
-rounds the server checks a daily play against provably the five the page handed
-out.
+**No part of a round set is committed, and none of it is deployed.** The clips
+could never be — a set is ~150 MB of mp4 and this repo is public, so committing
+one would add that to git history on every regeneration, permanently. The rows
+describing them could be, and deliberately are not: a round set that lives in git
+is a round set that needs a pull request and a deploy to change, which is the
+thing moving it into D1 undid.
 
-`clips.sh` moves the media both ways, and names the object after a hash of the
-manifest. That is deliberate: under a stable name, regenerating would overwrite
-the tarball that production — still on an older release, with an older manifest
-— pulls on its next deploy, and production would come back up naming clips the
-bucket no longer holds. Content-addressing makes a manifest and its media
-inseparable, and makes "the clips were never pushed" a failed deploy rather than
-a game of black panes. Nothing in the bucket is ever deleted, for the same
-reason: an old tarball is what some deployed manifest still points at.
+So `web/clips/` is gitignored and is a build directory, not a deployed one:
+`clips.sh push` sends its contents to R2 and `functions/clips/[[path]].js`
+streams each object back at request time, with `Range` support so the video
+element can seek. A deploy is a few hundred KB of HTML and JS, and a regeneration
+changes nothing about it at all.
+
+The object key is exactly the `image` a round carries, so there is no mapping to
+keep in step — and because that name includes the moment the clip was cut from,
+a regeneration cannot put different footage behind a name a browser already
+cached, which is what makes the long `immutable` header safe. Nothing in the
+bucket is ever deleted: an object is load-bearing for as long as any round names
+it, and at ~0.5 MB a clip against 10 GB of free storage there is no pressure to
+work out which.
 
 The page borrows its look from the blog at
 [dana.lol](https://dana.lol): the same ET Book faces, and the same light/dark
@@ -153,59 +173,72 @@ purpose, each with a note where it is set: the zoom controls copy Leaflet's,
 and the badges, the minimap frame and the legend swatches sit on photographs or
 map tiles rather than on the page.
 
-`functions/` holds the scoring endpoint. It is not served: Pages routes
-`functions/api/score.js` to `/api/score`, and `_scoring.mjs` is skipped by the
-router (leading underscore) so the handler can import it.
+`functions/` holds the endpoints. It is not served: Pages routes
+`functions/api/score.js` to `/api/score`, `functions/api/day.js` to `/api/day`
+and `functions/clips/[[path]].js` to everything under `/clips/`. `_scoring.mjs`
+is skipped by the router (leading underscore) so the handlers can import it.
 
-The handler also imports `web/daily.js` and `web/rounds.json` — the same draw and
-the same pool the page plays from, bundled into the worker at build time. That is
-what lets it check that a posted round really is one of that date's five without
-storing a schedule anywhere: both sides run the same function over the same data
-from the same commit, so they cannot disagree unless the deploy is internally
-inconsistent. It is also why `daily.js` is an ES module rather than a plain
-script, and why the page's inline script is `type="module"`.
+`/api/day` is what a date's game *is*: five rounds by name, in the order they
+play. `/api/score` checks a posted round against the same rows before it will
+record anything. That property — the rounds scored against are provably the
+rounds the page handed out — used to hold because both sides imported the same
+draw and the same pool from the same commit, so a half-finished deploy could
+break it. There is one row set now and both read it, so a deploy cannot come into
+it at all.
 
-### The answers
+`daily.js` is still shared, and still an ES module for that reason (which is also
+why the page's inline script is `type="module"`) — but only for the play window
+now. When a date is open is a rule about clocks rather than data, and the page
+and the scorer still have to agree on it or one accepts what the other refuses.
 
-`task rounds` writes two files *outside* `web/`, and neither is committed:
-`answers.json` (every round's lat/lng/state/date) and `answers.sql` (the same
-thing as a D1 seed script). `web/` is the entire deployed surface, so anything in
-there is fetchable; and this is a public repo, so a committed answer key is the
-same leak as a manifest full of coordinates.
+### The rows a round set is
 
-They reach the deployed game through D1:
+`task rounds` writes four files *outside* `web/`, and none is committed.
+`rounds.json` + `rounds.sql` are the pool and the schedule; `answers.json` +
+`answers.sql` are every round's lat/lng/state/date. In each pair the JSON is what
+`check.py` asserts against and the SQL is what wrangler eats.
+
+They stay out of `web/` because that is the entire deployed surface, so anything
+in there is fetchable — and out of git because this is a public repo, where a
+committed answer key is the game given away.
+
+They reach a tier through D1:
 
 ```sh
-task answers:stage:push   # adanalife-guessr-answers-staging
-task answers:prod:push    # adanalife-guessr-answers
+task answers:stage:push   # the coordinates
+task rounds:stage:push    # the pool and the schedule
 ```
 
-**A regenerated round set is unplayable until that push runs** — every guess
-comes back "unknown round", because the rounds deployed are ones the answers
-table has never heard of. `task rounds` prints the reminder on the way out,
-alongside the other push a new set needs: `task clips:push`, without which the
-rounds have no footage to show in the first place.
+**A round set does nothing until both run**, in that order. Without the schedule
+no date has a game at all and `/api/day` 404s; with a schedule but no answers the
+game looks perfect and returns "unknown round" on every guess. `task rounds`
+prints both on the way out, alongside `task clips:push`, without which the rounds
+have no footage to show in the first place.
+
+There is deliberately no `rounds:prod:push`. Production is a promotion of dates
+already reviewed on staging, and a target named by symmetry with the others would
+be far too easy to reach for.
 
 The databases are terraform, in `infra` alongside the Pages projects, and each
 tier has its own so a regeneration on one doesn't strand the other.
 
 ### The tables the game owns
 
-The same D1 also holds `plays`, one row per player per round per date — the
-record of a daily result, and the whole storage behind the leaderboard. Its DDL
-is hand-written in `schema.sql` rather than generated, and applied once per
-database:
+Every table definition is in `schema.sql` — `rounds`, `round_days`, `answers`,
+and `plays`, one row per player per round per date, which is the whole storage
+behind the leaderboard. Hand-written, idempotent, and applied once per database:
 
 ```sh
 task schema:stage:push
 task schema:prod:push
 ```
 
-It is kept out of `answers.sql` because the two change on completely different
-clocks: `answers.sql` is regenerated and re-pushed with every round set, while
-`schema.sql` is idempotent DDL. Folding them together would put the definition of
-a table of player scores inside a gitignored file that only exists on whichever
-laptop last built a round set.
+**A fresh database needs this before any seed will land.** The definitions are
+kept out of the generated files because the two change on completely different
+clocks: `rounds.sql` and `answers.sql` are rewritten with every round set, while
+`schema.sql` moves when the shape does. Folding them together would put the
+definition of a table of player scores inside a gitignored file that only exists
+on whichever laptop last built a round set.
 
 A row is written the first time a player answers a round on a given date, and
 never updated: guessing that round again returns the score already on record.
@@ -309,13 +342,16 @@ in one of those sets — and ground truth is clip-level, so for those the answer
 a `git log` away. The endpoint is the mechanism; a set with no overlap at all is
 what would make it the guarantee.
 
-A regeneration replaces every clip under `web/clips/` and rewrites the
-manifest that gets committed — so **a generation that fails leaves the current
-one alone.** `task rounds` builds into `web/.staging`, runs `check.py` against
-*that*, and moves it into place only if it passes. A run with the corpus
-unmounted or the database unreachable leaves the working tree exactly as it was
-rather than deleting the clips it was about to replace, and the rejected set is
-left in `web/.staging` to look at.
+A regeneration replaces every clip under `web/clips/` and rewrites the four files
+beside the repo — so **a generation that fails leaves the current one alone.**
+`task rounds` builds into `web/.staging`, runs `check.py` against *that*, and
+moves it into place only if it passes. A run with the corpus unmounted or the
+database unreachable leaves the working tree exactly as it was rather than
+deleting the clips it was about to replace, and the rejected set is left in
+`web/.staging` to look at.
+
+The live game is untouched by any of it either way: what players see is rows in
+D1 and objects in R2, and a generation writes neither until it is published.
 
 `favicon.svg` is the map pin, drawn as the adanalife mark — ring, centre dot,
 bead on the upper-right shoulder — with the ring pulled down to a point, so it
@@ -462,19 +498,23 @@ Guessr #1
 Finishing writes the day to `localStorage`, so today's round can't be replayed
 for a better result. Practice mode draws at random and is unlimited.
 
-Both modes then order their five rounds easy to hard by `median_km` (see [How
-rounds are chosen](#how-rounds-are-chosen)). The ordering runs on the drawn five,
-never on the pool, so it can't change *which* rounds a day draws. The ramp is
-felt, not shown — nothing in the header rates the round you are looking at.
+A date's five arrive from `/api/day` already ordered easy to hard by `median_km`
+(see [How rounds are chosen](#how-rounds-are-chosen)) — the ramp is applied when
+the date is scheduled, so the page does not sort and `median_km` is never sent at
+all. The ramp is felt, not shown; nothing in the header rates the round you are
+looking at.
 
-`test_daily.mjs` covers the draw, because it fails invisibly: if it stops being
-deterministic, every player simply gets different rounds, nothing errors, and
-the share string quietly stops meaning anything. The test pins determinism,
-independence from the order `rounds.json` was written in, that the ramp reorders
-the five without changing which five, and that a DST boundary doesn't skip or
-repeat a day number. It matters twice over because `/api/score` draws from the
-same module to check a play: a draw that shifted would have the server rejecting
-rounds the page had just handed out.
+`test_schedule.py` covers the scheduling, because it fails invisibly. The
+properties it pins: a date's five come out in ramp order, no round is ever
+scheduled twice, the schedule does not depend on the order the pool was written
+in, and — the one worth a test rather than a glance — every day spans the
+difficulty range instead of sitting in one part of it. Dealing rounds out in
+blocks of five would satisfy everything else and produce a month that gets
+steadily harder rather than a game that does.
+
+`test_daily.mjs` covers what is left in `daily.js`: the date arithmetic and the
+play window, where a DST boundary that skips or repeats a day number files a
+score against the wrong board.
 
 ### When a day is open
 
@@ -484,24 +524,25 @@ everyone gets their own full day. Up to three dates are therefore open at once,
 which is why a board on the stream has to name the date it is showing rather than
 assume there is a single "today".
 
-`/api/score` enforces both edges on a daily play. The close is what lets a board
-be final; the open is the only thing stopping someone playing next week today,
-since the draw is deterministic and computed on the client. A refused play comes
-back as a 403 with a distinct message, and the page treats a 4xx as final rather
-than inviting a retry that cannot work.
+Both endpoints enforce the window, for different reasons. `/api/score` refuses a
+play outside it — the close is what lets a board be final. `/api/day` refuses to
+*name* the rounds of a date that has not opened, which is the whole protection on
+a schedule now the browser cannot derive it: while the draw was a seeded shuffle
+over a committed pool, anyone could work out next month's five and there was
+nothing to withhold. A refusal comes back as a 403 with a distinct message, and
+the page treats a 4xx as final rather than inviting a retry that cannot work.
 
-**Rounds repeat sooner than the pool size suggests.** A day reshuffles the whole
-pool and takes five; it does not deal the pool out into non-overlapping days. So
-repeats begin within the first week or two whatever the pool size, and what a
-bigger pool buys is how *often* one comes round again. At 300 rounds, a player
-who plays all of the next 90 days meets 233 of them and sees a repeat about
-every other round; `task check` reports both numbers for the current set.
+**Rounds no longer repeat.** A date's five are dealt from the pool once and
+recorded, and `round_days_once` makes scheduling the same round twice impossible
+rather than merely unlikely. Under the reshuffling draw this replaced, a player
+who played all of the next 90 days met 233 of 300 rounds and saw a repeat about
+every other round.
 
-Dealing days out of an unused slice instead would genuinely delay the first
-repeat, at the cost of a draw that has to know which days have already been
-played — worth it only if anyone ever plays long enough to mind. Regenerating
-`rounds.json` reshuffles future dailies, since the draw depends on which rounds
-exist — worth doing between days rather than mid-day.
+What that trades for is a finite corpus. Five a day is 1,825 rounds a year
+against ~4,400 clips, of which perhaps half clear the quality bar and the
+coordinate-confidence gate — so somewhere around a year to eighteen months, the
+generator will fail to fill its horizon. `round_days_once` is what will announce
+it, and relaxing it (the same clip at a different moment) is a one-line change.
 
 ## How rounds are chosen
 
@@ -610,15 +651,21 @@ upload a set that fails it.
   two new `leaderboardKind`s in its rotation, which currently splits one
   five-minute slot three ways and would need re-weighting for five.
 - **A schedule for round generation.** The script runs in the cluster as well as
-  on a laptop (above), which is what makes a scheduled job possible at all.
-  What is left is the job itself: an image carrying `ffmpeg` and
-  `psql` with the corpus mounted, a CPU limit low enough not to make the live
-  stream choppy, and a credential that can push the media to R2, seed the
-  answers, and commit the manifest. Media and answers both have to land *before*
-  the manifest, since the manifest is what a deploy keys off.
+  on a laptop (above), which is what makes a scheduled job possible at all. What
+  is left is the job itself: an image carrying `ffmpeg`, `psql` and `wrangler`
+  with the corpus mounted, a CPU limit low enough not to make the live stream
+  choppy, and one Cloudflare token — R2 write on the clips bucket, D1 write on
+  staging. No GitHub credential, which is the part that makes running it
+  unattended reasonable at all.
+- **An admin view**, to look at what is scheduled before it plays, reject a bad
+  round and reorder a day. The `status` column and the rule that the schedule is
+  frozen from the moment a date opens are both already in place for it.
+- **Promotion to production.** Staging is the only tier a generation run writes.
+  Moving reviewed dates to production is a hand-run command that does not exist
+  yet, so production plays whatever it was last seeded with.
 - **A round set with no source clip in common with the pre-server-side sets.**
-  Those sets carried their coordinates in `rounds.json`, which is in this repo's
-  history (see *The answers* above). 34 of the current 300 rounds are cut from a
-  clip one of them used, and truth is clip-level — so those 34 are worth only as
-  much as the player's disinclination to run `git log`. Fine for a beta; a
-  regeneration that avoids those clips closes it.
+  Those sets carried their coordinates in a committed manifest, which is in this
+  repo's history (see *The rows a round set is* above). 34 of the current 300
+  rounds are cut from a clip one of them used, and truth was clip-level — so
+  those 34 are worth only as much as the player's disinclination to run
+  `git log`. Fine for a beta; a regeneration closes it.

@@ -1,0 +1,1 @@
+The daily rounds are now scheduled ahead of time rather than drawn fresh each day, which means you will never be shown a round you have already played. Practice rounds are drawn only from days that have finished, so they can no longer spoil an upcoming game.

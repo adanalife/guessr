@@ -49,8 +49,8 @@ call() {
 # reliable *version* signal and also what makes it a poor proxy for anything
 # else: it is new bytes every time, so it cuts over the instant the deployment
 # is live, while an asset whose bytes did not change can still be answered from
-# an edge cache for a while longer. The manifest pin below covers that, and the
-# function-wait after it covers routing.
+# an edge cache for a while longer. The /api/day check below covers both that and
+# routing, since it is a Function reading the live database.
 if [ -f web/version.json ]; then
   want=$(jq -r .label web/version.json)
   for _ in $(seq 1 40); do
@@ -68,38 +68,34 @@ else
   echo "note: no local web/version.json, so nothing pins which build answers"
 fi
 
-# And the round set, separately, because version.json moving does not mean it
-# has. rounds.json changes only when the round set does, so it is exactly the
-# asset that sits unchanged across deploys and lingers at the edge -- and it is
-# the one every assertion below reads. v1.0.0 failed here: version.json already
-# answered v1.0.0 while rounds.json was still the previous build's stills, so the
-# clip check reported a jpg on a deploy that had in fact shipped 300 mp4s.
+# And the round set, separately, because version.json moving does not mean the
+# game is playable. This used to byte-compare a committed manifest; the set is
+# not deployed at all now, so the useful question is the one a player asks --
+# does this tier have a game for today?
 #
-# Compared as bytes, because Pages serves the file verbatim and there is nothing
-# cheaper that is actually conclusive -- spot-checking one round would pass a
-# regenerated set that happened to keep its first one.
+# Which also covers what the version pin cannot. version.json is new bytes every
+# deploy, so it goes green the instant the deployment is live; /api/day is a
+# Function reading the live database, so waiting on it proves routing works AND
+# that a schedule was actually pushed. A deploy can now be flawless against a
+# database nobody seeded, and this is the only thing that would say so.
 #
-# Unconditional, unlike the version gate: rounds.json is committed, so the
-# expectation is always here.
+# UTC today, which is always inside the play window: a date opens at 10:00 UTC on
+# the day before it and closes at 12:00 UTC on the day after.
+today=$(date -u +%F)
 for _ in $(seq 1 40); do
-  cmp -s <(curl -sf "$BASE/rounds.json") web/rounds.json && pinned=1 && break
+  day=$(curl -sf "$BASE/api/day?date=$today" || true)
+  rounds=$(printf '%s' "$day" | jq -r '.rounds | length' 2>/dev/null || echo 0)
+  [ "${rounds:-0}" -gt 0 ] && break
   sleep 3
 done
-if [ -z "${pinned:-}" ]; then
-  echo "::error::$BASE serves a rounds.json that is not the one being deployed."
-  echo "::error::Every assertion below would have described the previous round set."
+if [ "${rounds:-0}" -eq 0 ]; then
+  echo "::error::$BASE serves no game for $today, so it is not playable."
+  echo "::error::Either /api/day never routed, or round_days has nothing for" >&2
+  echo "::error::today -- run \`task rounds:stage:push\` with a set whose" >&2
+  echo "::error::schedule covers it." >&2
   exit 1
 fi
-echo "ok: serving the round set under test -> $(jq length web/rounds.json) rounds"
-
-# Wait on a Function, not on a static asset: rounds.json can be served from the
-# edge while /api/* still misses, which is how a green deploy produced an HTML
-# 404 mid-run. The unknown-board 400 is the cheapest deterministic Function
-# response there is, and touches no database.
-for _ in $(seq 1 30); do
-  if curl -s "$BASE/api/leaderboard?board=weekly" | grep -q '"error"'; then break; fi
-  sleep 3
-done
+echo "ok: serving a game for $today -> $rounds rounds"
 
 check() { # name, expected status, actual status, body
   if [ "$2" != "$3" ]; then
@@ -112,14 +108,15 @@ check() { # name, expected status, actual status, body
 post() { call -X POST "$BASE/api/score" \
   -H 'content-type: application/json' -d "$1"; }
 
-# Read locally: the pin above proved the deployment serves these exact bytes, so
-# fetching them again would only add a way for the two to disagree.
-image=$(jq -r '.[0].image' web/rounds.json)
+# From the response above rather than fetched again: that is the round this tier
+# would actually hand a player first today, so it is the one worth proving is
+# playable.
+image=$(printf '%s' "$day" | jq -r '.rounds[0].image')
 
-# The media half of the round set, which is the half git does not carry: each clip
-# is streamed out of R2 by functions/clips/[[path]].js at request time, so a
-# manifest naming a set that was never pushed produces a game of black panes even
-# though the deploy itself had nothing to get wrong.
+# The media, which is the half no deploy carries: each clip is streamed out of R2
+# by functions/clips/[[path]].js at request time, so a schedule naming clips that
+# were never pushed produces a game of black panes even though the deploy itself
+# had nothing to get wrong.
 #
 # Status is no good for detecting it. Pages answers a path it has no file for
 # with the game's own HTML and a 200, so the missing-media case and the
@@ -145,8 +142,8 @@ if [ "${ctype%%;*}" != "video/mp4" ]; then
   status=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/$image")
   echo "::error::$image served as '$ctype' (HTTP $status), not video/mp4."
   case "$status" in
-    404) echo "::error::The endpoint found no such object, so the media for the" >&2
-         echo "::error::committed web/rounds.json was never pushed. Run" >&2
+    404) echo "::error::The endpoint found no such object, so the media for a" >&2
+         echo "::error::round scheduled today was never pushed. Run" >&2
          echo "::error::\`task clips:push\` from the laptop that generated it." >&2 ;;
     500) echo "::error::The endpoint threw, which means the CLIPS binding is" >&2
          echo "::error::missing from this Pages project -- see infra's" >&2
@@ -200,6 +197,13 @@ check "unknown round is refused" 404 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out"
 # what refuses it.
 out=$(post "{\"image\":\"$image\",\"lat\":40,\"lng\":-100,\"date\":\"2099-01-01\",\"player_id\":\"ci-smoke\"}")
 check "a closed date is refused" 403 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
+
+# The one property /api/day adds. While the draw was a seeded shuffle the browser
+# could run, a future date was derivable and there was nothing to protect; now the
+# server is the only thing that knows next month's rounds, so refusing to say is
+# the whole of the protection.
+out=$(call "$BASE/api/day?date=2099-01-01")
+check "an unopened date is refused" 403 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
 
 # Both boards read. A 500 here is an unapplied schema.sql.
 #

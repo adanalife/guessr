@@ -1,27 +1,31 @@
 #!/usr/bin/env python3
 """Validate a generated round set. Run after make_rounds.py.
 
-Takes the directory holding rounds.json, answers.json and clips/, defaulting to
-web/ (where a swapped-in set keeps its manifest; make_rounds.py runs this against
-its staging directory, where the answers still sit alongside). Only a set that
-passes gets swapped into web/, so these assertions are what stands between a bad
-generation and the served game.
+Takes the directory holding clips/, defaulting to web/. The manifest and the
+answers are looked up beside it or one level up, because a staged set keeps all
+of it together while a swapped-in one has clips/ under web/ and both JSON files
+at the repo root, outside the deployed directory.
+
+**This runs on the machine that generates a set, and nowhere else.** It used to
+run in CI too, over a committed web/rounds.json -- the round set is data in D1
+now, so there is nothing in the repo for CI to check. That is a real loss of a
+belt-and-braces guard and it is why the two assertions below that catch a ruined
+set both run before anything is published, rather than after.
 
 The check that matters is the aspect ratio: if the HUD crop ever stops applying,
 every clip ships with the answer ("W71.606763 N42.822437") printed across the
 bottom and the game is silently ruined. A 16:9 clip means the crop didn't run.
 
-The second one is the split: rounds.json is served to the browser and must carry
-no coordinates, and every round in it needs an answer to score against. A round
-with no answer is unplayable (the API 404s it); a coordinate in the manifest hands
-the answer to the player.
+The second is the split: what reaches a browser must carry no coordinates, and
+every round needs an answer to score against. A round with no answer is
+unplayable (the API 404s it); a coordinate on the round side hands the answer to
+the player. The manifest checked here is what rounds.sql is built from, so
+asserting on it is asserting on the `rounds` table it becomes.
 
-Two of the three things a round set is made of are absent in CI: the media is too
-big to commit and the answers are the answers. So a directory with no clips/ at
-all runs in manifest-only mode rather than failing, and the media assertions run
-where the media exists -- on the machine that generated it, before make_rounds.py
-swaps the set in, and again before `task clips:push` uploads it. A clips/ that
-exists but is missing a file the manifest names is a real failure, not that mode.
+The media is the one part that can be absent -- it is far too big to keep around
+on a machine that only wants to look at a set. So a directory with no clips/ at
+all runs in manifest-only mode rather than failing. A clips/ that exists but is
+missing a file the manifest names is a real failure, not that mode.
 """
 
 import json
@@ -57,6 +61,22 @@ LAT_RANGE, LNG_RANGE = (24.0, 49.5), (-125.0, -66.0)
 # `clips/<slug>-<milliseconds>.mp4`. That is what lets a deleted clip be rebuilt
 # to the same URL, and what makes a long immutable cache header safe.
 CLIP_NAME = re.compile(r"^clips/(.+)-(\d{6,})\.mp4$")
+
+
+def beside(web: Path, name: str, required: bool = True) -> Path | None:
+    """Find a round set's JSON beside clips/, or one level up from it.
+
+    A staged set has all of it in one directory. A swapped-in one has clips/
+    under web/ and both JSON files at the repo root, because web/ is the whole
+    deployed surface and neither file is for players -- one is the answer key,
+    and the other is a pool D1 already holds.
+    """
+    for candidate in (web / name, web.parent / name):
+        if candidate.is_file():
+            return candidate
+    if required:
+        raise FileNotFoundError(f"no {name} in {web} or {web.parent}")
+    return None
 
 
 def dimensions(path: Path) -> tuple[int, int]:
@@ -170,22 +190,18 @@ def repeat_rate(pool: int, days: int = 90) -> tuple[int, float]:
 
 def main() -> int:
     web = Path(sys.argv[1]) if len(sys.argv) > 1 else WEB
-    rounds = json.loads((web / "rounds.json").read_text())
+    rounds = json.loads(beside(web, "rounds.json").read_text())
     assert rounds, "rounds.json is empty"
     assert len(rounds) >= ROUNDS_PER_GAME, (
         f"only {len(rounds)} rounds; a daily game needs {ROUNDS_PER_GAME}"
     )
 
-    # A staged set keeps its answers alongside; a swapped-in one has them at the
-    # repo root, outside the deployed directory. Neither is committed -- they are
-    # the answers -- so CI checks the manifest alone and the cross-check below runs
-    # where it can actually bite: on the machine that just generated a set, before
-    # make_rounds.py swaps it in.
-    answers = {}
-    for candidate in (web / "answers.json", web.parent / "answers.json"):
-        if candidate.is_file():
-            answers = {a["image"]: a for a in json.loads(candidate.read_text())}
-            break
+    answers_file = beside(web, "answers.json", required=False)
+    answers = (
+        {a["image"]: a for a in json.loads(answers_file.read_text())}
+        if answers_file
+        else {}
+    )
 
     # No clips/ at all is CI, which has the manifest and nothing else. A clips/
     # that exists and is missing something the manifest names is a broken set --
@@ -198,6 +214,15 @@ def main() -> int:
         clip = web / r["image"]
         assert r["image"] == f"clips/{Path(r['image']).name}", (
             f"round is not under clips/: {r['image']}"
+        )
+        # The name has to carry the moment, not just the clip. `rounds:rebuild`
+        # re-cuts from it, and a long immutable cache header is only safe while a
+        # regeneration cannot put different footage behind a name someone already
+        # holds. Unconditional: every set this validates was built by the current
+        # make_rounds.py, since there is no longer a set in git to inherit.
+        assert CLIP_NAME.match(r["image"]), (
+            f"{r['image']} does not name the moment it was cut from -- a round is "
+            f"clips/<slug>-<milliseconds>.mp4, so a rebuild lands at the same URL"
         )
         assert r["image"] not in seen, f"duplicate round: {r['image']}"
         seen.add(r["image"])
@@ -213,10 +238,14 @@ def main() -> int:
                 f"not apply, so the coordinates are still burned into the clip"
             )
 
-        # The manifest is public. A coordinate in it is the answer, handed over.
+        # These fields become the `rounds` table, and /api/day hands a browser a
+        # row from it. A coordinate here is the answer, given away before the
+        # guess. The separation is table-versus-table now rather than
+        # manifest-versus-database, and this is where it gets enforced.
         leaked = {"lat", "lng", "state", "filmed"} & r.keys()
         assert not leaked, (
-            f"{r['image']}: rounds.json is served -- it must not carry {sorted(leaked)}"
+            f"{r['image']}: a round is served to the player -- it must not carry "
+            f"{sorted(leaked)}"
         )
 
         assert r.get("median_km") is not None and r["median_km"] >= 0, (
@@ -232,20 +261,11 @@ def main() -> int:
         assert LNG_RANGE[0] < a["lng"] < LNG_RANGE[1], f"lng out of range: {a}"
         assert a["state"] and a["filmed"], f"missing label: {a}"
 
-        # The provenance of the moment. Only answers.json carries these -- D1 gets
-        # the five columns it always had -- and they are the only record of which
-        # frame a round is, so a set that loses them cannot be rebuilt or corrected.
-        #
-        # These run only where the answers are, which means on a freshly generated
-        # set rather than on the committed manifest CI sees. That is deliberate for
-        # now: the set in git predates moment-named clips, and regenerating it
-        # needs the corpus coords pass to finish. Make the naming check
-        # unconditional once a set built by this code is what is committed --
-        # `rounds:rebuild` and an immutable cache header both depend on it.
-        assert CLIP_NAME.match(r["image"]), (
-            f"{r['image']} does not name the moment it was cut from -- a round is "
-            f"clips/<slug>-<milliseconds>.mp4, so a rebuild lands at the same URL"
-        )
+        # The provenance of the moment: which corpus clip, and where in it. It is
+        # the only record of which frame a round actually is, so a set that loses
+        # it cannot be rebuilt or corrected. answers.json is where it is
+        # generated; rounds.sql is what puts it into the database, on the side of
+        # the split no player can read.
         assert a.get("slug") and a["image"].startswith(f"clips/{a['slug']}-"), (
             f"answer's slug does not match its filename: {a}"
         )

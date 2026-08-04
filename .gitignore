@@ -1,28 +1,32 @@
-# The manifest (web/rounds.json) is tracked and the media (web/clips/) is not.
+# NONE of a round set is committed. That is the whole shape of the thing: the
+# media goes to R2 and the rows go to D1, so a set can change without a deploy
+# and without a pull request.
 #
-# The manifest has to be: functions/api/score.js imports it at build time, so the
-# five rounds the server checks a daily play against are by construction the five
-# the page handed out. It is a few KB and carries no coordinates.
+# The media could never be committed anyway — a set is ~125 MB of mp4 and this
+# repo is public, so it would land in history on every regeneration, permanently
+# and irreversibly. `task clips:push` sends it to the bucket, and
+# functions/clips/[[path]].js streams it back out at request time.
 #
-# The media cannot be. A round set is ~125 MB of mp4 and this repo is public, so
-# committing one would add that to history on every regeneration, permanently and
-# irreversibly. It goes to R2 instead (`task clips:push`), which CI pulls before
-# deploying. The trade is that a deploy is not self-contained: the manifest and
-# the media can disagree, and smoke.sh is what catches it.
-#
-# A generation in progress is neither: make_rounds.py builds into .staging and
-# moves the previous clips aside, and no part of that belongs in a deploy.
+# A generation in progress belongs nowhere either: make_rounds.py builds into
+# .staging and moves the previous clips aside.
 web/clips/
 web/.staging/
 web/clips.old/
 
-# The answers. make_rounds.py writes these next to the round set rather than
-# inside web/, because web/ is the entire deployed surface — a coords file in
-# there would just be fetchable. They reach production through D1
-# (`task answers:{stage,prod}:push`), never through git: this is a public repo,
-# and a committed answer key is the same leak as a manifest full of coordinates.
+# The three files a generation leaves at the repo root rather than inside web/,
+# which is the entire deployed surface.
+#
+# answers.* are the answer key, and a committed one is the game given away. Those
+# reach a database through `task answers:*:push`, never through git.
+#
+# rounds.* carry no coordinates, and are still not committed — because a round
+# set that lives in git is a round set that needs a deploy to change, which is
+# exactly what moving it into D1 (`task rounds:stage:push`) undid. rounds.json is
+# what check.py reads; rounds.sql is what wrangler eats.
 answers.json
 answers.sql
+rounds.json
+rounds.sql
 
 # Stamped into the deploy by staging.yml / release.yml — which build this is,
 # and the changelog to go with it. Generated per deploy, never committed.

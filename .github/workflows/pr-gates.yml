@@ -76,16 +76,21 @@ jobs:
         with:
           python-version-file: .tool-versions
 
-      # The round set is committed and every main merge deploys it, so a bad
-      # regeneration ships. check.py is the guard that matters, on two counts: a
-      # 16:9 frame means the HUD crop didn't run and the answer is printed on the
-      # image, and a coordinate in rounds.json means the answer went to the
-      # browser. The answers themselves aren't committed, so the cross-check that
-      # every round *has* one runs at generation time, not here.
-      # Nothing to install: web/clips/ is gitignored, so this runs in
-      # manifest-only mode and never reaches the ffprobe the media branch uses.
-      - name: Validate the round set
-        run: python3 check.py
+      # No "validate the round set" step here any more, and its absence is worth
+      # a note rather than silence: the round set used to be a committed file, so
+      # CI could run check.py over the exact bytes a merge would deploy. A round
+      # set is rows in D1 now and nothing about it reaches this repo, so there is
+      # no artifact to check and no PR to hang the check on.
+      #
+      # What replaced it is two-sided. check.py runs inside publish.sh before
+      # anything is pushed, which is earlier than this gate ran -- but on the
+      # generating machine's word alone. And smoke.sh measures a *deployed*
+      # clip's aspect ratio against every tier, which is the assertion that
+      # catches an uncropped HUD, i.e. the answer printed across the footage.
+      # test_check_main.py below still pins check.py's own behaviour.
+      #
+      # This is a real reduction in belt-and-braces, traded knowingly for taking
+      # the deploy out of publishing a round set.
 
       # test_check.py builds clips with ffmpeg and measures them with ffprobe,
       # and the runner image carries neither. Without this the dimension

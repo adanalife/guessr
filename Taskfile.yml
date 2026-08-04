@@ -1,14 +1,19 @@
 # Taskfile for the guessing game.
 #
-# The game is static files plus one endpoint. `rounds` does all the work up
+# The game is static files plus a few endpoints. `rounds` does all the work up
 # front — it needs the dashcam corpus mounted and kubectl access to the tripbot
-# Postgres — and what it produces is a directory of HTML, JS and mp4 clips (web/,
-# deployed) and the answer coords (answers.json / answers.sql, never deployed
-# and never committed; `answers:*:push` sends them to D1 instead).
+# Postgres — and what it produces is mp4 clips (web/clips/, pushed to R2), the
+# pool and the schedule (rounds.sql) and the answer coords (answers.sql). None of
+# the three is deployed or committed: `clips:push` sends the media to the bucket
+# and `rounds:*:push` / `answers:*:push` send the rows to D1.
 #
-# The same D1 also holds the tables the game itself owns — `plays`, which records
-# a daily result once per player per round. Those are hand-written DDL in
-# schema.sql, applied by `schema:*:push`.
+# Which is the point. A round set is data, so changing one is three pushes rather
+# than a pull request and a deploy.
+#
+# The same D1 holds the tables all of it lives in — `rounds`, `round_days`,
+# `answers`, and `plays`, which records a daily result once per player per round.
+# Those are hand-written DDL in schema.sql, applied by `schema:*:push`, and a
+# fresh database needs that before any of the seeds will land.
 #
 # So there are two ways to run it locally: `serve` for anything that isn't
 # scoring, and `dev` when a guess has to actually come back with points.
@@ -18,13 +23,13 @@ version: '3'
 vars:
   PORT: '{{.PORT | default "8000"}}'
   # The round-set media. One bucket, not one per tier: a clip is the same bytes
-  # whichever tier serves it, and the manifest each deploy carries is what
-  # decides which of them that tier actually plays. The answers are the opposite
-  # -- those are per-tier, because a regenerated set diverges the moment one tier
-  # has it and the other doesn't.
+  # whichever tier serves it, and each tier's own schedule is what decides which
+  # of them it actually plays. The rows are the opposite -- those are per-tier,
+  # because a regenerated set diverges the moment one tier has it and the other
+  # doesn't.
   BUCKET: 'adanalife-guessr-clips'
-  # The local D1 wrangler keeps under .wrangler/, seeded from answers.sql. Not
-  # the deployed database — `answers:{stage,prod}:push` target those by name.
+  # The local D1 wrangler keeps under .wrangler/, seeded from schema.sql plus the
+  # two generated files. Not the deployed databases — those are targeted by name.
   LOCAL_DB: 'guessr-answers-local'
 
 tasks:
@@ -46,9 +51,9 @@ tasks:
       - python3 check.py
 
   rounds:publish:
-    desc: "Generate a round set and publish all three legs: media to R2, answers
-      to both D1 tiers, manifest as a PR. Needs GITHUB_TOKEN + the Cloudflare
-      pair. Args pass through to make_rounds.py"
+    desc: "Generate a round set and publish all three legs to STAGING: media to
+      R2, answers to D1, pool and schedule to D1. No deploy, no PR. Needs the
+      Cloudflare pair. Args pass through to make_rounds.py"
     cmds:
       - ./publish.sh {{.CLI_ARGS}}
 
@@ -68,11 +73,12 @@ tasks:
     cmds:
       - ./clips.sh push
 
-  # Not part of any deploy any more -- the endpoint reads the bucket directly.
-  # This is for a machine with no corpus that wants to play the committed set, and
-  # for checking by hand that a push landed.
+  # Not part of any deploy -- the endpoint reads the bucket directly. This is for
+  # a machine with no corpus that wants a local copy of the scheduled set, and for
+  # checking by hand that a push landed. It asks the staging D1 what is scheduled,
+  # because the list of clips is no longer a file anybody has.
   clips:pull:
-    desc: Download the committed manifest's clips into web/clips/ (no corpus needed)
+    desc: Download the scheduled set's clips into web/clips/ (no corpus needed)
     cmds:
       - ./clips.sh pull
 
@@ -93,12 +99,22 @@ tasks:
     cmds:
       - task: schema:local:push
       - task: answers:local:push
+      - task: rounds:local:push
       - npx wrangler pages dev web/ --port {{.PORT}} --d1 ANSWERS={{.LOCAL_DB}}
 
   answers:local:push:
     desc: Seed answers.sql into the local D1 that `dev` binds
     cmds:
       - npx wrangler d1 execute {{.LOCAL_DB}} --local --config wrangler.local.jsonc --file answers.sql --yes
+
+  # Without this a local `dev` serves a game with no rounds in it: /api/day reads
+  # the schedule, and an unseeded database has none. It is the one seed step the
+  # page cannot start without, where a missing answers push only shows up on the
+  # first guess.
+  rounds:local:push:
+    desc: Seed rounds.sql (the pool and the schedule) into the local D1 that `dev` binds
+    cmds:
+      - npx wrangler d1 execute {{.LOCAL_DB}} --local --config wrangler.local.jsonc --file rounds.sql --yes
 
   # The tables the game owns, as opposed to the rows a round set fills in.
   # Separate from answers:*:push because the two change on completely different
@@ -142,6 +158,22 @@ tasks:
     cmds:
       - task: _d1:push
         vars: {DB: adanalife-guessr-answers, FILE: answers.sql}
+
+  # The pool and the schedule -- what web/rounds.json used to be, and the leg that
+  # actually makes a date playable. Separate from answers:*:push and pushed after
+  # it, because the two fail in opposite directions: answers ahead of a schedule
+  # is invisible, a schedule ahead of its answers is `unknown round` on every
+  # guess of a live game.
+  #
+  # STAGING ONLY from a generation run. There is deliberately no rounds:prod:push
+  # here: production is a promotion of dates already reviewed on staging, not a
+  # second destination for a fresh set, and a target named like this one would be
+  # too easy to reach for by symmetry.
+  rounds:stage:push:
+    desc: Seed rounds.sql (the pool and the schedule) into the staging D1
+    cmds:
+      - task: _d1:push
+        vars: {DB: adanalife-guessr-answers-staging, FILE: rounds.sql}
 
   _d1:push:
     internal: true

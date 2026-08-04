@@ -13,8 +13,8 @@
 // Dependency-free, so `node test_share.mjs` runs it with no bundler.
 
 // Only the share line's denominator. The scoring itself is server-side, and
-// functions/_scoring.mjs owns the real value -- rounds.json ships no
-// coordinates, so the browser has nothing to score with.
+// functions/_scoring.mjs owns the real value -- a round reaches the browser as a
+// name and nothing else, so there is nothing here to score with.
 export const MAX_ROUND_SCORE = 5000;
 
 // The share string is pasted where the link outlives the session that made it,
