@@ -6,16 +6,17 @@ the distance, the clustering and repeat estimates. This covers the assertions
 themselves, which are a different thing: they are the gate, and a gate is only
 worth having if it shuts.
 
-Nothing else notices when one stops shutting. check.py runs against the committed
-round set on every PR, and that set is good, so a neutered assertion exits 0 and
-the step is green -- the run proves the manifest is clean, never that a dirty one
-would be caught. Every assertion below survived being replaced with a no-op while
-the whole suite stayed passing, which is what this file exists to end.
+Nothing else notices when one stops shutting, and less notices than used to.
+check.py runs on the machine that generates a set and nowhere else -- there is no
+committed round set for CI to validate any more -- so a neutered assertion is an
+exit 0 on a laptop nobody is watching. This file is the only thing that would
+say. Every assertion below survived being replaced with a no-op while the whole
+suite stayed passing, which is what it exists to end.
 
-The one that matters most is the coordinate leak. rounds.json is served to the
-browser, so a lat/lng reaching it hands over the answer and the game is solved in
-devtools -- and the manifest is the half of a round set that CI *can* see, making
-this the assertion with the most to lose from going quiet.
+The one that matters most is the coordinate leak. A round's `image`, `median_km`
+and `mean_cos` become the `rounds` table and /api/day hands them to a browser, so
+a lat/lng reaching that side is the answer given away and the game is solved in
+devtools.
 """
 
 import contextlib
@@ -137,16 +138,16 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
 
-        # The baseline, in both the shapes check.py runs in: CI has the manifest
-        # alone, the generating laptop has the answers beside it. Neither must
+        # The baseline, in both the shapes check.py runs in: a set whose answers
+        # have not been written beside it yet, and a complete one. Neither must
         # fail, or every rejection below proves nothing.
         assert run(build(root, "ok-manifest", rounds())) == 0
         manifest = rounds()
         assert run(build(root, "ok-answers", manifest, answers(manifest))) == 0
 
-        # THE ONE THAT MATTERS. rounds.json is served, so a coordinate in it is
-        # the answer handed to the player -- and this is the assertion that runs
-        # on every PR, against a manifest that is always clean.
+        # THE ONE THAT MATTERS. These fields become the `rounds` table and
+        # /api/day serves a row from it, so a coordinate here is the answer handed
+        # to the player before they guess.
         for leak in ("lat", "lng", "state", "filmed"):
             dirty = rounds()
             dirty[0][leak] = 40.0 if leak in ("lat", "lng") else "CA"
@@ -179,13 +180,9 @@ def main() -> None:
             stray[0]["image"] = path
             rejects(build(root, f"path-{abs(hash(path))}", stray), f"points at {path}")
 
-        # A name with no moment in it. Under the old `<slug>.mp4` a regeneration
+        # A name with no moment in it. Under a bare `<slug>.mp4` a regeneration
         # could put different footage at a URL somebody already had cached, and a
         # deleted clip could not be rebuilt to the name that referenced it.
-        #
-        # Built with answers, because that is where the check runs: the committed
-        # manifest predates the rule, so CI's manifest-only shape is exempt until a
-        # set built by this code is what is in git.
         for name in ("clips/clip_0.mp4", "clips/clip_0-42.mp4", "clips/clip_0-abc.mp4"):
             momentless = rounds()
             coords = answers(momentless)
@@ -265,12 +262,12 @@ def main() -> None:
             )
 
         print(
-            "ok: check.py rejects a manifest carrying the answers, and every other bad set"
+            "ok: check.py rejects a round set carrying the answers, and every other bad set"
         )
 
-        # The media assertions. These never run in CI -- web/clips/ is gitignored,
-        # so the round set reaches it manifest-only -- which is exactly why the
-        # gate they stand in needs checking somewhere.
+        # The media assertions. A clip never reaches CI, so the gate they stand in
+        # runs only where a set is generated -- which is exactly why it needs
+        # checking somewhere that does run everywhere.
         if not have_ffmpeg:
             print("skip: no ffmpeg here, so the HUD-crop assertion went unchecked")
             return

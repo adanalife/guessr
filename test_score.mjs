@@ -6,14 +6,21 @@
 // Math.round(NaN) is 0 in some paths and 5000-adjacent nonsense in others.
 // Neither shows up as an error anywhere.
 //
-// The handler itself is glue (unwrap the request, one indexed D1 lookup, respond)
-// and is exercised by actually running `task dev` against a local D1.
+// The handler is mostly glue -- unwrap the request, one indexed D1 lookup,
+// respond -- and `task dev` against a local D1 is what exercises the rest of it.
+// The exception, covered at the bottom of this file, is the check that a posted
+// round is really one of that date's five. That is the only thing standing
+// between a scoreboard and a script posting 5000 points against any round it
+// likes, and it reads the schedule rather than recomputing a draw.
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   MAX_HANDLE, MAX_ROUND_SCORE, haversineKm, isPlay, parseGuess, parsePlay, scoreFor,
 } from './functions/_scoring.mjs';
 import { ADJECTIVES, NOUNS, aliasFrom } from './web/alias.js';
+import { d1, post } from './_d1.mjs';
+import { onRequestPost } from './functions/api/score.js';
 
 const SF = { lat: 37.7749, lng: -122.4194 };
 const NYC = { lat: 40.7128, lng: -74.0060 };
@@ -158,6 +165,63 @@ for (const bad of [
 // Leap days are real days and must be playable.
 assert.ok(parsePlay({ ...play, date: '2028-02-29' }), 'rejected a real leap day');
 
+// Which round belongs to which date, read out of `round_days`. This used to be a
+// seeded shuffle both sides recomputed, which held only while the page and this
+// handler came from the same deploy; there is one row set now, so the schedule
+// the game was handed and the schedule it is scored against are the same rows.
+//
+// The guard has to refuse a round scheduled for a *different* date as firmly as
+// one that was never scheduled at all -- otherwise five known images buy an
+// unlimited score on every open date at once.
+{
+  const env = { ANSWERS: d1(readFileSync('schema.sql', 'utf8')) };
+  const MINE = 'clips/a-010000.mp4';
+  const THEIRS = 'clips/b-020000.mp4';
+  const LOOSE = 'clips/c-030000.mp4';
+  // An open date, from the clock rather than a literal: the window check runs
+  // before the schedule check, so a hardcoded date would eventually expire and
+  // start passing this test for the wrong reason.
+  const today = new Date().toISOString().slice(0, 10);
+  const other = new Date(Date.now() - 5 * 86400000).toISOString().slice(0, 10);
+
+  for (const [i, image] of [MINE, THEIRS, LOOSE].entries()) {
+    env.ANSWERS.db.prepare(
+      `INSERT INTO rounds (image, median_km, mean_cos, batch, slug, source_ts_sec,
+                           clip_ts_sec, radius_m)
+       VALUES (?, 10, 0.07, 'test', 'slug', 20, 20, 60)`).run(image);
+    env.ANSWERS.db.prepare(
+      'INSERT INTO answers (image, lat, lng, state, filmed) VALUES (?, 40, -100, ?, ?)')
+      .run(image, 'CA', '2018-01-01');
+    if (i < 2) {
+      env.ANSWERS.db.prepare(
+        'INSERT INTO round_days (date, position, image) VALUES (?, 1, ?)')
+        .run(i === 0 ? today : other, image);
+    }
+  }
+
+  const guess = (image, date) => onRequestPost({
+    request: post({ image, lat: 40, lng: -100, date, player_id: 'a3f1c2d4-0000-4000-8000-000000000000' }),
+    env,
+  });
+
+  assert.equal((await guess(MINE, today)).status, 200, 'a scheduled round was refused');
+  assert.equal((await guess(THEIRS, today)).status, 403,
+    "another date's round scored against today");
+  assert.equal((await guess(LOOSE, today)).status, 403,
+    'a round nothing scheduled was accepted as a play');
+
+  // A practice guess carries no date and is never checked against a schedule --
+  // nothing is at stake, and refusing it would break the one mode that always
+  // works when the daily cannot.
+  const practice = await onRequestPost({
+    request: post({ image: LOOSE, lat: 40, lng: -100 }),
+    env,
+  });
+  assert.equal(practice.status, 200, 'practice was gated on the schedule');
+  assert.equal((await practice.json()).recorded, false);
+}
+
 console.log('ok: scoring curve and guess validation');
 console.log('ok: a play is keyed on an opaque id, with the handle as a label only');
 console.log('ok: only a name the wordlist could have made is kept');
+console.log("ok: a play is scored only against the rounds its own date schedules");

@@ -42,6 +42,7 @@ the scoring curve cannot perceive a few hundred metres either way.
 
 import argparse
 import bisect
+import datetime as dt
 import hashlib
 import json
 import os
@@ -51,7 +52,14 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-from check import MAX_RADIUS_M, MIN_RADIUS_M, NEAR_KM, dimensions, km
+from check import (
+    MAX_RADIUS_M,
+    MIN_RADIUS_M,
+    NEAR_KM,
+    ROUNDS_PER_GAME,
+    dimensions,
+    km,
+)
 
 # The laptop mounts the corpus over SMB at this path; in the cluster it is an NFS
 # mount at whatever path the pod spec picks. The default is the laptop's.
@@ -93,6 +101,11 @@ EMBED_WINDOW_SEC = 2.5
 # implied a path nothing could have driven, so the answer would be confident and
 # wrong -- which is worse than no round. 81% of the corpus clears it.
 MIN_CONFIDENCE = 0.8
+
+# How many days of dailies one run schedules. A month of five-a-day is ~150
+# rounds, so a run that generates ~200 fills the horizon with reject headroom
+# left over in the queue.
+HORIZON_DAYS = 60
 
 # What the two scores mean, why same-day frames are excluded, and why several
 # moments are scored per clip: README, "How rounds are chosen". The four things
@@ -646,11 +659,15 @@ def clip_name(row: dict) -> str:
 def answers_sql(answers: list[dict]) -> str:
     """The seed script for D1's answers table.
 
+    Rows only -- the table itself is declared in schema.sql, with every other
+    one, so `schema:*:push` is what a fresh database needs first and a definition
+    never depends on whichever laptop last built a round set.
+
     INSERT OR REPLACE rather than DELETE-then-INSERT: a regeneration replaces the
     rows it shares and leaves the rest, so there is no window where the table is
     empty and a push that dies halfway leaves every round still scorable. Old rows
-    for retired frames cost nothing -- rounds.json is what decides which rounds are
-    playable.
+    for retired frames cost nothing -- the schedule is what decides which rounds
+    are playable.
     """
     values = ",\n".join(
         "  ('{}', {}, {}, '{}', '{}')".format(
@@ -663,15 +680,90 @@ def answers_sql(answers: list[dict]) -> str:
         for a in answers
     )
     return (
-        "CREATE TABLE IF NOT EXISTS answers (\n"
-        "  image TEXT PRIMARY KEY,\n"
-        "  lat REAL NOT NULL,\n"
-        "  lng REAL NOT NULL,\n"
-        "  state TEXT NOT NULL,\n"
-        "  filmed TEXT NOT NULL\n"
-        ");\n"
         "INSERT OR REPLACE INTO answers (image, lat, lng, state, filmed) VALUES\n"
         f"{values};\n"
+    )
+
+
+def schedule(rounds: list[dict], first_date: dt.date, days: int) -> list[tuple]:
+    """Lay a pool out over consecutive dates, each day ramped easy to hard.
+
+    Sorted easy-first, then dealt round-robin across the days: day 0 takes rounds
+    0, D, 2D, 3D, 4D, so it gets one round from each fifth of the difficulty
+    range and its five come out already in ramp order. Dealing in blocks instead
+    would give the first date the five easiest rounds in the whole set and the
+    last date the five hardest -- a month that gets steadily harder, rather than
+    a game that does.
+
+    Whatever will not fill a whole day is left out, and stays queued for the next
+    run to schedule.
+    """
+    ranked = sorted(rounds, key=lambda r: r["median_km"])
+    days = min(days, len(ranked) // ROUNDS_PER_GAME)
+    if days < 1:
+        return []
+    return [
+        ((first_date + dt.timedelta(days=i % days)).isoformat(), i // days + 1, r)
+        for i, r in enumerate(ranked[: days * ROUNDS_PER_GAME])
+    ]
+
+
+def rounds_sql(rounds: list[dict], answers: list[dict], batch: str, days: list) -> str:
+    """The pool and the schedule, as the script that puts them in D1.
+
+    This is what web/rounds.json used to be. The difference that matters is not
+    the format -- it is that a database can be written without deploying the
+    site, which is what takes the pull request out of publishing a round set.
+
+    INSERT OR IGNORE throughout, so re-running is safe and lands nowhere near a
+    round somebody has rejected. An `image` names one clip cut at one moment, so
+    a row that is already there is the same round rather than a stale version of
+    it; there is nothing to update. The status UPDATE is separate for the same
+    reason -- an ignored insert cannot carry it, and rewriting it in place would
+    walk over a reject.
+
+    ponytail: the schedule starts from a date this run picks, rather than from
+    wherever the last one left off. round_days' primary key means a collision is
+    quietly kept rather than clobbered, so a second run inside the horizon
+    schedules nothing and leaves its rounds queued. Read the current horizon out
+    of D1 and top up from there once a cron is running this monthly and the
+    overlap stops being hypothetical; today it is one run and --schedule-from.
+    """
+    provenance = {a["image"]: a for a in answers}
+    q = lambda s: str(s).replace("'", "''")  # noqa: E731
+
+    pool = ",\n".join(
+        "  ('{}', {}, {}, '{}', '{}', {}, {}, {})".format(
+            q(r["image"]),
+            r["median_km"],
+            r["mean_cos"],
+            q(batch),
+            q(provenance[r["image"]]["slug"]),
+            provenance[r["image"]]["source_ts_sec"],
+            provenance[r["image"]]["clip_ts_sec"],
+            provenance[r["image"]]["radius_m"],
+        )
+        for r in rounds
+    )
+    sql = (
+        "INSERT OR IGNORE INTO rounds\n"
+        "  (image, median_km, mean_cos, batch, slug, source_ts_sec, clip_ts_sec, "
+        "radius_m)\n"
+        f"VALUES\n{pool};\n"
+    )
+    if not days:
+        return sql
+
+    booked = ",\n".join(
+        f"  ('{date}', {position}, '{q(r['image'])}')" for date, position, r in days
+    )
+    return (
+        sql + "\n"
+        "INSERT OR IGNORE INTO round_days (date, position, image) VALUES\n"
+        f"{booked};\n"
+        "\n"
+        "UPDATE rounds SET status = 'scheduled'\n"
+        " WHERE status = 'queued' AND image IN (SELECT image FROM round_days);\n"
     )
 
 
@@ -697,32 +789,31 @@ def swap_in(staging: Path, web: Path, root: Path | None = None) -> None:
     with would take the game down, which is the failure this whole path exists to
     prevent.
 
-    The answers land in `root` (the repo, gitignored) rather than under `web`, which
-    is the whole deployed surface -- a coords file inside it would be fetchable.
+    Everything but the media lands in `root` (the repo, gitignored) rather than
+    under `web`, which is the whole deployed surface: the answers are the answer
+    key, and the pool is a database's business rather than a browser's. web/ ends
+    up holding nothing from a round set except clips/.
     """
     root = root if root is not None else web.parent
     required = (
         staging / "rounds.json",
+        staging / "rounds.sql",
         staging / "answers.json",
         staging / "answers.sql",
     )
     if not (staging / "clips").is_dir() or not all(f.is_file() for f in required):
         raise FileNotFoundError(f"{staging} is not a complete round set; nothing moved")
 
-    # Answers first: they sit outside web/, so getting them into place costs the
-    # served game nothing if a later step fails.
-    for name in ("answers.json", "answers.sql"):
-        os.replace(staging / name, root / name)
+    # The four files first: they sit outside web/, so getting them into place
+    # costs the served game nothing if a later step fails.
+    for f in required:
+        os.replace(f, root / f.name)
 
     old = web / "clips.old"
     shutil.rmtree(old, ignore_errors=True)
     if (web / "clips").exists():
         (web / "clips").rename(old)
     (staging / "clips").rename(web / "clips")
-    # ponytail: clips land before the manifest, so for a few milliseconds the served
-    # manifest names clips from the previous set. Serving one 404 to whoever is
-    # mid-request beats holding both sets on disk to make the pair truly atomic.
-    os.replace(staging / "rounds.json", web / "rounds.json")
     shutil.rmtree(old, ignore_errors=True)
     shutil.rmtree(staging, ignore_errors=True)
 
@@ -792,6 +883,20 @@ def main() -> int:
         default=MAX_RADIUS_M,
         help="metres of road a round may cover before it is dropped rather than "
         "answered with a wider circle. See MAX_RADIUS_M.",
+    )
+    ap.add_argument(
+        "--schedule-from",
+        metavar="YYYY-MM-DD",
+        help="first date to give a game to. Defaults to two days out (UTC), "
+        "which is the earliest date no timezone has started playing yet: a date "
+        "opens at 10:00 UTC the day before, so tomorrow's may already be live.",
+    )
+    ap.add_argument(
+        "--horizon",
+        type=int,
+        default=HORIZON_DAYS,
+        help="how many days to schedule from --schedule-from. Rounds left over "
+        "stay queued for a later run to place.",
     )
     ap.add_argument(
         "--dry-run",
@@ -930,13 +1035,36 @@ def main() -> int:
             f"{row['state']} ({row['median_km']:g} km, cos {row['mean_cos']:g})"
         )
 
-    # Trailing newline: rounds.json is committed, and end-of-file-fixer rewrites
-    # it on every commit without one.
+    # Two days out by default rather than tomorrow: a date opens at 10:00 UTC on
+    # the day before it, so tomorrow's game may already be live in the earliest
+    # timezone by the time this runs. Scheduling over a date somebody is already
+    # playing is the one thing the primary key cannot undo.
+    first_date = (
+        dt.date.fromisoformat(args.schedule_from)
+        if args.schedule_from
+        else dt.datetime.now(dt.timezone.utc).date() + dt.timedelta(days=2)
+    )
+    days = schedule(rounds, first_date, args.horizon)
+    batch = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+    # rounds.json is no longer served or committed -- it is what check.py reads,
+    # and rounds.sql is built from the same list. Kept as a file rather than held
+    # in memory so a set can be looked at, diffed and re-checked after the fact.
     (STAGING / "rounds.json").write_text(json.dumps(rounds, indent=1) + "\n")
+    (STAGING / "rounds.sql").write_text(rounds_sql(rounds, answers, batch, days))
     write_answers(answers, STAGING)
     states = {a["state"] for a in answers}
     verb = "would stage" if args.dry_run else "staged"
     print(f"\n{verb} {len(rounds)} rounds across {len(states)} states")
+    if days:
+        print(
+            f"    scheduled {len(days)} of them over "
+            f"{len({d for d, _, _ in days})} days, "
+            f"{days[0][0]} to {max(d for d, _, _ in days)}; "
+            f"{len(rounds) - len(days)} left queued"
+        )
+    else:
+        print(f"    scheduled none -- fewer than {ROUNDS_PER_GAME} rounds to place")
 
     validate = subprocess.run(
         [sys.executable, str(Path(__file__).parent / "check.py"), str(STAGING)]
@@ -960,13 +1088,17 @@ def main() -> int:
     swap_in(STAGING, WEB)
     size_mb = sum(f.stat().st_size for f in (WEB / "clips").iterdir()) / 1e6
     print(f"swapped into {WEB} ({size_mb:.0f} MB of clips)")
-    # Two out-of-band pushes, and a deploy that runs without either looks green
-    # while being unplayable: no clips is a black pane per round, no coords is
-    # "unknown round" on every guess. Neither is inferable from the deploy.
+    # Nothing here has reached anybody yet: a generated set now lives entirely in
+    # three files and a directory on this laptop, and these are what publish it.
+    # In this order -- the schedule is what makes a date playable, so it goes last
+    # and finds its media and its answers already there.
     print(
-        "\nnext, both of them, before deploying this set:\n"
-        "  task clips:push    -- the media, to R2\n"
-        "  task answers:stage:push (and answers:prod:push) -- the coords, to D1"
+        "\nnext, all three, in this order:\n"
+        "  task clips:push          -- the media, to R2\n"
+        "  task answers:stage:push  -- the coords, to the staging D1\n"
+        "  task rounds:stage:push   -- the pool and the schedule, which is what\n"
+        "                              makes these rounds a game somebody can play\n"
+        "\nor `task rounds:publish` to do the lot."
     )
     return 0
 

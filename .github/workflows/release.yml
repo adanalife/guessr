@@ -28,16 +28,6 @@ jobs:
       - name: Stamp the build
         run: |
           printf '{"label":"%s","tier":"production"}\n' "$GITHUB_REF_NAME" > web/version.json
-      # The round-set media, which git does not carry: a set is ~150 MB of mp4
-      # and this repo is public. clips.sh keys the object on a hash of the
-      # committed manifest, so this can only ever pull the clips that were
-      # pushed alongside the rounds.json being deployed -- and fails loudly
-      # rather than deploying a game of black panes if they never were.
-      - name: Pull the round-set clips from R2
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: ./clips.sh pull
       - name: Deploy to Cloudflare Pages (production)
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

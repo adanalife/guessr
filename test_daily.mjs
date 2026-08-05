@@ -1,38 +1,20 @@
-// Checks the daily-round draw and the window a day is open for. Run with
+// Checks the date arithmetic and the window a day is open for. Run with
 // `node test_daily.mjs` (or `task test`).
 //
-// This is the module both the page and functions/api/score.js import, so a
-// change here that shifts the draw does not just spoil a share string -- it
-// makes the server reject rounds the page legitimately handed out.
+// This is the module the page and functions/api/{day,score}.js all import, so a
+// rule that reads differently on the two sides means the server refuses plays
+// the page legitimately handed out, and says nothing about why.
+//
+// *Which rounds* a date plays is not tested here any more -- it is a row set in
+// D1 rather than a seeded shuffle, so the properties that used to live in this
+// file (a day draws the same five every time, no round twice in a game, the draw
+// does not depend on the order the pool was written in) are now properties of
+// make_rounds.py's schedule(). test_schedule.py is where they went.
 import assert from 'node:assert';
 import {
-  dailyRounds, dailyState, dateForDay, dayFromDate, dayNumber,
-  effectiveDay, isOpen, lastClosedDate, monthOf, playWindow, rampEasyToHard,
+  dailyState, dateForDay, dayFromDate, dayNumber,
+  effectiveDay, isOpen, lastClosedDate, monthOf, playWindow,
 } from './web/daily.js';
-
-const pool = Array.from({ length: 60 }, (_, i) => ({
-  image: `clips/clip_${String(i).padStart(3, '0')}.mp4`,
-  median_km: (i * 37) % 250,
-}));
-
-// Same day, same rounds -- the property the whole share mechanic rests on.
-assert.deepStrictEqual(dailyRounds(pool, 42, 5), dailyRounds(pool, 42, 5));
-
-// Different days draw different rounds, or every day is the same puzzle.
-const distinct = new Set(
-  Array.from({ length: 30 }, (_, d) => dailyRounds(pool, d + 1, 5).map(r => r.image).join()),
-);
-assert.ok(distinct.size >= 29, `30 days produced only ${distinct.size} distinct draws`);
-
-// The draw must not depend on the order make_rounds.py wrote the pool in,
-// otherwise regenerating rounds.json silently reshuffles today's puzzle.
-const shuffled = [...pool].reverse();
-assert.deepStrictEqual(dailyRounds(shuffled, 7, 5), dailyRounds(pool, 7, 5));
-
-// No round appears twice in one game.
-const picked = dailyRounds(pool, 99, 5).map(r => r.image);
-assert.strictEqual(new Set(picked).size, 5, 'a round was drawn twice');
-assert.strictEqual(picked.length, 5);
 
 // Consecutive calendar days are consecutive day numbers, including across a
 // US spring-forward boundary (2026-03-08) where the local day is 23 hours.
@@ -169,27 +151,6 @@ assert.strictEqual(dailyState(flew, effectiveDay(flew, new Date(2026, 7, 12)), 5
 // And a first-ever visit has no record to clamp to.
 assert.strictEqual(effectiveDay(null, new Date(2026, 7, 1)), dayNumber(new Date(2026, 7, 1)));
 
-// A game ramps easy to hard.
-const ramped = rampEasyToHard(dailyRounds(pool, 12, 5));
-assert.deepStrictEqual(
-  ramped.map(r => r.median_km),
-  [...ramped.map(r => r.median_km)].sort((a, b) => a - b),
-  'game is not ordered easy to hard',
-);
-
-// Ramping must not change *which* rounds are in the game, or the daily set
-// stops being the same five for everyone.
-const drawn = dailyRounds(pool, 12, 5).map(r => r.image);
-assert.deepStrictEqual([...ramped.map(r => r.image)].sort(), [...drawn].sort());
-
-// Ramping is a copy, not an in-place sort of the caller's array.
-const original = dailyRounds(pool, 12, 5);
-const before = original.map(r => r.image);
-rampEasyToHard(original);
-assert.deepStrictEqual(original.map(r => r.image), before, 'rampEasyToHard mutated its input');
-
-console.log('ok: daily draw is deterministic, order-independent, and DST-safe');
-console.log('ok: games ramp easy to hard without changing the draw');
 console.log('ok: a partial day resumes, a played-out day stays played out');
 console.log('ok: the day number only moves forwards, whatever the clock does');
 console.log('ok: every day number maps to the calendar date it came from');

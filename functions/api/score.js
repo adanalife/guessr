@@ -5,17 +5,17 @@
 //
 // The answers table is seeded out-of-band by `task answers:{stage,prod}:push`,
 // from the answers.json that make_rounds.py writes next to the round set. So a
-// deploy carrying a new round set scores nothing until that push runs -- which
-// is why an unknown round is a 404 with a distinct message rather than a 500.
-// A guess that names a date is a daily play: checked against that date's draw,
-// then recorded once in `plays` (schema.sql). A guess with no date is a practice
-// round -- scored, never stored, never checked, because nothing is at stake.
+// round set scores nothing until that push runs -- which is why an unknown round
+// is a 404 with a distinct message rather than a 500.
+// A guess that names a date is a daily play: checked against that date's
+// schedule, then recorded once in `plays` (schema.sql). A guess with no date is
+// a practice round -- scored, never stored, never checked, because nothing is at
+// stake.
 import { haversineKm, isPlay, parseGuess, parsePlay, scoreFor } from '../_scoring.mjs';
-// The pool and the draw, imported from the deployed game rather than copied. Both
-// are bundled at build time from the same commit that serves web/, so the five
-// rounds checked here are by construction the five the page handed the player.
-import pool from '../../web/rounds.json';
-import { ROUNDS_PER_GAME, dailyRounds, dayFromDate, isOpen } from '../../web/daily.js';
+// Only the play window, now that the draw is a table. Both sides still have to
+// agree on when a date is open, and that is a rule about clocks rather than data
+// -- so it stays code, and stays shared.
+import { isOpen } from '../../web/daily.js';
 
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -51,7 +51,7 @@ export async function onRequestPost({ request, env }) {
   if (play && !isOpen(play.date)) {
     return json({ error: 'that day is closed' }, 403);
   }
-  if (play && !inDraw(play.date, guess.image)) {
+  if (play && !(await inDraw(env, play.date, guess.image))) {
     return json({ error: 'that round is not in that day\'s game' }, 403);
   }
 
@@ -79,17 +79,21 @@ export async function onRequestPost({ request, env }) {
   return json({ km: keptKm, points: keptPoints, ...truth, recorded: true });
 }
 
-// Whether an image is one of the five that date draws. Re-running the draw beats
-// storing a schedule: it is the same function the page drew from, over the same
-// rounds.json, in the same deploy -- so the two cannot disagree without the
-// deploy being internally inconsistent.
+// Whether an image is one of the five that date plays. The property this has to
+// hold is "the rounds scored against are provably the rounds the page handed
+// out", and reading the schedule is a stronger way to get it than recomputing
+// the draw was: that relied on the page and this handler being bundled from one
+// commit, so a half-finished deploy could break it. Now there is one row set and
+// both sides read it, and a deploy cannot come into it at all.
 //
-// ponytail: the draw is recomputed per request rather than memoised. It is a
-// sort and a shuffle of 300 rounds against one guess that already costs a D1
-// round trip; cache it if a profile ever says so.
-function inDraw(date, image) {
-  return dailyRounds(pool, dayFromDate(date), ROUNDS_PER_GAME)
-    .some(r => r.image === image);
+// The primary key is (date, position), so this is an index scan on date and a
+// look at five rows.
+async function inDraw(env, date, image) {
+  const row = await env.ANSWERS
+    .prepare('SELECT 1 FROM round_days WHERE date = ? AND image = ?')
+    .bind(date, image)
+    .first();
+  return row !== null;
 }
 
 // Writes the play, and returns whatever ended up on record -- the new score if

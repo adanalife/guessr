@@ -2,144 +2,83 @@
 # Generate a round set and publish it, in the one order that is safe. This is
 # what a scheduled job runs; `task rounds:publish` is the same thing by hand.
 #
-# A round set reaches players as three separate things, and the deploy pulls each
-# of them independently:
+# A round set reaches players as three things, and nothing here is a deploy:
 #
-#   1. the media, a tarball in R2 named after a hash of the manifest
-#   2. the coordinates, rows in the D1 of each tier
-#   3. the manifest, web/rounds.json, in git
+#   1. the media, one R2 object per clip
+#   2. the answers, rows in the answers table
+#   3. the pool and the schedule, rows in `rounds` and `round_days`
 #
-# MEDIA AND ANSWERS BEFORE THE MANIFEST, always, because the manifest is what a
-# deploy keys off. Each missing leg fails differently and only the first is loud:
-# no tarball fails `clips.sh pull` outright and nothing deploys, while no answers
-# deploys a set that looks perfect and returns `unknown round` on every guess.
-# Both were seen for real on 2026-08-02, pushing the first 300-round set by hand.
+# THE SCHEDULE LAST, always, because it is the only one of the three that makes a
+# date playable. Get the order wrong and a player reaches a round whose clip is a
+# black pane (no media) or whose every guess comes back `unknown round` (no
+# answers) -- both were seen for real on 2026-08-02, pushing the first set by
+# hand. Push it last and the worst case is a date that is not scheduled yet,
+# which nobody can see.
 #
-# The manifest goes up as a pull request rather than a push to main. That is not
-# review ceremony: pr-gates runs check.py over the committed manifest, so the PR
-# is where a bad generated set gets caught by something other than this script.
+# STAGING ONLY, all three. Production is a promotion, run by hand after a review
+# pass -- not something a scheduled job reaches. That is the whole security
+# posture of running this on a cron, and it costs one command a month.
 #
-# Answers go to BOTH tiers on every run even though the PR only moves staging.
-# They are additive -- INSERT OR REPLACE keyed on the image, deleting nothing --
-# so seeding production early is harmless, and *not* seeding it is how a release
-# deploy months later serves an unscoreable game.
+# What used to be here and is not: git. This opened a pull request to commit
+# web/rounds.json, because the round set was a deployed file and a deploy was the
+# only way it could reach anyone. Rows in D1 need no branch, no token with write
+# on a public repo's default branch, and no merge -- which deletes the one
+# genuinely new trust surface running this on a schedule was going to introduce.
 #
-# Needs, beyond what a laptop has: GITHUB_TOKEN with contents+pull-requests write
-# on this repo. Where that comes from is the caller's problem.
+# The cost of that, stated plainly rather than discovered later: `pr-gates` used
+# to run check.py over the committed manifest, and there is no longer a pull
+# request for it to run on. check.py runs below instead, before anything is
+# published -- earlier than the PR gate did, but on this machine's word alone.
+#
+# Needs, beyond what a laptop has: CLOUDFLARE_ACCOUNT_ID and an API token with R2
+# write on the clips bucket and D1 write on the staging database.
 set -euo pipefail
 
 cd "$(dirname "$0")"
 
-BRANCH="${BRANCH:-auto/rounds-$(date -u +%Y%m%d)}"
-REMOTE="${REMOTE:-origin}"
-
-# The same database names the Taskfile's answers:{stage,prod}:push targets carry.
 STAGE_DB="adanalife-guessr-answers-staging"
-PROD_DB="adanalife-guessr-answers"
 
-# Every credential up front, before the 25 minutes of encoding rather than after.
+# Both credentials up front, before the 25 minutes of encoding rather than after.
 # Discovering a missing token at the first publish step means paying for the whole
 # generation again, and this runs somewhere nobody is watching.
-: "${GITHUB_TOKEN:?need a token with contents+pull-requests write to open the PR}"
 : "${CLOUDFLARE_ACCOUNT_ID:?needed by clips.sh and wrangler}"
-: "${CLOUDFLARE_API_TOKEN:?needs R2 write on the clips bucket and D1 write on both tiers}"
-
-# Refuse to run on top of uncommitted work. The generated manifest is the only
-# thing this is allowed to commit, and `git commit web/rounds.json` on a dirty
-# tree in a job nobody is watching is how something unrelated rides along.
-if ! git diff --quiet HEAD -- . ':!web/rounds.json'; then
-  echo "::error::the working tree has changes other than web/rounds.json" >&2
-  git status --short >&2
-  exit 1
-fi
+: "${CLOUDFLARE_API_TOKEN:?needs R2 write on the clips bucket and D1 write on staging}"
 
 echo "== generating"
 # Everything after this is the published artifact, so a knob change belongs here
 # rather than in the job spec that calls this.
 python3 make_rounds.py "$@"
 
-# THE guard. Nothing else stands between a generated set and a deploy: it catches
+# THE guard. Nothing else stands between a generated set and the game: it catches
 # a 16:9 frame (the HUD crop did not run, so the answer is printed on the image),
-# a coordinate that reached the manifest, and a clip that encoded to an empty
+# a coordinate on the round side of the split, and a clip that encoded to an empty
 # container. Before any publish step, so a bad set costs 25 minutes and nothing
 # else.
+#
+# make_rounds.py already ran this against its staging directory and refused to
+# swap a failing set in. Again here because this is the last point at which
+# nothing has left the laptop -- and because a set can be published by a rerun of
+# this script over a set generated earlier.
 echo "== validating"
 python3 check.py
 
 echo "== 1/3 media to R2"
 ./clips.sh push
 
-# Both tiers, additive. Staging first: it is the one the PR will actually move,
-# so if the second push fails the tier that is about to change is already correct.
-echo "== 2/3 answers to D1, both tiers"
+echo "== 2/3 answers to the staging D1"
 npx wrangler d1 execute "$STAGE_DB" --remote --file answers.sql --yes
-npx wrangler d1 execute "$PROD_DB" --remote --file answers.sql --yes
 
-# Last, and only now: the manifest, which is the thing a deploy reads.
-echo "== 3/3 manifest as a pull request"
-if git diff --quiet -- web/rounds.json; then
-  echo "web/rounds.json is unchanged -- nothing to publish"
-  exit 0
-fi
+# Last, and only now: the schedule, which is the thing that gives a date a game.
+echo "== 3/3 pool and schedule to the staging D1"
+npx wrangler d1 execute "$STAGE_DB" --remote --file rounds.sql --yes
 
-rounds=$(python3 -c 'import json;print(len(json.load(open("web/rounds.json"))))')
-key=$(./clips.sh key)
+# What a reviewer needs, and what a Discord notification will carry: how much was
+# generated and how far ahead the game is now covered. Read back out of the
+# database rather than out of the local files, so it describes what actually
+# landed.
+scheduled=$(npx wrangler d1 execute "$STAGE_DB" --remote --json \
+  --command="SELECT count(DISTINCT date) AS days, max(date) AS through FROM round_days" \
+  | jq -r '.[0].results[0] | "\(.days) days, through \(.through)"')
 
-# -C, not -c: a run that died after generating should be re-runnable the same day
-# without picking a new branch name by hand.
-git switch -C "$BRANCH"
-git add web/rounds.json
-# Conventional subject: the squash subject is what release-please reads, and a
-# round set is a user-visible change to what the game serves.
-git -c user.name="adanalife-automation" \
-    -c user.email="automation@dana.lol" \
-    commit -q -m "feat(rounds): regenerate the round set
-
-$rounds rounds, media at $key.
-
-Generated by publish.sh. The media is already in R2 and the coordinates are
-already in both D1 tiers -- merging this is what points the game at them."
-
-git push -q "$REMOTE" "$BRANCH"
-
-# curl rather than gh: the API is two fields and this keeps one less binary in
-# the image that runs this.
-pr=$(curl -sS -X POST \
-  -H "authorization: Bearer $GITHUB_TOKEN" \
-  -H 'accept: application/vnd.github+json' \
-  https://api.github.com/repos/adanalife/guessr/pulls \
-  -d "$(python3 - "$BRANCH" "$rounds" "$key" <<'PY'
-import json, sys
-branch, rounds, key = sys.argv[1:4]
-print(json.dumps({
-    "title": "feat(rounds): regenerate the round set",
-    "head": branch,
-    "base": "main",
-    "body": (
-        f"A fresh set of {rounds} rounds, generated on a schedule by `publish.sh`.\n\n"
-        f"The media (`{key}`) is already in R2 and the coordinates are already in "
-        "both D1 tiers, so merging this is what points the game at them. Staging "
-        "deploys on merge; players see it at the next release.\n\n"
-        "`check.py` passed before anything was published. What is worth a look "
-        "here is whether the *set* is any good -- the spread report and the "
-        "difficulty split in the run log, and ideally contact sheets."
-    ),
-}))
-PY
-)")
-
-# Exit non-zero when the API refused. Otherwise a 422 for "a PR for this branch
-# already exists" reads as a clean run in the job log, and the media and answers
-# are published with nothing pointing at them.
-url=$(python3 - "$pr" <<'PY'
-import json, sys
-body = json.loads(sys.argv[1])
-url = body.get("html_url")
-if not url:
-    print(json.dumps(body)[:400], file=sys.stderr)
-    sys.exit(1)
-print(url)
-PY
-) || { echo "::error::the pull request was refused; see above" >&2; exit 1; }
-
-echo "opened $url"
+echo "published to staging: $scheduled"
+echo "production is unchanged -- promote it by hand after a review pass."
