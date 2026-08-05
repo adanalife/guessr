@@ -225,17 +225,10 @@
   #sheet video { width: 100%; display: block; border-radius: 4px; }
   #sheet button:focus-visible video { outline: 2px solid var(--color-text);
                                       outline-offset: 1px; }
-  /* The live embed rides in the same grid cell shape as a round. aspect-ratio
-     rather than a height, because a round tile is sized by its own video and the
-     two have to agree or the last row goes ragged. */
   #sheet .live { position: relative; line-height: 0; }
-  #sheet .live iframe { width: 100%; aspect-ratio: 16 / 9; display: block;
-                        border: 0; border-radius: 4px; }
-  /* The caption sits under this one rather than over it: on a round tile the
-     badge overlays a paused frame, but here it would cover YouTube's own
-     controls, and the link has to stay clickable. It is also the whole cell
-     until the player arrives, so it carries the type size rather than the 11px
-     a badge over footage wants. */
+  /* The caption is the whole cell, so it carries a readable type size rather
+     than the 11px a badge overlaying footage wants, and it is positioned in the
+     flow instead of over a frame that is not there. */
   #sheet .live .cap { position: static; margin-top: .4rem; background: none;
                       color: var(--color-text); line-height: 1.35;
                       font-size: .82rem; font-weight: 400; }
@@ -1021,30 +1014,25 @@ function showSheet(rounds, played, res) {
 // the one place the game has earned the right to point at the stream it comes
 // from.
 //
-// `live_stream?channel=` resolves the channel's current broadcast inside the
-// player, which is the only place it can be resolved: YouTube does not resolve
-// the /live route server-side for a datacenter caller. Asked from a Cloudflare
-// Worker it answers 200 with a 1.1 MB app shell carrying no entity at all --
-// `<title> - YouTube</title>`, `canonical="undefined"`, no live flag -- so no
-// amount of header tuning gets a video id out of it. The player runs in the
-// player's own session, so it has the context the Worker lacks.
+// A link and not a player, because neither way of embedding the stream works
+// from here, and both were measured on a real device rather than in headless:
 //
-// `mute=1` is not politeness, it is what makes this play at all: no browser
-// autoplays an unmuted embed, so without it the cell is a still with a play
-// button on it. The nocookie host serves the same player without setting
-// YouTube's cookies, which keeps what this game has to disclose down to its own
-// localStorage.
+//   - `/embed/live_stream?channel=<id>` renders YouTube error 153 ("Video player
+//     configuration error") in a real iframe on a channel that is live, on
+//     `youtube.com` and `youtube-nocookie.com` alike. `/embed/<videoId>` plays
+//     that same broadcast in the same page, so the channel-resolving form is
+//     what is broken, not embedding.
+//   - `/embed/<videoId>` therefore needs a videoId, and nothing here can get
+//     one. YouTube does not resolve the /live route server-side for a datacenter
+//     caller: asked from a Cloudflare Worker it answers 200 with a 1.1 MB app
+//     shell holding no entity at all -- `<title> - YouTube</title>`,
+//     `canonical="undefined"`, no live flag -- and the browser cannot read that
+//     page itself because CORS forbids it.
 //
-// The caption stays under the player rather than being replaced by it: it is the
-// way out to the stream itself, and the only thing on screen if the embed has
-// nothing to show.
-const LIVE_CHANNEL = 'UC8Q7uFC1Xyr2ZnTWOk9Aizg';
+// A videoId would have to arrive from outside the game, which tripbot already
+// discovers and publishes; until it does, the cell is the link.
 const LIVE_TILE = `
   <div class="live">
-    <iframe src="https://www.youtube-nocookie.com/embed/live_stream?channel=${LIVE_CHANNEL}&mute=1&autoplay=1&playsinline=1"
-      title="A Dana Life — the 24/7 dashcam stream, live on YouTube"
-      allow="autoplay; encrypted-media; picture-in-picture"
-      referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
     <span class="cap">
       <a href="https://youtube.com/@adanalife_/live" target="_blank" rel="noopener">
         Watch live on YouTube &rarr;</a>
