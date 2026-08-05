@@ -1,0 +1,1 @@
+The leaderboards now look up each player's name directly instead of searching the whole play history for it once per row. The boards are fetched constantly to feed the overlay on stream, and the old way was on course to run the game past its database's daily read limit.
