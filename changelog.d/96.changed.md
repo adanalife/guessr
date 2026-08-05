@@ -1,0 +1,1 @@
+Rounds are now chosen from every moment the dashcam recorded a position for, rather than only the moments that happen to have a visual fingerprint on file — about three times as many per clip to pick the best of. The answer is also read from the exact moment the round is cut at, so the circle it is drawn in is tighter.

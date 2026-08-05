@@ -79,6 +79,15 @@ FPS = 30
 THREADS = max(1, (os.cpu_count() or 2) // 2)
 NICENESS = 10
 
+# How far from a candidate moment an embedding may sit and still be what the round
+# is scored on. Half of `frame_embeddings`' own 5 s sampling step, so the scored
+# frame stays inside the stretch of road the round plays. Not a tuning knob: it is
+# a property of that table's grid, and it moves when the grid does -- re-embedding
+# the corpus at 2 s would make 1.0 the equivalent bound. Measured against the
+# corpus, 90% of track moments have an embedding this close (mean 1.7 s), and the
+# gaps it excludes run to 32 s.
+EMBED_WINDOW_SEC = 2.5
+
 # How much of a clip's coordinate track has to hold up before the clip may supply
 # a round. Below this the coords stage's own reads disagreed with each other or
 # implied a path nothing could have driven, so the answer would be confident and
@@ -106,9 +115,14 @@ MIN_CONFIDENCE = 0.8
 #   travel, on top of its own ~1.7 km read error -- so using it put a median
 #   1,317 m between the answer pin and the road the player was shown, and blurred
 #   the neighbour distances that decide which rounds exist at all. Both are joined
-#   per moment below. The grids do not line up (`frame_embeddings` samples every
-#   5 s, the coords track every 2 s), so these are nearest-sample joins with the
-#   window set to the track's own step rather than equality joins.
+#   per moment below.
+# - The track is also what *enumerates* the moments. It samples every 2 s against
+#   `frame_embeddings`' 5 s, so asking the track what moments exist and fetching an
+#   embedding for each offers ~81 candidates per clip where asking the embeddings
+#   offered ~28. The two grids do not line up either way, so both directions are
+#   nearest-sample joins bounded to half the other side's step -- a moment with
+#   nothing near it drops out rather than being answered, or scored, from across a
+#   gap.
 SCORE_SQL = """
 SET hnsw.ef_search = 100;
 SET hnsw.iterative_scan = relaxed_order;
@@ -130,51 +144,63 @@ cand AS (
          f.embedding, f.ts_sec, f.source_ts_sec, f.lat, f.lng, f.travel_m
   FROM picked p
   CROSS JOIN LATERAL (
-    SELECT fe.embedding, fe.ts_sec, here.lat, here.lng,
-           -- This round's moment on the source timeline, which is its stable
-           -- identity: `here` is up to a second away, so its own source_ts_sec
-           -- names a different moment. What travels is the *offset* between the
-           -- two timelines -- zero for the 97% of clips that are not trims --
-           -- applied to the frame the round is actually cut at.
-           fe.ts_sec + (here.source_ts_sec - here.ts_sec) AS source_ts_sec,
+    -- The coords track enumerates the candidate moments, and the embedding is
+    -- fetched for whichever moment it picked. The other way round -- walking
+    -- `frame_embeddings` and looking up a coordinate for each row -- is what
+    -- limited a clip to the embedding grid's ~28 usable moments; the track offers
+    -- 81, so this is 2.9x the moments per clip to choose the best of, off data
+    -- that already exists.
+    SELECT emb.embedding,
+           vc.ts_sec, vc.lat, vc.lng,
+           -- Exact, not derived. The moment being cut and the coordinate
+           -- answering it are now the same row, so its own source offset is the
+           -- round's stable identity and there is no timeline arithmetic to get
+           -- wrong.
+           vc.source_ts_sec,
            -- How far the van moves over the seconds the round plays. The answer
            -- is that stretch of road rather than the point it starts at, and this
            -- is what radius_m ends up describing.
            2*6371000*asin(sqrt(
-             power(sin(radians(COALESCE(ahead.lat, here.lat) - here.lat)/2), 2) +
-             cos(radians(here.lat))*cos(radians(COALESCE(ahead.lat, here.lat)))*
-             power(sin(radians(COALESCE(ahead.lng, here.lng) - here.lng)/2), 2)
+             power(sin(radians(COALESCE(ahead.lat, vc.lat) - vc.lat)/2), 2) +
+             cos(radians(vc.lat))*cos(radians(COALESCE(ahead.lat, vc.lat)))*
+             power(sin(radians(COALESCE(ahead.lng, vc.lng) - vc.lng)/2), 2)
            )) AS travel_m
-    FROM frame_embeddings fe
-    -- The coordinate this round is answered with, and it has to be one the
-    -- dashcam actually printed on the frame: `source = 'ocr'` excludes the rows
-    -- interpolation filled in. 78% of sampled moments have one within a second,
-    -- which is far more candidate moments than :per_clip needs.
+    -- `source = 'ocr'` keeps only the moments the dashcam actually printed on the
+    -- frame, excluding the rows interpolation filled in -- so the answer is a
+    -- coordinate read off the picture the player is looking at.
+    FROM video_coords vc
+    -- What the round is scored on. The two scores are similarity over
+    -- `frame_embeddings`, so a moment with no embedding near it cannot be ranked
+    -- and has to drop out.
     --
-    -- The BETWEEN is not an optimisation. It bounds the search to the track's own
-    -- 2 s step, so a moment sitting inside a gap in the track drops out of
-    -- contention entirely instead of being answered from the far side of the gap.
+    -- The BETWEEN is not an optimisation. Embedding coverage has gaps -- the
+    -- nearest one averages 1.7 s away but reaches 32 s -- and without a bound the
+    -- round would be scored on a frame half a minute down the road, i.e. on a
+    -- different place than it shows. Half the embedding grid's own 5 s step keeps
+    -- the scored frame inside the stretch the round plays; 90% of track moments
+    -- qualify.
     CROSS JOIN LATERAL (
-      SELECT lat, lng, ts_sec, source_ts_sec
-      FROM video_coords
-      WHERE video_id = fe.video_id AND source = 'ocr'
-        AND ts_sec BETWEEN fe.ts_sec - 1.5 AND fe.ts_sec + 1.5
-      ORDER BY abs(ts_sec - fe.ts_sec)
+      SELECT fe.embedding
+      FROM frame_embeddings fe
+      WHERE fe.video_id = vc.video_id
+        AND fe.ts_sec BETWEEN vc.ts_sec - :embed_window
+                          AND vc.ts_sec + :embed_window
+      ORDER BY abs(fe.ts_sec - vc.ts_sec)
       LIMIT 1
-    ) here
+    ) emb
     -- Where the van has got to by the time the round stops playing. LEFT, because
     -- a moment near the end of a clip has nothing ahead of it and is still a
     -- perfectly good round -- travel_m comes out 0 and the caller floors it.
     LEFT JOIN LATERAL (
       SELECT lat, lng
       FROM video_coords
-      WHERE video_id = fe.video_id AND ts_sec IS NOT NULL
-        AND ts_sec BETWEEN fe.ts_sec + :clip_secs - 2.5
-                       AND fe.ts_sec + :clip_secs + 2.5
-      ORDER BY abs(ts_sec - (fe.ts_sec + :clip_secs))
+      WHERE video_id = vc.video_id AND ts_sec IS NOT NULL
+        AND ts_sec BETWEEN vc.ts_sec + :clip_secs - 2.5
+                       AND vc.ts_sec + :clip_secs + 2.5
+      ORDER BY abs(ts_sec - (vc.ts_sec + :clip_secs))
       LIMIT 1
     ) ahead ON true
-    WHERE fe.video_id = p.id AND fe.ts_sec > 15
+    WHERE vc.video_id = p.id AND vc.source = 'ocr' AND vc.ts_sec > 15
     ORDER BY random()
     LIMIT :per_clip
   ) f
@@ -300,6 +326,8 @@ def psql_invocation(
         # travels over exactly the seconds a player will watch.
         "-v",
         f"clip_secs={SECONDS}",
+        "-v",
+        f"embed_window={EMBED_WINDOW_SEC}",
         "-f",
         "-",
     ]
