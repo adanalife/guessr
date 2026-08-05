@@ -166,6 +166,42 @@ tasks:
       - task: _d1:migrate
         vars: {DB: adanalife-guessr-answers, VERB: list}
 
+  # What to run before a migration, and before anything else that writes
+  # production. `d1 export` walks the database over the API and writes plain SQL,
+  # so the artifact is readable, diffable, and restorable into any SQLite.
+  #
+  # That is deliberately not the fastest way back. D1 keeps 30 days of
+  # point-in-time restore (`wrangler d1 time-travel restore <db> --timestamp=...`),
+  # which needs no artifact and is the thing to reach for when a migration went
+  # wrong minutes ago. This is the copy that can be read *before* deciding, that
+  # can be diffed against what is live, and that outlives the account holding it.
+  #
+  # Production only. Staging is rebuildable from a generation run, so a dump of it
+  # would be a file nobody would ever restore.
+  #
+  # It is not free to run: wrangler warns that the database cannot serve queries
+  # while an export is in flight, so this is a few seconds during which a guess
+  # could 500. At this size that measured ~3 s for 781 rows, which is fine before
+  # a migration and is not something to put on a schedule.
+  #
+  # Verified rather than assumed: an export that failed halfway still leaves a
+  # file, and a backup nobody looked at is the one that turns out to be empty on
+  # the day it matters. Checking that `plays` is declared is enough to separate a
+  # real dump from a truncated one -- it is the one table whose contents cannot be
+  # regenerated from anything.
+  backup:prod:
+    desc: Dump the production D1 to backups/ — run this before any migration or push
+    cmds:
+      - mkdir -p backups
+      - |
+        out="backups/adanalife-guessr-answers-$(date -u +%Y%m%dT%H%M%SZ).sql"
+        npx wrangler d1 export adanalife-guessr-answers --remote --output "$out"
+        if ! grep -q 'CREATE TABLE.*plays' "$out"; then
+          echo "the export wrote $out but it does not declare plays, so it is not a backup" >&2
+          exit 1
+        fi
+        echo "backed up to $out ($(wc -c < "$out" | tr -d ' ') bytes)"
+
   # --config, unlike _d1:push. `d1 execute` resolves a bare database name against
   # the API; `d1 migrations` refuses to run without a config file and refuses
   # again without a database_id in it. See wrangler.d1.jsonc.
