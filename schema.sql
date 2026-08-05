@@ -141,3 +141,16 @@ CREATE TABLE IF NOT EXISTS plays (
 -- The daily board is the top of one date; the monthly board sums a date prefix.
 -- Both start from a date scan, so one index over (date, points) serves them.
 CREATE INDEX IF NOT EXISTS plays_by_date_points ON plays (date, points DESC);
+
+-- The name on a board row is a different access path, which the index above
+-- cannot serve: it seeks a player's most recent non-null handle across every
+-- date they have played, so there is no date to scan from. Without an index on
+-- player_id alone that seek is a full table scan, once per board row -- and the
+-- boards are polled continuously to feed the stream overlay, on two separate
+-- cache keys that the 60s response cache cannot collapse. That came to ~8.7M
+-- rows read a day against a few hundred rows of stored data -- inside the Workers
+-- Paid allowance, so the cost of it was wasted work rather than money, but the
+-- ratio is the thing to notice: reads scale with plays x board rows x poll rate,
+-- so it grows with the game while the data does not.
+-- test_leaderboard.mjs asserts the query plan still uses it.
+CREATE INDEX IF NOT EXISTS plays_by_player_recent ON plays (player_id, played_at);

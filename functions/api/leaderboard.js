@@ -55,9 +55,12 @@ const PLACEHOLDER = 'anonymous';
 // which parsePlay drops. Without it, one such play would blank a name the player
 // still has on every other row.
 //
-// ponytail: the subquery seeks per board row and there is no index on
-// player_id alone, so it scans. Ten scans of days x players x 5 rows, behind a
-// 60s cache; add `(player_id, played_at)` to schema.sql if a profile says so.
+// The subquery below runs once per board row and seeks on player_id alone, which
+// is what `plays_by_player_recent` in schema.sql exists to serve. Without that
+// index each of those seeks is a full table scan, and since the overlay polls
+// both boards continuously that reads millions of rows a day out of a table
+// holding a few hundred. The results are identical either way, so
+// test_leaderboard.mjs asserts the plan rather than the rows.
 //
 // Exported for test_leaderboard.mjs, which runs it against a real SQLite rather
 // than a second copy of it. Pages only looks for the onRequest* exports.

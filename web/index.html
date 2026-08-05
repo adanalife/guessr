@@ -1034,11 +1034,14 @@ function showSheet(rounds, played, res) {
 // the one place the game has earned the right to point at the stream it comes
 // from.
 //
-// It starts as the link and grows a player only once /api/live says the channel
-// is streaming. That order is deliberate: the retired embed endpoint answered a
-// dark channel with YouTube's own "This video is unavailable" panel, and a grey
-// error box is worse in this cell than a line of text. So the cheap thing
-// renders first and the player is the upgrade.
+// It starts as the link and grows a player only once /api/live has a video id.
+// That order is deliberate: a line of text is a better empty state than anything
+// YouTube renders when it has nothing to play, and the link is what the cell is
+// for -- the player is the upgrade.
+//
+// A video id and not a channel: `/embed/live_stream?channel=<id>` renders YouTube
+// error 153 in a real iframe even while the channel is live, on youtube.com and
+// youtube-nocookie.com alike, so `/embed/<videoId>` is the only form that plays.
 const LIVE_TILE = `
   <div class="live">
     <span class="cap">
