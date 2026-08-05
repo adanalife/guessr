@@ -52,8 +52,10 @@ CREATE INDEX IF NOT EXISTS plays_by_date_points ON plays (date, points DESC);
 -- date they have played, so there is no date to scan from. Without an index on
 -- player_id alone that seek is a full table scan, once per board row -- and the
 -- boards are polled continuously to feed the stream overlay, on two separate
--- cache keys that the 60s response cache cannot collapse. On a few hundred rows
--- of plays that is enough to pass D1's free-tier read ceiling, so this index is
--- load-bearing for staying on the free plan rather than a speed optimisation.
+-- cache keys that the 60s response cache cannot collapse. That came to ~8.7M
+-- rows read a day against a few hundred rows of stored data -- inside the Workers
+-- Paid allowance, so the cost of it was wasted work rather than money, but the
+-- ratio is the thing to notice: reads scale with plays x board rows x poll rate,
+-- so it grows with the game while the data does not.
 -- test_leaderboard.mjs asserts the query plan still uses it.
 CREATE INDEX IF NOT EXISTS plays_by_player_recent ON plays (player_id, played_at);

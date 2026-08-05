@@ -58,8 +58,8 @@ const PLACEHOLDER = 'anonymous';
 // The subquery below runs once per board row and seeks on player_id alone, which
 // is what `plays_by_player_recent` in schema.sql exists to serve. Without that
 // index each of those seeks is a full table scan, and since the overlay polls
-// both boards continuously that is enough to pass D1's free-tier read ceiling on
-// a table of a few hundred rows. The results are identical either way, so
+// both boards continuously that reads millions of rows a day out of a table
+// holding a few hundred. The results are identical either way, so
 // test_leaderboard.mjs asserts the plan rather than the rows.
 //
 // Exported for test_leaderboard.mjs, which runs it against a real SQLite rather
