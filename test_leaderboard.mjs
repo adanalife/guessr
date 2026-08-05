@@ -154,7 +154,33 @@ for (const name of label(Array(10).fill(longest))) {
   assert.ok(name.length <= 25, `"${name}" is too wide for a board row`);
 }
 
+// Whether the name subquery seeks an index or scans the table is invisible in
+// the results -- both return the same board -- and shows up only as D1
+// rows-read, where a continuously-polled board on a few hundred rows is enough
+// to pass the free-tier ceiling. So this asserts the plan. Several players over
+// several dates, because a planner given one row may reasonably prefer a scan.
+{
+  const rows = [];
+  for (const date of ['2026-08-01', '2026-08-02', '2026-08-03']) {
+    for (const p of ['p1', 'p2', 'p3', 'p4']) {
+      rows.push([date, p, `${p}-${date}.jpg`, 100, `Name ${p}`]);
+    }
+  }
+  const d = db(rows);
+  for (const [name, sql, period] of [
+    ['daily', DAILY, '2026-08-01'],
+    ['monthly', MONTHLY, '2026-08'],
+  ]) {
+    const plan = d.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(period, 10)
+      .map(r => r.detail).join('\n');
+    assert.match(plan, /USING (COVERING )?INDEX plays_by_player_recent/,
+      `the ${name} board's name subquery is not using plays_by_player_recent, `
+      + `so it scans plays once per row:\n${plan}`);
+  }
+}
+
 console.log('ok: a reroll renames a player on every board, back through history');
 console.log('ok: a nameless play does not cost a player their name');
 console.log('ok: the boards still rank by summed points over their own span');
 console.log('ok: players sharing an alias are numbered apart on the board');
+console.log('ok: both boards seek the name index instead of scanning per row');
