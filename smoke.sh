@@ -183,16 +183,51 @@ echo "ok: round media is served as video -> $image"
 # Wider than 16:9 is the whole test. The crop takes a strip off the bottom and
 # changes nothing else, so it is the one thing that cannot be true of a frame
 # with the HUD still on it. Integers, because that is the arithmetic the shell
-# has -- and an unreadable clip leaves both at 0, which fails the same way.
+# has.
+#
+# Retried, and the retry is load-bearing rather than a nicety. An object pushed
+# to R2 a minute ago can still answer a truncated body -- the same per-asset
+# propagation lag Pages has, reaching objects a Function streams too -- and
+# ffprobe reads short bytes as `Invalid data found`. That is what failed the
+# staging deploy of 2026-08-05 on a clip which was 1280x674 and correctly cropped
+# the whole time, and which the identical assertion passed on 90 s later.
+#
+# Worth more care than an ordinary flake, because of which assertion this is: the
+# only thing standing between a clip with the coordinates burned into it and the
+# served game. A check that cries wolf is a check somebody learns to clear by
+# hitting re-run, and that is the path a real HUD leak would take through.
 clip=$(mktemp); trap 'rm -f "$clip"' EXIT
-curl -sf "$BASE/$image" -o "$clip"
-dim=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height \
-  -of csv=p=0 "$clip" || true)
+for attempt in 1 2 3 4 5; do
+  # Truncated first: curl leaves the previous attempt's bytes in place when it
+  # cannot write new ones, and ffprobe would then read a stale success.
+  : >"$clip"
+  read -r bytes code <<<"$(curl -s -o "$clip" -w '%{size_download} %{http_code}' "$BASE/$image")"
+  dim=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height \
+    -of csv=p=0 "$clip" 2>/dev/null || true)
+  case "$dim" in [0-9]*,[0-9]*) break ;; esac
+  if [ "$attempt" -lt 5 ]; then sleep $((attempt * 3)); fi
+done
+
+# Unreadable is NOT uncropped, and conflating them was the other half of that
+# false alarm. Bytes ffprobe cannot decode carry no aspect ratio at all, so they
+# are silent on whether the strip came off -- reporting them as an uncropped clip
+# names a cause that isn't, and sends someone to regenerate a set that is fine.
+# So the crop is only ever judged on dimensions that were actually read.
+case "$dim" in
+  [0-9]*,[0-9]*) ;;
+  *) echo "::error::$image came back as $bytes bytes (HTTP $code) that ffprobe"
+     echo "::error::cannot decode, on 5 tries over ~30s. That is the media, not"
+     echo "::error::the crop: undecodable bytes say nothing either way about the"
+     echo "::error::HUD strip. Fetch the object out of R2 and look at it before"
+     echo "::error::regenerating anything."
+     exit 1 ;;
+esac
+
 w=${dim%%,*} h=${dim##*,}
 if [ "$((w * 9))" -le "$((h * 16))" ]; then
-  echo "::error::$image is '${dim:-unreadable}', which is not a cropped clip. The"
-  echo "::error::coordinates the dashcam burns across the bottom of every frame are"
-  echo "::error::in the footage this deployment is serving. Regenerate the set."
+  echo "::error::$image is ${dim}, which is not a cropped clip. The coordinates"
+  echo "::error::the dashcam burns across the bottom of every frame are in the"
+  echo "::error::footage this deployment is serving. Regenerate the set."
   exit 1
 fi
 echo "ok: round media is HUD-cropped -> ${dim}"
