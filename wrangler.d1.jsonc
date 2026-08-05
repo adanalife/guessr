@@ -1,0 +1,55 @@
+// The D1 databases, for the wrangler subcommands that resolve one from a config
+// file. Nothing else reads it; the `schema:*` and `*:local:push` tasks pass it
+// with an explicit --config.
+//
+// The deliberate part is the filename. Wrangler auto-loads wrangler.toml /
+// wrangler.json / wrangler.jsonc, so a config under any of those names would also
+// apply to `wrangler pages deploy` in staging.yml and release.yml — which take
+// their project name on the command line and get their real D1 binding from the
+// Pages project itself (declared in infra's terraform). This name is invisible to
+// them.
+//
+// WHY THE DEPLOYED DATABASES ARE IN HERE AT ALL, when the seed tasks never needed
+// them: `wrangler d1 execute` resolves a bare database name against the API, so
+// `answers:*:push` and `rounds:stage:push` pass a name and no config. `wrangler d1
+// migrations` does not — with no config it fails "No configuration file found",
+// and with a config naming a database but giving no id it fails "missing a
+// database_id, which is needed for operations on remote resources". So migrations
+// need this file and seeds do not. That asymmetry is wrangler's, not a choice.
+//
+// The ids are identifiers, not credentials: reaching a database still needs an API
+// token scoped to the account, and Cloudflare's own documented setup keeps these
+// in a committed wrangler config. The *bindings* a deployed worker gets are still
+// terraform's, in infra — nothing here binds anything to a running Pages project.
+//
+// The one thing that has to line up is the local id: `--local` keys its sqlite
+// file under .wrangler/ by database_id, so `task dev`'s --d1 ANSWERS=<id> and the
+// local entry below must match, or the seeded rows land in a database the dev
+// server never opens. (`pages dev` is the opposite of everything else here — it
+// refuses --config outright and wants --d1 BINDING=ID.)
+{
+  "name": "guessr-d1",
+  "pages_build_output_dir": "web",
+  // All three read migrations from ./migrations, which is wrangler's default and
+  // the reason none of them declares a migrations_dir.
+  "d1_databases": [
+    {
+      // Bindings must be unique within a config and only the local one is ever
+      // bound to a running worker — every task resolves by database_name.
+      "binding": "ANSWERS",
+      "database_name": "guessr-answers-local",
+      // Not a real Cloudflare database id — --local never talks to Cloudflare.
+      "database_id": "guessr-answers-local"
+    },
+    {
+      "binding": "ANSWERS_STAGING",
+      "database_name": "adanalife-guessr-answers-staging",
+      "database_id": "a76a44d4-7c09-4b07-8ad3-625c63df5658"
+    },
+    {
+      "binding": "ANSWERS_PROD",
+      "database_name": "adanalife-guessr-answers",
+      "database_id": "121f1d0c-5212-482e-bbc2-ceab1084f279"
+    }
+  ]
+}

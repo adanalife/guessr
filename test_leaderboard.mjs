@@ -9,8 +9,8 @@
 // only thing not exercised here is D1's binding layer.
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
+import { schema } from './_d1.mjs';
 import { label, query } from './functions/api/leaderboard.js';
 import { ADJECTIVES, NOUNS } from './web/alias.js';
 
@@ -24,7 +24,7 @@ const at = () => `2026-08-01 12:00:${String(tick++).padStart(2, '0')}`;
 
 function db(rows) {
   const d = new DatabaseSync(':memory:');
-  d.exec(readFileSync('schema.sql', 'utf8'));
+  d.exec(schema());
   const insert = d.prepare(`INSERT INTO plays
     (date, player_id, image, km, points, handle, played_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)`);

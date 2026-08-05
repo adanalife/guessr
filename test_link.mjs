@@ -13,19 +13,18 @@
 // the only thing not exercised here is D1's binding layer.
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { MOVE, SWEEP, onRequestPost } from './functions/api/link.js';
 import { linkUrl, parseLink } from './web/link.js';
-import { d1, post } from './_d1.mjs';
+import { d1, post, schema } from './_d1.mjs';
 
-const SCHEMA = readFileSync('schema.sql', 'utf8');
+const SCHEMA = schema();
 
 const PHONE = 'phone-id', DESKTOP = 'desktop-id', STRANGER = 'stranger-id';
 
 function db(rows) {
   const d = new DatabaseSync(':memory:');
-  d.exec(readFileSync('schema.sql', 'utf8'));
+  d.exec(schema());
   const insert = d.prepare(`INSERT INTO plays
     (date, player_id, image, km, points, handle) VALUES (?, ?, ?, ?, ?, ?)`);
   for (const [player, image, points] of rows) {
