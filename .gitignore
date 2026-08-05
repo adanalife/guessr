@@ -35,6 +35,11 @@ web/version.json
 # `task dev`'s local D1 and wrangler's scratch state.
 .wrangler/
 
+# `task backup:prod`. A dump of the production database holds the whole `answers`
+# table, which is the answer key, and every row of `plays`, which carries player
+# ids and the handles beside them. Neither belongs in a public repo.
+backups/
+
 __pycache__/
 .venv/
 .DS_Store
