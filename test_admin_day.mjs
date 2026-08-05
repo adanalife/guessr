@@ -7,15 +7,12 @@
 // check, and every way of failing that check has to land on "no". A regression
 // here is silent from the outside: the endpoint keeps working, on production too.
 //
-// Against the real schema.sql over node:sqlite, so the joins are the ones that
+// Against the real migrations over node:sqlite, so the joins are the ones that
 // will run.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 
-import { d1 } from './_d1.mjs';
+import { d1, schema } from './_d1.mjs';
 import { onRequestGet } from './functions/admin/day.js';
-
-const schema = readFileSync('schema.sql', 'utf8');
 
 // The static-asset binding, standing in for whichever workflow deployed this
 // copy. `undefined` is a version.json that 404s (a local directory nobody
@@ -33,7 +30,7 @@ const FUTURE = '2099-06-01';
 const LATER = '2099-06-02';
 
 function seeded() {
-  const answers = d1(schema);
+  const answers = d1(schema());
   let n = 0;
   const seed = (date, withAnswer = true) => {
     for (let i = 1; i <= 5; i++) {
