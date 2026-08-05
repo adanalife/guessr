@@ -1,44 +1,48 @@
-// Cover the live-stream resolver: which YouTube /live pages yield a video id.
+// Cover the live-stream resolver: which feed bytes yield a video id.
 //
-// Worth testing because both failure directions are silent. Too strict and the
-// end-of-game board never shows the stream even while it is running, and nothing
-// anywhere says so -- the cell just stays a link. Too loose and it embeds a
-// finished broadcast as though it were live, which looks completely normal and is
-// a lie to every player who reaches that screen.
+// Worth testing because the failure is silent in the direction that matters. Too
+// strict and the end-of-game board never shows the stream, and nothing anywhere
+// says so -- the cell just stays a link, which is exactly how the previous
+// resolver stayed broken through two releases. Too loose and a malformed id goes
+// straight into an embed URL.
 //
-// The fixtures are the real markup, trimmed: a live channel's /live page and a
-// dark one's. The shapes worth pinning are that a dark channel does not 404 (it
-// canonicalises to the channel page and drops the live flags) and that the two
-// markers have to agree -- a canonical watch id with no live flag is the past
-// broadcast case, and that is the one this function exists to refuse.
+// The fixture is the real feed shape, trimmed: Atom, entries newest-first, each
+// carrying a `<yt:videoId>`. The shape worth pinning is that the FIRST id wins,
+// because that is the whole reason this reads a feed -- the newest entry is the
+// current broadcast, and picking any other would embed an old drive.
 import assert from 'node:assert/strict';
-import { liveVideoId, onRequestGet } from './functions/api/live.js';
+import { newestVideoId, onRequestGet } from './functions/api/live.js';
 
-const CANONICAL = id => `<link rel="canonical" href="https://www.youtube.com/watch?v=${id}">`;
-const CHANNEL_CANONICAL =
-  '<link rel="canonical" href="https://www.youtube.com/channel/UC8Q7uFC1Xyr2ZnTWOk9Aizg">';
-const page = (...parts) => `<!DOCTYPE html><html><head>${parts.join('')}</head><body></body></html>`;
+const entry = (id, title) =>
+  `<entry><yt:videoId>${id}</yt:videoId><title>${title}</title></entry>`;
+const feed = (...entries) =>
+  `<?xml version="1.0" encoding="UTF-8"?><feed xmlns:yt="http://www.youtube.com/xml/schemas/2015">` +
+  `<title>A Dana Life</title>${entries.join('')}</feed>`;
 
-const live = page(CANONICAL('Uhln8S-ZCMI'), '<script>var x = {"isLiveNow":true};</script>');
-const dark = page(CHANNEL_CANONICAL, '<script>var x = {};</script>');
-const endedBroadcast = page(CANONICAL('Uhln8S-ZCMI'), '<script>var x = {};</script>');
+const live = feed(
+  entry('Uhln8S-ZCMI', '24/7 Driving Around the USA'),
+  entry('GS3hnGlX5xI', 'an older drive'),
+);
 
-assert.equal(liveVideoId(live), 'Uhln8S-ZCMI', 'a live page yields its canonical video id');
-assert.equal(liveVideoId(dark), null, 'a dark channel canonicalises to the channel, not a video');
-assert.equal(liveVideoId(endedBroadcast), null,
-  'a canonical video with no live flag is a past broadcast, not the stream');
-assert.equal(liveVideoId(''), null, 'an empty body is dark rather than a throw');
+assert.equal(newestVideoId(live), 'Uhln8S-ZCMI', 'the newest entry wins, not any later one');
+assert.equal(newestVideoId(feed()), null, 'a feed with no entries yields nothing');
+assert.equal(newestVideoId(''), null, 'an empty body yields nothing rather than throwing');
 // The id goes straight into an embed URL, so anything that is not exactly a
 // YouTube id has to be refused rather than passed along.
-assert.equal(liveVideoId(page('<link rel="canonical" href="https://www.youtube.com/watch?v=short">',
-  '<script>{"isLiveNow":true}</script>')), null, 'an id of the wrong length is refused');
-assert.equal(liveVideoId(page(
-  '<link rel="canonical" href="https://evil.example/watch?v=Uhln8S-ZCMI">',
-  '<script>{"isLiveNow":true}</script>')), null, 'a canonical on another host is refused');
-console.log('ok: a live page yields an id, and a dark or finished one yields nothing');
+assert.equal(newestVideoId(feed(entry('short', 'too short'))), null,
+  'an id of the wrong length is refused');
+assert.equal(newestVideoId('<yt:videoId>Uhln8S-ZCMI'), null,
+  'an unclosed element is not an id');
+// A channel whose newest video is not a broadcast still answers that video. There
+// is no keyless way to tell, and the cell is captioned with a link rather than a
+// claim that the player is live.
+assert.equal(newestVideoId(feed(entry('wX2DVKMKF_Y', 'WoodenBoat School 2024'))), 'wX2DVKMKF_Y',
+  'the newest video answers even when it is not the stream');
+console.log('ok: the newest feed entry yields its id, and nothing else does');
 
-// The endpoint's own contract: JSON, cached, and dark whenever the upstream read
-// fails -- an exception here would leave the board with an empty sixth cell.
+// The endpoint's own contract: JSON, cached, and a link-only cell whenever the
+// upstream read fails -- an exception here would leave the board's sixth cell
+// empty rather than degraded.
 const withFetch = async (impl) => {
   const real = globalThis.fetch;
   globalThis.fetch = impl;
@@ -46,16 +50,30 @@ const withFetch = async (impl) => {
 };
 
 let res = await withFetch(async () => new Response(live, { status: 200 }));
-assert.deepEqual(await res.json(), { videoId: 'Uhln8S-ZCMI' });
+let body = await res.json();
+assert.equal(body.videoId, 'Uhln8S-ZCMI');
+assert.deepEqual(body.why, { status: 200, bytes: live.length });
 assert.match(res.headers.get('cache-control'), /^public, max-age=\d+$/,
   'the answer is cacheable, so one upstream read serves many finished games');
 
-res = await withFetch(async () => new Response(dark, { status: 200 }));
-assert.deepEqual(await res.json(), { videoId: null });
+// Each failure leaves the board its link and is distinct in `why`, which is the
+// point of carrying it: a resolver that can never resolve anything has to be
+// tellable apart from a channel with nothing to show.
+const empty = '<feed></feed>';
+res = await withFetch(async () => new Response(empty, { status: 200 }));
+body = await res.json();
+assert.equal(body.videoId, null);
+assert.deepEqual(body.why, { status: 200, bytes: empty.length },
+  'a readable feed with no entries reports a clean 200');
 
-res = await withFetch(async () => new Response('nope', { status: 500 }));
-assert.deepEqual(await res.json(), { videoId: null }, 'an upstream error reads as dark');
+res = await withFetch(async () => new Response('nope', { status: 429 }));
+body = await res.json();
+assert.equal(body.videoId, null, 'an upstream error reads as nothing to show');
+assert.deepEqual(body.why, { status: 429 },
+  'a non-200 is reported as the status it was, not as a quiet channel');
 
 res = await withFetch(async () => { throw new Error('network'); });
-assert.deepEqual(await res.json(), { videoId: null }, 'a thrown fetch reads as dark');
-console.log('ok: the endpoint answers JSON, stays cacheable, and treats every failure as dark');
+body = await res.json();
+assert.equal(body.videoId, null, 'a thrown fetch reads as nothing to show');
+assert.match(body.why.error, /network/, 'a thrown fetch reports the throw');
+console.log('ok: the endpoint answers JSON, stays cacheable, and says why it is empty');

@@ -1,0 +1,1 @@
+The stream preview in the last cell of the end-of-game board actually plays now. It had never once worked — YouTube would not tell the game which video was live, so the cell always fell back to being a plain link. It finds the current broadcast a different way now, and keeps finding it on its own every time a new stream starts.

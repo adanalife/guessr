@@ -198,11 +198,14 @@ done
 out=$(call "$BASE/api/leaderboard?board=weekly")
 check "an unknown board is refused" 400 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
 
-# The live-stream resolver. Asserted on the key and not on its value, because the
-# value is whether the channel happens to be streaming right this second and a
-# gate that fails when the van is parked is a gate nobody trusts. The key is the
-# part a deploy can lose, and it is the same missing-endpoint-serves-HTML trap the
-# boards guard against above.
+# The live-stream resolver, asserted on its value and not merely on the key. The
+# previous version of this check accepted any response carrying a "videoId" key,
+# which a permanently-null resolver satisfies -- so a resolver that never once
+# worked shipped green through two releases while the board quietly showed a link.
+# A real id is assertable because it does not depend on the channel being live
+# this second: the resolver answers the channel's newest video, and the channel
+# has videos whether or not the van is moving.
 out=$(call "$BASE/api/live")
 check "the live resolver answers" 200 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
-grep -q '"videoId"' <<<"$out" || { echo "::error::/api/live had no videoId key"; exit 1; }
+grep -qE '"videoId":"[A-Za-z0-9_-]{11}"' <<<"$out" || {
+  echo "::error::/api/live resolved no video id -- got: $(head -1 <<<"$out")"; exit 1; }
