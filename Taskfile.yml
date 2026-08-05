@@ -100,6 +100,12 @@ tasks:
       - task: schema:local:push
       - task: answers:local:push
       - task: rounds:local:push
+      # A tier for /admin/day to read. It gates on the deployed version.json and
+      # treats "no idea" as production, so without this the day preview refuses
+      # itself on the one surface where a round set can be changed and looked at
+      # in the same minute. Gitignored, like every other copy of this file, and
+      # it fills the About panel's empty version line as a side effect.
+      - printf '{"label":"local","tier":"local"}\n' > web/version.json
       - npx wrangler pages dev web/ --port {{.PORT}} --d1 ANSWERS={{.LOCAL_DB}}
 
   answers:local:push:

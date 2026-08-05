@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Deployed with the site, so it exists on production too -- where /admin/day
+     answers 403 and this page says so. Kept out of search results rather than
+     kept out of the deploy: a page that is only in some builds is a page that is
+     broken in the build nobody tested. -->
+<meta name="robots" content="noindex">
+<title>guessr — day preview</title>
+<style>
+  /* System fonts and no theme. This is a tool for one person, and the game's
+     stylesheet is 300 lines of things a review page has no use for. */
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 0 auto; padding: 1rem; max-width: 60rem; }
+  h1 { font-size: 1.3rem; }
+  .nav { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+  #meta { color: #555; }
+  ol { list-style: none; padding: 0; display: grid; gap: 1rem; }
+  li { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
+  /* Wide enough to judge a clip by, narrow enough that five fit on a screen. */
+  video { width: 20rem; max-width: 100%; background: #000; border-radius: 4px; }
+  li p { margin: 0 0 .25rem; }
+  .dim { color: #666; font-size: .85rem; font-family: ui-monospace, monospace; }
+  .warn { color: #b00; font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>Day preview</h1>
+<p class="nav">
+  <button id="prev" type="button">&larr;</button>
+  <input type="date" id="date">
+  <button id="next" type="button">&rarr;</button>
+  <span id="meta"></span>
+</p>
+<ol id="rounds"></ol>
+
+<script type="module">
+// The viewer half of the admin surface: pick a date, watch its five clips, check
+// each answer against what the clip shows. Everything it knows comes from
+// /admin/day, which is where the tier gate lives -- so on production this page
+// renders and then reports that it has nothing to show, rather than being a
+// second thing that has to agree about who may look.
+
+const el = id => document.getElementById(id);
+
+// UTC throughout, because a date is what the schedule is keyed on and the local
+// calendar date is a different question. <input type="date"> is native and needs
+// no picker library; it hands back the YYYY-MM-DD the endpoint wants.
+const pad = n => String(n).padStart(2, '0');
+const iso = d => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+const shift = (date, days) => {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return iso(d);
+};
+
+// The values below are this project's own rows, but they reach the DOM as markup
+// and one of them is a filename from a generator -- so escape rather than trust
+// the provenance of a string forever.
+const esc = s => String(s).replace(/[&<>"]/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// Zoom 17 lands on the street rather than the county, which is the whole point:
+// the answers are metres wide now, so "is this pin on the road in the clip" is a
+// question you can only ask at street zoom.
+const osm = r =>
+  `https://www.openstreetmap.org/?mlat=${r.lat}&mlon=${r.lng}#map=17/${r.lat}/${r.lng}`;
+
+function answer(r) {
+  // A scheduled round with no answer row: a rounds push whose answers push never
+  // happened. Called out loudly because the game's own symptom for it is every
+  // guess that day failing, long after the deploy went green.
+  if (r.lat == null) {
+    return '<span class="warn">no answer row — answers.sql was never pushed for this round</span>';
+  }
+  return `<a href="${osm(r)}" target="_blank" rel="noreferrer">`
+    + `${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}</a> &plusmn;${Math.round(r.radius_m)} m`;
+}
+
+function render(r) {
+  return `<li>
+    <video src="/${esc(r.image)}" controls muted loop playsinline preload="metadata"></video>
+    <div>
+      <p><b>#${r.position}</b> — ${esc(r.state ?? '—')}, ${esc(r.filmed ?? '—')}</p>
+      <p>${answer(r)}</p>
+      <p class="dim">locatability ${r.median_km.toFixed(1)} km</p>
+      <p class="dim">${esc(r.slug)} @ ${r.source_ts_sec.toFixed(1)}s</p>
+    </div>
+  </li>`;
+}
+
+// Three states worth telling apart, and the endpoint only reports one of them:
+// a date inside the play window is live to players *right now*, which is the one
+// where a problem is already too late to fix.
+function when(date, open) {
+  if (open) return 'open to players now';
+  return date < iso(new Date()) ? 'finished' : 'upcoming';
+}
+
+async function show(date) {
+  el('date').value = date;
+  // In the URL so a day is linkable -- replaceState rather than pushState, since
+  // stepping through a week should not need a week of Back presses to leave.
+  history.replaceState(null, '', `?date=${date}`);
+  el('rounds').innerHTML = '';
+  el('meta').textContent = 'loading…';
+
+  let res, body;
+  try {
+    res = await fetch(`/admin/day?date=${date}`);
+    body = await res.json();
+  } catch {
+    el('meta').textContent = 'could not reach /admin/day';
+    return;
+  }
+  // The endpoint says which of the three it is -- wrong tier, unscheduled date,
+  // malformed date -- and they want different reactions, so pass it through
+  // rather than flattening it to "no game".
+  if (!res.ok) {
+    el('meta').textContent = `${body.error || res.status}`;
+    return;
+  }
+
+  el('meta').textContent = `${when(date, body.open)}`
+    + ` · schedule runs through ${body.scheduled_through}`;
+  el('rounds').innerHTML = body.rounds.map(render).join('');
+}
+
+el('date').addEventListener('change', e => show(e.target.value));
+el('prev').addEventListener('click', () => show(shift(el('date').value, -1)));
+el('next').addEventListener('click', () => show(shift(el('date').value, 1)));
+
+// Today rather than tomorrow: it is the day most likely to be scheduled, so it
+// answers "does this work" and "what is queued" in one load. → walks forward.
+show(new URLSearchParams(location.search).get('date') || iso(new Date()));
+</script>
+</body>
+</html>

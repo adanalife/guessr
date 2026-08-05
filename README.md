@@ -174,9 +174,10 @@ and the badges, the minimap frame and the legend swatches sit on photographs or
 map tiles rather than on the page.
 
 `functions/` holds the endpoints. It is not served: Pages routes
-`functions/api/score.js` to `/api/score`, `functions/api/day.js` to `/api/day`
-and `functions/clips/[[path]].js` to everything under `/clips/`. `_scoring.mjs`
-is skipped by the router (leading underscore) so the handlers can import it.
+`functions/api/score.js` to `/api/score`, `functions/api/day.js` to `/api/day`,
+`functions/admin/day.js` to `/admin/day` and `functions/clips/[[path]].js` to
+everything under `/clips/`. `_scoring.mjs` is skipped by the router (leading
+underscore) so the handlers can import it.
 
 `/api/day` is what a date's game *is*: five rounds by name, in the order they
 play. `/api/score` checks a posted round against the same rows before it will
@@ -531,6 +532,30 @@ a schedule now the browser cannot derive it: while the draw was a seeded shuffle
 over a committed pool, anyone could work out next month's five and there was
 nothing to withhold. A refusal comes back as a 403 with a distinct message, and
 the page treats a 4xx as final rather than inviting a retry that cannot work.
+
+### Previewing a day
+
+`/admin/` is the deliberate exception to that refusal: pick a date, watch its
+five clips in order, and check each answer on a street-zoom map. It reads
+`/admin/day`, which serves any date at all — unopened ones included — with the
+coordinates joined on, so a dud clip or a pin in the wrong place is caught before
+a real day is made of it. Past dates read the same way, which is how a finished
+day gets looked at again.
+
+**It is refused on production**, and the gate is the tier: the Function reads the
+same `web/version.json` the About panel does, through the static-asset binding,
+and answers `403` unless the deployment declares itself `staging`, `preview` or
+`local`. Every other answer — no `version.json`, one that will not parse, a tier
+nobody has taught it about — reads as production, since the cost of a false
+refusal is a line in an allowlist and the cost of a false answer is tomorrow's
+five and where they are. `task dev` stamps a `local` one so the preview works
+against a local D1; `smoke.sh` asserts the refusal on production and the access
+everywhere else, which is the only check that exercises the tier read at all.
+
+Rejecting a round and reordering a day are not built. Looking is most of the
+value and it is what makes the rest worth having, so it went first — and a tier
+check is a fraction of the work of an authenticated `/admin`, which it does not
+foreclose.
 
 **Rounds no longer repeat.** A date's five are dealt from the pool once and
 recorded, and `round_days_once` makes scheduling the same round twice impossible

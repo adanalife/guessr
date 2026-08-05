@@ -219,6 +219,35 @@ check "a closed date is refused" 403 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out"
 out=$(call "$BASE/api/day?date=2099-01-01")
 check "an unopened date is refused" 403 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
 
+# And /admin/day, which is the same date served the opposite way -- answers
+# attached, window ignored -- so a tier check is the only thing between the answer
+# key and anyone who visits. Asserted against the tier the deployment declares
+# about itself, so one check covers both directions: production must refuse, and a
+# testing tier must not.
+#
+# It is also the only place `env.ASSETS` is exercised. The unit tests stub it, so
+# a version.json this cannot read fails closed and every tier looks like
+# production -- which is safe, silent, and would make the page useless with
+# nothing red anywhere.
+#
+# 2099-01-01 has no schedule, so a testing tier answers 404 rather than 200. That
+# is the point: anything other than a 403 proves the gate opened, and no real
+# day is read to find out.
+tier=$(curl -s "$BASE/version.json" | jq -r '.tier // "unknown"' 2>/dev/null || echo unknown)
+out=$(call "$BASE/admin/day?date=2099-01-01")
+status=$(tail -1 <<<"$out")
+if [ "$tier" = "production" ]; then
+  check "the day preview is refused on production" 403 "$status" "$(head -1 <<<"$out")"
+elif [ "$status" = "403" ]; then
+  echo "::error::$BASE declares tier '$tier', but /admin/day refused it. The tier"
+  echo "::error::read failed -- the Function cannot see version.json through"
+  echo "::error::env.ASSETS -- so it is failing closed and the preview page will"
+  echo "::error::show nothing on this tier."
+  exit 1
+else
+  echo "ok: the day preview reads on tier '$tier' -> HTTP $status"
+fi
+
 # Both boards read. A 500 here is an unapplied schema.sql.
 #
 # The shape assertion is not belt-and-braces: Pages serves the static site for a
