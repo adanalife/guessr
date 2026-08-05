@@ -42,6 +42,11 @@
 // renders and then reports that it has nothing to show, rather than being a
 // second thing that has to agree about who may look.
 
+// The play-window rule, imported rather than restated: the endpoint refuses a
+// day that has opened, and a second copy of "has it opened" here would be a
+// second thing to keep in step with it.
+import { playWindow } from '/daily.js';
+
 const el = id => document.getElementById(id);
 
 // UTC throughout, because a date is what the schedule is keyed on and the local
@@ -78,7 +83,13 @@ function answer(r) {
     + `${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}</a> &plusmn;${Math.round(r.radius_m)} m`;
 }
 
-function render(r) {
+// Only on a day nothing can have played yet. The endpoint enforces this itself
+// and is the authority; the button reads the same rule from the same module so
+// it does not offer an action that is going to come back 409. `opens` rather
+// than isOpen(), because a finished day is past editing too.
+const editable = date => Date.now() < playWindow(date).opens;
+
+function render(r, date) {
   return `<li>
     <video src="/${esc(r.image)}" controls muted loop playsinline preload="metadata"></video>
     <div>
@@ -86,6 +97,9 @@ function render(r) {
       <p>${answer(r)}</p>
       <p class="dim">locatability ${r.median_km.toFixed(1)} km</p>
       <p class="dim">${esc(r.slug)} @ ${r.source_ts_sec.toFixed(1)}s</p>
+      ${editable(date)
+        ? `<button type="button" class="reject" data-image="${esc(r.image)}">Reject</button>`
+        : ''}
     </div>
   </li>`;
 }
@@ -124,8 +138,46 @@ async function show(date) {
 
   el('meta').textContent = `${when(date, body.open)}`
     + ` · schedule runs through ${body.scheduled_through}`;
-  el('rounds').innerHTML = body.rounds.map(render).join('');
+  el('rounds').innerHTML = body.rounds.map(r => render(r, date)).join('');
 }
+
+// Reject, and say what it cost. A rejection is paid for out of the schedule's
+// tail whenever there is no queued surplus, so the confirmation names the round
+// and the result names the day that was given up -- the alternative is a horizon
+// that silently shrinks and a later "why does the schedule end on the 14th".
+async function onReject(image) {
+  const date = el('date').value;
+  if (!confirm(`Reject ${image}?\n\nIt is replaced from the back of the queue, `
+    + `which costs a day of runway when there is no surplus.`)) return;
+
+  let res, out;
+  try {
+    res = await fetch('/admin/day', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ date, image }),
+    });
+    out = await res.json();
+  } catch {
+    el('meta').textContent = 'could not reach /admin/day';
+    return;
+  }
+  if (!res.ok) {
+    el('meta').textContent = out.error || `rejection failed (${res.status})`;
+    return;
+  }
+  await show(date);
+  el('meta').textContent = `replaced #${out.position} with ${out.replacement}`
+    + (out.unscheduled_day ? ` — gave up ${out.unscheduled_day} to pay for it` : '')
+    + ` · ${el('meta').textContent}`;
+}
+
+// Delegated, because the buttons are rewritten on every render and a listener
+// per button would be a listener per render.
+el('rounds').addEventListener('click', e => {
+  const btn = e.target.closest('.reject');
+  if (btn) onReject(btn.dataset.image);
+});
 
 el('date').addEventListener('change', e => show(e.target.value));
 el('prev').addEventListener('click', () => show(shift(el('date').value, -1)));

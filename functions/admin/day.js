@@ -19,7 +19,7 @@
 // Seeing the queue is most of the value of an admin view: reject and reorder are
 // only worth having once looking is possible, and this is where a wrong
 // coordinate or a dud clip gets caught. The alternative place is a real day.
-import { isOpen } from '../../web/daily.js';
+import { isOpen, playWindow } from '../../web/daily.js';
 
 const json = (body, status = 200, headers = {}) =>
   new Response(JSON.stringify(body), {
@@ -57,14 +57,22 @@ async function tier(env, url) {
   }
 }
 
+// Shared by both methods, and shared deliberately: a second copy of the
+// allowlist is a second thing to remember when a tier is added, and the one that
+// gets forgotten is whichever is not being looked at. The write below is exactly
+// as gated as the read above it.
+const refusal = async (env, url) =>
+  TESTING_TIERS.has(await tier(env, url))
+    ? null
+    : json({ error: 'the day preview is not available on this tier' }, 403);
+
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
 
   // Before the date is even parsed, so production answers everything here the
   // same way and there is nothing to learn from the shape of the refusal.
-  if (!TESTING_TIERS.has(await tier(env, url))) {
-    return json({ error: 'the day preview is not available on this tier' }, 403);
-  }
+  const refused = await refusal(env, url);
+  if (refused) return refused;
 
   const date = url.searchParams.get('date');
   if (!date || !DATE.test(date)) {
@@ -105,5 +113,139 @@ export async function onRequestGet({ request, env }) {
     open: isOpen(date),
     scheduled_through: through?.date ?? null,
     rounds: results,
+  }, 200, { 'cache-control': 'no-store' });
+}
+
+// POST /admin/day {date, image} -- throw a round out of an upcoming day and pull
+// its replacement off the back of the queue.
+//
+// The verb the viewer above was missing. Seeing that tomorrow's third round is a
+// tunnel, or that its coordinates land in a river, is only half of a review; the
+// other half is being able to do something about it in the same minute, on the
+// one tier where a schedule can still be changed without touching what anybody
+// is playing.
+//
+// `rounds.status` was declared with 'rejected' in the baseline migration for
+// exactly this, and nothing wrote it until now. It is not the same fact as "no
+// longer in round_days": a round nobody has scheduled yet and a round somebody
+// threw out are both absent from the schedule, and the next generation run has
+// to be able to place the first and never the second.
+
+// Where a replacement comes from. Queued surplus first -- a generation run that
+// produced more rounds than it could place leaves some, and spending those costs
+// nothing.
+const QUEUED = "SELECT image FROM rounds WHERE status = 'queued' ORDER BY image LIMIT 1";
+
+// With no surplus, the only spare rounds in the database are ones already
+// promised to a later date, so a rejection is paid for out of the schedule's
+// tail. The whole last day goes back to 'queued' rather than just the one round
+// taken: a four-round day is not a day, and leaving one behind would mean the
+// horizon quietly reported a date that could never be played.
+//
+// Ordered by date so the day given up is the furthest out -- the one with the
+// most time to be regenerated before anybody would have reached it. Runway is
+// renewable; a generation run buys it straight back.
+const TAIL = 'SELECT MAX(date) AS date FROM round_days';
+const TAIL_ROUNDS = 'SELECT image FROM round_days WHERE date = ? ORDER BY position';
+
+export async function onRequestPost({ request, env }) {
+  const url = new URL(request.url);
+
+  // The same gate as the read, and first for the same reason.
+  const refused = await refusal(env, url);
+  if (refused) return refused;
+
+  let body = null;
+  try {
+    body = await request.json();
+  } catch { /* body stays null */ }
+
+  const date = body?.date, image = body?.image;
+  if (typeof date !== 'string' || !DATE.test(date) || typeof image !== 'string') {
+    return json({ error: 'expected {date, image}' }, 400);
+  }
+
+  // The schedule is frozen from the moment a date opens, which is the rule the
+  // rows for an open date already exist to enforce -- a player halfway through a
+  // game cannot have its third round swapped underneath them, and a finished day
+  // is the record of what was actually played. `opens` rather than isOpen(),
+  // because a date that has closed is past editing too and isOpen() says only
+  // that it is not currently live.
+  if (Date.now() >= playWindow(date).opens) {
+    return json({ error: `${date} has already opened, so its schedule is frozen` }, 409);
+  }
+
+  const slot = await env.ANSWERS
+    .prepare('SELECT position FROM round_days WHERE date = ? AND image = ?')
+    .bind(date, image)
+    .first();
+  if (!slot) return json({ error: `${image} is not scheduled on ${date}` }, 404);
+
+  // Read, decide, then write once. The decision needs a branch that a batch
+  // cannot express, so the reads sit outside the transaction -- which is
+  // survivable here and would not be on a player-facing path: this endpoint
+  // exists on tiers with one operator, and two simultaneous rejections are not a
+  // thing that happens.
+  let replacement = await env.ANSWERS.prepare(QUEUED).first();
+  const writes = [];
+  let unscheduled = null;
+
+  if (!replacement) {
+    const tail = await env.ANSWERS.prepare(TAIL).first();
+    // Nothing further out to borrow from. Refusing beats emptying the day being
+    // reviewed, and the fix is a generation run rather than anything here.
+    if (!tail?.date || tail.date <= date) {
+      return json({
+        error: 'no queued rounds and nothing scheduled past this date to take one from',
+      }, 409);
+    }
+    unscheduled = tail.date;
+    const { results } = await env.ANSWERS.prepare(TAIL_ROUNDS).bind(unscheduled).all();
+    replacement = results[0];
+    writes.push(
+      env.ANSWERS
+        .prepare(`UPDATE rounds SET status = 'queued'
+                   WHERE image IN (SELECT image FROM round_days WHERE date = ?)`)
+        .bind(unscheduled),
+      env.ANSWERS.prepare('DELETE FROM round_days WHERE date = ?').bind(unscheduled),
+    );
+  }
+
+  // A round with no object behind it is a black pane, and a schedule is the one
+  // place that failure is invisible until a player hits it -- Pages answers a
+  // path it holds no file for with the site's own HTML and a 200. Checked here
+  // because this is the only path that schedules a round nobody reviewed.
+  // Skipped where CLIPS is unbound, which smoke.sh reports on its own terms.
+  if (env.CLIPS && !(await env.CLIPS.head(replacement.image))) {
+    return json({
+      error: `${replacement.image} has no media in the bucket, so it would play as a black pane`,
+    }, 409);
+  }
+
+  // One transaction. A half-applied swap is the worst of the three outcomes:
+  // it leaves the day four rounds long, which nothing downstream expects.
+  //
+  // UPDATE rather than a delete and an insert, because round_days is unique on
+  // image -- in place there is never a moment where both rounds hold the slot.
+  await env.ANSWERS.batch([
+    ...writes,
+    env.ANSWERS.prepare("UPDATE rounds SET status = 'rejected' WHERE image = ?").bind(image),
+    env.ANSWERS
+      .prepare('UPDATE round_days SET image = ? WHERE date = ? AND position = ?')
+      .bind(replacement.image, date, slot.position),
+    env.ANSWERS
+      .prepare("UPDATE rounds SET status = 'scheduled' WHERE image = ?")
+      .bind(replacement.image),
+  ]);
+
+  // `unscheduled` is reported rather than swallowed: a rejection that silently
+  // shortened the horizon by a day reads as free, and the next thing anybody
+  // asks is why the schedule ends earlier than they remember.
+  return json({
+    date,
+    position: slot.position,
+    rejected: image,
+    replacement: replacement.image,
+    unscheduled_day: unscheduled,
   }, 200, { 'cache-control': 'no-store' });
 }
