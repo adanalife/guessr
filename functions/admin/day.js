@@ -105,6 +105,18 @@ export async function onRequestGet({ request, env }) {
     .prepare('SELECT MAX(date) AS date FROM round_days')
     .first();
 
+  // Every round that has an answer, so the page can draw the pool the day came
+  // out of. The whole set rather than a summary because it is hundreds of rows
+  // of three columns, and because the thing worth seeing is the shape -- one
+  // interstate leg or the whole trip -- which is exactly what any aggregate
+  // throws away. Rides on this response rather than a route of its own: same
+  // gate, same page load, nothing new to protect.
+  const { results: pool } = await env.ANSWERS
+    .prepare(`SELECT a.lat, a.lng, r.status
+                FROM rounds r
+                JOIN answers a ON a.image = r.image`)
+    .all();
+
   // no-store. An unopened day is the one thing here that can still change -- a
   // regeneration or a future reject moves it -- and a cached review of a day
   // that has since been rescheduled is worse than no review.
@@ -113,6 +125,7 @@ export async function onRequestGet({ request, env }) {
     open: isOpen(date),
     scheduled_through: through?.date ?? null,
     rounds: results,
+    pool,
   }, 200, { 'cache-control': 'no-store' });
 }
 

@@ -113,6 +113,28 @@ for (const tier of ['staging', 'preview', 'local']) {
   }
 }
 
+// The pool the map draws: every round that has an answer, whatever its status
+// and whatever date is being looked at -- a day's five say nothing about the
+// shape of the set they came out of. Rounds with no answer row cannot be
+// plotted and are not in it.
+{
+  const [, json] = await body(await get('staging', `date=${FUTURE}`));
+  assert.equal(json.pool.length, 10, 'the pool was not every round with an answer');
+  for (const p of json.pool) {
+    assert.ok(typeof p.lat === 'number' && typeof p.lng === 'number',
+      'a pool point arrived without coordinates');
+    assert.ok(p.status, 'a pool point arrived without a status to colour it by');
+  }
+}
+
+// And it is behind the same gate as the answers, because it is the answers:
+// coordinates for every round in the database, which is strictly more than the
+// day the refusal above is protecting.
+{
+  const [, json] = await body(await get('production', `date=${FUTURE}`));
+  assert.equal(json.pool, undefined, 'the refusal carried the pool coordinates');
+}
+
 // A day that has finished reads the same way, which is the browse-the-past half.
 {
   const [status, json] = await body(await get('staging', `date=${PAST}`));

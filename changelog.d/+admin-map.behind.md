@@ -1,0 +1,1 @@
+The page used to review upcoming days now draws a map of every round the game could pick from, with the day being reviewed marked on it — so the part of the country the clips come from is visible at a glance rather than read off a list of state names.
