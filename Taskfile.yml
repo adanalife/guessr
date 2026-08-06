@@ -100,11 +100,13 @@ tasks:
       - task: schema:local:apply
       - task: answers:local:push
       - task: rounds:local:push
-      # A tier for /admin/day to read. It gates on the deployed version.json and
-      # treats "no idea" as production, so without this the day preview refuses
-      # itself on the one surface where a round set can be changed and looked at
-      # in the same minute. Gitignored, like every other copy of this file, and
-      # it fills the About panel's empty version line as a side effect.
+      # A tier for the admin surface to read, and it now gates that surface
+      # twice: the day preview treats "no idea" as production, and the Access
+      # login treats it as "sign in", which nothing can do against localhost. So
+      # without this the one surface where a round set can be changed and looked
+      # at in the same minute locks itself out. Gitignored, like every other copy
+      # of this file, and it fills the About panel's empty version line as a side
+      # effect.
       - printf '{"label":"local","tier":"local"}\n' > web/version.json
       - npx wrangler pages dev web/ --port {{.PORT}} --d1 ANSWERS={{.LOCAL_DB}}
 

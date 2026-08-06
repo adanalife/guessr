@@ -254,34 +254,35 @@ check "a closed date is refused" 403 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out"
 out=$(call "$BASE/api/day?date=2099-01-01")
 check "an unopened date is refused" 403 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
 
-# And /admin/day, which is the same date served the opposite way -- answers
-# attached, window ignored -- so a tier check is the only thing between the answer
-# key and anyone who visits. Asserted against the tier the deployment declares
-# about itself, so one check covers both directions: production must refuse, and a
-# testing tier must not.
+# And the admin surface, which is the same date served the opposite way --
+# answers attached, window ignored. This script carries no Access token, so it is
+# exactly the anonymous visitor the login exists to turn away, and both the page
+# and the endpoint under it have to say no. Whichever tier this is: the surface is
+# reachable through the Access-fronted pages.dev hostname and nowhere else, and a
+# custom domain answering anything but a refusal is the leak.
 #
-# It is also the only place `env.ASSETS` is exercised. The unit tests stub it, so
-# a version.json this cannot read fails closed and every tier looks like
-# production -- which is safe, silent, and would make the page useless with
-# nothing red anywhere.
+# 403 is signed-out. 503 is a deployment with no Access application configured,
+# which is a refusal too but a different fact worth saying out loud: on
+# production that is the intended resting state, and on staging it means the
+# page does not work for its operator either.
 #
-# 2099-01-01 has no schedule, so a testing tier answers 404 rather than 200. That
-# is the point: anything other than a 403 proves the gate opened, and no real
-# day is read to find out.
-tier=$(curl -s "$BASE/version.json" | jq -r '.tier // "unknown"' 2>/dev/null || echo unknown)
-out=$(call "$BASE/admin/day?date=2099-01-01")
-status=$(tail -1 <<<"$out")
-if [ "$tier" = "production" ]; then
-  check "the day preview is refused on production" 403 "$status" "$(head -1 <<<"$out")"
-elif [ "$status" = "403" ]; then
-  echo "::error::$BASE declares tier '$tier', but /admin/day refused it. The tier"
-  echo "::error::read failed -- the Function cannot see version.json through"
-  echo "::error::env.ASSETS -- so it is failing closed and the preview page will"
-  echo "::error::show nothing on this tier."
-  exit 1
-else
-  echo "ok: the day preview reads on tier '$tier' -> HTTP $status"
-fi
+# 2099-01-01 has no schedule, so nothing here reads a real day to find out.
+#
+# What this no longer covers is `env.ASSETS`: the tier read now fails closed into
+# the same 403 as being signed out, so a version.json the Functions cannot see is
+# invisible from out here. test_admin_day.mjs carries that case instead.
+for path in "/admin/" "/admin/day?date=2099-01-01"; do
+  out=$(call "$BASE$path")
+  status=$(tail -1 <<<"$out")
+  case "$status" in
+    403) echo "ok: $path refuses an unauthenticated request -> 403" ;;
+    503) echo "ok: $path is closed -> 503, no Access application configured here" ;;
+    *)   echo "::error::$BASE$path answered $status to a request carrying no Access"
+         echo "::error::token. Anyone with the URL can read tomorrow's answers."
+         head -1 <<<"$out"
+         exit 1 ;;
+  esac
+done
 
 # Both boards read. A 500 here is an unapplied schema.sql.
 #
