@@ -15,11 +15,15 @@
 
 -- Per day: who showed up and how far they got. `finished` is the number that
 -- matters -- a player who guessed once and left is counted in `players` too.
+--
+-- Counting distinct players and not rows: the subquery emits one row per guess
+-- with its player's round count beside it, so summing the predicate counts five
+-- rows for every player who finished.
 SELECT
   date,
   COUNT(DISTINCT player_id) AS players,
   COUNT(*) AS guesses,
-  SUM(rounds = 5) AS finished,
+  COUNT(DISTINCT CASE WHEN rounds = 5 THEN player_id END) AS finished,
   ROUND(AVG(points), 0) AS avg_points,
   ROUND(AVG(km), 0) AS avg_km
 FROM (
