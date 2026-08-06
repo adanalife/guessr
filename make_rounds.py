@@ -83,8 +83,12 @@ CRF = 28
 FPS = 30
 # Bound what the encode may take rather than trusting it to be modest: ~300 of
 # these is ~25 minutes of x264 that will use every core it is given, and the
-# machine running it is a laptop being typed on.
-THREADS = max(1, (os.cpu_count() or 2) // 2)
+# machine running it is a laptop being typed on. The default assumes that
+# laptop; in a pod under a CFS quota the count has to equal the pod's CPU limit
+# or the quota is spent scheduling throttled threads, so THREADS overrides it —
+# an environment variable like GUESSR_CORPUS and DATABASE_HOST, the other two
+# places a laptop assumption had to become configurable.
+THREADS = max(1, int(os.environ.get("THREADS", "0")) or (os.cpu_count() or 2) // 2)
 NICENESS = 10
 
 # How far from a candidate moment an embedding may sit and still be what the round
