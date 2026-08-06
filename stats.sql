@@ -1,14 +1,17 @@
 -- What the game already knows about how it is being played, asked out loud.
 --
--- Every daily guess is written to `plays` (schema.sql), so the questions worth
+-- Every daily guess is written to `plays` (migrations/0001_initial_schema.sql),
+-- so the questions worth
 -- asking about play -- how many people, how far they got, which frames are
 -- brutal, whether anyone came back -- are queries over a table that already
 -- exists rather than a second thing to instrument. Read-only, so
 -- `task stats:prod` is safe against production.
 --
 -- This is the "how did they do" half. The "did anyone visit at all" half is
--- Cloudflare Web Analytics (the beacon in web/index.html); it counts the people
--- who never guessed, whom nothing here can see.
+-- Cloudflare Web Analytics, whose beacon Pages injects at the edge rather than
+-- serving from this repo -- so it is absent from web/index.html and present on
+-- the deployed page. It counts the people who never guessed, whom nothing here
+-- can see.
 --
 -- Practice rounds are absent by design: /api/score only records a guess that
 -- names a date, so everything below is the daily game.
