@@ -1,0 +1,1 @@
+Groundwork for a change to how the game stores its daily rounds: the days already in progress when the switch happens will play exactly the clips they would have anyway, so a game you are halfway through will not change under you.
