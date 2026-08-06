@@ -1,0 +1,1 @@
+Early versions of the game published the locations of the footage they used, deep in the project's history where a determined player could dig them up. Footage from those rounds can never be picked again, so every answer has to be guessed rather than looked up. Rounds already in the game are unchanged — this applies from the next batch built.

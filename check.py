@@ -61,6 +61,19 @@ LAT_RANGE, LNG_RANGE = (24.0, 49.5), (-125.0, -66.0)
 # `clips/<slug>-<milliseconds>.mp4`. That is what lets a deleted clip be rebuilt
 # to the same URL, and what makes a long immutable cache header safe.
 CLIP_NAME = re.compile(r"^clips/(.+)-(\d{6,})\.mp4$")
+# Corpus clips whose location is public. The round sets committed before scoring
+# moved server-side carried lat/lng in web/rounds.json, and this is a public
+# repo, so git history answers any round cut from one of those clips -- ground
+# truth is clip-level, so the moment does not matter. make_rounds.py keeps them
+# out of every pool it draws; the assertion in main() catches a set built any
+# other way.
+LEAKED_SLUGS_FILE = Path(__file__).parent / "leaked_slugs.txt"
+
+
+def leaked_slugs() -> frozenset:
+    """Slugs whose coordinates are recoverable from this repo's git history."""
+    lines = LEAKED_SLUGS_FILE.read_text().splitlines()
+    return frozenset(s.strip() for s in lines if s.strip() and not s.startswith("#"))
 
 
 def beside(web: Path, name: str, required: bool = True) -> Path | None:
@@ -210,6 +223,7 @@ def main() -> int:
     media = (web / "clips").is_dir()
 
     seen = set()
+    leaked = leaked_slugs()
     for r in rounds:
         clip = web / r["image"]
         assert r["image"] == f"clips/{Path(r['image']).name}", (
@@ -220,9 +234,15 @@ def main() -> int:
         # regeneration cannot put different footage behind a name someone already
         # holds. Unconditional: every set this validates was built by the current
         # make_rounds.py, since there is no longer a set in git to inherit.
-        assert CLIP_NAME.match(r["image"]), (
+        moment = CLIP_NAME.match(r["image"])
+        assert moment, (
             f"{r['image']} does not name the moment it was cut from -- a round is "
             f"clips/<slug>-<milliseconds>.mp4, so a rebuild lands at the same URL"
+        )
+        assert moment.group(1) not in leaked, (
+            f"{r['image']} is cut from a clip whose location is already public in "
+            f"this repo's git history (leaked_slugs.txt) -- the answer is a "
+            f"`git log` away, so it must not be a round"
         )
         assert r["image"] not in seen, f"duplicate round: {r['image']}"
         seen.add(r["image"])

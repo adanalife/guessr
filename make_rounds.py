@@ -59,6 +59,7 @@ from check import (
     ROUNDS_PER_GAME,
     dimensions,
     km,
+    leaked_slugs,
 )
 
 # The laptop mounts the corpus over SMB at this path; in the cluster it is an NFS
@@ -149,6 +150,12 @@ WITH picked AS (
     -- strictly stronger than the old `lat <> 0` gate: a confidence means the
     -- coords stage read the clip and its reads agreed with each other.
     AND coord_confidence >= :min_conf
+    -- Not a quality gate: these clips' locations are public. The round sets
+    -- committed before scoring moved server-side carried lat/lng, so git
+    -- history answers any round cut from one of them, at any moment.
+    -- leaked_slugs.txt is the list, psql_invocation always passes it, and
+    -- check.py refuses a set that carries one anyway.
+    AND NOT (slug = ANY(string_to_array(:'excluded', ',')))
   ORDER BY random()
   LIMIT :pool
 ),
@@ -335,6 +342,12 @@ def psql_invocation(
         f"per_clip={per_clip}",
         "-v",
         f"min_conf={min_conf}",
+        # The clips that may never be a round, because their coordinates are
+        # already in this repo's git history (leaked_slugs.txt). Joined here
+        # rather than taken as a parameter, so there is no way to draw a pool
+        # without the exclusion.
+        "-v",
+        f"excluded={','.join(sorted(leaked_slugs()))}",
         # The encode's own clip length, so the query can measure how far the van
         # travels over exactly the seconds a player will watch.
         "-v",

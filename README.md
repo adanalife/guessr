@@ -376,11 +376,15 @@ query; until then it would be a table with nothing to hold.
 
 One thing this does *not* buy outright: the round sets published before scoring
 moved server-side carried their coordinates in `rounds.json`, and that file is in
-this repo's git history. The current set is a later regeneration and most of it
-is clear of them, but 34 of its 300 rounds are cut from a clip that also appeared
-in one of those sets — and ground truth is clip-level, so for those the answer is
-a `git log` away. The endpoint is the mechanism; a set with no overlap at all is
-what would make it the guarantee.
+this repo's git history — ground truth is clip-level, so any round cut from a
+clip those sets used can be looked up rather than guessed, whatever moment it is
+cut at. `leaked_slugs.txt` is the union of every slug they named (pre-squash PR
+commits included, which GitHub keeps fetchable): `make_rounds.py` refuses to pool
+those clips and `check.py` refuses a set that carries one, so a freshly generated
+set has no overlap. A set generated before the exclusion existed can still carry
+some — the one current when it landed had 14 of its 60 rounds on leaked clips,
+worth exactly a player's disinclination to run `git log` until the next
+regeneration replaces it.
 
 A regeneration replaces every clip under `web/clips/` and rewrites the four files
 beside the repo — so **a generation that fails leaves the current one alone.**
@@ -727,9 +731,9 @@ upload a set that fails it.
 - **Promotion to production.** Staging is the only tier a generation run writes.
   Moving reviewed dates to production is a hand-run command that does not exist
   yet, so production plays whatever it was last seeded with.
-- **A round set with no source clip in common with the pre-server-side sets.**
-  Those sets carried their coordinates in a committed manifest, which is in this
-  repo's history (see *The rows a round set is* above). 34 of the current 300
-  rounds are cut from a clip one of them used, and truth was clip-level — so
-  those 34 are worth only as much as the player's disinclination to run
-  `git log`. Fine for a beta; a regeneration closes it.
+- **A live round set with no source clip in common with the pre-server-side
+  sets.** The generator side is done — `leaked_slugs.txt` names every clip those
+  sets gave the coordinates of, the pool draw excludes them and `check.py`
+  refuses a set carrying one (see *Names on the stream* above) — but the set
+  playing today predates the exclusion and 14 of its 60 rounds are on leaked
+  clips. Fine for a beta; the next regeneration is what closes it.

@@ -169,6 +169,17 @@ def main() -> None:
         dupe[1]["image"] = dupe[0]["image"]
         rejects(build(root, "dupe", dupe), "names the same round twice")
 
+        # A round cut from a clip whose coordinates are already in this repo's
+        # git history: the answer is a `git log` away, at whatever moment the
+        # cut lands. leaked_slugs.txt is the list; make_rounds.py excludes these
+        # from the pool, and this is the gate for a set built any other way.
+        history = rounds()
+        history[0]["image"] = f"clips/{sorted(check.leaked_slugs())[0]}-020000.mp4"
+        rejects(
+            build(root, "leaked-slug", history),
+            "is cut from a clip whose location is public in git history",
+        )
+
         # Paths must stay under clips/. Anything else is a manifest pointing at
         # a file the deploy never uploaded, or out of the served directory.
         for path in (

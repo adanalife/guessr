@@ -9,7 +9,8 @@ nothing. So the properties are pinned here rather than eyeballed off a contact
 sheet.
 """
 
-from make_rounds import rank, select
+from check import leaked_slugs
+from make_rounds import SCORE_SQL, psql_invocation, rank, select
 
 # median_km: lower is more locatable. mean_cos: higher is more distinctive.
 POOL = [
@@ -138,6 +139,26 @@ reordered = [moment(20.0, 8, 0.14), moment(50.0, 300, 0.04), moment(80.0, 250, 0
 chosen, _ = select(rank(reordered, 0.25), count=3, min_km=5.0, state_cap=0)
 assert [r["ts"] for r in chosen] == [20.0], chosen
 
+# A clip whose coordinates are already in git history is never in the pool at
+# all. Three properties carry that: the committed list parses to bare slugs, the
+# pool draw reads it, and the psql invocation passes it -- from inside
+# psql_invocation itself, so no caller can draw a pool without the exclusion.
+LEAKED = leaked_slugs()
+assert len(LEAKED) > 500, f"leaked_slugs.txt parsed to only {len(LEAKED)} slugs"
+assert not any("#" in s or "," in s or " " in s for s in LEAKED), (
+    "comments or separators survived parsing into the slug set"
+)
+assert "string_to_array(:'excluded', ',')" in SCORE_SQL, (
+    "the pool draw does not read the exclusion list"
+)
+argv, _ = psql_invocation("ns", pool=10, k=5, per_clip=2, min_conf=0.8)
+carried = [a for a in argv if a.startswith("excluded=")]
+assert len(carried) == 1, argv
+assert min(LEAKED) in carried[0] and max(LEAKED) in carried[0], (
+    "the invocation does not carry the whole exclusion list"
+)
+
 print("ok: ranking weighs locatability against distinctiveness as intended")
 print("ok: selection spaces the set out, caps one state, and backfills honestly")
 print("ok: a clip scored at several moments contributes only its best one")
+print("ok: a clip with public coordinates can reach neither the pool nor a set")
