@@ -1,0 +1,1 @@
+Round clips carry a small, faint logo in the bottom-right corner, and the video file itself now says who shot the footage. The corner the map sits over, so it stays out of your way while you play — but if you save a clip, the credit comes with it.

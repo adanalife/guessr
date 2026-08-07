@@ -91,6 +91,47 @@ FPS = 30
 THREADS = max(1, int(os.environ.get("THREADS", "0")) or (os.cpu_count() or 2) // 2)
 NICENESS = 10
 
+# The watermark, bottom-right. Size and opacity are baked into the asset rather
+# than applied in the filter chain, so retuning how big or how subtle it is
+# means regenerating one file instead of editing an encode:
+#
+#   printf '* { fill: #fff }\n' >/tmp/white.css
+#   rsvg-convert -w 512 -h 512 -s /tmp/white.css ../website/design/logo.svg \
+#     | magick - -trim +repage -resize 24x24 \
+#         -channel A -evaluate multiply 0.30 +channel watermark.png
+#
+# From the SVG rather than one of the PNG exports, and trimmed, so that the two
+# numbers here are the two numbers on screen. The exports carry whitespace --
+# logo-400x400.png is 264px of ink in a 400px canvas -- so a raster source makes
+# the asset's dimensions mean "mark plus some padding nobody wrote down", and
+# then the margin below is not the margin either. Trimming to the ink costs one
+# pipe and makes both honest. rsvg-convert and magick are needed to regenerate
+# the asset, never to run this: the result is committed.
+#
+# White, because the mark is black and black is invisible over asphalt and
+# shadowed trees. It disappears over bright sky instead, which is the trade a
+# subtle mark makes and the second reason for a bottom corner: the bottom of a
+# dashcam frame is road, hood or verge, so it is reliably mid-tone.
+#
+# Bottom-right specifically because the minimap sits there during play
+# (index.html's `main.minimap #mapwrap`), so the mark is least visible exactly
+# where a distraction would cost the most. It is burned into the mp4 either way,
+# which is the case it exists for -- a clip saved out of the page carries it.
+WATERMARK = Path(__file__).parent / "watermark.png"
+WATERMARK_MARGIN_PX = 12
+
+# Attribution in the container, alongside the mark in the pixels. Honest about
+# what it buys: it survives a copy and a plain re-host, and no re-encode --
+# every social platform re-encodes on upload and strips it. It is here because
+# that is still more than nothing, not because it is a control.
+#
+# No year in the copyright line. A notice does not need one to be valid, and the
+# two candidates are both wrong -- the current year is wrong about footage shot
+# in 2018, and the footage year is wrong about the clip, which is a new work cut
+# from it. Omitting it is the one form that cannot rot.
+CREDIT = "A Dana Life"
+CREDIT_URL = "https://dana.lol"
+
 # How far from a candidate moment an embedding may sit and still be what the round
 # is scored on. Half of `frame_embeddings`' own 5 s sampling step, so the scored
 # frame stays inside the stretch of road the round plays. Not a tuning knob: it is
@@ -551,7 +592,8 @@ def select(
 
 
 def extract_clip(row: dict, dest: Path) -> bool:
-    """Cut one HUD-free clip. Returns False if the source isn't readable.
+    """Cut one HUD-free, watermarked clip. Returns False if the source isn't
+    readable.
 
     A few seconds of motion rather than a still, because motion is the character
     of the source material and parallax is real information: a still flattens the
@@ -579,7 +621,15 @@ def extract_clip(row: dict, dest: Path) -> bool:
     keep 25 minutes of x264 from taking the laptop it is running on.
     """
     src = CORPUS / f"{row['slug']}.MP4"
-    vf = f"crop=iw:ih-{HUD_STRIP_PX}:0:0,scale={WIDTH}:-2,fps={FPS}"
+    # Two inputs, so this is a filter_complex rather than a -vf: crop the HUD,
+    # scale, drop the framerate, then lay the mark into the bottom-right corner.
+    # The mark is a single-frame PNG and overlay's default eof_action is
+    # `repeat`, so one frame covers all three seconds without looping the input.
+    chain = (
+        f"[0:v]crop=iw:ih-{HUD_STRIP_PX}:0:0,scale={WIDTH}:-2,fps={FPS}[cut];"
+        f"[cut][1:v]overlay="
+        f"W-w-{WATERMARK_MARGIN_PX}:H-h-{WATERMARK_MARGIN_PX}"
+    )
     # A frame's timestamp can be the clip's last one, and a window starting there
     # holds nothing: ffmpeg writes a valid, empty container, exits 0, and leaves a
     # few hundred bytes on disk, so return code and file size both say it worked.
@@ -604,9 +654,19 @@ def extract_clip(row: dict, dest: Path) -> bool:
                 str(SECONDS),
                 "-i",
                 str(src),
-                "-vf",
-                vf,
+                # After the seek flags, so -ss/-t apply to the footage and not
+                # to the still.
+                "-i",
+                str(WATERMARK),
+                "-filter_complex",
+                chain,
                 "-an",
+                "-metadata",
+                f"artist={CREDIT}",
+                "-metadata",
+                f"copyright=© {CREDIT}",
+                "-metadata",
+                f"comment={CREDIT_URL}",
                 "-c:v",
                 "libx264",
                 "-preset",
