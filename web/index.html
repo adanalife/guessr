@@ -315,6 +315,13 @@
        where it is already the tightest row on the page. */
     header { gap: .7rem; }
     header h1 { font-size: 1.2rem; }
+    /* The sheet is a single column here, so the live cell's place as the sixth
+       tile puts it five clips of scrolling below the fold, in half a screen of
+       pane. It is the one tile that points at the stream the footage comes
+       from, so on a phone it goes where it is seen. Ordered rather than moved
+       in the markup: the wide grid reads round-one-first and shows every cell
+       at once, which is the order the numbered badges imply. */
+    #sheet .live { order: -1; }
   }
 </style>
 </head>
