@@ -1,0 +1,1 @@
+Round generation reads its encoder thread count from a `THREADS` environment variable again, so the scheduled in-cluster run can pin it to the pod's CPU limit. Unset, the laptop default (half the cores) is unchanged.
