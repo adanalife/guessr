@@ -140,9 +140,15 @@
   #zoomctl button + button { border-top: 1px solid #ccc; }
   #zoomctl button:hover { background: #f4f4f4; }
   /* The end-of-game contact sheet, in the pane the frame vacates. auto-fit so
-     one rule covers the tall half-window pane and a phone's short one. */
+     one rule covers the tall half-window pane and a phone's short one.
+     `safe center` and not plain `center`: centring is what's wanted while the
+     tiles fit, but a plain `center` that overflows its own scroll container
+     centres the overflow too, and the half above the top is not in the
+     scrollable area at all — on a phone that put the first tile 456px above
+     the scrollport with nothing to scroll to it. `safe` falls back to `start`
+     exactly when it overflows, which is the only time it was wrong. */
   #sheet { position: absolute; inset: 0; overflow-y: auto; padding: .5rem;
-           display: grid; gap: .5rem; align-content: center;
+           display: grid; gap: .5rem; align-content: safe center;
            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
   /* A button, not a figure: each tile reopens its round, and the element that
      does that should be focusable and Enter-operable for free. */
