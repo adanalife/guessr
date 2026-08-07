@@ -249,6 +249,23 @@ tasks:
     cmds:
       - task: _d1:push
         vars: {DB: adanalife-guessr-answers-staging, FILE: rounds.sql}
+      # The push cannot tell that a round it sent was dropped as already
+      # scheduled, so the day it should have filled is short and nothing says so.
+      # publish.sh runs this too; it is here because a bare push is the path that
+      # bypasses publish.sh entirely.
+      - ./verify_days.sh adanalife-guessr-answers-staging staging
+
+  # Read-only, and the same question verify_days.sh asks -- for looking between
+  # pushes, since a reject can empty a slot with no push involved.
+  days:stage:
+    desc: Check every upcoming staging date holds a full game
+    cmds:
+      - ./verify_days.sh adanalife-guessr-answers-staging staging
+
+  days:prod:
+    desc: Check every upcoming production date holds a full game
+    cmds:
+      - ./verify_days.sh adanalife-guessr-answers production
 
   # How production stays scheduled: generate only what is missing to keep it
   # TOPUP_DAYS ahead, never inside TOPUP_LEAD days of an open date (that lead is
