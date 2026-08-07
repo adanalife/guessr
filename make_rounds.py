@@ -867,13 +867,6 @@ def main() -> int:
         "cap off, which lets the corpus's own skew through undamped.",
     )
     ap.add_argument(
-        "--drop-generic",
-        type=float,
-        default=0.15,
-        help="fraction of the scored pool to discard for having no visual "
-        "signature of its own, lowest mean cosine distance first",
-    )
-    ap.add_argument(
         "--min-confidence",
         type=float,
         default=MIN_CONFIDENCE,
@@ -946,24 +939,6 @@ def main() -> int:
             args.max_radius,
         )
     )
-    # Cut the visually generic moments by percentile rather than an absolute cosine
-    # distance, so the filter stays honest if the corpus or the embedding model
-    # changes. ponytail: the pool is a few hundred rows, so sorting it twice is free.
-    #
-    # A moment rather than a clip is the unit here and in --keep-fraction below,
-    # because --per-clip scores several of each: a clip stays in contention while
-    # any one of its moments clears the bar, and loses only the moments that don't.
-    if scored and args.drop_generic:
-        floor = sorted(r["mean_cos"] for r in scored)[
-            int(len(scored) * args.drop_generic)
-        ]
-        before = len(scored)
-        scored = [r for r in scored if r["mean_cos"] >= floor]
-        print(
-            f"dropped {before - len(scored)} moments with no visual signature of "
-            f"their own (mean cosine distance < {floor:g})"
-        )
-
     keep = max(args.count, int(len(scored) * args.keep_fraction))
     eligible = rank(scored, args.distinctiveness)[:keep]
     print(

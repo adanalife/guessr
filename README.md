@@ -664,15 +664,13 @@ anywhere in the corpus sits high. It is close to independent of the geographic
 spread (Spearman ρ ≈ 0.19 over a 400-clip pool), so it is real extra
 information rather than the same measurement twice.
 
-So the bottom slice of the pool by mean cosine distance is discarded before
-ranking. `--drop-generic` is the knob (default `0.15`); the cut is a percentile
-rather than an absolute distance, so it survives a change of corpus or embedding
-model. Measured on a 400-clip pool at one moment per clip, that drops about 40 of
-the ~200 clips the geographic score would have kept, and admits about 10 in their
-place. The unit is a moment rather than a clip, so with `--per-clip` above 1 the
-counts scale with it while the proportions hold.
+So `rank()` folds it into the ordering, weighted by `--distinctiveness` (default
+`0.25`). That weight is the only thing acting on this signal, deliberately: a
+percentile floor discarding the generic tail *as well* was measured against it
+over three seeds and moved nothing the weight was not already moving, while
+costing worst-case locatability on two of the three. One mechanism per signal.
 
-Sorting the kept set by this signal is the clearest way to see what it does. At
+Sorting the ranked set by this signal is the clearest way to see what it does. At
 the top: a ferry deck, a signed visitor centre, a harbour full of boats, a
 grocery storefront. At the bottom: five near-identical shots of empty Wyoming
 highway, a foggy field, and a frame that is mostly cloud.
