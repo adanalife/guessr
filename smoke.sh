@@ -25,10 +25,16 @@ BASE="${1:?usage: smoke.sh <base-url>}"
 # routing is live, so a request lands on the site and 404s. Retrying a
 # not-the-Function answer costs a couple of seconds; retrying a real JSON answer
 # would hide exactly the failures this exists to catch, so it never does.
+#
+# A redirect returns immediately, HTML body and all: a 3xx is Access answering
+# at the edge before Pages is asked, and its body is boilerplate that would
+# otherwise read as the propagation signature and burn every retry.
 call() {
-  local out
+  local out status
   for _ in $(seq 1 20); do
     out=$(curl -s -w '\n%{http_code}' "$@")
+    status=$(tail -1 <<<"$out")
+    case "$status" in 3*) printf '%s' "$out"; return 0 ;; esac
     if ! grep -q '^<' <<<"$out"; then printf '%s' "$out"; return 0; fi
     sleep 3
   done
@@ -261,10 +267,17 @@ check "an unopened date is refused" 403 "$(tail -1 <<<"$out")" "$(head -1 <<<"$o
 # reachable through the Access-fronted pages.dev hostname and nowhere else, and a
 # custom domain answering anything but a refusal is the leak.
 #
-# 403 is signed-out. 503 is a deployment with no Access application configured,
-# which is a refusal too but a different fact worth saying out loud: on
-# production that is the intended resting state, and on staging it means the
-# page does not work for its operator either.
+# Three answers count as a refusal, and each one names a different tier state.
+# 302 is Access itself, standing in front of the deployment and turning the
+# visitor toward its login before Pages is ever asked -- the resting state on a
+# hostname the Access application fronts. Only a redirect into the team's login
+# counts: any other destination means the surface answered with something, and
+# that something is the leak. 403 is the middleware refusing a request that
+# reached it without a token -- the custom domains, which Access cannot front.
+# 503 is a deployment with no Access application configured, which is a refusal
+# too but a different fact worth saying out loud: on production that is the
+# intended resting state, and on staging it means the page does not work for
+# its operator either.
 #
 # 2099-01-01 has no schedule, so nothing here reads a real day to find out.
 #
@@ -277,6 +290,15 @@ for path in "/admin/" "/admin/day?date=2099-01-01"; do
   case "$status" in
     403) echo "ok: $path refuses an unauthenticated request -> 403" ;;
     503) echo "ok: $path is closed -> 503, no Access application configured here" ;;
+    302)
+      login=$(curl -s -o /dev/null -w '%{redirect_url}' "$BASE$path")
+      if [[ "$login" == https://*.cloudflareaccess.com/cdn-cgi/access/login/* ]]; then
+        echo "ok: $path sends an unauthenticated request to the Access login -> 302"
+      else
+        echo "::error::$BASE$path answered 302 toward $login, which is not an"
+        echo "::error::Access login. A redirect is only a refusal when Access issued it."
+        exit 1
+      fi ;;
     *)   echo "::error::$BASE$path answered $status to a request carrying no Access"
          echo "::error::token. Anyone with the URL can read tomorrow's answers."
          head -1 <<<"$out"
