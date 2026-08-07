@@ -43,10 +43,20 @@ const RSA = { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' };
 // a cache with no way to miss would refuse every request until the isolate
 // happened to recycle.
 let keys = null;
+
+// Thrown rather than returned as another null, because it is a different kind of
+// answer: a key this team does not publish means the token is wrong, but a certs
+// endpoint that will not answer means the check could not be run at all. Folding
+// the second into the first tells an admin to sign in when what is actually
+// broken is the deployment's own configuration.
+const unreachable = (teamDomain, status) =>
+  Object.assign(new Error(`Access certs at ${teamDomain} answered ${status}`),
+    { jwksUnreachable: true, teamDomain, status });
+
 async function signingKey(teamDomain, kid) {
   if (!keys?.[kid]) {
     const res = await fetch(`https://${teamDomain}/cdn-cgi/access/certs`);
-    if (!res.ok) return null;
+    if (!res.ok) throw unreachable(teamDomain, res.status);
     keys = Object.fromEntries((await res.json()).keys.map(k => [k.kid, k]));
   }
   return keys[kid] ?? null;
@@ -100,16 +110,38 @@ export async function onRequest(context) {
   // of being wrong the spoiler gate picks.
   if ((await tier(env, url)) === 'local') return next();
 
+  // Trimmed, and any trailing dots taken off. Both values are typed by hand onto
+  // each Pages project -- terraform cannot write `deployment_configs` -- and a
+  // hostname carrying the full stop of the sentence it was copied from is still
+  // a hostname a URL accepts, so it fetches, 404s, and comes back looking like a
+  // bad token. Normalising is a line; the alternative is finding it again.
+  const teamDomain = env.ACCESS_TEAM_DOMAIN?.trim().replace(/\.+$/, '');
+  const aud = env.ACCESS_AUD?.trim();
+
   // Deployed without the Access application's details, which is what every tier
   // looks like until the terraform is applied and the values are set on the
   // Pages project. Closed rather than open, and said plainly, because the other
   // way to be wrong here is to serve tomorrow's answers to the internet.
-  if (!env.ACCESS_TEAM_DOMAIN || !env.ACCESS_AUD) {
+  if (!teamDomain || !aud) {
     return json({ error: 'no Access application is configured for this deployment, so /admin/ is closed' }, 503);
   }
 
   const token = request.headers.get('cf-access-jwt-assertion');
-  const who = token && (await identity(token, env.ACCESS_TEAM_DOMAIN, env.ACCESS_AUD));
+  let who;
+  try {
+    who = token && (await identity(token, teamDomain, aud));
+  } catch (err) {
+    if (!err?.jwksUnreachable) throw err;
+    // Configured, but the team domain does not answer -- a wrong value here, or
+    // Access itself down. Grouped with the missing-configuration 503 rather than
+    // the 403 below, because both are this deployment failing to run the check,
+    // and neither is anything the person reading it did. Naming the domain is
+    // the whole point: it is the value that is wrong, and it is already public
+    // in every login redirect this application issues.
+    return json({
+      error: `the Access team domain "${err.teamDomain}" answered ${err.status}, so /admin/ cannot verify a login`,
+    }, 503);
+  }
   if (!who) {
     return json({
       error: 'sign in to reach /admin/ — it is only served on the Access-protected pages.dev hostname',

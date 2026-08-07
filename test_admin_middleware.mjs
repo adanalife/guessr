@@ -128,6 +128,39 @@ for (const env of [{}, { ACCESS_TEAM_DOMAIN: TEAM }, { ACCESS_AUD: AUD }]) {
   assert.equal(res.status, 503, 'a deployment with no Access configuration served /admin/');
 }
 
+// A team domain carrying the full stop of the sentence it was pasted from, or
+// stray whitespace. Every one of these is a hostname a URL happily accepts and
+// the certs endpoint 404s on, so before normalising they all read as a refused
+// login rather than a typo -- which is how the trailing dot reached production
+// and cost two redeploys to find. The fetch stub asserts the host it is asked
+// for, so these passing IS the normalisation.
+for (const messy of [`${TEAM}.`, ` ${TEAM} `, `${TEAM}..`, `\t${TEAM}.\n`]) {
+  const res = await gate('production', { ACCESS_TEAM_DOMAIN: messy, ACCESS_AUD: ` ${AUD} ` },
+    await signedIn());
+  assert.equal(await body(res), PASSED,
+    `a team domain written ${JSON.stringify(messy)} locked out a signed-in admin`);
+}
+
+// A team domain that is merely wrong, rather than untidy: nothing can normalise
+// that, so the answer has to name it. 503 like the unconfigured case, not the
+// 403 -- the honest statement is that this deployment could not run the check,
+// and telling an admin to sign in when they already have is what sent the last
+// one looking at the login instead of at the variable.
+//
+// A kid the cache has never seen, or signingKey answers from memory and never
+// reaches the stub.
+{
+  const reachable = globalThis.fetch;
+  globalThis.fetch = async () => new Response('no such team', { status: 404 });
+  const res = await gate('production', CONFIGURED,
+    { 'cf-access-jwt-assertion': await token({ kid: 'key-unseen' }) });
+  globalThis.fetch = reachable;
+
+  assert.equal(res.status, 503, 'an unreachable Access team domain was reported as a refused login');
+  assert.match(await body(res), new RegExp(TEAM.replace(/\./g, '\\.')),
+    'the refusal does not name the domain that is wrong, which is the only actionable part');
+}
+
 // Local is the one tier no Access application fronts, so it is the one exemption
 // -- `task dev` writes that value by hand and no deploy workflow writes it.
 {
@@ -137,4 +170,5 @@ for (const env of [{}, { ACCESS_TEAM_DOMAIN: TEAM }, { ACCESS_AUD: AUD }]) {
 
 console.log('ok: a token Access signed for this app gets in, and every forgery does not');
 console.log('ok: no token is a refusal on every deployed tier, configured or not');
+console.log('ok: an untidy team domain still verifies, and an unreachable one says so');
 console.log('ok: local dev is the one tier that needs no login');
