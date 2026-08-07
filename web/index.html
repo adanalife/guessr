@@ -79,8 +79,9 @@
   #about .links { display: flex; flex-wrap: wrap; gap: .3rem 1rem; }
   #about .links svg { width: 1em; height: 1em; vertical-align: -.13em;
                       margin-right: .35em; fill: currentColor; }
-  #build { border-top: 1px solid var(--color-border); padding-top: .6rem; margin-bottom: 0;
-           color: var(--color-muted); font-size: .9em; }
+  #build, #licence { color: var(--color-muted); font-size: .9em; }
+  #build { border-top: 1px solid var(--color-border); padding-top: .6rem; margin-bottom: 0; }
+  #licence { margin: .4rem 0 0; }
   /* Sized down from the footer's action buttons: this belongs to the build
      line, not to the game. */
   #reset, #reroll, #link { font-size: inherit; padding: .1rem .5rem; }
@@ -280,13 +281,6 @@
         Life</a> project, a livestream that streams the trip 24/7. It's
         available on several platforms, some of which have more games you can
         play.</p>
-      <!-- The footage is not under the repo's MIT licence and the repo cannot
-           say so to anyone who never opens it, so the stance is stated where
-           the footage is. README's Licence section is the long version. -->
-      <p>The footage is ©&nbsp;A Dana Life, all rights reserved — here to play
-        with, not to reuse. Want to use a clip for something? <a
-        href="https://dana.lol">Ask</a>. The code behind the game is <a
-        href="https://github.com/adanalife/guessr">open source</a>.</p>
       <p class="links">
         <!-- Inline brand marks (simple-icons paths) rather than an icon font or
              a sprite: two glyphs aren't worth a request, and aria-hidden keeps
@@ -320,6 +314,12 @@
       <p id="build" hidden><span id="buildLabel" hidden>Running <a id="version"
         href="https://github.com/adanalife/guessr/blob/main/CHANGELOG.md"></a></span>
         <button id="reset" class="secondary" hidden>Reset saved state</button></p>
+      <!-- The footage is not under the repo's MIT licence, and a licence file
+           cannot speak to anyone who never opens the repo — which is nearly
+           everyone who plays. LICENSE-CONTENT is the long version. Outside
+           #build because that hides itself until version.json says something,
+           and this line is true either way. -->
+      <p id="licence">Dashcam footage ©&nbsp;A Dana Life, all rights reserved</p>
     </div>
   </details>
 </header>
