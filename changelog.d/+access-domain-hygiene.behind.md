@@ -1,0 +1,1 @@
+A stray dot or space in the admin login's team-domain setting no longer locks out an administrator who has signed in correctly, and a login check that cannot run says so instead of asking you to sign in again.
