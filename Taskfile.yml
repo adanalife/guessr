@@ -259,22 +259,37 @@ tasks:
   stats:stage:
     desc: Play stats from the staging D1
     cmds:
-      - task: _d1:stats
-        vars: {DB: adanalife-guessr-answers-staging}
+      - task: _d1:ask
+        vars: {DB: adanalife-guessr-answers-staging, FILE: stats.sql}
 
   stats:prod:
     desc: Play stats from the production D1 (read-only)
     cmds:
-      - task: _d1:stats
-        vars: {DB: adanalife-guessr-answers}
+      - task: _d1:ask
+        vars: {DB: adanalife-guessr-answers, FILE: stats.sql}
 
-  # --command rather than --file: --file is D1's *import* path, which reports
-  # only a row count and marks the database changed. And --command= with the
-  # equals sign, or wrangler reads the leading `--` of a SQL comment as a flag.
-  _d1:stats:
+  # How far ahead each tier is scheduled, and what there is to schedule with.
+  # See schedule.sql for the questions.
+  schedule:stage:
+    desc: Schedule horizon and queue depth from the staging D1
+    cmds:
+      - task: _d1:ask
+        vars: {DB: adanalife-guessr-answers-staging, FILE: schedule.sql}
+
+  schedule:prod:
+    desc: Schedule horizon and queue depth from the production D1 (read-only)
+    cmds:
+      - task: _d1:ask
+        vars: {DB: adanalife-guessr-answers, FILE: schedule.sql}
+
+  # Run a checked-in query file and print its result sets. --command rather
+  # than --file: --file is D1's *import* path, which reports only a row count
+  # and marks the database changed. And --command= with the equals sign, or
+  # wrangler reads the leading `--` of a SQL comment as a flag.
+  _d1:ask:
     internal: true
     cmds:
-      - npx wrangler d1 execute {{.DB}} --remote --json --command="$(cat stats.sql)" | jq '[.[].results]'
+      - npx wrangler d1 execute {{.DB}} --remote --json --command="$(cat {{.FILE}})" | jq '[.[].results]'
 
   # Changelog (towncrier). Fragments live in changelog.d/, one per PR, and are
   # collated into CHANGELOG.md at release time. Run via uvx — no project dep.
