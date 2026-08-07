@@ -1,0 +1,1 @@
+The check that the end-screen's stream preview can find the current broadcast now waits for the new build to be the one answering it. The v1.1.0 release was reported as a failure because that check read the previous build's answer, which could never find one — the game was fine, and the report was wrong about it.
