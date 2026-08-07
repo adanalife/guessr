@@ -171,14 +171,11 @@
   #sheet .live { position: relative; line-height: 0; }
   #sheet .live iframe { width: 100%; aspect-ratio: 16 / 9; display: block;
                         border: 0; border-radius: 4px; }
-  /* The caption sits under this one rather than over it: on a round tile the
-     badge overlays a paused frame, but here it would cover YouTube's own
-     controls, and the link has to stay clickable. It is also the whole cell
-     until the player arrives, so it carries the type size rather than the 11px
-     a badge over footage wants. */
-  #sheet .live .cap { position: static; margin-top: .4rem; background: none;
-                      color: var(--color-text); line-height: 1.35;
-                      font-size: .82rem; font-weight: 400; }
+  /* Spans the grid rather than taking a cell, so the tiles stay five across
+     whatever the column count works out to. Italic and unbolded, the way the
+     blog and the welcome dialog set a heading. */
+  #sheet h2 { grid-column: 1 / -1; margin: 0; font-size: 1.1rem;
+              font-style: italic; font-weight: 400; line-height: 1; }
   /* Same number and same band colour as the pin on the map, which is the only
      thing tying a thumbnail to the answer it belongs to.
      The badges here and on the map keep fixed colours and a sans face rather
@@ -953,7 +950,7 @@ function showSheet(rounds, played, res) {
   // real work on a phone. `#t=1` is a media fragment — the browser seeks there
   // and paints it, which is how you get a poster without generating one. The
   // bytes are already in cache, since these are the five just played.
-  sheet.innerHTML = rounds.map((r, i) => `
+  const tiles = rounds.map((r, i) => `
     <button type="button" data-i="${i}" title="Watch round ${i + 1} again">
       <video src="${r.image}#t=1" preload="metadata" muted playsinline
              aria-label="Round ${i + 1}${r.state ? `, ${r.state} ${r.filmed}` : ''}"></video>
@@ -961,7 +958,12 @@ function showSheet(rounds, played, res) {
         <span class="n" style="background:${bandFor(res[i]).colour}">${i + 1}</span>
         ${r.state ? `${r.state} &middot; ` : ''}${res[i].toLocaleString()}
       </span>
-    </button>`).join('') + LIVE_TILE;
+    </button>`).join('');
+  // DOM order is the wide grid's: the heading, the five rounds, and the stream
+  // in the sixth cell the grid would otherwise leave empty. A phone reads it
+  // the other way round — stream, then the heading titling the rounds under it
+  // — and `#sheet .live { order: -1 }` is the whole of that difference.
+  sheet.innerHTML = `<h2>Your scores</h2>${tiles}${LIVE_TILE}`;
   sheet.hidden = false;
   fillLiveTile();
 }
@@ -971,21 +973,19 @@ function showSheet(rounds, played, res) {
 // the one place the game has earned the right to point at the stream it comes
 // from.
 //
-// It starts as the link and grows a player only once /api/live has a video id.
-// That order is deliberate: a line of text is a better empty state than anything
-// YouTube renders when it has nothing to play, and the link is what the cell is
-// for -- the player is the upgrade.
+// The player carries the cell on its own: it is a real embed, so it plays the
+// stream in place and its own chrome is the way through to YouTube. Nothing is
+// written under it, because a caption there would be a second label for what is
+// already moving.
+//
+// An empty placeholder until /api/live answers, and dropped outright if it has
+// no id to give. A cell that cannot show the stream has nothing to say, and an
+// empty box on the board is worse than five tiles and no sixth.
 //
 // A video id and not a channel: `/embed/live_stream?channel=<id>` renders YouTube
 // error 153 in a real iframe even while the channel is live, on youtube.com and
 // youtube-nocookie.com alike, so `/embed/<videoId>` is the only form that plays.
-const LIVE_TILE = `
-  <div class="live">
-    <span class="cap">
-      <a href="https://youtube.com/@adanalife_/live" target="_blank" rel="noopener">
-        Watch live on YouTube &rarr;</a>
-    </span>
-  </div>`;
+const LIVE_TILE = '<div class="live"></div>';
 
 // `mute=1` is not politeness, it is what makes this play at all: no browser
 // autoplays an unmuted embed, so without it the cell is a still with a play
@@ -998,10 +998,10 @@ async function fillLiveTile() {
   let videoId = null;
   try {
     ({ videoId } = await (await fetch('/api/live')).json());
-  } catch { /* the cell stays the link, which is the point of it being one */ }
+  } catch { /* off air as far as this cell is concerned, so it goes */ }
   // Checked here and not only at the endpoint: this id goes into a URL, and a
   // page should not put a response it did not validate into one.
-  if (!videoId || !/^[\w-]{11}$/.test(videoId)) return;
+  if (!videoId || !/^[\w-]{11}$/.test(videoId)) return box.remove();
   // The board may have been left in the meantime -- a slow answer must not paint
   // a player into a sheet that has since been rebuilt or replaced by a round.
   if (!box.isConnected) return;
@@ -1012,7 +1012,7 @@ async function fillLiveTile() {
   player.allow = 'autoplay; encrypted-media; picture-in-picture';
   player.referrerPolicy = 'strict-origin-when-cross-origin';
   player.allowFullscreen = true;
-  box.prepend(player);
+  box.append(player);
 }
 
 // A tile opens its round: the clip goes back into the pane with the zoom, pan
