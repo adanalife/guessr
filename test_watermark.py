@@ -29,6 +29,7 @@ import tempfile
 from pathlib import Path
 
 import make_rounds
+from check import dimensions
 from make_rounds import WATERMARK, WATERMARK_MARGIN_PX, extract_clip
 
 tmp = tempfile.TemporaryDirectory()
@@ -76,7 +77,9 @@ if have_ffmpeg:
     def corner(clip: Path, name: str, x: str, y: str) -> bytes:
         """One corner of a clip's first frame, as raw pixels."""
         out = HERE / name
-        size = WATERMARK_MARGIN_PX * 2 + 104
+        # Big enough to hold the mark and its margin whatever the asset is
+        # resized to, so retuning watermark.png is not a test edit.
+        size = WATERMARK_MARGIN_PX * 2 + max(dimensions(WATERMARK))
         ffmpeg(
             "-i",
             str(clip),

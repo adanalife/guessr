@@ -91,24 +91,34 @@ FPS = 30
 THREADS = max(1, int(os.environ.get("THREADS", "0")) or (os.cpu_count() or 2) // 2)
 NICENESS = 10
 
-# The watermark, bottom-right. Its opacity is baked into the asset rather than
-# applied in the filter chain, so retuning how subtle it is means regenerating
-# one file instead of editing an encode:
+# The watermark, bottom-right. Size and opacity are baked into the asset rather
+# than applied in the filter chain, so retuning how big or how subtle it is
+# means regenerating one file instead of editing an encode:
 #
-#   ffmpeg -i ../website/design/logo-400x400.png \
-#     -vf "scale=104:104,negate,colorchannelmixer=aa=0.30" watermark.png
+#   printf '* { fill: #fff }\n' >/tmp/white.css
+#   rsvg-convert -w 512 -h 512 -s /tmp/white.css ../website/design/logo.svg \
+#     | magick - -trim +repage -resize 70x70 \
+#         -channel A -evaluate multiply 0.30 +channel watermark.png
 #
-# White, because the source mark is black on transparent and black is invisible
-# over asphalt and shadowed trees. It disappears over bright sky, which is the
-# trade a subtle mark makes and the second reason for the corner: the bottom of
-# a dashcam frame is road, hood or verge, so it is reliably mid-tone.
+# From the SVG rather than one of the PNG exports, and trimmed, so that the two
+# numbers here are the two numbers on screen. The exports carry whitespace --
+# logo-400x400.png is 264px of ink in a 400px canvas -- so a raster source makes
+# the asset's dimensions mean "mark plus some padding nobody wrote down", and
+# then the margin below is not the margin either. Trimming to the ink costs one
+# pipe and makes both honest. rsvg-convert and magick are needed to regenerate
+# the asset, never to run this: the result is committed.
+#
+# White, because the mark is black and black is invisible over asphalt and
+# shadowed trees. It disappears over bright sky instead, which is the trade a
+# subtle mark makes and the second reason for a bottom corner: the bottom of a
+# dashcam frame is road, hood or verge, so it is reliably mid-tone.
 #
 # Bottom-right specifically because the minimap sits there during play
 # (index.html's `main.minimap #mapwrap`), so the mark is least visible exactly
 # where a distraction would cost the most. It is burned into the mp4 either way,
 # which is the case it exists for -- a clip saved out of the page carries it.
 WATERMARK = Path(__file__).parent / "watermark.png"
-WATERMARK_MARGIN_PX = 16
+WATERMARK_MARGIN_PX = 32
 
 # Attribution in the container, alongside the mark in the pixels. Honest about
 # what it buys: it survives a copy and a plain re-host, and no re-encode --
