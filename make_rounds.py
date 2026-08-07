@@ -97,7 +97,7 @@ NICENESS = 10
 #
 #   printf '* { fill: #fff }\n' >/tmp/white.css
 #   rsvg-convert -w 512 -h 512 -s /tmp/white.css ../website/design/logo.svg \
-#     | magick - -trim +repage -resize 70x70 \
+#     | magick - -trim +repage -resize 24x24 \
 #         -channel A -evaluate multiply 0.30 +channel watermark.png
 #
 # From the SVG rather than one of the PNG exports, and trimmed, so that the two
@@ -118,7 +118,7 @@ NICENESS = 10
 # where a distraction would cost the most. It is burned into the mp4 either way,
 # which is the case it exists for -- a clip saved out of the page carries it.
 WATERMARK = Path(__file__).parent / "watermark.png"
-WATERMARK_MARGIN_PX = 32
+WATERMARK_MARGIN_PX = 12
 
 # Attribution in the container, alongside the mark in the pixels. Honest about
 # what it buys: it survives a copy and a plain re-host, and no re-encode --

@@ -17,9 +17,18 @@ them; and every pixel-format conversion the overlay filter introduces happens on
 both sides, so a difference between the two is the mark itself rather than an
 artefact of the chain.
 
-The assertion is a difference, not a pixel value -- the opacity is a knob in
-watermark.png (see make_rounds.WATERMARK), and pinning colours here would turn
-retuning it into a test failure.
+The assertion is a difference, not a pixel value -- the size and opacity are both
+knobs in watermark.png (see make_rounds.WATERMARK), and pinning colours here
+would turn retuning them into a test failure.
+
+`testsrc2` and not `testsrc`, which is the one generator measured to destroy the
+mark outright: at CRF 28 its bottom-right corner comes back byte-identical with
+and without the overlay, while testsrc2, smptebars, gradients, a flat grey field
+and five real corpus clips all keep it. So a source is a choice here rather than a
+detail -- and it is the one thing about this test worth knowing before retuning
+the mark much smaller, because a mark the encoder quantizes away is a mark that
+does not do its job. If this assertion ever fails after a resize, measure against
+real footage before assuming the chain broke.
 """
 
 import os
@@ -58,7 +67,7 @@ if have_ffmpeg:
         "-f",
         "lavfi",
         "-i",
-        f"testsrc=size=1920x1080:duration=6:rate={make_rounds.FPS}",
+        f"testsrc2=size=1920x1080:duration=6:rate={make_rounds.FPS}",
         str(corpus / f"{slug}.MP4"),
     )
     make_rounds.CORPUS = corpus
