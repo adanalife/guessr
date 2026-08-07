@@ -4,6 +4,38 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.1.0 — 2026-08-07
+
+### Changed
+
+- The stream preview in the last cell of the end-of-game board actually plays now. It had never once worked — YouTube would not tell the game which video was live, so the cell always fell back to being a plain link. It finds the current broadcast a different way now, and keeps finding it on its own every time a new stream starts. ([#93](https://github.com/adanalife/guessr/pull/93))
+- Rounds are now chosen from every moment the dashcam recorded a position for, rather than only the moments that happen to have a visual fingerprint on file — about three times as many per clip to pick the best of. The answer is also read from the exact moment the round is cut at, so the circle it is drawn in is tighter. ([#96](https://github.com/adanalife/guessr/pull/96))
+- On a phone the end-of-game board puts the live stream preview first, instead of six tiles down. ([#106](https://github.com/adanalife/guessr/pull/106))
+- Round selection weighs distinctiveness once, in the ranking, instead of also cutting a fixed slice of the pool beforehand. ([#107](https://github.com/adanalife/guessr/pull/107))
+
+### Fixed
+
+- `task stats:prod` reports the number of players who finished a day, rather than five times it. ([#108](https://github.com/adanalife/guessr/pull/108))
+
+### Behind the scenes
+
+- New releases are announced in Discord now, so there is somewhere to hear that the game changed without watching this file. A release that fails to deploy raises an alert in a separate channel, which nothing said out loud before. ([#54](https://github.com/adanalife/guessr/pull/54))
+- Publishing a new set of rounds is now one command that does every step in the right order, instead of several that had to be remembered in the right order. ([#65](https://github.com/adanalife/guessr/pull/65))
+- Future rounds are answered with the coordinate the dashcam printed on the frame you were shown, instead of one averaged over the whole three minutes of footage it was cut from. The answer used to land a mile or so up the road from the street in the clip; now it lands on it. Rounds already in the game are unchanged — this applies to the next batch built. ([#81](https://github.com/adanalife/guessr/pull/81))
+- Round footage now streams straight from storage instead of being copied out with every update of the site. Nothing changes about how a round looks or plays — but updates ship in seconds rather than minutes, and your browser can now hold onto a clip it has already seen. ([#82](https://github.com/adanalife/guessr/pull/82))
+- The daily rounds are now scheduled ahead of time rather than drawn fresh each day, which means you will never be shown a round you have already played. Practice rounds are drawn only from days that have finished, so they can no longer spoil an upcoming game. ([#83](https://github.com/adanalife/guessr/pull/83))
+- The game's database structure is now managed as numbered migrations, so each environment records what it has applied and can be checked rather than guessed at. Nothing changes about how the game plays. ([#84](https://github.com/adanalife/guessr/pull/84))
+- The leaderboards now look up each player's name directly instead of searching the whole play history for it once per row. The boards are fetched constantly to feed the overlay on stream, so that search was reading millions of rows a day out of a table holding a few hundred. ([#94](https://github.com/adanalife/guessr/pull/94))
+- Upcoming days can now be watched through before they go live, so a clip that turns out to be unguessable or a pin in the wrong street gets caught off the test site rather than on the day itself. ([#97](https://github.com/adanalife/guessr/pull/97))
+- Scores and answers can now be dumped to a file before anything risky is done to the database they live in, so a bad change has somewhere to be restored from. Nothing changes about how the game plays. ([#98](https://github.com/adanalife/guessr/pull/98))
+- The check that makes sure a round's footage has the dashcam's on-screen coordinates cropped off no longer reports a false alarm when a freshly-uploaded clip arrives incomplete — it waits for the whole file, and if it still cannot read it, says so plainly instead of blaming the crop. ([#99](https://github.com/adanalife/guessr/pull/99))
+- A round that turns out to be a dud — a tunnel, a blank stretch of highway, coordinates that land in a river — can now be thrown out of an upcoming day before anyone plays it, and is replaced automatically. Days already in progress are never touched. ([#100](https://github.com/adanalife/guessr/pull/100))
+- The day preview now says which part of the world a day is currently being played in, rather than just that it is open, so it is obvious at a glance whether a problem can still be fixed. ([#102](https://github.com/adanalife/guessr/pull/102))
+- Groundwork for a change to how the game stores its daily rounds: the days already in progress when the switch happens will play exactly the clips they would have anyway, so a game you are halfway through will not change under you. ([#102](https://github.com/adanalife/guessr/pull/102))
+- Round generation reads its encoder thread count from a `THREADS` environment variable again, so the scheduled in-cluster run can pin it to the pod's CPU limit. Unset, the laptop default (half the cores) is unchanged. ([#103](https://github.com/adanalife/guessr/pull/103))
+- The page used to review upcoming days now draws a map of every round the game could pick from, with the day being reviewed marked on it — so the part of the country the clips come from is visible at a glance rather than read off a list of state names. ([#104](https://github.com/adanalife/guessr/pull/104))
+- The page used to review upcoming days now reads like the game itself — the same typeface and colours, and it follows the light or dark setting chosen on the game. ([#104](https://github.com/adanalife/guessr/pull/104))
+
 ## v1.0.1 — 2026-08-03
 
 ### New
