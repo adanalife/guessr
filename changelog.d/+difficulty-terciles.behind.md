@@ -1,0 +1,1 @@
+The difficulty summary printed when a round set is generated now reports where this set's easy, medium and hard thirds actually sit, instead of measuring every set against cutoffs computed from one long-retired set — and a set with little difficulty spread is reported rather than refused, the same way clustered answers already were.
