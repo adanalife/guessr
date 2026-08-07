@@ -275,9 +275,9 @@ check "an unopened date is refused" 403 "$(tail -1 <<<"$out")" "$(head -1 <<<"$o
 # that something is the leak. 403 is the middleware refusing a request that
 # reached it without a token -- the custom domains, which Access cannot front.
 # 503 is a deployment with no Access application configured, which is a refusal
-# too but a different fact worth saying out loud: on production that is the
-# intended resting state, and on staging it means the page does not work for
-# its operator either.
+# too but a different fact worth saying out loud: on a tier that is meant to have
+# one it means the page does not work for its operator either, so it passes here
+# and still wants looking at.
 #
 # 2099-01-01 has no schedule, so nothing here reads a real day to find out.
 #

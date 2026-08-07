@@ -599,14 +599,21 @@ a deployment missing them answers `503` and serves nothing, which is the state
 every tier is in until the Access application exists. `task dev` is the one
 exemption — a `local` tier skips the login, since nothing fronts localhost.
 
-**It is also still refused on production**, which is a different question:
-the login says who is asking, the tier says which deployment may answer at all.
-The Function reads the same `web/version.json` the About panel does, through the
-static-asset binding, and answers `403` unless the deployment declares itself
-`staging`, `preview` or `local`. Every other answer — no `version.json`, one that
-will not parse, a tier nobody has taught it about — reads as production, since
-the cost of a false refusal is a line in an allowlist and the cost of a false
-answer is tomorrow's five and where they are.
+**Production is one of the tiers it answers on**, and the tier check that says
+so is a second question from the login: the login says who is asking, the tier
+says which deployment may answer at all. The Function reads the same
+`web/version.json` the About panel does, through the static-asset binding, and
+answers `403` unless the deployment declares itself `production`, `staging`,
+`preview` or `local`. Every other answer — no `version.json`, one that will not
+parse, a tier nobody has taught it about — refuses, since a deployment this code
+cannot name is one whose Access application it cannot vouch for, and the cost of
+a false refusal is a line in an allowlist while the cost of a false answer is
+tomorrow's five and where they are.
+
+Production is where a wrong coordinate actually reaches players, so it gets its
+own Access application over `adanalife-guessr.pages.dev/admin` — the staging one
+covers only the staging project's hostnames. Both live in the infra repo,
+alongside the Pages projects they front.
 
 Rejecting a round is built (a button per round, replaced from the queue's tail);
 reordering a day is not. Looking is most of the value and it is what makes the

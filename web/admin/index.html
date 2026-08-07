@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<!-- Deployed with the site, so it exists on production too -- where /admin/day
-     answers 403 and this page says so. Kept out of search results rather than
-     kept out of the deploy: a page that is only in some builds is a page that is
-     broken in the build nobody tested. -->
+<!-- Deployed with the site on every tier, and reachable on none of them without
+     an Access login. Kept out of search results rather than kept out of the
+     deploy: a page that is only in some builds is a page that is broken in the
+     build nobody tested. -->
 <meta name="robots" content="noindex">
 <title>guessr — day preview</title>
 <script src="/theme.js"></script>
@@ -57,9 +57,9 @@
 <script type="module">
 // The viewer half of the admin surface: pick a date, watch its five clips, check
 // each answer against what the clip shows. Everything it knows comes from
-// /admin/day, which is where the tier gate lives -- so on production this page
-// renders and then reports that it has nothing to show, rather than being a
-// second thing that has to agree about who may look.
+// /admin/day, which is where both gates live -- so where the surface is closed
+// this page renders and then reports what the endpoint told it, rather than
+// being a second thing that has to agree about who may look.
 
 // The play-window rule, imported rather than restated: the endpoint refuses a
 // day that has opened, and a second copy of "has it opened" here would be a
