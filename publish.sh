@@ -45,14 +45,20 @@ cd "$(dirname "$0")"
 STAGE_DB="adanalife-guessr-answers-staging"
 PROD_DB="adanalife-guessr-answers"
 
-# The top-up contract's three numbers, env-overridable because they are working
+# The top-up contract's numbers, env-overridable because they are working
 # values ([[prod-automation-design]] says revisit after a month of real runs):
 # how far ahead production stays scheduled, how close to an open date a run may
-# schedule (the floor of the review window), and how deep the queued tail that
-# reject-and-replace draws from must be.
+# schedule (the floor of the review window), how deep the queued tail that
+# reject-and-replace draws from must be, and how long after a clip airs before
+# it may be dealt again. The replay window is what keeps the corpus indefinite:
+# burning clips forever consumes ~1,800 a year at this cadence, while a rolling
+# window caps the burned set at cadence x window and the pool stops shrinking.
 TOPUP_DAYS="${TOPUP_DAYS:-14}"
 TOPUP_LEAD="${TOPUP_LEAD:-3}"
 TOPUP_QUEUE="${TOPUP_QUEUE:-10}"
+TOPUP_REPLAY_DAYS="${TOPUP_REPLAY_DAYS:-180}"
+# Interpolated into SQL below, so a non-number must die here rather than there.
+: $((TOPUP_REPLAY_DAYS + 0))
 
 MODE=stage
 DB="$STAGE_DB"
@@ -108,14 +114,19 @@ print(max(after_last, earliest))
 PY
 )
 
-  # Everything the tier holds -- played, scheduled, queued or rejected -- is
-  # burned: a top-up must never deal a clip players have seen back into the
-  # schedule, and never resurrect a reject through round_days pointing at its
-  # kept row. See burned_slugs() in make_rounds.py for why whole clips.
+  # What the tier holds is burned, but not all of it forever. Queued and
+  # rejected are permanent -- a reject is a human judgement about the content,
+  # and expiring it would resurrect the round through round_days pointing at
+  # its kept row. An *aired* clip cools off instead: round_days is the log of
+  # every airing, so a slug frees up once every round on it has aired and the
+  # newest airing is older than the replay window. A round that never aired and
+  # was never rejected stays burned too -- it is either scheduled ahead or an
+  # anomaly, and neither is a thing to deal twice. See burned_slugs() in
+  # make_rounds.py for why the unit is the whole clip.
   echo "== reading what $TIER already holds"
   {
-    echo "# slugs $TIER holds, read $(date -u +%Y-%m-%dT%H:%MZ) -- written by publish.sh --top-up, not by hand"
-    npx wrangler d1 execute "$DB" --remote --json --command="SELECT DISTINCT slug FROM rounds" | jq -r '.[0].results[].slug'
+    echo "# slugs $TIER holds (aired within ${TOPUP_REPLAY_DAYS}d, queued, or rejected), read $(date -u +%Y-%m-%dT%H:%MZ) -- written by publish.sh --top-up, not by hand"
+    npx wrangler d1 execute "$DB" --remote --json --command="SELECT DISTINCT r.slug FROM rounds r WHERE r.status IN ('queued', 'rejected') OR NOT EXISTS (SELECT 1 FROM round_days d WHERE d.image = r.image) OR EXISTS (SELECT 1 FROM round_days d WHERE d.image = r.image AND d.date >= date('now', '-${TOPUP_REPLAY_DAYS} days'))" | jq -r '.[0].results[].slug'
   } >burned.txt
 
   echo "top-up: $days_needed days from $from plus $queue_needed for the queue = $count rounds ($TIER has $days_left days, $queued queued)"
