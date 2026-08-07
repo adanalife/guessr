@@ -535,6 +535,10 @@ Guessr #1
 18,204 / 25,000
 ```
 
+A guess within a kilometre of the truth takes a 🏆 instead of its square. The bar
+is set from `plays` rather than picked: 2.7% of recorded guesses land inside 1 km,
+so it turns up in roughly one game in eight.
+
 Finishing writes the day to `localStorage`, so today's round can't be replayed
 for a better result. Practice mode draws at random and is unlimited.
 
