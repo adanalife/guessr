@@ -30,7 +30,7 @@ import tempfile
 from pathlib import Path
 
 import check
-from check import EASY_KM, HARD_KM, ROUNDS_PER_GAME
+from check import ROUNDS_PER_GAME
 
 have_ffmpeg = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
 # Same bargain as test_check.py: no ffmpeg on a laptop with no clips is fine, in
@@ -40,9 +40,9 @@ assert have_ffmpeg or not os.environ.get("CI"), (
     "CI has no ffmpeg/ffprobe, so the HUD-crop assertion would go unchecked"
 )
 
-# One round per band, so the difficulty-spread assertion is satisfied by default
-# and each case below fails for the reason it is testing rather than this one.
-BANDS = [EASY_KM - 10, EASY_KM + 10, HARD_KM + 10, EASY_KM - 5, HARD_KM + 50]
+# A spread of scores, so the summary's tercile line has something to bracket
+# and each case below fails for the reason it is testing.
+BANDS = [22.0, 42.0, 130.0, 27.0, 170.0]
 
 
 def rounds(n: int = ROUNDS_PER_GAME) -> list[dict]:
@@ -193,7 +193,7 @@ def main() -> None:
                 f"names a clip without its moment: {name}",
             )
 
-        # The scores the ramp and the band report are built from.
+        # The scores the ramp and the tercile report are built from.
         for field in ("median_km", "mean_cos"):
             missing = rounds()
             del missing[0][field]
@@ -202,12 +202,16 @@ def main() -> None:
         negative[0]["median_km"] = -1
         rejects(build(root, "negative-km", negative), "has a negative median_km")
 
-        # A set whose scores all land in one band has nothing for the
-        # easy-to-hard ramp to order, so every round plays the same.
+        # A set whose scores bunch plays flat, which is a worse set rather
+        # than a broken one -- the same policy the spread report applies to
+        # clustered answers. It passes; the summary is where it shows.
         flat = rounds()
         for r in flat:
-            r["median_km"] = EASY_KM - 1
-        rejects(build(root, "flat", flat), "leaves a difficulty band empty")
+            r["median_km"] = 31.0
+        assert run(build(root, "flat", flat)) == 0, (
+            "check.py rejected a set for bunched scores, which is a judgement "
+            "about the game rather than a fact about the data"
+        )
 
         # With the answers alongside: every round needs one, in the lower 48,
         # carrying its labels. A round with no answer is one the API 404s.
