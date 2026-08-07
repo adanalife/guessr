@@ -230,6 +230,12 @@
               font: 700 12px/18px ui-sans-serif, system-ui, sans-serif; }
   footer { display: flex; align-items: center; gap: .6rem; padding: .6rem 1rem;
            border-top: 1px solid var(--color-border); min-height: 3.2rem; flex-wrap: wrap; }
+  /* Disabled for want of a pin, but it is also the instruction for getting one,
+     and the shared disabled styling made that instruction the faintest thing on
+     the page. Text at full contrast in a dashed outline reads as both halves of
+     what it is: not pressable yet, and the place the round gets played from. */
+  #go:disabled { color: var(--color-text); border-style: dashed;
+                 border-color: var(--color-muted); }
   #result { flex: 1; min-width: 14rem; color: var(--color-muted); }
   #result b { color: var(--color-text); }
   .squares { letter-spacing: .1em; }
