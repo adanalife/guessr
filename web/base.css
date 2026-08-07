@@ -1,0 +1,60 @@
+/* What the game and the admin page have in common: the ET Book faces, the blog's
+   `data-theme` palette, and the handful of element rules that follow from them.
+   Both pages link this so a palette change lands on both — a second copy of the
+   @font-face block would work today and drift by the next one.
+
+   Tufte CSS's stylesheet itself is not carried over — nearly all of it is
+   article layout (sidenotes, 55%-wide sections, figures) and none of that has
+   anything to say about a full-viewport game or a review page.
+
+   Paths are relative to this file, which sits beside et-book/, so /admin/ gets
+   the same faces without a second set of URLs. */
+@font-face { font-family: "et-book"; font-weight: normal; font-style: normal;
+             font-display: swap;
+             src: url("et-book/et-book-roman-line-figures.woff") format("woff"); }
+@font-face { font-family: "et-book"; font-weight: normal; font-style: italic;
+             font-display: swap;
+             src: url("et-book/et-book-display-italic-old-style-figures.woff") format("woff"); }
+@font-face { font-family: "et-book"; font-weight: bold; font-style: normal;
+             font-display: swap;
+             src: url("et-book/et-book-bold-line-figures.woff") format("woff"); }
+
+/* The blog's variables verbatim, plus two an article never needs: a raised
+   panel surface for the dialog and the About popover, and an accent for the
+   unread dot — the blog has nothing that has to catch the eye like that. */
+:root, [data-theme='light'] {
+  --color-bg: #fffff8;
+  --color-text: #111;
+  --color-border: #ccc;
+  --color-muted: grey;
+  --color-selection: #b4d5fe;
+  --color-panel: #fff;
+  --color-accent: #0369a1;
+}
+[data-theme='dark'] {
+  --color-bg: #1a1a1a;
+  --color-text: #e8e6d8;
+  --color-border: #444;
+  --color-muted: #888;
+  --color-selection: #2d4a7a;
+  --color-panel: #242424;
+  --color-accent: #7dd3fc;
+}
+::selection { background: var(--color-selection); }
+
+* { box-sizing: border-box; }
+body { background: var(--color-bg); color: var(--color-text);
+       font: 17px/1.45 et-book, Palatino, "Palatino Linotype", "Palatino LT STD",
+             "Book Antiqua", Georgia, serif; }
+/* Blog links: the text's own colour, underlined clear of the descenders. */
+a { color: inherit; text-underline-offset: .1em; text-decoration-thickness: .05em; }
+/* Inverted against the page, so the button that plays the round is the
+   highest-contrast thing on screen whichever way the theme is set. */
+button { font: inherit; padding: .35rem 1.1rem; border-radius: 6px;
+         border: 1px solid var(--color-text);
+         background: var(--color-text); color: var(--color-bg); cursor: pointer; }
+button:disabled { background: transparent; color: var(--color-muted);
+                  border-color: var(--color-border); cursor: default; }
+button.secondary { background: transparent; color: var(--color-muted);
+                   border-color: var(--color-border); }
+button.secondary:hover { color: var(--color-text); border-color: var(--color-text); }

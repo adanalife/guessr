@@ -35,33 +35,9 @@
 <meta property="og:image:alt" content="A dashcam view of a San Francisco intersection lined with Victorian houses, titled Guessr">
 <meta name="twitter:card" content="summary_large_image">
 
-<!-- The palette, before first paint, so the page never flashes the wrong one.
-     Same `theme` key and same light/dark values as the blog, though the two are
-     separate origins and so keep separate copies of the choice. -->
-<script>
-  // Everywhere the palette has to be set at once: the attribute the stylesheet
-  // keys off, the UA's own scrollbar and form-control colours, and the mobile
-  // browser chrome. The meta tag is above this script because of that last one.
-  function setTheme(theme) {
-    var d = document.documentElement;
-    d.setAttribute('data-theme', theme);
-    d.style.setProperty('color-scheme', theme);
-    document.querySelector('meta[name=theme-color]')
-      .setAttribute('content', theme === 'dark' ? '#1a1a1a' : '#fffff8');
-  }
-
-  function toggleTheme() {
-    var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-    try { localStorage.setItem('theme', next); } catch (e) { /* nothing to remember */ }
-  }
-
-  // A Safari private window throws rather than returning null, and an
-  // unreadable preference is no reason to serve an unthemed page.
-  var savedTheme = null;
-  try { savedTheme = localStorage.getItem('theme'); } catch (e) { /* fall back to the OS */ }
-  setTheme(savedTheme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
-</script>
+<!-- Blocking and before the stylesheet, so the page never flashes the wrong
+     palette. Shared with /admin/, which reads the same saved choice. -->
+<script src="theme.js"></script>
 
 <!-- Leaflet, vendored rather than loaded from unpkg. It is the only thing on
      this page that has to load from somewhere else for the game to work at all:
@@ -71,57 +47,15 @@
      replacing web/leaflet/ wholesale from the npm tarball. Licence travels with
      it in web/leaflet/LICENSE. -->
 <link rel="stylesheet" href="leaflet/leaflet.css">
+<!-- The faces, the palette and the button styling the admin page shares. -->
+<link rel="stylesheet" href="base.css">
 <style>
-  /* Type and colour come from the blog: the same ET Book faces and the same
-     `data-theme` palette, so the game reads as part of the same site. Tufte
-     CSS's stylesheet itself is not carried over — nearly all of it is article
-     layout (sidenotes, 55%-wide sections, figures) and none of that has
-     anything to say about a full-viewport game. */
-  @font-face { font-family: "et-book"; font-weight: normal; font-style: normal;
-               font-display: swap;
-               src: url("et-book/et-book-roman-line-figures.woff") format("woff"); }
-  @font-face { font-family: "et-book"; font-weight: normal; font-style: italic;
-               font-display: swap;
-               src: url("et-book/et-book-display-italic-old-style-figures.woff") format("woff"); }
-  @font-face { font-family: "et-book"; font-weight: bold; font-style: normal;
-               font-display: swap;
-               src: url("et-book/et-book-bold-line-figures.woff") format("woff"); }
-
-  /* The blog's variables verbatim, plus two an article never needs: a raised
-     panel surface for the dialog and the About popover, and an accent for the
-     unread dot — the blog has nothing that has to catch the eye like that. */
-  :root, [data-theme='light'] {
-    --color-bg: #fffff8;
-    --color-text: #111;
-    --color-border: #ccc;
-    --color-muted: grey;
-    --color-selection: #b4d5fe;
-    --color-panel: #fff;
-    --color-accent: #0369a1;
-  }
-  [data-theme='dark'] {
-    --color-bg: #1a1a1a;
-    --color-text: #e8e6d8;
-    --color-border: #444;
-    --color-muted: #888;
-    --color-selection: #2d4a7a;
-    --color-panel: #242424;
-    --color-accent: #7dd3fc;
-  }
-  ::selection { background: var(--color-selection); }
-
-  * { box-sizing: border-box; }
   /* An explicit `display` beats the UA stylesheet's `[hidden] { display: none }`,
      so anything laid out with flex or grid stays on screen while hidden. Several
      things here toggle `hidden` between game phases; this makes that work. */
   [hidden] { display: none !important; }
   /* dvh so iOS Safari's collapsing chrome doesn't clip the footer. */
-  body { margin: 0; height: 100vh; height: 100dvh; display: flex; flex-direction: column;
-         background: var(--color-bg); color: var(--color-text);
-         font: 17px/1.45 et-book, Palatino, "Palatino Linotype", "Palatino LT STD",
-               "Book Antiqua", Georgia, serif; }
-  /* Blog links: the text's own colour, underlined clear of the descenders. */
-  a { color: inherit; text-underline-offset: .1em; text-decoration-thickness: .05em; }
+  body { margin: 0; height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
   /* Above Leaflet's controls (z-index 800), so the About panel isn't painted
      over by the map pane below it. */
   header { display: flex; align-items: baseline; gap: 1rem; padding: .6rem 1rem;
@@ -290,16 +224,6 @@
               font: 700 12px/18px ui-sans-serif, system-ui, sans-serif; }
   footer { display: flex; align-items: center; gap: .6rem; padding: .6rem 1rem;
            border-top: 1px solid var(--color-border); min-height: 3.2rem; flex-wrap: wrap; }
-  /* Inverted against the page, so the button that plays the round is the
-     highest-contrast thing on screen whichever way the theme is set. */
-  button { font: inherit; padding: .35rem 1.1rem; border-radius: 6px;
-           border: 1px solid var(--color-text);
-           background: var(--color-text); color: var(--color-bg); cursor: pointer; }
-  button:disabled { background: transparent; color: var(--color-muted);
-                    border-color: var(--color-border); cursor: default; }
-  button.secondary { background: transparent; color: var(--color-muted);
-                     border-color: var(--color-border); }
-  button.secondary:hover { color: var(--color-text); border-color: var(--color-text); }
   #result { flex: 1; min-width: 14rem; color: var(--color-muted); }
   #result b { color: var(--color-text); }
   .squares { letter-spacing: .1em; }
@@ -315,6 +239,13 @@
        where it is already the tightest row on the page. */
     header { gap: .7rem; }
     header h1 { font-size: 1.2rem; }
+    /* The sheet is a single column here, so the live cell's place as the sixth
+       tile puts it five clips of scrolling below the fold, in half a screen of
+       pane. It is the one tile that points at the stream the footage comes
+       from, so on a phone it goes where it is seen. Ordered rather than moved
+       in the markup: the wide grid reads round-one-first and shows every cell
+       at once, which is the order the numbered badges imply. */
+    #sheet .live { order: -1; }
   }
 </style>
 </head>

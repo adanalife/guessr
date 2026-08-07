@@ -305,7 +305,25 @@ check "an unknown board is refused" 400 "$(tail -1 <<<"$out")" "$(head -1 <<<"$o
 # A real id is assertable because it does not depend on the channel being live
 # this second: the resolver answers the channel's newest video, and the channel
 # has videos whether or not the van is moving.
-out=$(call "$BASE/api/live")
+#
+# Retried, because the endpoint predates the resolver that works and call() will
+# not catch that: an older build of this Function answers valid JSON carrying a
+# null, which is not the `<`-body signature, so the assertion lands on the
+# previous deployment's answer and reads it as a broken resolver. That is what
+# failed the v1.1.0 release, on a resolver that answered a real id the moment the
+# routing finished cutting over. version.json cannot pin this away -- it is new
+# bytes every deploy and goes green first, which is exactly what leaves an
+# unchanged route still answering from the build before.
+for _ in $(seq 1 20); do
+  out=$(call "$BASE/api/live")
+  grep -qE '"videoId":"[A-Za-z0-9_-]{11}"' <<<"$out" && break
+  sleep 3
+done
 check "the live resolver answers" 200 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
 grep -qE '"videoId":"[A-Za-z0-9_-]{11}"' <<<"$out" || {
-  echo "::error::/api/live resolved no video id -- got: $(head -1 <<<"$out")"; exit 1; }
+  echo "::error::/api/live resolved no video id on 20 tries over ~60s -- got:"
+  echo "::error::$(head -1 <<<"$out")"
+  echo "::error::Past the propagation window, so this is the resolver: the feed"
+  echo "::error::read is in the response's \"why\", and a 200 carrying no"
+  echo "::error::<yt:videoId> means YouTube changed the feed shape."
+  exit 1; }

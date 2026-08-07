@@ -9,34 +9,50 @@
      broken in the build nobody tested. -->
 <meta name="robots" content="noindex">
 <title>guessr — day preview</title>
+<script src="/theme.js"></script>
+<link rel="stylesheet" href="/leaflet/leaflet.css">
+<link rel="stylesheet" href="/base.css">
 <style>
-  /* System fonts and no theme. This is a tool for one person, and the game's
-     stylesheet is 300 lines of things a review page has no use for. */
-  body { font: 16px/1.5 system-ui, sans-serif; margin: 0 auto; padding: 1rem; max-width: 60rem; }
-  h1 { font-size: 1.3rem; }
+  /* Only what a review page needs on top of the shared sheet: a column to read
+     in, a clip grid, and the two colours that say something is wrong. */
+  body { margin: 0 auto; padding: 1rem; max-width: 60rem; }
+  h1 { font-size: 1.3rem; font-weight: 400; font-style: italic; }
   .nav { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
-  #meta { color: #555; }
+  #meta { color: var(--color-muted); }
   ol { list-style: none; padding: 0; display: grid; gap: 1rem; }
   li { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
   /* Wide enough to judge a clip by, narrow enough that five fit on a screen. */
   video { width: 20rem; max-width: 100%; background: #000; border-radius: 4px; }
   li p { margin: 0 0 .25rem; }
-  .dim { color: #666; font-size: .85rem; font-family: ui-monospace, monospace; }
-  .warn { color: #b00; font-weight: bold; }
-  /* The one state a reviewer must not misread: this day is in front of players
-     right now and cannot be edited. */
-  #meta.live { color: #b00; font-weight: bold; }
+  .dim { color: var(--color-muted); font-size: .85rem; font-family: ui-monospace, monospace; }
+  /* Red carries "wrong" on its own, so it stays red in both themes -- but #b00
+     on the dark ground is nearly unreadable, hence the lighter pair. The second
+     of the two is the one state a reviewer must not misread: this day is in
+     front of players right now and cannot be edited. */
+  .warn, #meta.live { color: #b00; font-weight: bold; }
+  [data-theme='dark'] .warn, [data-theme='dark'] #meta.live { color: #ff6b6b; }
+  /* Every round with an answer, so the page says where the game draws from
+     rather than naming a state per clip and leaving the shape to be imagined. */
+  #map { height: 20rem; margin: 1rem 0 .3rem; border: 1px solid var(--color-border);
+         border-radius: 4px; background: var(--color-bg); }
+  #legend { display: flex; gap: 1rem; flex-wrap: wrap; margin: 0 0 1rem; }
+  #legend .swatch { display: inline-block; width: .6rem; height: .6rem;
+                    border-radius: 50%; margin-right: .35em; }
 </style>
 </head>
 <body>
 <h1>Day preview</h1>
 <p class="nav">
-  <button id="prev" type="button">&larr;</button>
+  <button id="prev" class="secondary" type="button">&larr;</button>
   <input type="date" id="date">
-  <button id="next" type="button">&rarr;</button>
+  <button id="next" class="secondary" type="button">&rarr;</button>
   <span id="meta"></span>
 </p>
+<div id="map"></div>
+<p id="legend" class="dim"></p>
 <ol id="rounds"></ol>
+
+<script src="/leaflet/leaflet.js"></script>
 
 <script type="module">
 // The viewer half of the admin surface: pick a date, watch its five clips, check
@@ -74,6 +90,55 @@ const esc = s => String(s).replace(/[&<>"]/g, c =>
 // question you can only ask at street zoom.
 const osm = r =>
   `https://www.openstreetmap.org/?mlat=${r.lat}&mlon=${r.lng}#map=17/${r.lat}/${r.lng}`;
+
+// The pool as a map, which is the question a list of state names is a proxy
+// for: whether the set the game draws from is one interstate leg or actually
+// spans the trip. Same vendored Leaflet and same tiles as the game.
+const map = L.map('map', { worldCopyJump: false });
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 18, attribution: '&copy; OpenStreetMap'
+}).addTo(map);
+
+// Status is the read: what is placed, what is spare, what was thrown out. Fixed
+// colours rather than the palette — they sit on map tiles, which do not change
+// with the theme. Green is the game's own answer-pin colour, kept for the day
+// being reviewed.
+const STATUS = { scheduled: '#0369a1', queued: '#888', rejected: '#b00' };
+const TODAY = '#4ade80';
+
+const pins = L.layerGroup().addTo(map);
+// Fitted once. The pool is the same whichever date is being reviewed, so
+// refitting on every step would throw away a zoom the reviewer chose.
+let fitted = false;
+
+function drawMap(pool, rounds) {
+  pins.clearLayers();
+  for (const p of pool) {
+    L.circleMarker([p.lat, p.lng],
+      { radius: 3, weight: 1, color: STATUS[p.status] ?? '#888', fillOpacity: .6 })
+      .addTo(pins);
+  }
+  // On top and larger, so stepping through days shows where each one sits in
+  // the pool rather than just that the pool exists.
+  for (const r of rounds) {
+    if (r.lat == null) continue;
+    L.circleMarker([r.lat, r.lng], { radius: 7, weight: 2, color: TODAY, fillOpacity: .9 })
+      .bindTooltip(`#${r.position}`)
+      .addTo(pins);
+  }
+
+  const counts = pool.reduce((acc, p) => ({ ...acc, [p.status]: (acc[p.status] ?? 0) + 1 }), {});
+  el('legend').innerHTML = Object.entries(counts)
+    .map(([status, n]) =>
+      `<span><span class="swatch" style="background:${STATUS[status] ?? '#888'}"></span>`
+      + `${n} ${esc(status)}</span>`)
+    .join('');
+
+  if (!fitted && pool.length) {
+    map.fitBounds(L.latLngBounds(pool.map(p => [p.lat, p.lng])), { padding: [20, 20] });
+    fitted = true;
+  }
+}
 
 function answer(r) {
   // A scheduled round with no answer row: a rounds push whose answers push never
@@ -193,6 +258,7 @@ async function show(date) {
   // is already in front of somebody and the Reject button is deliberately gone.
   el('meta').classList.toggle('live', body.open);
   el('rounds').innerHTML = body.rounds.map(r => render(r, date)).join('');
+  drawMap(body.pool, body.rounds);
 }
 
 // Reject, and say what it cost. A rejection is paid for out of the schedule's
