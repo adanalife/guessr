@@ -4,6 +4,29 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.2.0 — 2026-08-07
+
+### New
+
+- A guess within a kilometre of the truth earns a 🏆 in place of its square — about one game in eight. ([#119](https://github.com/adanalife/guessr/pull/119))
+
+### Changed
+
+- "Drop a pin to guess" is readable now, in a dashed outline that shows where the guess gets submitted from. ([#120](https://github.com/adanalife/guessr/pull/120))
+
+### Fixed
+
+- On a phone, the end-of-game screen opens on the live stream preview instead of somewhere in the middle of your five rounds. ([#116](https://github.com/adanalife/guessr/pull/116))
+
+### Behind the scenes
+
+- The page used to review upcoming days now needs a login. It used to be readable by anyone who knew the address, which meant the answers to days nobody had played yet were too. ([#105](https://github.com/adanalife/guessr/pull/105))
+- The check that the end-screen's stream preview can find the current broadcast now waits for the new build to be the one answering it. The v1.1.0 release was reported as a failure because that check read the previous build's answer, which could never find one — the game was fine, and the report was wrong about it. ([#109](https://github.com/adanalife/guessr/pull/109))
+- YouTube's video feed can refuse to answer for a day at a time, and when it does the end-screen's stream preview falls back to a plain link — as designed. That fallback no longer blocks a release: only a feed that answers while the preview still can't read it counts as a fault worth stopping for. ([#113](https://github.com/adanalife/guessr/pull/113))
+- The page used to review upcoming days now works on the live game, not only on the test copy. Days are checked where they are actually about to be played, so a bad clip or a pin in the wrong place gets caught before anyone gets it. ([#114](https://github.com/adanalife/guessr/pull/114))
+- The difficulty summary printed when a round set is generated now reports where this set's easy, medium and hard thirds actually sit, instead of measuring every set against cutoffs computed from one long-retired set — and a set with little difficulty spread is reported rather than refused, the same way clustered answers already were. ([#115](https://github.com/adanalife/guessr/pull/115))
+- Publishing a round set's clips now retries each upload a couple of times before giving up — one hiccup on Cloudflare's side no longer throws away a half-hour generation run. ([#117](https://github.com/adanalife/guessr/pull/117))
+
 ## v1.1.0 — 2026-08-07
 
 ### Changed
