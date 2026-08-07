@@ -689,6 +689,37 @@ def answers_sql(answers: list[dict]) -> str:
     )
 
 
+def burned_slugs(path: Path) -> set[str]:
+    """The clips a target tier already owns, read one slug per line.
+
+    Slugs rather than image names, deliberately: an image names one moment of a
+    clip, so excluding by image would let a different second of the same road
+    back in -- the same answer wearing a different frame, which is a repeat to
+    the player and a fresh row to the database. Burning the whole clip costs
+    corpus (one round ever per clip per tier) against ~4,400 clips, which is
+    years of weekly top-ups before it pinches.
+
+    Blank lines and #-comments pass through silently so the file can carry a
+    provenance header.
+    """
+    return {
+        line.strip()
+        for line in path.read_text().splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+
+
+def drop_burned(scored: list[dict], burned: set[str]) -> tuple[list[dict], int]:
+    """Filter scored moments whose clip is burned, before the quality window.
+
+    Before, not after: the keep-fraction window sizes itself on what it is
+    given, and a window padded with unpickable rounds is narrower than the one
+    asked for.
+    """
+    kept = [r for r in scored if r["slug"] not in burned]
+    return kept, len(scored) - len(kept)
+
+
 def schedule(rounds: list[dict], first_date: dt.date, days: int) -> list[tuple]:
     """Lay a pool out over consecutive dates, each day ramped easy to hard.
 
@@ -918,6 +949,14 @@ def main() -> int:
         "what the same draw selects. Everything after the draw is deterministic. "
         "Without a seed every run draws a fresh pool.",
     )
+    ap.add_argument(
+        "--exclude",
+        metavar="FILE",
+        help="slugs never to select, one per line: the clips a target tier "
+        "already holds, so a top-up cannot hand back a round players have seen "
+        "or re-schedule one that was rejected. See burned_slugs() for why the "
+        "unit is the clip and not the moment.",
+    )
     args = ap.parse_args()
 
     shutil.rmtree(STAGING, ignore_errors=True)
@@ -939,6 +978,9 @@ def main() -> int:
             args.max_radius,
         )
     )
+    if args.exclude:
+        scored, dropped = drop_burned(scored, burned_slugs(Path(args.exclude)))
+        print(f"excluded {dropped} scored moments whose clip is burned")
     keep = max(args.count, int(len(scored) * args.keep_fraction))
     eligible = rank(scored, args.distinctiveness)[:keep]
     print(
