@@ -1,0 +1,1 @@
+A schedule push no longer reports success when it left a date holding fewer than five rounds. A run that re-picks a moment the tier has already scheduled loses that row to the `round_days_once` constraint, which had been silent -- the date became a four-round game against a five-round leaderboard, and nothing said so.

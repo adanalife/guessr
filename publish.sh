@@ -171,6 +171,12 @@ scheduled=$(jq -r '.[0].results[0] | "\(.days) days, \(.ahead) ahead, through \(
 
 echo "published to $TIER: $scheduled"
 
+# Before the depth guard, and in both modes: depth asks whether the schedule
+# reaches far enough, this asks whether the days inside it are whole. A run can
+# pass the first and fail this one, which is exactly what a --per-clip 12 push
+# to staging did on 2026-08-07.
+./verify_days.sh "$DB" "$TIER"
+
 if [ "$MODE" = "topup" ]; then
   # The depth guard, from the readback rather than this run's arithmetic, so it
   # catches everything upstream of it: a generation that quietly produced too
