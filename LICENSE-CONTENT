@@ -1,0 +1,43 @@
+# Licence for the footage
+
+`LICENSE` (MIT) covers the code in this repository. It does not cover the
+footage, and this file exists so that is unambiguous.
+
+## The footage
+
+The dashcam video this game serves — the clips, the frames cut from them, and
+derived stills such as the share card — is:
+
+**Copyright © A Dana Life. All rights reserved.**
+
+It is published so the game can be played. It is not licensed for reuse,
+redistribution, republication, modification, training, or commercial use. No
+permission is granted by the footage being publicly reachable, and none is
+implied by the absence of a technical restriction on saving it.
+
+Uses that copyright law already allows — quotation, criticism, commentary, news
+reporting and the like — are unaffected. This file neither expands nor contracts
+them.
+
+## Asking
+
+Licences for the footage are available on request, commercial ones included. Ask
+rather than assume: <https://dana.lol>
+
+## Why the two halves differ
+
+The code is worth more shared than withheld, so it is MIT. The footage is the
+opposite: a year of driving that cannot be re-shot, and the reason this game can
+exist at all.
+
+The two directions are also not equally reversible. A licence, once given, cannot
+be withdrawn from copies already distributed — so a permissive grant here would
+be a one-way door, while starting closed leaves both moves available. That is the
+whole reason this file reads the way it does rather than naming an open licence.
+
+## What this file cannot reach
+
+Round sets used to be committed to this repository, so dashcam frames sit in its
+git history from a time when `LICENSE` was the only licence here. Nothing
+retroactively relicenses those objects. The media stopped being committed in
+[#53](https://github.com/adanalife/guessr/pull/53), so nothing new joins them.

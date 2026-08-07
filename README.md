@@ -758,3 +758,33 @@ upload a set that fails it.
   rounds are cut from a clip one of them used, and truth was clip-level — so
   those 34 are worth only as much as the player's disinclination to run
   `git log`. Fine for a beta; a regeneration closes it.
+
+## Licence
+
+Two licences, because there are two kinds of thing here.
+
+The **code** is MIT — `LICENSE`, unchanged and unqualified. Take it.
+
+The **footage** is not licensed at all: the clips a round serves, the frames cut
+from them and the derived stills are **© A Dana Life, all rights reserved** —
+`LICENSE-CONTENT`. Published so the game can be played, and for nothing else.
+Licences, commercial ones included, are available by asking.
+
+The asymmetry is the point. The code is worth more shared than withheld; the
+footage is a year of driving that cannot be re-shot and is the reason the game
+can exist. The two directions are also not equally reversible — **a licence, once
+given, cannot be withdrawn from copies already distributed** — so a permissive
+grant is a one-way door, while starting closed leaves both moves available.
+
+Two consequences worth stating rather than leaving to be discovered:
+
+- **The split is by kind, not by directory.** A clip carries its terms wherever
+  it is — in R2, on the page, saved off the page. Every clip also carries the
+  credit in its container metadata and a mark in its corner (see *How a round is
+  built*), so a file that has travelled away from here still says where it came
+  from.
+- **The history predates the split.** Round sets used to be committed, so
+  dashcam frames are in this repo's git history from a time when `LICENSE` was
+  the only licence here. Nothing retroactively relicenses those objects. The
+  media stopped being committed in [#53](https://github.com/adanalife/guessr/pull/53),
+  so nothing new joins them.
