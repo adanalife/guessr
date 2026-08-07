@@ -9,17 +9,18 @@
 // guard stops being absolute, and "cannot leak a coordinate" becomes "does not,
 // under the conditions currently written".
 //
-// What stands in for them here is the tier. Staging and the per-PR previews are
-// not secret and do not need to be: each holds its own round set, so a schedule
-// read off one says nothing about production's until a promotion copies it. So
-// the whole gate is "this is not production", and it is a refusal to answer at
-// all rather than a narrower answer -- the cheap half of the authenticated
-// /admin the round pipeline design asks for, which it does not foreclose.
+// What stands in for them here is the tier: production does not answer at all,
+// whoever is asking. That is a different question from who may look, which
+// _middleware.js answers with an Access login in front of this whole directory
+// -- so a request that reaches this handler has already proved who it is, and
+// this is left deciding only whether the tier it landed on may serve a schedule
+// nobody has played yet.
 //
 // Seeing the queue is most of the value of an admin view: reject and reorder are
 // only worth having once looking is possible, and this is where a wrong
 // coordinate or a dud clip gets caught. The alternative place is a real day.
 import { isOpen, playWindow } from '../../web/daily.js';
+import { tier } from './_tier.js';
 
 const json = (body, status = 200, headers = {}) =>
   new Response(JSON.stringify(body), {
@@ -36,26 +37,6 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 // refusal is that a testing tier needs a line added here, and the cost of a
 // false answer is tomorrow's five and where they are.
 const TESTING_TIERS = new Set(['staging', 'preview', 'local']);
-
-// Which tier is serving this, as declared by the workflow that deployed it --
-// the same web/version.json the About panel reads, fetched through the
-// static-asset binding rather than over the network.
-//
-// Declared rather than inferred from the hostname, for the reason the page
-// already records: a Pages alias or a redirect pointed at production would fool
-// a hostname test, while the deploying workflow knows for certain. A local `task
-// dev` stamps one, because the alternative is this refusing itself on the
-// surface it is most useful on.
-async function tier(env, url) {
-  try {
-    const res = await env.ASSETS.fetch(new URL('/version.json', url));
-    return res.ok ? (await res.json()).tier : null;
-  } catch {
-    // No ASSETS binding, or a version.json that is not JSON. Both are "unknown",
-    // which TESTING_TIERS answers with a refusal.
-    return null;
-  }
-}
 
 // Shared by both methods, and shared deliberately: a second copy of the
 // allowlist is a second thing to remember when a tier is added, and the one that

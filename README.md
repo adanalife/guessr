@@ -581,20 +581,36 @@ coordinates joined on, so a dud clip or a pin in the wrong place is caught befor
 a real day is made of it. Past dates read the same way, which is how a finished
 day gets looked at again.
 
-**It is refused on production**, and the gate is the tier: the Function reads the
-same `web/version.json` the About panel does, through the static-asset binding,
-and answers `403` unless the deployment declares itself `staging`, `preview` or
-`local`. Every other answer — no `version.json`, one that will not parse, a tier
-nobody has taught it about — reads as production, since the cost of a false
-refusal is a line in an allowlist and the cost of a false answer is tomorrow's
-five and where they are. `task dev` stamps a `local` one so the preview works
-against a local D1; `smoke.sh` asserts the refusal on production and the access
-everywhere else, which is the only check that exercises the tier read at all.
+**It is behind a login.** `functions/admin/_middleware.js` gates everything under
+`/admin/` — Pages runs Functions ahead of static assets, so that covers the
+review page itself and not only the endpoints beneath it. The login is Cloudflare
+Access, which fronts the project's `pages.dev` hostname and its per-branch
+aliases: on those, an unauthenticated request never reaches the code, and what
+does arrive carries a JWT that Access signed, which the middleware verifies
+(right team, right application, unexpired) before letting anything through.
 
-Rejecting a round and reordering a day are not built. Looking is most of the
-value and it is what makes the rest worth having, so it went first — and a tier
-check is a fraction of the work of an authenticated `/admin`, which it does not
-foreclose.
+The custom domains are the reason the check is in the Function and not only at
+the edge. `guessr.dana.lol` and `stage.guessr.dana.lol` resolve through Route53,
+so Cloudflare cannot put an Access application in front of them without the zone
+moving — no Access means no JWT, and no JWT is a refusal. **So the review page is
+reachable at the `pages.dev` URL and nowhere else.** Two values off the Access
+application, `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`, are set on the Pages project;
+a deployment missing them answers `503` and serves nothing, which is the state
+every tier is in until the Access application exists. `task dev` is the one
+exemption — a `local` tier skips the login, since nothing fronts localhost.
+
+**It is also still refused on production**, which is a different question:
+the login says who is asking, the tier says which deployment may answer at all.
+The Function reads the same `web/version.json` the About panel does, through the
+static-asset binding, and answers `403` unless the deployment declares itself
+`staging`, `preview` or `local`. Every other answer — no `version.json`, one that
+will not parse, a tier nobody has taught it about — reads as production, since
+the cost of a false refusal is a line in an allowlist and the cost of a false
+answer is tomorrow's five and where they are.
+
+Rejecting a round is built (a button per round, replaced from the queue's tail);
+reordering a day is not. Looking is most of the value and it is what makes the
+rest worth having, so it went first.
 
 **Rounds no longer repeat.** A date's five are dealt from the pool once and
 recorded, and `round_days_once` makes scheduling the same round twice impossible
