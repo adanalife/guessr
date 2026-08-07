@@ -3,9 +3,9 @@
 //
 // The gate is the whole test. This endpoint deliberately does the two things
 // /api/day exists to refuse -- serve an unopened date, and serve coordinates --
-// so the only thing between the answer key and the public internet is a tier
-// check, and every way of failing that check has to land on "no". A regression
-// here is silent from the outside: the endpoint keeps working, on production too.
+// so behind the login it answers on every tier it recognises, and every way of
+// not recognising one has to land on "no". A regression here is silent from the
+// outside: the endpoint keeps working, on production too.
 //
 // Against the real migrations over node:sqlite, so the joins are the ones that
 // will run.
@@ -65,17 +65,19 @@ const get = (tier, query) => onRequestGet({
 });
 const body = async res => [res.status, await res.json()];
 
-// THE ONE THAT MATTERS. Production must not answer, and the refusal must carry
-// nothing -- this is the endpoint that joins the answer key.
+// THE ONE THAT MATTERS. A deployment this code cannot name must not answer, and
+// the refusal must carry nothing -- this is the endpoint that joins the answer
+// key.
 {
-  const res = await get('production', `date=${FUTURE}`);
+  const res = await get('broken', `date=${FUTURE}`);
   const [status, json] = await body(res);
-  assert.equal(status, 403, 'production served a future day');
+  assert.equal(status, 403, 'an unnameable tier served a future day');
   assert.equal(json.rounds, undefined, 'the refusal carried the rounds it declined');
 }
 
 // And every way of not knowing which tier this is has to land there too: no
-// version.json, an unparseable one, a tier nobody has heard of, and no ASSETS
+// version.json, an unparseable one, a tier nobody has heard of -- including the
+// right name in the wrong shape, since the match is exact -- and no ASSETS
 // binding at all.
 for (const tier of [undefined, 'broken', 'PRODUCTION', 'prod', '', null]) {
   const [status] = await body(await get(tier, `date=${FUTURE}`));
@@ -86,20 +88,21 @@ for (const tier of [undefined, 'broken', 'PRODUCTION', 'prod', '', null]) {
     request: new Request(`https://guessr.dana.lol/admin/day?date=${FUTURE}`),
     env: { ANSWERS: seeded() },   // no ASSETS binding
   });
-  assert.equal(res.status, 403, 'a missing ASSETS binding read as a testing tier');
+  assert.equal(res.status, 403, 'a missing ASSETS binding read as a known tier');
 }
 
-// The tier check runs before the date is parsed, so production answers the same
-// way whatever it is asked -- there is nothing to learn from which refusal comes
-// back.
+// The tier check runs before the date is parsed, so a refusing tier answers the
+// same way whatever it is asked -- there is nothing to learn from which refusal
+// comes back.
 {
-  const [status] = await body(await get('production', 'date=nonsense'));
-  assert.equal(status, 403, 'production distinguished a malformed date from a refusal');
+  const [status] = await body(await get('broken', 'date=nonsense'));
+  assert.equal(status, 403, 'a refusal distinguished a malformed date from a refusal');
 }
 
 // What the tool is for: a date nobody can play yet, in ramp order, with the
-// answers attached.
-for (const tier of ['staging', 'preview', 'local']) {
+// answers attached. Production among them -- its schedule is the one whose
+// wrong coordinate reaches players, so it is the tier a review matters most on.
+for (const tier of ['production', 'staging', 'preview', 'local']) {
   const [status, json] = await body(await get(tier, `date=${FUTURE}`));
   assert.equal(status, 200, `${tier} could not read a future day`);
   assert.equal(json.date, FUTURE);
@@ -131,7 +134,7 @@ for (const tier of ['staging', 'preview', 'local']) {
 // coordinates for every round in the database, which is strictly more than the
 // day the refusal above is protecting.
 {
-  const [, json] = await body(await get('production', `date=${FUTURE}`));
+  const [, json] = await body(await get('broken', `date=${FUTURE}`));
   assert.equal(json.pool, undefined, 'the refusal carried the pool coordinates');
 }
 
@@ -177,7 +180,7 @@ for (const bad of ['', 'date=', 'date=2026-8-1', 'date=tomorrow', 'date=2026-08-
   assert.equal(res.headers.get('cache-control'), 'no-store');
 }
 
-console.log('ok: production refuses, and so does every way of not knowing the tier');
-console.log('ok: a testing tier reads an unopened day in ramp order, answers attached');
+console.log('ok: every way of not knowing the tier refuses');
+console.log('ok: a known tier reads an unopened day in ramp order, answers attached');
 console.log('ok: a round whose answer was never pushed shows up as such');
 console.log('ok: the schedule horizon comes back with the day');

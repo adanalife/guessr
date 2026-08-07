@@ -1,0 +1,1 @@
+The page used to review upcoming days now works on the live game, not only on the test copy. Days are checked where they are actually about to be played, so a bad clip or a pin in the wrong place gets caught before anyone gets it.

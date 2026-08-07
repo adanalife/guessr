@@ -9,12 +9,10 @@
 // guard stops being absolute, and "cannot leak a coordinate" becomes "does not,
 // under the conditions currently written".
 //
-// What stands in for them here is the tier: production does not answer at all,
-// whoever is asking. That is a different question from who may look, which
-// _middleware.js answers with an Access login in front of this whole directory
-// -- so a request that reaches this handler has already proved who it is, and
-// this is left deciding only whether the tier it landed on may serve a schedule
-// nobody has played yet.
+// What stands in for them is the login: _middleware.js puts Cloudflare Access in
+// front of this whole directory, so a request that reaches this handler has
+// already proved who it is. What is left here is the narrower question of
+// whether the deployment it landed on is one this code recognises at all.
 //
 // Seeing the queue is most of the value of an admin view: reject and reorder are
 // only worth having once looking is possible, and this is where a wrong
@@ -30,28 +28,33 @@ const json = (body, status = 200, headers = {}) =>
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-// Where the queue and the answer key may be read. An allowlist rather than
-// `tier !== 'production'` so that every way of not knowing -- no version.json, a
-// version.json that will not parse, a tier nobody has taught this about -- reads
-// as production. That is the direction to be wrong in: the cost of a false
-// refusal is that a testing tier needs a line added here, and the cost of a
-// false answer is tomorrow's five and where they are.
-const TESTING_TIERS = new Set(['staging', 'preview', 'local']);
+// The tiers this code knows about. Production is one of them: its schedule is
+// the one a wrong coordinate actually reaches players through, so the surface
+// built to catch that has to work there or it catches it everywhere except where
+// it counts.
+//
+// Still an allowlist rather than nothing, because "which tier is this" has a way
+// of coming back unanswerable -- no version.json, a version.json that will not
+// parse, a tier nobody has taught this about -- and a deployment this code cannot
+// name is one whose Access application it cannot vouch for either. Refusing costs
+// a line here when a tier is added; answering costs tomorrow's five and where
+// they are.
+const KNOWN_TIERS = new Set(['production', 'staging', 'preview', 'local']);
 
 // Shared by both methods, and shared deliberately: a second copy of the
 // allowlist is a second thing to remember when a tier is added, and the one that
 // gets forgotten is whichever is not being looked at. The write below is exactly
 // as gated as the read above it.
 const refusal = async (env, url) =>
-  TESTING_TIERS.has(await tier(env, url))
+  KNOWN_TIERS.has(await tier(env, url))
     ? null
     : json({ error: 'the day preview is not available on this tier' }, 403);
 
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
 
-  // Before the date is even parsed, so production answers everything here the
-  // same way and there is nothing to learn from the shape of the refusal.
+  // Before the date is even parsed, so a refusing tier answers everything here
+  // the same way and there is nothing to learn from the shape of the refusal.
   const refused = await refusal(env, url);
   if (refused) return refused;
 

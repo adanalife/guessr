@@ -76,14 +76,14 @@ const scheduleOf = (answers, date) => answers.db
 const statusOf = (answers, image) => answers.db
   .prepare('SELECT status FROM rounds WHERE image = ?').get(image).status;
 
-// THE ONE THAT MATTERS. A write that production would honour is strictly worse
-// than a read it would honour: it does not leak tomorrow's five, it changes
-// them.
+// THE ONE THAT MATTERS. A write honoured on a deployment this code cannot name
+// is strictly worse than a read honoured there: it does not leak tomorrow's
+// five, it changes them.
 {
   const answers = seeded();
-  const [status] = await body(await reject({ ANSWERS: answers }, { date: DAY1, image: img(DAY1, 1) }, 'production'));
-  assert.equal(status, 403, 'production accepted a rejection');
-  assert.equal(scheduleOf(answers, DAY1)[0].image, img(DAY1, 1), 'production changed the schedule');
+  const [status] = await body(await reject({ ANSWERS: answers }, { date: DAY1, image: img(DAY1, 1) }, 'broken'));
+  assert.equal(status, 403, 'an unnameable tier accepted a rejection');
+  assert.equal(scheduleOf(answers, DAY1)[0].image, img(DAY1, 1), 'a refused write changed the schedule');
 }
 
 // And every way of not knowing, exactly as the read is tested -- including no
@@ -103,7 +103,7 @@ for (const tier of [undefined, 'broken', 'PRODUCTION', 'prod', '', null]) {
     }),
     env: { ANSWERS: answers, CLIPS },   // no ASSETS binding
   });
-  assert.equal(res.status, 403, 'a missing ASSETS binding read as a testing tier');
+  assert.equal(res.status, 403, 'a missing ASSETS binding read as a known tier');
 }
 
 // A body that is not the two strings this needs.
@@ -122,6 +122,18 @@ for (const date of [OPENED, '2026-08-01']) {
   assert.equal(status, 409, `${date} was editable`);
   assert.match(json.error, /frozen/);
   assert.equal(statusOf(answers, img(date, 2)), 'scheduled', 'a frozen day was modified anyway');
+}
+
+// And production honours it, which is the tier this verb was built for: a wrong
+// coordinate caught on staging costs nothing, and the same one caught on
+// production is the only place the catch is worth anything.
+{
+  const answers = seeded();
+  answers.queue('clips/spare-000000.mp4');
+  const [status, json] = await body(await reject({ ANSWERS: answers }, { date: DAY1, image: img(DAY1, 3) }, 'production'));
+  assert.equal(status, 200, 'production refused a rejection');
+  assert.equal(scheduleOf(answers, DAY1)[2].image, 'clips/spare-000000.mp4');
+  assert.equal(json.replacement, 'clips/spare-000000.mp4');
 }
 
 // A round that is not on that day at all.
@@ -217,7 +229,7 @@ for (const date of [OPENED, '2026-08-01']) {
   assert.equal(statusOf(answers, img(DAY1, 1)), 'scheduled');
 }
 
-console.log('ok: production refuses the write, and so does every way of not knowing the tier');
+console.log('ok: every way of not knowing the tier refuses the write');
 console.log('ok: an opened or finished day is frozen');
 console.log('ok: queued surplus is spent first, and costs no runway');
 console.log('ok: with no surplus the furthest-out day is given up whole and reported');
