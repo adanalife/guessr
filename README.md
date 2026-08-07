@@ -758,3 +758,30 @@ upload a set that fails it.
   rounds are cut from a clip one of them used, and truth was clip-level — so
   those 34 are worth only as much as the player's disinclination to run
   `git log`. Fine for a beta; a regeneration closes it.
+
+## Licence
+
+Two licences, because there are two kinds of thing here.
+
+The **code** is MIT — `LICENSE`, unchanged and unqualified. Take it.
+
+The **footage** is not: the clips a round serves, and the frames derived from
+them, are [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+— `LICENSE-CONTENT`. Attribution required, no commercial use, derivatives under
+the same terms. The blog at [dana.lol](https://dana.lol) takes the same posture
+for the same reason: the writing and the photographs are the thing, and MIT is a
+software licence that says nothing useful about a photograph.
+
+Two consequences worth stating rather than leaving to be discovered:
+
+- **The split is by kind, not by directory.** A clip is CC BY-NC-SA wherever it
+  is — in R2, on the page, saved out of the page — so a file that has travelled
+  away from here is still under it.
+- **The history predates the split.** Round sets used to be committed, so
+  dashcam frames are in this repo's git history from a time when `LICENSE` was
+  the only licence here. Nothing retroactively relicenses those objects. The
+  media stopped being committed in [#53](https://github.com/adanalife/guessr/pull/53),
+  so nothing new joins them.
+
+NonCommercial binds everyone else, not the copyright holder: the footage is also
+licensed commercially on request.

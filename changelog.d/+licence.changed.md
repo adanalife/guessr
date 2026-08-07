@@ -1,0 +1,1 @@
+The About panel now says who owns the footage and what you may do with it: the clips are shared under CC BY-NC-SA 4.0 — reuse them with credit, not commercially — while the code behind the game stays MIT.
