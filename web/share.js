@@ -27,7 +27,27 @@ export const HOME_URL = 'https://guessr.dana.lol';
 //
 // Order is load-bearing: bandFor takes the first band a score clears, so a table
 // sorted any other way hands every round the same square and says nothing.
+//
+// 4989 is `scoreFor(1)` — a guess within a kilometre of the truth. It reads as
+// an arbitrary number because it is a distance wearing the units the share
+// string happens to speak; the curve is invertible, so a round bar in points
+// would have been a ragged one in km, which is the thing a player experiences.
+//
+// A kilometre and not a rounder five: across 226 recorded guesses, 2.7% land
+// inside 1 km against 5.3% inside 5 km, so the tighter bar shows up in roughly
+// one game in eight. Rare enough to be worth pasting, common enough to exist.
+// Re-derive it from `plays` rather than adjusting by feel if it stops landing
+// there — `stats.sql` holds the km of every guess ever made.
+//
+// The trophy takes the square rather than sitting beside it: a share line is
+// read at a glance, and one round widening to two symbols costs the row the
+// alignment that makes it readable at all.
 export const BANDS = [
+  // Violet rather than a deeper green. The rest of the table is a gradient
+  // (green good, grey bad) and a fifth green would have to be read against its
+  // neighbour to mean anything; off the gradient entirely, it means "not on
+  // this scale" at a glance, on a map tile as well as in a paste.
+  { min: 4989, square: '🏆', colour: '#c084fc' },
   { min: 4000, square: '🟩', colour: '#4ade80' },
   { min: 2500, square: '🟨', colour: '#facc15' },
   { min: 1000, square: '🟧', colour: '#fb923c' },
