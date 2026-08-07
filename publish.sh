@@ -15,9 +15,15 @@
 # hand. Push it last and the worst case is a date that is not scheduled yet,
 # which nobody can see.
 #
-# STAGING ONLY, all three. Production is a promotion, run by hand after a review
-# pass -- not something a scheduled job reaches. That is the whole security
-# posture of running this on a cron, and it costs one command a month.
+# Two modes, one target each. Bare, this builds a full fresh set for STAGING --
+# the development tier, whose schedule is disposable. With --top-up it targets
+# PRODUCTION under the top-up contract: keep TOPUP_DAYS scheduled ahead, never
+# schedule inside TOPUP_LEAD days, keep TOPUP_QUEUE rounds queued for
+# reject-and-replace, and generate nothing when the horizon is already healthy.
+# The lead time is the review window -- every round sits on the admin page,
+# rejectable, for at least TOPUP_LEAD days before a player can meet it. Review
+# is possible the whole time and required never; check.py below stays the gate
+# that runs unconditionally.
 #
 # What used to be here and is not: git. This opened a pull request to commit
 # web/rounds.json, because the round set was a deployed file and a deploy was the
@@ -37,12 +43,84 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 STAGE_DB="adanalife-guessr-answers-staging"
+PROD_DB="adanalife-guessr-answers"
+
+# The top-up contract's three numbers, env-overridable because they are working
+# values ([[prod-automation-design]] says revisit after a month of real runs):
+# how far ahead production stays scheduled, how close to an open date a run may
+# schedule (the floor of the review window), and how deep the queued tail that
+# reject-and-replace draws from must be.
+TOPUP_DAYS="${TOPUP_DAYS:-14}"
+TOPUP_LEAD="${TOPUP_LEAD:-3}"
+TOPUP_QUEUE="${TOPUP_QUEUE:-10}"
+
+MODE=stage
+DB="$STAGE_DB"
+TIER=staging
+if [ "${1:-}" = "--top-up" ]; then
+  shift
+  MODE=topup
+  DB="$PROD_DB"
+  TIER=production
+fi
 
 # Both credentials up front, before the 25 minutes of encoding rather than after.
 # Discovering a missing token at the first publish step means paying for the whole
 # generation again, and this runs somewhere nobody is watching.
 : "${CLOUDFLARE_ACCOUNT_ID:?needed by clips.sh and wrangler}"
-: "${CLOUDFLARE_API_TOKEN:?needs R2 write on the clips bucket and D1 write on staging}"
+: "${CLOUDFLARE_API_TOKEN:?needs R2 write on the clips bucket and D1 write}"
+
+if [ "$MODE" = "topup" ]; then
+  echo "== reading $TIER's horizon"
+  state=$(npx wrangler d1 execute "$DB" --remote --json --command="SELECT (SELECT MAX(date) FROM round_days) AS last_day, (SELECT CAST(julianday(MAX(date)) - julianday(date('now')) AS INTEGER) FROM round_days) AS days_left, (SELECT COUNT(*) FROM rounds WHERE status = 'queued') AS queued")
+  last_day=$(jq -r '.[0].results[0].last_day // empty' <<<"$state")
+  days_left=$(jq -r '.[0].results[0].days_left // 0' <<<"$state")
+  queued=$(jq -r '.[0].results[0].queued' <<<"$state")
+
+  days_needed=$((TOPUP_DAYS - days_left))
+  [ "$days_needed" -lt 0 ] && days_needed=0
+  queue_needed=$((TOPUP_QUEUE - queued))
+  [ "$queue_needed" -lt 0 ] && queue_needed=0
+  count=$((days_needed * 5 + queue_needed))
+
+  # The healthy exit, which is what makes the job idempotent, safe to re-run,
+  # and cheap on the weeks nothing is missing.
+  if [ "$count" -eq 0 ]; then
+    echo "$TIER is healthy: $days_left days scheduled (want $TOPUP_DAYS), $queued queued (want $TOPUP_QUEUE). Nothing to generate."
+    exit 0
+  fi
+
+  # check.py refuses a set shorter than one game, so a queue-only top-up still
+  # generates five; the surplus stays queued, which is where it was headed.
+  [ "$count" -lt 5 ] && count=5
+
+  # New dates land after everything scheduled AND at least TOPUP_LEAD days out,
+  # whichever is later. The second bound is the review window; the first means
+  # a horizon that already reaches past the window just gets extended.
+  from=$(python3 - "$last_day" "$TOPUP_LEAD" <<'PY'
+import datetime as dt
+import sys
+
+last, lead = sys.argv[1], int(sys.argv[2])
+after_last = dt.date.fromisoformat(last) + dt.timedelta(days=1) if last else dt.date.min
+earliest = dt.datetime.now(dt.UTC).date() + dt.timedelta(days=lead)
+print(max(after_last, earliest))
+PY
+)
+
+  # Everything the tier holds -- played, scheduled, queued or rejected -- is
+  # burned: a top-up must never deal a clip players have seen back into the
+  # schedule, and never resurrect a reject through round_days pointing at its
+  # kept row. See burned_slugs() in make_rounds.py for why whole clips.
+  echo "== reading what $TIER already holds"
+  {
+    echo "# slugs $TIER holds, read $(date -u +%Y-%m-%dT%H:%MZ) -- written by publish.sh --top-up, not by hand"
+    npx wrangler d1 execute "$DB" --remote --json --command="SELECT DISTINCT slug FROM rounds" | jq -r '.[0].results[].slug'
+  } >burned.txt
+
+  echo "top-up: $days_needed days from $from plus $queue_needed for the queue = $count rounds ($TIER has $days_left days, $queued queued)"
+  set -- -n "$count" --horizon "$days_needed" --schedule-from "$from" --exclude burned.txt "$@"
+fi
 
 echo "== generating"
 # Everything after this is the published artifact, so a knob change belongs here
@@ -65,20 +143,33 @@ python3 check.py
 echo "== 1/3 media to R2"
 ./clips.sh push
 
-echo "== 2/3 answers to the staging D1"
-npx wrangler d1 execute "$STAGE_DB" --remote --file answers.sql --yes
+echo "== 2/3 answers to the $TIER D1"
+npx wrangler d1 execute "$DB" --remote --file answers.sql --yes
 
 # Last, and only now: the schedule, which is the thing that gives a date a game.
-echo "== 3/3 pool and schedule to the staging D1"
-npx wrangler d1 execute "$STAGE_DB" --remote --file rounds.sql --yes
+echo "== 3/3 pool and schedule to the $TIER D1"
+npx wrangler d1 execute "$DB" --remote --file rounds.sql --yes
 
 # What a reviewer needs, and what a Discord notification will carry: how much was
 # generated and how far ahead the game is now covered. Read back out of the
 # database rather than out of the local files, so it describes what actually
 # landed.
-scheduled=$(npx wrangler d1 execute "$STAGE_DB" --remote --json \
-  --command="SELECT count(DISTINCT date) AS days, max(date) AS through FROM round_days" \
-  | jq -r '.[0].results[0] | "\(.days) days, through \(.through)"')
+readback=$(npx wrangler d1 execute "$DB" --remote --json \
+  --command="SELECT count(DISTINCT date) AS days, CAST(julianday(MAX(date)) - julianday(date('now')) AS INTEGER) AS ahead, max(date) AS through FROM round_days")
+scheduled=$(jq -r '.[0].results[0] | "\(.days) days, \(.ahead) ahead, through \(.through)"' <<<"$readback")
 
-echo "published to staging: $scheduled"
-echo "production is unchanged -- promote it by hand after a review pass."
+echo "published to $TIER: $scheduled"
+
+if [ "$MODE" = "topup" ]; then
+  # The depth guard, from the readback rather than this run's arithmetic, so it
+  # catches everything upstream of it: a generation that quietly produced too
+  # little, a schedule leg that did not land, a miscounted horizon. A thin
+  # answer here fails the run, and the job failing IS the alert.
+  days_after=$(jq -r '.[0].results[0].ahead' <<<"$readback")
+  if [ "$days_after" -lt 7 ]; then
+    echo "::error::$TIER is scheduled only $days_after days out after a top-up -- the run did not do its job" >&2
+    exit 1
+  fi
+else
+  echo "production is unchanged -- top it up with \`task rounds:topup\` after a review pass, or let the cron."
+fi

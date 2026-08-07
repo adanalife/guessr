@@ -239,15 +239,26 @@ tasks:
   # is invisible, a schedule ahead of its answers is `unknown round` on every
   # guess of a live game.
   #
-  # STAGING ONLY from a generation run. There is deliberately no rounds:prod:push
-  # here: production is a promotion of dates already reviewed on staging, not a
-  # second destination for a fresh set, and a target named like this one would be
-  # too easy to reach for by symmetry.
+  # STAGING ONLY from a full generation run. There is still deliberately no
+  # rounds:prod:push: production is reached only through the top-up below, whose
+  # contract (never inside the review window, never a clip the tier holds, only
+  # what is missing) is exactly what a bare push of a fresh rounds.sql would not
+  # honour.
   rounds:stage:push:
     desc: Seed rounds.sql (the pool and the schedule) into the staging D1
     cmds:
       - task: _d1:push
         vars: {DB: adanalife-guessr-answers-staging, FILE: rounds.sql}
+
+  # How production stays scheduled: generate only what is missing to keep it
+  # TOPUP_DAYS ahead, never inside TOPUP_LEAD days of an open date (that lead is
+  # the reject window), never a clip production already holds. Exits without
+  # generating when the horizon is healthy. The same invocation the CronJob runs;
+  # publish.sh holds the whole contract.
+  rounds:topup:
+    desc: Top production's schedule up per the top-up contract (no-op when healthy)
+    cmds:
+      - ./publish.sh --top-up {{.CLI_ARGS}}
 
   _d1:push:
     internal: true

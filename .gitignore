@@ -49,3 +49,4 @@ __pycache__/
 .venv/
 .DS_Store
 .ruff_cache/
+/burned.txt
