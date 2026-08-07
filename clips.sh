@@ -63,12 +63,29 @@ case "${1:?usage: clips.sh push|pull}" in
     # The bucket and the file arrive as $1 and $2 rather than being interpolated
     # into the script text: nesting a quote inside a single-quoted `sh -c` string
     # works but reads as a mistake, and this way the inner script is literal.
+    #
+    # Three attempts per object, because one flaked answer from Cloudflare's API
+    # must not cost the whole run: a put is idempotent (the name is the moment,
+    # the bytes are the same bytes), the failure already seen for real was a 523
+    # from api.cloudflare.com's own gateway, and by the time a scheduled job is
+    # pushing it has spent half an hour generating what one blip would throw
+    # away. Ten seconds and out -- an outage that survives three spaced attempts
+    # fails the run, which is what the weekly cadence's failure budget is for.
     # shellcheck disable=SC2016  # deliberate: $1/$2/$3 are the inner sh's own
     # positional parameters, passed after the script, not this shell's.
     find "$WEB/clips" -name '*.mp4' -print0 \
       | xargs -0 -P "$JOBS" -I{} sh -c \
-        'npx wrangler r2 object put "$1/clips/$(basename "$2")" \
-           --file "$2" --content-type video/mp4 --remote >/dev/null' \
+        'n=0
+         until npx wrangler r2 object put "$1/clips/$(basename "$2")" \
+                 --file "$2" --content-type video/mp4 --remote >/dev/null; do
+           n=$((n + 1))
+           if [ "$n" -ge 3 ]; then
+             echo "gave up on $(basename "$2") after $n attempts" >&2
+             exit 1
+           fi
+           echo "attempt $n failed for $(basename "$2"), retrying" >&2
+           sleep $((n * 5))
+         done' \
         sh "$BUCKET" {}
     echo "ok: a round naming any of these clips can now be played"
     ;;
