@@ -306,6 +306,51 @@ for path in "/admin/" "/admin/day?date=2099-01-01"; do
   esac
 done
 
+# And the same two paths on the tier's custom domain, which is the only vantage
+# point the login's own configuration is visible from. On a pages.dev hostname
+# Access answers ahead of the deployment, so the 302 above is issued whatever the
+# middleware would have said -- ACCESS_TEAM_DOMAIN can name a host that does not
+# exist and every check still passes. That is 2026-08-07, where a trailing dot on
+# production's binding shut the review page to its operator for a day, green all
+# the way. The custom domains resolve through Route53 and Access cannot front
+# them, so the middleware is what answers, and it distinguishes the two: 403 is
+# it refusing an anonymous request with a configuration it can check a login
+# against, 503 is it unable to run the check at all and naming the value that is
+# wrong.
+#
+# Keyed off the hostname being smoked, because only these two have a custom
+# domain to probe -- a preview is a per-branch alias on the staging project and
+# falls through to no second pass. 302 is tolerated for the same reason as above,
+# should the zone ever move and Access come to front these too.
+case "$BASE" in
+  https://adanalife-guessr.pages.dev) custom=https://guessr.dana.lol ;;
+  https://adanalife-guessr-staging.pages.dev) custom=https://stage.guessr.dana.lol ;;
+  *) custom="" ;;
+esac
+if [ -n "$custom" ]; then
+  for path in "/admin/" "/admin/day?date=2099-01-01"; do
+    out=$(call "$custom$path")
+    status=$(tail -1 <<<"$out")
+    case "$status" in
+      403|302) echo "ok: $custom$path refuses an unauthenticated request -> $status" ;;
+      503) echo "::error::$custom$path answered 503, so the middleware could not run"
+           echo "::error::the login check at all -- and this is the only hostname that"
+           echo "::error::would say so, since Access answers the pages.dev one first."
+           echo "::error::ACCESS_TEAM_DOMAIN and ACCESS_AUD are typed by hand onto each"
+           echo "::error::Pages project (terraform cannot write deployment_configs), so"
+           echo "::error::a blank, mistyped or dot-terminated value reads exactly like"
+           echo "::error::this, and nobody can reach /admin/ until it is fixed:"
+           head -1 <<<"$out"
+           exit 1 ;;
+      *)   echo "::error::$custom$path answered $status to a request carrying no Access"
+           echo "::error::token. Nothing fronts this hostname, so the refusal was the"
+           echo "::error::middleware's to make and it did not make one."
+           head -1 <<<"$out"
+           exit 1 ;;
+    esac
+  done
+fi
+
 # Both boards read. A 500 here is an unapplied schema.sql.
 #
 # The shape assertion is not belt-and-braces: Pages serves the static site for a
