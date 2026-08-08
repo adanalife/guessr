@@ -136,6 +136,17 @@ so testing any of them a second time otherwise means clearing site data by hand.
 Reset drops every `guessr-`prefixed key and reloads. A locally served copy has
 no `version.json` at all and gets the button too.
 
+The same tier gates a **Place random** button beside Guess, which drops a pin at
+a uniform point in the playable box and commits it — a five-round game in five
+clicks when what is being tested is anything other than aiming. It drives the
+map's click handler and the Guess button rather than its own copy of either, so
+the play it records is a real one: on staging the leaderboard carries those
+alongside genuine scores, under the same player id as the browser's real plays,
+since the id is also the device-link credential and a second one would fork the
+identity mid-game. This gate is stricter than reset's — no readable
+`version.json` means no button, because a misfire spends a player's one play of
+the day. `task dev` stamps a `local` tier, so local work still gets it.
+
 The Pages projects and the DNS records are terraform, in the `infra` repo under
 `terraform/prod-1/cloudflare-pages-guessr.tf` and `terraform/core/route53.tf`.
 
