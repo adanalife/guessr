@@ -70,7 +70,13 @@ jobs:
       # Both are best-effort. A rotated webhook 404s, and neither a shipped
       # release nor a failure it was meant to report should turn into a second
       # failure about the notification.
+      #
+      # Only the tag push announces. A workflow_dispatch run re-deploys a tag
+      # that already shipped, which is operational rather than news -- v1.2.0
+      # announced itself three times that way. The alert below stays
+      # unconditional: a re-deploy going red is exactly the case worth paging on.
       - name: Discord notification
+        if: github.event_name == 'push'
         continue-on-error: true
         uses: Ilshidur/action-discord@0.4.0
         env:
