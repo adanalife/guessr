@@ -111,9 +111,13 @@ const TODAY = '#4ade80';
 // taken from them runs short by however many rounds were pushed without their
 // answers, which is the failure this page exists to catch. The swatches say what
 // a colour means and leave the counting to whatever reads the rounds table.
-el('legend').innerHTML = Object.entries(STATUS)
-  .map(([status, colour]) =>
-    `<span><span class="swatch" style="background:${colour}"></span>${status}</span>`)
+//
+// Green is in the key too: it is the largest and most prominent thing on the map,
+// so a key without it is one that explains everything except what the reviewer is
+// looking at.
+el('legend').innerHTML = Object.entries({ ...STATUS, 'this day': TODAY })
+  .map(([label, colour]) =>
+    `<span><span class="swatch" style="background:${colour}"></span>${label}</span>`)
   .join('');
 
 const pins = L.layerGroup().addTo(map);
