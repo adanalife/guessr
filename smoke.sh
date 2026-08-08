@@ -274,22 +274,49 @@ check "an unopened date is refused" 403 "$(tail -1 <<<"$out")" "$(head -1 <<<"$o
 # counts: any other destination means the surface answered with something, and
 # that something is the leak. 403 is the middleware refusing a request that
 # reached it without a token -- the custom domains, which Access cannot front.
-# 503 is a deployment with no Access application configured, which is a refusal
-# too but a different fact worth saying out loud: on a tier that is meant to have
-# one it means the page does not work for its operator either, so it passes here
-# and still wants looking at.
+# 503 is the middleware finding no Access application to check a login against,
+# which is the state every tier sits in until the values are typed onto its
+# Pages project. That is a refusal, so the surface is not leaking -- but on a
+# tier with an operator behind it, it is also the page not working for the
+# operator, so which tier this is decides whether it passes.
 #
 # 2099-01-01 has no schedule, so nothing here reads a real day to find out.
 #
-# What this no longer covers is `env.ASSETS`: the tier read now fails closed into
-# the same 403 as being signed out, so a version.json the Functions cannot see is
+# What this does not cover is `env.ASSETS`: the tier read fails closed into the
+# same 403 as being signed out, so a version.json the Functions cannot see is
 # invisible from out here. test_admin_day.mjs carries that case instead.
+
+# Which tier this is, as the workflow that deployed it declared -- the same
+# version.json the pin above already matched to the build under test, and the
+# same file functions/admin/_tier.js reads to decide the gate. Empty for a
+# deployment too old to stamp one, which reads as the tolerant side.
+tier=$(curl -s "$BASE/version.json" | jq -r '.tier // empty' 2>/dev/null || true)
+
 for path in "/admin/" "/admin/day?date=2099-01-01"; do
   out=$(call "$BASE$path")
   status=$(tail -1 <<<"$out")
   case "$status" in
     403) echo "ok: $path refuses an unauthenticated request -> 403" ;;
-    503) echo "ok: $path is closed -> 503, no Access application configured here" ;;
+    # Tolerated only where no Access application is meant to exist. A preview
+    # alias is deployed to a project whose bindings nobody sets per branch, so
+    # holding it to a login would turn every PR red; staging and production are
+    # the two Dana actually signs in to, and there a 503 means the login is
+    # broken for him as surely as it is closed to a stranger.
+    503)
+      case "$tier" in
+        staging|production)
+          echo "::error::$BASE$path answered 503 on the $tier tier, which is its"
+          echo "::error::middleware saying it has no Access application to check a"
+          echo "::error::login against. Nobody can reach the admin surface here,"
+          echo "::error::Dana included. ACCESS_TEAM_DOMAIN and ACCESS_AUD are typed"
+          echo "::error::by hand onto the Pages project -- terraform cannot write"
+          echo "::error::deployment_configs -- so a value left blank, dropped by a"
+          echo "::error::rollback, or mistyped reads exactly like this. Check them"
+          echo "::error::against the Access application in the Cloudflare dashboard."
+          head -1 <<<"$out"
+          exit 1 ;;
+        *) echo "ok: $path is closed -> 503, no Access application configured here" ;;
+      esac ;;
     302)
       login=$(curl -s -o /dev/null -w '%{redirect_url}' "$BASE$path")
       if [[ "$login" == https://*.cloudflareaccess.com/cdn-cgi/access/login/* ]]; then
