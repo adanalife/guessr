@@ -755,10 +755,9 @@ clips:push` will not upload a set that fails it.
 
 ## Not built yet
 
-- **Reordering a day.** The review page shows a date's five in the order they
-  play and a bad round can be rejected out of it (see *Previewing a day*), but
-  nothing moves a round between days or within one. Looking is most of the value
-  and rejecting is the rest, so both went first.
+- **Reordering a day**, moving a round between dates or within one. Rejecting a
+  bad round out of a date is built (see *Previewing a day*); putting a chosen
+  round into a chosen slot is not.
 - **A round set with no source clip in common with the pre-server-side sets.**
   Those sets carried their coordinates in a committed manifest, which is in this
   repo's history (see *The rows a round set is* above). 34 of the current 300
