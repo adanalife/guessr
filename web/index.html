@@ -375,6 +375,12 @@
 </main>
 <footer>
   <button id="go" disabled>Drop a pin to guess</button>
+  <!-- Testing tiers only, like the reset button, and for the same reason: the
+       slow part of walking a change through five rounds is aiming the pin, not
+       committing it. Guesses and advances, so a whole game is one click per
+       round. -->
+  <button id="rando" class="secondary" hidden
+          title="Guess a random point and move on">Place random</button>
   <button id="share" class="secondary" hidden>Share</button>
   <button id="practice" class="secondary" hidden>Practice</button>
   <button id="history" class="secondary" hidden>All my guesses</button>
@@ -1138,6 +1144,34 @@ go.addEventListener('click', () => {
   else newGame(mode);
 });
 
+// Drives the two paths a player would drive rather than duplicating either: the
+// map's own click handler drops the pin, and #go scores it or advances. Which
+// also means the pin, the phase and the daily's one-play-per-round record are
+// established by exactly the code a real game establishes them with.
+//
+// The phases it refuses are the point. `scoring` has a request in flight and no
+// phase set yet for what follows, so pressing #go there would read as "next
+// round" and step past a round that is still being scored; an unset phase is
+// the page before a game exists, where #go starts one. Only an explicit press
+// reaches here either way -- nothing dispatches it, so nothing can spend the
+// daily on load.
+el('rando').addEventListener('click', () => {
+  const phase = go.dataset.phase;
+  if (go.hidden || (phase !== 'guess' && phase !== 'next')) return;
+  if (phase === 'guess') {
+    // Uniform over the playable box rather than the globe: a uniform point on
+    // the sphere is in an ocean nearly every time, and scores nothing like the
+    // range a real game produces. The same box the map fits to and check.py
+    // bounds the answers to, so there is one definition of "in play".
+    const between = (a, b) => a + Math.random() * (b - a);
+    map.fire('click', {
+      latlng: L.latLng(between(US_BOUNDS.getSouth(), US_BOUNDS.getNorth()),
+                       between(US_BOUNDS.getWest(), US_BOUNDS.getEast())),
+    });
+  }
+  go.click();
+});
+
 shareBtn.addEventListener('click', async () => {
   const text = shareText(gameDay, results, total);
   try {
@@ -1200,6 +1234,12 @@ fetch('version.json')
     el('version').textContent = v.label;
     el('buildLabel').hidden = false;
     el('reset').hidden = v.tier === 'production';
+    // Only where a tier was actually read, unlike the reset button below. Reset
+    // costs a misfire one browser's saved state; this one spends a real
+    // player's single play of the day, so an unanswered version.json has to
+    // mean no button rather than "probably not production". `task dev` stamps a
+    // `local` tier, so local work still gets it.
+    el('rando').hidden = v.tier === 'production';
     el('build').hidden = false;
   })
   .catch(() => {
