@@ -8,8 +8,8 @@
 // seeded shuffle there was nothing to leak, so this guard has no predecessor and
 // no second line behind it.
 //
-// Against the real schema.sql over node:sqlite, so the queries are the ones that
-// will run and the primary keys are the ones that will be enforced.
+// Against the real migrations ledger over node:sqlite, so the queries are the
+// ones that will run and the primary keys are the ones that will be enforced.
 import assert from 'node:assert/strict';
 
 import { d1, schema } from './_d1.mjs';
