@@ -1,0 +1,1 @@
+A round-set publish now reports how many spare rounds the tier has left in the queue, alongside how far ahead it is scheduled. The spares are what a rejected round is replaced from, so a tier can look healthily scheduled while being one bad clip away from losing a day of that.

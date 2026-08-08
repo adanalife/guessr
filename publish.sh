@@ -162,12 +162,21 @@ echo "== 3/3 pool and schedule to the $TIER D1"
 npx wrangler d1 execute "$DB" --remote --file rounds.sql --yes
 
 # What a reviewer needs, and what a Discord notification will carry: how much was
-# generated and how far ahead the game is now covered. Read back out of the
-# database rather than out of the local files, so it describes what actually
-# landed.
+# generated, how far ahead the game is now covered, and what is left over. Read
+# back out of the database rather than out of the local files, so it describes
+# what actually landed.
+#
+# The queue is the half the horizon does not describe. A rejection on the admin
+# page is paid for out of queued surplus, and with none it is paid for out of the
+# schedule's tail instead -- the whole last day goes back to 'queued' to keep the
+# horizon from ending on a partial game. So a tier can be scheduled a fortnight
+# out and still be one bad clip away from losing a day of that, which the depth
+# number alone reads as healthy. The top-up contract already keeps TOPUP_QUEUE
+# rounds back for exactly this; the run that maintains it never said whether it
+# had.
 readback=$(npx wrangler d1 execute "$DB" --remote --json \
-  --command="SELECT count(DISTINCT date) AS days, CAST(julianday(MAX(date)) - julianday(date('now')) AS INTEGER) AS ahead, max(date) AS through FROM round_days")
-scheduled=$(jq -r '.[0].results[0] | "\(.days) days, \(.ahead) ahead, through \(.through)"' <<<"$readback")
+  --command="SELECT count(DISTINCT date) AS days, CAST(julianday(MAX(date)) - julianday(date('now')) AS INTEGER) AS ahead, max(date) AS through, (SELECT COUNT(*) FROM rounds WHERE status = 'queued') AS queued FROM round_days")
+scheduled=$(jq -r '.[0].results[0] | "\(.days) days, \(.ahead) ahead, through \(.through), \(.queued) queued"' <<<"$readback")
 
 echo "published to $TIER: $scheduled"
 
