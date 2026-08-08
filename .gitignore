@@ -28,11 +28,6 @@ answers.sql
 rounds.json
 rounds.sql
 
-# `node backfill.mjs`. Rows reconstructed from the v1.0.1 tag for the cutover to
-# the D1 schedule -- generated, pushed by hand, and never part of a deploy, the
-# same as rounds.sql above it.
-backfill.sql
-
 # Stamped into the deploy by staging.yml / release.yml — which build this is,
 # and the changelog to go with it. Generated per deploy, never committed.
 web/version.json
