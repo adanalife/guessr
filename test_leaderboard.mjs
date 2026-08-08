@@ -10,9 +10,10 @@
 
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { schema } from './_d1.mjs';
-import { label, query } from './functions/api/leaderboard.js';
+import { d1, schema } from './_d1.mjs';
+import { label, onRequestGet, query } from './functions/api/leaderboard.js';
 import { ADJECTIVES, NOUNS } from './web/alias.js';
+import { lastClosedDate, monthOf } from './web/daily.js';
 
 const DAILY = query('= ?');
 const MONTHLY = query("LIKE ? || '-%'");
@@ -179,8 +180,72 @@ for (const name of label(Array(10).fill(longest))) {
   }
 }
 
+// Which span each board asks for, which the query tests above cannot see: they
+// hand the SQL its period themselves, so nothing above notices if the handler
+// pairs the wrong one with it. Swapping the two serves a board that renders
+// perfectly and carries the other board's numbers -- on an overlay, with no
+// error and nothing on screen to read as wrong.
+{
+  const env = { ANSWERS: d1(schema()) };
+  const insert = env.ANSWERS.db.prepare(`INSERT INTO plays
+    (date, player_id, image, km, points, handle) VALUES (?, ?, ?, ?, ?, ?)`);
+
+  // The two spans as the handler computes them. Derived rather than fixed,
+  // because both move with the clock: a board seeded on a hardcoded date is a
+  // board with nothing on it tomorrow.
+  const day = lastClosedDate();
+  const month = monthOf();
+  // Another date in the running month, so the monthly board holds a row the
+  // daily board cannot -- which is what makes the two distinguishable.
+  const other = `${month}-15` === day ? `${month}-16` : `${month}-15`;
+  // Up to two days a month the last closed date belongs to the month before,
+  // and the daily board's players are then absent from the monthly one.
+  const bothBoards = day.startsWith(month);
+
+  insert.run(day, 'p1', 'a.jpg', 1.0, 100, 'Amber Basin');
+  insert.run(day, 'p2', 'a.jpg', 1.0, 400, 'Winding Valley');
+  insert.run(other, 'p3', 'a.jpg', 1.0, 900, 'Lucky Overpass');
+  insert.run('2020-01-01', 'p4', 'a.jpg', 1.0, 4000, 'Distant Shore');
+
+  const get = async search => {
+    const request = { url: `https://guessr.dana.lol/api/leaderboard${search}` };
+    const res = await onRequestGet({ request, env });
+    return [res.status, await res.json()];
+  };
+
+  const DAILY_ROWS = [['Winding Valley', 400], ['Amber Basin', 100]];
+  const MONTHLY_ROWS = bothBoards
+    ? [['Lucky Overpass', 900], ...DAILY_ROWS]
+    : [['Lucky Overpass', 900]];
+
+  // A board is one date, and it is the closed one. The 2020 player outscores
+  // everybody and still does not place, which is the span doing the work rather
+  // than the LIMIT.
+  for (const search of ['?board=daily', '', '?other=1']) {
+    assert.deepEqual(await get(search),
+      [200, { board: 'daily', period: day, rows: DAILY_ROWS }],
+      `"${search}" did not serve the daily board`);
+  }
+
+  assert.deepEqual(await get('?board=monthly'),
+    [200, { board: 'monthly', period: month, rows: MONTHLY_ROWS }],
+    'the monthly board is not the running month summed');
+
+  // Anything else is refused rather than quietly served as one of the two --
+  // a typo'd board is a bug in whatever is polling, and a board is the wrong
+  // place to find out.
+  for (const board of ['weekly', 'Daily', 'MONTHLY', 'all', "daily' OR 1=1"]) {
+    assert.deepEqual(
+      await get(`?board=${encodeURIComponent(board)}`),
+      [400, { error: 'board must be daily or monthly' }],
+      `"${board}" was accepted as a board`);
+  }
+}
+
 console.log('ok: a reroll renames a player on every board, back through history');
 console.log('ok: a nameless play does not cost a player their name');
 console.log('ok: the boards still rank by summed points over their own span');
 console.log('ok: players sharing an alias are numbered apart on the board');
 console.log('ok: both boards seek the name index instead of scanning per row');
+console.log('ok: each board asks for its own span, and defaults to daily');
+console.log('ok: a board that is neither daily nor monthly is refused');
