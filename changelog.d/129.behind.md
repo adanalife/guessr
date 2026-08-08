@@ -1,0 +1,1 @@
+The round-set summary no longer prints an estimate of how often a daily player is served a round they have already seen. Since rounds started being scheduled ahead of time, each one plays on exactly one day and that number was simply wrong.

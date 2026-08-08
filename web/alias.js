@@ -44,8 +44,7 @@ export const NOUNS = [
 // knowing about: a day with 50 players has a coin-flip chance of one pair
 // sharing a name. A discriminator only needs adding when two of them land on the
 // same rendered board, which is five rows.
-export const ALIAS_COUNT = ADJECTIVES.length * NOUNS.length;
-
+//
 // `rand` is injectable so the test can pin exact pairs rather than assert on
 // whatever Math.random produced.
 export function aliasFrom(rand = Math.random) {
