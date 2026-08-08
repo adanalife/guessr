@@ -7,7 +7,7 @@
 import assert from 'node:assert';
 
 import { MAX_HANDLE } from './functions/_scoring.mjs';
-import { ADJECTIVES, ALIAS_COUNT, aliasFrom, NOUNS } from './web/alias.js';
+import { ADJECTIVES, aliasFrom, NOUNS } from './web/alias.js';
 
 // Every alias the lists can produce has to survive the server intact, and
 // MAX_HANDLE is the column the board reads from. A word added later that pushed
@@ -36,8 +36,6 @@ for (const [name, list] of [['ADJECTIVES', ADJECTIVES], ['NOUNS', NOUNS]]) {
   }
 }
 
-assert.strictEqual(ALIAS_COUNT, ADJECTIVES.length * NOUNS.length);
-
 // The ends of both lists have to be reachable and in range. A `<=` in the index
 // maths, or a rand() that can return 1, walks off the end and yields
 // "undefined undefined" -- which would sail through as a handle.
@@ -60,5 +58,7 @@ for (let i = 0; i < 200; i++) {
   assert.match(aliasFrom(), /^[A-Z][a-z]+ [A-Z][a-z]+$/);
 }
 
-console.log(`ok: ${ALIAS_COUNT} aliases, none longer than ${MAX_HANDLE} chars`);
+console.log(
+  `ok: ${ADJECTIVES.length * NOUNS.length} aliases, none longer than ${MAX_HANDLE} chars`,
+);
 console.log('ok: wordlists are unique, capitalised, and reachable end to end');
