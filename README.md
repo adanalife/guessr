@@ -84,10 +84,20 @@ black pane (no media) or whose every guess comes back `unknown round` (no
 answers). Push it last and the worst case is a date that is not scheduled yet,
 which nobody can see.
 
-**Staging only.** Production is a promotion run by hand after a review pass, not a
-second destination for a fresh set. That is what lets this run on a schedule at
-all: a job that can write the production database is a job that can ruin the game
-unattended.
+**Two modes, one target each.** Bare, this builds a full fresh set for staging,
+whose schedule is disposable. With `--top-up` it writes production: read how far
+ahead the game is scheduled, generate only what is missing, never place a date
+inside the next three days, and exit having generated nothing at all on the weeks
+none of that is short.
+
+**Those three days are the safety property.** A job that can write the production
+database is a job that can ruin the game unattended — unless what it writes is not
+playable yet. The lead is the review window: every round it schedules sits on the
+admin page, rejectable, before any player can meet it, so review is possible the
+whole time and required never. The guards that do not depend on anyone looking
+run either way — `check.py` before anything leaves the machine, `verify_days.sh`
+over what actually landed, and a depth check that fails the run if production
+comes out of it scheduled less than a week ahead.
 
 No git, no deploy, no pull request. This used to open a PR to commit
 `web/rounds.json`, because the round set was a file and a deploy was the only way
@@ -101,7 +111,14 @@ earlier than the gate did, but on the generating machine's word alone — and
 `smoke.sh` measures a *deployed* clip's aspect ratio against every tier, which is
 the assertion that catches an uncropped HUD.
 
-Nothing schedules it yet — see *Not built yet*.
+A weekly CronJob runs the top-up: `guessr-rounds`, Mondays, cloning this repo and
+calling `./publish.sh --top-up`. It is defined in the `video-pipeline` repo's
+cdk8s rather than here, because that image already carries everything a
+generation needs beyond this script — `ffmpeg`, the corpus mounted read-only, a
+route to the Postgres, and a CPU limit low enough to keep batch work off the live
+stream. Its only credential is a Cloudflare token: R2 write on the clips bucket
+and D1 write. No GitHub credential, which is the part that makes running it
+unattended reasonable at all.
 
 ## Deploying
 
@@ -225,9 +242,10 @@ game looks perfect and returns "unknown round" on every guess. `task rounds`
 prints both on the way out, alongside `task clips:push`, without which the rounds
 have no footage to show in the first place.
 
-There is deliberately no `rounds:prod:push`. Production is a promotion of dates
-already reviewed on staging, and a target named by symmetry with the others would
-be far too easy to reach for.
+There is deliberately no `rounds:prod:push`. Production is reached only through
+`task rounds:topup`, whose contract — only what is missing, never inside the
+review window, never a clip the tier already holds — is exactly what a bare push
+of a fresh `rounds.sql` would not honour.
 
 The databases are terraform, in `infra` alongside the Pages projects, and each
 tier has its own so a regeneration on one doesn't strand the other.
@@ -359,8 +377,11 @@ settle.
 It's a read the stream pulls, not a write the game pushes. The cluster tripbot
 runs in has no inbound path, deliberately, and a leaderboard isn't a reason to
 open one — so the game keeps scores where it already writes them and the bot
-fetches on its own schedule. The board being unreachable costs a rotation slot
-and nothing else.
+fetches on its own schedule. Both boards take a slot in the onscreen rotation
+([tripbot#1306](https://github.com/adanalife/tripbot/pull/1306)), and `!guessr`
+puts one up on demand
+([tripbot#1309](https://github.com/adanalife/tripbot/pull/1309)). The board being
+unreachable costs a rotation slot and nothing else.
 
 ### Names on the stream
 
@@ -378,9 +399,9 @@ One thing this does *not* buy outright: the round sets published before scoring
 moved server-side carried their coordinates in `rounds.json`, and that file is in
 this repo's git history. The current set is a later regeneration and most of it
 is clear of them, but 34 of its 300 rounds are cut from a clip that also appeared
-in one of those sets — and ground truth is clip-level, so for those the answer is
-a `git log` away. The endpoint is the mechanism; a set with no overlap at all is
-what would make it the guarantee.
+in one of those sets — and those sets' coordinates were clip-level, so for those
+the answer is a couple of kilometres and a `git log` away. The endpoint is the
+mechanism; a set with no overlap at all is what would make it the guarantee.
 
 A regeneration replaces every clip under `web/clips/` and rewrites the four files
 beside the repo — so **a generation that fails leaves the current one alone.**
@@ -715,43 +736,29 @@ visited areas don't have the problem at all.
 
 ## How a round is built
 
-`videos` carries a lat/lng and a reverse-geocoded state per clip, and
-`frame_embeddings` carries sampled timestamps within each clip. Joining them
-gives a pool of (clip, timestamp, truth coords) — one round each. Ground truth
-is clip-level, which is accurate to a couple of miles, since a clip is about
-three minutes of driving.
+`video_coords` carries the coordinate the dashcam printed onto each frame — read
+off the HUD by OCR upstream, when the corpus was processed — plus a confidence in
+each clip's whole track, and `videos` carries the reverse-geocoded state. That
+track is what enumerates a clip's candidate moments; an embedding from
+`frame_embeddings` is fetched for each one to score it. So a round is a (clip,
+moment, truth coords) triple whose answer describes the frame the player is shown
+rather than the three minutes it sits in — the clip's single lat/lng, used
+instead, put a median 1,317 m between the pin and the road on screen.
 
 **The clips must be cropped.** The dashcam burns a HUD across the bottom of
 every frame reading `49 MPH W71.606763 N42.822437` plus the date — the answer,
 in text, on screen. `make_rounds.py` crops that strip off and `check.py` fails
 if a clip ever ships uncropped, since the failure is otherwise invisible: the
-game still runs, it's just trivially cheatable. That check runs on the laptop
-rather than in CI, which never sees the media — `task clips:push` will not
-upload a set that fails it.
+game still runs, it's just trivially cheatable. That check runs on whatever
+machine generated the set rather than in CI, which never sees the media — `task
+clips:push` will not upload a set that fails it.
 
 ## Not built yet
 
-- **Per-frame ground truth.** The HUD holds exact coords for the frame being
-  shown, which is finer than the clip-level lat/lng scored against today.
-  Reading it means OCR'ing the strip before cropping it.
-- **The board on the stream.** Everything on this side of it exists: results are
-  recorded and verified, names are collected and moderated, and
-  `/api/leaderboard` serves both boards. What's left is tripbot fetching it —
-  two new `leaderboardKind`s in its rotation, which currently splits one
-  five-minute slot three ways and would need re-weighting for five.
-- **A schedule for round generation.** The script runs in the cluster as well as
-  on a laptop (above), which is what makes a scheduled job possible at all. What
-  is left is the job itself: an image carrying `ffmpeg`, `psql` and `wrangler`
-  with the corpus mounted, a CPU limit low enough not to make the live stream
-  choppy, and one Cloudflare token — R2 write on the clips bucket, D1 write on
-  staging. No GitHub credential, which is the part that makes running it
-  unattended reasonable at all.
-- **An admin view**, to look at what is scheduled before it plays, reject a bad
-  round and reorder a day. The `status` column and the rule that the schedule is
-  frozen from the moment a date opens are both already in place for it.
-- **Promotion to production.** Staging is the only tier a generation run writes.
-  Moving reviewed dates to production is a hand-run command that does not exist
-  yet, so production plays whatever it was last seeded with.
+- **Reordering a day.** The review page shows a date's five in the order they
+  play and a bad round can be rejected out of it (see *Previewing a day*), but
+  nothing moves a round between days or within one. Looking is most of the value
+  and rejecting is the rest, so both went first.
 - **A round set with no source clip in common with the pre-server-side sets.**
   Those sets carried their coordinates in a committed manifest, which is in this
   repo's history (see *The rows a round set is* above). 34 of the current 300
