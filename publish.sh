@@ -37,7 +37,9 @@
 # published -- earlier than the PR gate did, but on this machine's word alone.
 #
 # Needs, beyond what a laptop has: CLOUDFLARE_ACCOUNT_ID and an API token with R2
-# write on the clips bucket and D1 write on the staging database.
+# write on the clips bucket and D1 write on whichever database the mode targets --
+# staging when bare, production with --top-up. The scheduled job runs --top-up, so
+# its token needs production write.
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -46,7 +48,7 @@ STAGE_DB="adanalife-guessr-answers-staging"
 PROD_DB="adanalife-guessr-answers"
 
 # The top-up contract's numbers, env-overridable because they are working
-# values ([[prod-automation-design]] says revisit after a month of real runs):
+# values, provisional until a month of real runs shows how the horizon behaves:
 # how far ahead production stays scheduled, how close to an open date a run may
 # schedule (the floor of the review window), how deep the queued tail that
 # reject-and-replace draws from must be, and how long after a clip airs before
