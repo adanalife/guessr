@@ -18,7 +18,10 @@
   body { margin: 0 auto; padding: 1rem; max-width: 60rem; }
   h1 { font-size: 1.3rem; font-weight: 400; font-style: italic; }
   .nav { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
-  #meta { color: var(--color-muted); }
+  #meta, #queue { color: var(--color-muted); }
+  /* Directly above the first Reject button, because it is the price list for
+     pressing one. */
+  #queue { margin: 0 0 .5rem; }
   ol { list-style: none; padding: 0; display: grid; gap: 1rem; }
   li { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
   /* Wide enough to judge a clip by, narrow enough that five fit on a screen. */
@@ -50,6 +53,7 @@
 </p>
 <div id="map"></div>
 <p id="legend" class="dim"></p>
+<p id="queue"></p>
 <ol id="rounds"></ol>
 
 <script src="/leaflet/leaflet.js"></script>
@@ -234,6 +238,9 @@ async function show(date) {
   // stepping through a week should not need a week of Back presses to leave.
   history.replaceState(null, '', `?date=${date}`);
   el('rounds').innerHTML = '';
+  // Cleared with them, so a date that comes back 404 does not leave the previous
+  // day's numbers sitting above an empty list as if they described it.
+  el('queue').textContent = '';
   el('meta').textContent = 'loading…';
 
   let res, body;
@@ -252,8 +259,18 @@ async function show(date) {
     return;
   }
 
-  el('meta').textContent = `${when(date)}`
-    + ` · schedule runs through ${body.scheduled_through}`;
+  el('meta').textContent = when(date);
+  // What a Reject costs, in front of the button rather than in the receipt after
+  // it. With spares queued it costs one of them and the horizon does not move;
+  // with none, the endpoint pays out of the schedule's tail and the date named
+  // here is the day that goes. Same red as the other two things on this page a
+  // reviewer must not misread.
+  el('queue').textContent = body.queued
+    ? `${body.queued} queued spare${body.queued === 1 ? '' : 's'}`
+      + ` · scheduled through ${body.scheduled_through}`
+    : `no queued spares — a reject gives up ${body.scheduled_through}`
+      + ', the last scheduled day';
+  el('queue').classList.toggle('warn', !body.queued);
   // Loud when it is live, because that is the state where a problem found here
   // is already in front of somebody and the Reject button is deliberately gone.
   el('meta').classList.toggle('live', body.open);

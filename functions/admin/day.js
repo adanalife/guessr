@@ -82,11 +82,22 @@ export async function onRequestGet({ request, env }) {
     return json({ error: 'no game is scheduled for that date' }, 404);
   }
 
-  // How far the schedule reaches. The other thing there is no way to see today:
-  // the generator lays out the set it just produced and reads no horizon, so
-  // "are we covered next week" is currently a question you answer by waiting.
+  // How far the schedule reaches, and how much spare there is behind it.
+  //
+  // The two belong together because either alone reads as healthy while the
+  // other is empty. The horizon is what a rejection is paid out of once the
+  // queue runs dry -- the POST below gives up the whole furthest-out day for one
+  // round -- so a fortnight of schedule with nothing queued is a fortnight that
+  // shortens every time somebody clicks Reject. The count is the same one
+  // publish.sh reads back after a push, deliberately: two surfaces disagreeing
+  // about how many spares exist would be worse than neither showing it.
+  //
+  // One statement rather than two round trips; the subquery is uncorrelated, so
+  // it still answers when round_days is empty.
   const through = await env.ANSWERS
-    .prepare('SELECT MAX(date) AS date FROM round_days')
+    .prepare(`SELECT MAX(date) AS date,
+                     (SELECT COUNT(*) FROM rounds WHERE status = 'queued') AS queued
+                FROM round_days`)
     .first();
 
   // Every round that has an answer, so the page can draw the pool the day came
@@ -108,6 +119,7 @@ export async function onRequestGet({ request, env }) {
     date,
     open: isOpen(date),
     scheduled_through: through?.date ?? null,
+    queued: through?.queued ?? 0,
     rounds: results,
     pool,
   }, 200, { 'cache-control': 'no-store' });

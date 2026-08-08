@@ -29,18 +29,25 @@ const PAST = '2026-08-01';
 const FUTURE = '2099-06-01';
 const LATER = '2099-06-02';
 
-function seeded() {
+// `spares` is queued surplus: rounds generated and never given a date. They are
+// what a rejection is paid out of first, so a day is only as safe to reject from
+// as this number is above zero -- which is why the endpoint reports it.
+function seeded(spares = 0) {
   const answers = d1(schema());
   let n = 0;
+  const insert = (image, median_km, status, slug) => answers.db
+    .prepare(`INSERT INTO rounds
+                (image, median_km, mean_cos, batch, status, slug, source_ts_sec,
+                 clip_ts_sec, radius_m)
+              VALUES (?, ?, 0.07, 'test', ?, ?, 20.5, 20.5, 61.2)`)
+    .run(image, median_km, status, slug);
   const seed = (date, withAnswer = true) => {
     for (let i = 1; i <= 5; i++) {
       const image = `clips/${date.replaceAll('-', '')}_${i}-0${i}0000.mp4`;
-      answers.db
-        .prepare(`INSERT INTO rounds
-                    (image, median_km, mean_cos, batch, slug, source_ts_sec,
-                     clip_ts_sec, radius_m)
-                  VALUES (?, ?, 0.07, 'test', ?, 20.5, 20.5, 61.2)`)
-        .run(image, (i * 10) + n++, `20180612_${i}`);
+      // Spelled out rather than left to the column default: a round on a date is
+      // 'scheduled', and seeding it 'queued' would make the surplus count come
+      // back right for the wrong reason.
+      insert(image, (i * 10) + n++, 'scheduled', `20180612_${i}`);
       answers.db
         // Backwards, so a handler that read insertion order instead of position
         // comes out reversed and is caught.
@@ -56,12 +63,17 @@ function seeded() {
   seed(PAST);
   seed(FUTURE);
   seed(LATER, false);
+  // No answer rows and no date: surplus is a pool question, not a map one, so
+  // these are deliberately invisible to the pool the page plots.
+  for (let i = 1; i <= spares; i++) {
+    insert(`clips/spare-00000${i}.mp4`, i, 'queued', `20180612_spare${i}`);
+  }
   return answers;
 }
 
-const get = (tier, query) => onRequestGet({
+const get = (tier, query, answers = seeded()) => onRequestGet({
   request: new Request(`https://stage.guessr.dana.lol/admin/day?${query}`),
-  env: { ANSWERS: seeded(), ASSETS: assets(tier) },
+  env: { ANSWERS: answers, ASSETS: assets(tier) },
 });
 const body = async res => [res.status, await res.json()];
 
@@ -162,6 +174,19 @@ for (const tier of ['production', 'staging', 'preview', 'local']) {
   assert.equal(json.scheduled_through, LATER);
 }
 
+// And how much spare sits behind it, which is the half that says whether that
+// horizon holds. Zero is the state worth showing: every round in the database is
+// promised to a date, so the next rejection is paid for by giving one back.
+{
+  const [, json] = await body(await get('staging', `date=${PAST}`));
+  assert.equal(json.queued, 0, 'scheduled rounds were counted as spare');
+}
+{
+  const [, json] = await body(await get('staging', `date=${PAST}`, seeded(3)));
+  assert.equal(json.queued, 3, 'the queued surplus was miscounted');
+  assert.equal(json.pool.length, 10, 'undated spares were plotted on the map');
+}
+
 // An unscheduled date is a 404 and a malformed one a 400, told apart for the
 // same reason /api/day tells them apart: different fixes.
 {
@@ -183,4 +208,4 @@ for (const bad of ['', 'date=', 'date=2026-8-1', 'date=tomorrow', 'date=2026-08-
 console.log('ok: every way of not knowing the tier refuses');
 console.log('ok: a known tier reads an unopened day in ramp order, answers attached');
 console.log('ok: a round whose answer was never pushed shows up as such');
-console.log('ok: the schedule horizon comes back with the day');
+console.log('ok: the schedule horizon and the queued surplus behind it come back with the day');

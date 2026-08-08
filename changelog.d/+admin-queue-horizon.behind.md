@@ -1,0 +1,1 @@
+Throwing out a bad round while reviewing an upcoming day now says, before you do it, whether there is a spare round to put in its place — and when there is not, which day of the schedule it will cost instead. Nothing about the game changes; it just stops being possible to quietly shorten how far ahead the game is built by tidying it up.
