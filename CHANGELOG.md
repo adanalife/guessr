@@ -4,6 +4,34 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.3.0 — 2026-08-08
+
+### Changed
+
+- Round clips carry a small, faint logo in the bottom-right corner, and the video file itself now says who shot the footage. The corner the map sits over, so it stays out of your way while you play — but if you save a clip, the credit comes with it. ([#127](https://github.com/adanalife/guessr/pull/127))
+- The About panel now says who owns the footage, in a line under the version number: the dashcam footage is © A Dana Life, all rights reserved. The code behind the game stays open source. ([#128](https://github.com/adanalife/guessr/pull/128))
+
+### Fixed
+
+- A schedule push no longer reports success when it left a date holding fewer than five rounds. A run that re-picks a moment the tier has already scheduled loses that row to the `round_days_once` constraint, which had been silent -- the date became a four-round game against a five-round leaderboard, and nothing said so. ([#126](https://github.com/adanalife/guessr/pull/126))
+
+### Behind the scenes
+
+- A stray dot or space in the admin login's team-domain setting no longer locks out an administrator who has signed in correctly, and a login check that cannot run says so instead of asking you to sign in again. ([#121](https://github.com/adanalife/guessr/pull/121))
+- Round generation can now be told which clips a tier has already used, so a future automated top-up never deals a clip players have seen — or one that was rejected — back into the schedule. ([#122](https://github.com/adanalife/guessr/pull/122))
+- Production's schedule can now keep itself filled: a top-up run reads how far ahead the game is scheduled, generates only what is missing, and never places a new day inside the review window — so fresh rounds are always visible on the admin page for a few days before anyone can play them. Clips rest for six months after airing and then may return; rejected clips never do. ([#123](https://github.com/adanalife/guessr/pull/123))
+- The round-set summary no longer prints an estimate of how often a daily player is served a round they have already seen. Since rounds started being scheduled ahead of time, each one plays on exactly one day and that number was simply wrong. ([#129](https://github.com/adanalife/guessr/pull/129))
+- A round-set publish now reports how many spare rounds the tier has left in the queue, alongside how far ahead it is scheduled. The spares are what a rejected round is replaced from, so a tier can look healthily scheduled while being one bad clip away from losing a day of that. ([#130](https://github.com/adanalife/guessr/pull/130))
+- Re-deploying a version that already shipped no longer announces it again as a new release. v1.2.0 was announced three times — once for the release, twice for routine re-deploys of the same tag. ([#131](https://github.com/adanalife/guessr/pull/131))
+- The scoreboards on stream are now checked to be the ones they say they are: a test makes sure the daily board really is the last finished day and the monthly board really is this month, so the two can never quietly swap places. ([#133](https://github.com/adanalife/guessr/pull/133))
+- The checks that run after every deploy now notice when the sign-in that protects the daily review page has gone missing from the live site, instead of quietly accepting a locked door nobody can open. ([#134](https://github.com/adanalife/guessr/pull/134))
+- The test copies of the game grew a button that guesses a random spot and moves on, so a whole five-clip game can be played through in five clicks. It only appears where the game is being tested — never on the real one. ([#135](https://github.com/adanalife/guessr/pull/135))
+- Throwing out a bad round while reviewing an upcoming day now says, before you do it, whether there is a spare round to put in its place — and when there is not, which day of the schedule it will cost instead. Nothing about the game changes; it just stops being possible to quietly shorten how far ahead the game is built by tidying it up. ([#136](https://github.com/adanalife/guessr/pull/136))
+- Housekeeping with nothing to see: the parts of the site that answer the game now share one copy of the boilerplate each of them used to carry, and a decorative read-out of which timezones a day was live in has come off the internal review page. Playing the game is unchanged. ([#138](https://github.com/adanalife/guessr/pull/138))
+- The round-set publish script's header now states its credential requirement correctly: the token needs write access to whichever database the run targets, which for the scheduled weekly top-up is production, not staging. ([#139](https://github.com/adanalife/guessr/pull/139))
+- The day preview no longer prints its own count of spare rounds under the map. The number came from the pins it could draw, so it disagreed with the real one whenever a round was pushed without its answer; the swatches are now just a key to what the pin colours mean. ([#140](https://github.com/adanalife/guessr/pull/140))
+- The checks that run after every deploy now try the daily review page at the game's own web address as well as its internal one, which is the only place a mistyped sign-in setting shows itself — the sort that quietly shut that page for a day. ([#141](https://github.com/adanalife/guessr/pull/141))
+
 ## v1.2.0 — 2026-08-07
 
 ### New
