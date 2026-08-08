@@ -17,7 +17,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from check import NEAR_KM, clustering, dimensions, km, repeat_rate
+from check import NEAR_KM, clustering, dimensions, km
 
 HERE = Path(__file__).parent
 tmp = tempfile.TemporaryDirectory()
@@ -78,28 +78,6 @@ if clip:
     w, h = dimensions(clip)
     assert w / h > 16 / 9, f"{clip.name} is {w}x{h}, which is not a cropped clip"
 
-# The repeat estimate, against the draw it claims to describe. These pool sizes
-# and percentages were read off a simulation of dailyRounds() from web/daily.js
-# over 90 days -- run it again if this ever fails rather than adjusting the
-# numbers to match, since the whole point is that check.py's previous claim
-# ("pool / 5 days before anything repeats") described a draw nobody implemented
-# and nothing caught it.
-for pool, distinct_sim, repeat_sim in ((300, 233, 0.48), (600, 318, 0.29)):
-    distinct, rate = repeat_rate(pool)
-    assert abs(distinct - distinct_sim) <= pool * 0.05, (
-        f"pool {pool}: estimate says {distinct} distinct rounds, the real draw "
-        f"gives {distinct_sim}"
-    )
-    assert abs(rate - repeat_sim) < 0.05, (
-        f"pool {pool}: estimate says {rate:.0%} repeats, the real draw gives "
-        f"{repeat_sim:.0%}"
-    )
-
-# A pool of five is one game, drawn again every day: everything repeats.
-assert repeat_rate(5)[1] > 0.98, repeat_rate(5)
-# And the estimate must never read as roomier than the pool actually is.
-assert repeat_rate(300)[0] <= 300
-
 # The spread report. A wrong distance here reads as a well-spread set, which is
 # the direction that gets a clustered set shipped without anyone noticing.
 # One degree of latitude is 111.19 km on this sphere, anywhere.
@@ -136,5 +114,4 @@ if have_ffmpeg:
     print("ok: clip dimensions read correctly, and unreadable files raise")
 else:
     print("skip: no ffprobe here, so the dimension reader went unchecked")
-print("ok: the repeat estimate matches a simulation of the real daily draw")
 print("ok: the spread report measures real distances and counts rounds, not pairs")

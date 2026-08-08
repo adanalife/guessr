@@ -155,30 +155,6 @@ def clustering(answers: list[dict]) -> tuple[int, str, float]:
     return len(crowded), state, 100 * n / len(answers)
 
 
-def repeat_rate(pool: int, days: int = 90) -> tuple[int, float]:
-    """Distinct rounds a daily player meets over `days`, and what share repeat.
-
-    dailyRounds() in web/daily.js reshuffles the *whole* pool for every day and
-    takes five. It does not deal the pool out into non-overlapping days, so
-    "pool / 5 days before anything repeats" describes a draw this game does not
-    implement. Repeats begin in the first week or two at any pool size worth
-    having; what a bigger pool buys is how *often* one comes round again, not
-    whether.
-
-    Each of the `5 * days` draws is uniform over the pool and independent, so the
-    chance a given round is never drawn is (1 - 1/pool)**draws, i.e. e**-(d/pool)
-    for a pool of any size. Expected distinct rounds follows, and everything else
-    served was something the player had already seen.
-
-    Checked against the real draw in test_check.py rather than trusted: this is
-    the number that says whether a set is big enough, and a wrong one in the
-    reassuring direction goes unnoticed indefinitely.
-    """
-    draws = ROUNDS_PER_GAME * days
-    distinct = pool * (1 - math.exp(-draws / pool))
-    return round(distinct), (draws - distinct) / draws
-
-
 def main() -> int:
     web = Path(sys.argv[1]) if len(sys.argv) > 1 else WEB
     rounds = json.loads(beside(web, "rounds.json").read_text())
@@ -318,11 +294,6 @@ def main() -> int:
     print(
         f"    spread: {crowded} of {len(rounds)} rounds sit within {NEAR_KM:g} km "
         f"of another round; {top_state} is {top_pct:.0f}% of the set"
-    )
-    distinct, repeats = repeat_rate(len(rounds))
-    print(
-        f"    a daily player meets {distinct} of them over 90 days, with "
-        f"{repeats:.0%} of what they are served a round they have had before"
     )
     # Worth eyeballing: the corpus tops out past 4000 km, so a max anywhere near
     # that means the locatability filter stopped biting.
