@@ -15,12 +15,7 @@
 // mitigation is the same one, which is that it is a secret with no path out of
 // the browser that holds it.
 import { isPlayerId } from '../_scoring.mjs';
-
-const json = (body, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
+import { json, readJson } from '../_json.mjs';
 
 // Two statements, because the second is what the first leaves behind. A player
 // who answered the same round on the same date from both browsers has two rows
@@ -36,11 +31,7 @@ export const MOVE = 'UPDATE OR IGNORE plays SET player_id = ? WHERE player_id = 
 export const SWEEP = 'DELETE FROM plays WHERE player_id = ?';
 
 export async function onRequestPost({ request, env }) {
-  let body = null;
-  try {
-    body = await request.json();
-  } catch { /* body stays null */ }
-
+  const body = await readJson(request);
   const from = body?.from, to = body?.to;
   if (!isPlayerId(from) || !isPlayerId(to)) {
     return json({ error: 'expected {from, to}' }, 400);

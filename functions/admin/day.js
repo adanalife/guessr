@@ -18,15 +18,8 @@
 // only worth having once looking is possible, and this is where a wrong
 // coordinate or a dud clip gets caught. The alternative place is a real day.
 import { isOpen, playWindow } from '../../web/daily.js';
+import { DATE, json, readJson } from '../_json.mjs';
 import { tier } from './_tier.js';
-
-const json = (body, status = 200, headers = {}) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json', ...headers },
-  });
-
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 // The tiers this code knows about. Production is one of them: its schedule is
 // the one a wrong coordinate actually reaches players through, so the surface
@@ -152,11 +145,7 @@ export async function onRequestPost({ request, env }) {
   const refused = await refusal(env, url);
   if (refused) return refused;
 
-  let body = null;
-  try {
-    body = await request.json();
-  } catch { /* body stays null */ }
-
+  const body = await readJson(request);
   const date = body?.date, image = body?.image;
   if (typeof date !== 'string' || !DATE.test(date) || typeof image !== 'string') {
     return json({ error: 'expected {date, image}' }, 400);

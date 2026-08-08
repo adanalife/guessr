@@ -22,13 +22,12 @@
 //
 // The spoiler gate in day.js is a separate question and stays: this says who is
 // asking, that says which tier may answer at all.
+import { json } from '../_json.mjs';
 import { tier } from './_tier.js';
 
-const json = (body, status) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
-  });
+// Nothing this file answers with is worth holding: every one of them is a
+// refusal that the next deploy, or the next login, is meant to change.
+const NO_STORE = { 'cache-control': 'no-store' };
 
 const bytes = (b64) => {
   const raw = atob(b64.replace(/-/g, '+').replace(/_/g, '/'));
@@ -123,7 +122,7 @@ export async function onRequest(context) {
   // Pages project. Closed rather than open, and said plainly, because the other
   // way to be wrong here is to serve tomorrow's answers to the internet.
   if (!teamDomain || !aud) {
-    return json({ error: 'no Access application is configured for this deployment, so /admin/ is closed' }, 503);
+    return json({ error: 'no Access application is configured for this deployment, so /admin/ is closed' }, 503, NO_STORE);
   }
 
   const token = request.headers.get('cf-access-jwt-assertion');
@@ -140,12 +139,12 @@ export async function onRequest(context) {
     // in every login redirect this application issues.
     return json({
       error: `the Access team domain "${err.teamDomain}" answered ${err.status}, so /admin/ cannot verify a login`,
-    }, 503);
+    }, 503, NO_STORE);
   }
   if (!who) {
     return json({
       error: 'sign in to reach /admin/ — it is only served on the Access-protected pages.dev hostname',
-    }, 403);
+    }, 403, NO_STORE);
   }
 
   return next();
