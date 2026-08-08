@@ -113,10 +113,11 @@ if [ "${rounds:-0}" -eq 0 ]; then
   # the suggested fix could not have worked.
   case "$status" in
     500) echo "::error::The endpoint threw, which at this point means the query" >&2
-         echo "::error::hit a table that is not there. The migrations under" >&2
-         echo "::error::migrations/ have never been applied to this tier's" >&2
-         echo "::error::database -- run \`task schema:stage:apply\`. Pushing a" >&2
-         echo "::error::round set will not fix it." >&2 ;;
+         echo "::error::hit a table that is not there. The migrations in" >&2
+         echo "::error::migrations/ are not applied to this tier's database --" >&2
+         echo "::error::check with \`task schema:stage:status\` and apply with" >&2
+         echo "::error::\`task schema:stage:apply\`. Pushing a round set will" >&2
+         echo "::error::not fix it." >&2 ;;
     404) echo "::error::The endpoint answered, and round_days has nothing for" >&2
          echo "::error::today. Run \`task rounds:stage:push\` with a set whose" >&2
          echo "::error::schedule covers this date." >&2 ;;
