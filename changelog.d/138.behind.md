@@ -1,0 +1,1 @@
+Housekeeping with nothing to see: the parts of the site that answer the game now share one copy of the boilerplate each of them used to carry, and a decorative read-out of which timezones a day was live in has come off the internal review page. Playing the game is unchanged.

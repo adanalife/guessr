@@ -391,16 +391,16 @@
      the next one. Pinned, and from unpkg: unlike the map, a QR code that fails
      to load costs the page one optional button rather than any way to play. -->
 <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
-<script src="zoom.js"></script>
 <!-- A module, so daily.js can be imported here and by functions/api/score.js
-     alike: the draw the page plays and the draw the server checks against have
-     to be the same code. Classic scripts above run first, so Leaflet's `L` and
-     zoom.js's globals are in place by the time this executes. -->
+     alike: the play window the page reads and the one the server enforces have
+     to be the same code. The classic scripts above run first, so Leaflet's `L`
+     is in place by the time this executes. -->
 <script type="module">
 import { ROUNDS_PER_GAME, dailyState, dateForDay, effectiveDay } from './daily.js';
 import { aliasFrom, isAlias } from './alias.js';
 import { linkUrl, parseLink } from './link.js';
 import { bandFor, scoreLine, shareText } from './share.js';
+import { fitScale, fitView, panView, zoomAbout } from './zoom.js';
 
 // Records the day you last finished, so today's round can't be replayed for a
 // better share string. The daily draw itself lives in daily.js.
@@ -537,7 +537,7 @@ new ResizeObserver(() => map.invalidateSize({ animate: false })).observe(el('map
 const frame = el('frame'), boardBtn = el('board');
 let view = { scale: 1, x: 0, y: 0 };
 
-const imgSize = () => ({ w: frame.videoWidth, h: frame.videoHeight });
+const frameSize = () => ({ w: frame.videoWidth, h: frame.videoHeight });
 const boxSize = () => ({ w: pane.clientWidth, h: pane.clientHeight });
 const ready = () => frame.videoWidth > 0 && pane.clientWidth > 0;
 
@@ -547,7 +547,7 @@ function draw(next) {
 }
 
 function resetView() {
-  if (ready()) draw(fitView(imgSize(), boxSize()));
+  if (ready()) draw(fitView(frameSize(), boxSize()));
 }
 
 function setFrame(url) {
@@ -580,7 +580,7 @@ function localPoint(e) {
 }
 
 function zoom(px, py, factor) {
-  if (ready()) draw(zoomAbout(view, imgSize(), boxSize(), px, py, factor));
+  if (ready()) draw(zoomAbout(view, frameSize(), boxSize(), px, py, factor));
 }
 
 // The buttons zoom about the middle of the pane, since a click on a control in
@@ -635,7 +635,7 @@ pane.addEventListener('wheel', e => {
 // zooming in, which is the reset control as well.
 pane.addEventListener('dblclick', e => {
   const [px, py] = localPoint(e);
-  if (view.scale > fitScale(imgSize(), boxSize()) * 1.01) resetView();
+  if (view.scale > fitScale(frameSize(), boxSize()) * 1.01) resetView();
   else zoom(px, py, 2.5);
 });
 
@@ -676,7 +676,7 @@ pane.addEventListener('pointermove', e => {
     // ponytail: a pinch zooms about its centre but does not also pan with it.
     // Add the drag term if two-finger repositioning turns out to feel stuck.
   } else if (ready()) {
-    draw(panView(view, imgSize(), boxSize(), now[0] - prev[0], now[1] - prev[1]));
+    draw(panView(view, frameSize(), boxSize(), now[0] - prev[0], now[1] - prev[1]));
   }
 });
 

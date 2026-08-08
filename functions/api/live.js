@@ -23,6 +23,8 @@
 // The browser cannot read the feed itself -- YouTube serves it without CORS
 // headers -- which is why this endpoint exists at all rather than the page
 // fetching it directly.
+import { json } from '../_json.mjs';
+
 const FEED = 'https://www.youtube.com/feeds/videos.xml?channel_id=UC8Q7uFC1Xyr2ZnTWOk9Aizg';
 
 // Five minutes. The answer changes only when a broadcast starts, and the feed is
@@ -66,10 +68,5 @@ export async function onRequestGet() {
     // carries, where a throw would degrade it to an empty cell.
     why.error = String(e);
   }
-  return new Response(JSON.stringify({ videoId, why }), {
-    headers: {
-      'content-type': 'application/json',
-      'cache-control': `public, max-age=${TTL}`,
-    },
-  });
+  return json({ videoId, why }, 200, { 'cache-control': `public, max-age=${TTL}` });
 }

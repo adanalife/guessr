@@ -8,6 +8,11 @@
 // data rather than a dependency, so `node test_score.mjs` still exercises this
 // directly with no bundler and no package.json.
 import { isAlias } from '../web/alias.js';
+// The date is the calendar date of the round set being played, YYYY-MM-DD, and
+// it keys the leaderboard directly -- day numbers are display only, so that a
+// re-epoch or an off-by-one can never silently re-map history. Shared with the
+// endpoints that match one before they look it up.
+import { DATE } from './_json.mjs';
 
 // GeoGuessr's curve: full marks near-exact, ~0 across the continent. 4500 km is
 // roughly the width of the playable area (the lower 48).
@@ -44,11 +49,6 @@ export function parseGuess(body) {
 // player whose score quietly never reaches the board has no way to notice.
 export const isPlay = body => !!body && typeof body === 'object' && body.date !== undefined;
 
-// The date is the calendar date of the round set being played, YYYY-MM-DD, and
-// it keys the leaderboard directly -- day numbers are display only, so that a
-// re-epoch or an off-by-one can never silently re-map history.
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
 // The handle is a display label, never an identity: two players called "Jason"
 // are two rows keyed on different player_ids that happen to render the same
 // string. Keying on the handle instead would read the second Jason's play as a
@@ -67,7 +67,7 @@ export const isPlayerId = id => typeof id === 'string' && !!id && id.length <= 6
 export function parsePlay(body) {
   if (!isPlay(body)) return null;
   const { date, player_id: playerId, handle } = body;
-  if (typeof date !== 'string' || !DATE_RE.test(date)) return null;
+  if (typeof date !== 'string' || !DATE.test(date)) return null;
   // A regex-shaped date can still be the 31st of February; Date is the cheapest
   // real calendar. Month 13 and day 32 come back as an Invalid Date, but Feb 31
   // silently rolls forward to Mar 3, so both the NaN check and the round-trip

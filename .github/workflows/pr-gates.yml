@@ -70,7 +70,7 @@ jobs:
       # all. `|| exit 1` because a for-loop reports its last command's status, so
       # without it a failure anywhere but the end passes.
       - name: Node tests
-        run: for f in test_*.mjs test_*.js; do echo "== $f"; node "$f" || exit 1; done
+        run: for f in test_*.mjs; do echo "== $f"; node "$f" || exit 1; done
 
       - uses: actions/setup-python@v7
         with:

@@ -13,14 +13,7 @@
 // the ramp and there is nothing left to send. The coordinates live one table
 // over, and /api/score is still the only thing that reads them.
 import { ROUNDS_PER_GAME, isOpen, lastClosedDate } from '../../web/daily.js';
-
-const json = (body, status = 200, headers = {}) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json', ...headers },
-  });
-
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
+import { DATE, json } from '../_json.mjs';
 
 export async function onRequestGet({ request, env }) {
   const params = new URL(request.url).searchParams;

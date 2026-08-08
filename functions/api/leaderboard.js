@@ -7,21 +7,15 @@
 // writes them and the bot fetches on its own schedule, which also degrades
 // nicely -- the board being unreachable costs a rotation slot, nothing more.
 import { lastClosedDate, monthOf } from '../../web/daily.js';
+import { json } from '../_json.mjs';
 
 // The overlay renders five rows; ten leaves the bot room to filter or re-rank
 // without a second request.
 const ROWS = 10;
 
-const json = (body, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      'content-type': 'application/json',
-      // A board changes when a play lands, and the bot polls on its own timer.
-      // A minute of cache costs nothing and stops a retry loop hammering D1.
-      'cache-control': 'public, max-age=60',
-    },
-  });
+// A board changes when a play lands, and the bot polls on its own timer. A
+// minute of cache costs nothing and stops a retry loop hammering D1.
+const CACHE = { 'cache-control': 'public, max-age=60' };
 
 // What renders for a play carrying no name -- one recorded before aliases
 // existed, or from a browser that cannot keep localStorage and so cannot hold a
@@ -118,7 +112,7 @@ export function label(names) {
 export async function onRequestGet({ request, env }) {
   const board = new URL(request.url).searchParams.get('board') || 'daily';
   if (board !== 'daily' && board !== 'monthly') {
-    return json({ error: 'board must be daily or monthly' }, 400);
+    return json({ error: 'board must be daily or monthly' }, 400, CACHE);
   }
 
   // The daily board is the last *closed* date, never one still filling. The
@@ -137,5 +131,5 @@ export async function onRequestGet({ request, env }) {
     board,
     period,
     rows: results.map((r, i) => [names[i], r.points]),
-  });
+  }, 200, CACHE);
 }

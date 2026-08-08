@@ -356,7 +356,7 @@ tasks:
     # with its *last* command's status, so without it a failure in the middle
     # passes.
     cmds:
-      - for f in test_*.mjs test_*.js; do echo "== $f"; node "$f" || exit 1; done
+      - for f in test_*.mjs; do echo "== $f"; node "$f" || exit 1; done
       - for f in test_*.py; do echo "== $f"; python3 "$f" || exit 1; done
 
   # The tier between `test` and `smoke`: a real D1 and a real workerd, both

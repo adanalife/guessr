@@ -16,20 +16,12 @@ import { haversineKm, isPlay, parseGuess, parsePlay, scoreFor } from '../_scorin
 // agree on when a date is open, and that is a rule about clocks rather than data
 // -- so it stays code, and stays shared.
 import { isOpen } from '../../web/daily.js';
-
-const json = (body, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
+import { json, readJson } from '../_json.mjs';
 
 export async function onRequestPost({ request, env }) {
-  let body = null;
   // A malformed payload is a 400 below, same as a well-formed one that fails
   // parseGuess -- there is nothing useful to tell a client about which.
-  try {
-    body = await request.json();
-  } catch { /* body stays null */ }
+  const body = await readJson(request);
 
   const guess = parseGuess(body);
   if (!guess) return json({ error: 'expected {image, lat, lng}' }, 400);

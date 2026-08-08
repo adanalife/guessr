@@ -172,60 +172,18 @@ function render(r, date) {
   </li>`;
 }
 
-// Somewhere recognizable at each offset, so "live" reads as a place rather than
-// a number. Not a timezone database and not trying to be: it says which part of
-// the world is on this date right now, which is the question, and the offsets
-// beside it are the precise answer. Fixed standard offsets, so a name can be an
-// hour out under DST -- close enough for "who is playing this".
-const ANCHORS = [
-  [14, 'Kiribati'], [12, 'New Zealand'], [10, 'Sydney'], [9, 'Japan'],
-  [8, 'Singapore'], [5.5, 'India'], [3, 'Moscow'], [1, 'Berlin'], [0, 'UK'],
-  [-3, 'São Paulo'], [-5, 'New York'], [-8, 'California'], [-10, 'Hawaii'],
-];
-
-// To the nearest half hour, which is how real offsets are written. The true
-// boundary slides continuously, so this is a few minutes out by construction --
-// and a few minutes does not change who is playing.
-const offset = (h) => {
-  const r = Math.round(h * 2) / 2;
-  return `UTC${r < 0 ? '−' : '+'}${Math.abs(r) % 1 ? Math.abs(r).toFixed(1) : Math.abs(r)}`;
-};
-
-// Which offsets have this as their local date at this instant. A date is open
-// for 50 hours against a 24-hour cadence, so for most of its window it is
-// "today" in only part of the world -- and that band is what says who a mistake
-// would actually reach.
-function livingIn(date) {
-  const midnight = Date.parse(`${date}T00:00:00Z`);
-  const now = Date.now();
-  const lo = Math.max(-12, (midnight - now) / 3600000);
-  const hi = Math.min(14, (midnight + 86400000 - now) / 3600000);
-  if (lo > hi) return null;
-  const named = ANCHORS.filter(([h]) => h >= lo && h <= hi).map(([, n]) => n);
-  return { lo, hi, named };
-}
-
 const hours = ms => (ms < 3600000 ? `${Math.round(ms / 60000)}m` : `${Math.round(ms / 3600000)}h`);
 
-// Four states, not three, and the difference between the middle two is the one
-// that matters: a date can have opened without being anybody's today yet, and a
-// date being played in Japan is not a date being played in California. The old
-// wording ("open to players now") flattened all of that into one phrase and left
-// the reviewer to work out whether a problem was still fixable.
+// Three states, and what a reviewer needs from each is whether the day can still
+// be changed: upcoming says how long the Reject button has left, LIVE says the
+// schedule is frozen and a problem here is already in front of players, finished
+// says it is history.
 function when(date) {
   const { opens, closes } = playWindow(date);
   const now = Date.now();
   if (now < opens) return `upcoming — opens in ${hours(opens - now)}, editable until then`;
   if (now >= closes) return `finished — closed ${hours(now - closes)} ago`;
-
-  // The edges, not the whole list: naming every anchor in the band reads as
-  // noise, and the two ends are what say how far the day has swept. ANCHORS runs
-  // east to west, so the first named is the furthest ahead.
-  const { lo, hi, named } = livingIn(date);
-  const where = named.length > 1 ? `${named.at(-1)} east to ${named[0]}`
-    : named[0] ?? 'nowhere yet';
-  return `LIVE — it is today from ${where} (${offset(lo)} to ${offset(hi)})`
-    + ` · closes in ${hours(closes - now)} · frozen`;
+  return `LIVE — closes in ${hours(closes - now)} · frozen`;
 }
 
 async function show(date) {
