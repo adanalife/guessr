@@ -9,7 +9,7 @@
 # It guards the failure the README warns about and nothing enforced -- a
 # regenerated round set whose answers were never pushed to D1, where every guess
 # comes back "unknown round" on a deploy that looked green. And a missing table
-# from an unapplied schema.sql surfaces here as a 500 rather than on the stream.
+# from an unapplied migration surfaces here as a 500 rather than on the stream.
 #
 # Read-only by construction: a practice guess (no date) is scored and never
 # recorded, and the two rejections return before the write path. So this leaves
@@ -103,9 +103,11 @@ if [ "${rounds:-0}" -eq 0 ]; then
   # the suggested fix could not have worked.
   case "$status" in
     500) echo "::error::The endpoint threw, which at this point means the query" >&2
-         echo "::error::hit a table that is not there. schema.sql has never been" >&2
-         echo "::error::applied to this tier's database -- run \`task" >&2
-         echo "::error::schema:stage:push\`. Pushing a round set will not fix it." >&2 ;;
+         echo "::error::hit a table that is not there. The migrations in" >&2
+         echo "::error::migrations/ are not applied to this tier's database --" >&2
+         echo "::error::check with \`task schema:stage:status\` and apply with" >&2
+         echo "::error::\`task schema:stage:apply\`. Pushing a round set will" >&2
+         echo "::error::not fix it." >&2 ;;
     404) echo "::error::The endpoint answered, and round_days has nothing for" >&2
          echo "::error::today. Run \`task rounds:stage:push\` with a set whose" >&2
          echo "::error::schedule covers this date." >&2 ;;
@@ -306,7 +308,7 @@ for path in "/admin/" "/admin/day?date=2099-01-01"; do
   esac
 done
 
-# Both boards read. A 500 here is an unapplied schema.sql.
+# Both boards read. A 500 here is an unapplied migration.
 #
 # The shape assertion is not belt-and-braces: Pages serves the static site for a
 # path no Function claims, so a missing endpoint answers 200 with the game's HTML

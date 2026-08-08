@@ -8,9 +8,9 @@
 // round set scores nothing until that push runs -- which is why an unknown round
 // is a 404 with a distinct message rather than a 500.
 // A guess that names a date is a daily play: checked against that date's
-// schedule, then recorded once in `plays` (schema.sql). A guess with no date is
-// a practice round -- scored, never stored, never checked, because nothing is at
-// stake.
+// schedule, then recorded once in `plays` (migrations/0001_initial_schema.sql).
+// A guess with no date is a practice round -- scored, never stored, never
+// checked, because nothing is at stake.
 import { haversineKm, isPlay, parseGuess, parsePlay, scoreFor } from '../_scoring.mjs';
 // Only the play window, now that the draw is a table. Both sides still have to
 // agree on when a date is open, and that is a rule about clocks rather than data

@@ -153,9 +153,9 @@ tasks:
       - task: _d1:migrate
         vars: {DB: adanalife-guessr-answers, VERB: apply}
 
-  # What a hand-run `schema.sql` push could never tell you: how far behind a tier
-  # is. Read-only, so it is safe against production and is the thing to run
-  # before assuming a deploy is broken.
+  # How far behind the migrations ledger a tier is -- the question a hand-run
+  # schema push cannot answer. Read-only, so it is safe against production and is
+  # the thing to run before assuming a deploy is broken.
   schema:stage:status:
     desc: List migrations the staging D1 has not applied
     cmds:

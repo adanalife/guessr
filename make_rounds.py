@@ -723,9 +723,9 @@ def clip_name(row: dict) -> str:
 def answers_sql(answers: list[dict]) -> str:
     """The seed script for D1's answers table.
 
-    Rows only -- the table itself is declared in schema.sql, with every other
-    one, so `schema:*:push` is what a fresh database needs first and a definition
-    never depends on whichever laptop last built a round set.
+    Rows only -- the table itself is declared in migrations/, with every other
+    one, so `schema:*:apply` is what a fresh database needs first and a
+    definition never depends on whichever laptop last built a round set.
 
     INSERT OR REPLACE rather than DELETE-then-INSERT: a regeneration replaces the
     rows it shares and leaves the rest, so there is no window where the table is
