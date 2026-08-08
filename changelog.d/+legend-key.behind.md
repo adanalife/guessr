@@ -1,0 +1,1 @@
+The day preview no longer prints its own count of spare rounds under the map. The number came from the pins it could draw, so it disagreed with the real one whenever a round was pushed without its answer; the swatches are now just a key to what the pin colours mean.
