@@ -12,7 +12,7 @@
 // make_rounds.py's schedule(). test_schedule.py is where they went.
 import assert from 'node:assert';
 import {
-  dailyState, dateForDay, dayFromDate, dayNumber,
+  dailyState, dateForDay, dayNumber,
   effectiveDay, isOpen, lastClosedDate, monthOf, playWindow,
 } from './web/daily.js';
 
@@ -40,13 +40,11 @@ assert.strictEqual(dateForDay(155), '2027-01-01');
 assert.strictEqual(dateForDay(579), '2028-02-29');
 // Zero-padded, since the server matches YYYY-MM-DD literally.
 assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(dateForDay(3)), `unpadded: ${dateForDay(3)}`);
-// The round trip, over two years of days including both US DST switches. This
-// is the property the server leans on: it turns a posted date back into a day
-// number to redraw that date's five, so a date the page could produce and the
-// server reads differently would reject a legitimate play.
+// The round trip, over two years of days including both US DST switches: a date
+// dateForDay produced has to read back through dayNumber as the day it came
+// from, or the day the page is on and the date a play is filed under drift
+// apart on the mornings the arithmetic is hardest.
 for (let day = 1; day <= 730; day++) {
-  assert.strictEqual(dayFromDate(dateForDay(day)), day,
-    `day ${day} round-tripped through ${dateForDay(day)}`);
   const [y, m, d] = dateForDay(day).split('-').map(Number);
   assert.strictEqual(dayNumber(new Date(y, m - 1, d, 12)), day,
     `day ${day} did not read back from its own date`);
@@ -114,7 +112,8 @@ for (let h = 0; h < 24 * 14; h++) {
   const now = new Date(Date.UTC(2026, 7, 1) + h * 3600 * 1000);
   const closed = lastClosedDate(now);
   assert.equal(isOpen(closed, now), false, `${closed} was still open at ${now.toISOString()}`);
-  const next = dateForDay(dayFromDate(closed) + 1);
+  const next = new Date(Date.parse(`${closed}T00:00:00Z`) + 86400000)
+    .toISOString().slice(0, 10);
   assert.equal(isOpen(next, now), true,
     `${next} should still be open at ${now.toISOString()}, so ${closed} is not the latest closed`);
 }

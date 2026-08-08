@@ -45,18 +45,6 @@ export function dateForDay(day) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-// And back again, which is how the server turns a posted date into the draw to
-// check it against.
-//
-// Both directions build local-midnight Dates and difference them, so the answer
-// does not depend on which timezone is asking -- the page in Auckland and the
-// worker in UTC have to agree on which five rounds "2026-08-01" means, or one
-// rejects what the other drew.
-export function dayFromDate(date) {
-  const [y, m, d] = date.split('-').map(Number);
-  return dayNumber(new Date(y, m - 1, d));
-}
-
 // When a date is open to play. Everyone gets until their own midnight, so a date
 // runs from midnight in the earliest timezone on Earth (UTC+14, which is 10:00
 // UTC the day before) to midnight in the latest (UTC-12, 12:00 UTC the day
