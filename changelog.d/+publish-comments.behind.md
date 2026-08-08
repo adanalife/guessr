@@ -1,0 +1,1 @@
+The round-set publish script's header now states its credential requirement correctly: the token needs write access to whichever database the run targets, which for the scheduled weekly top-up is production, not staging.
