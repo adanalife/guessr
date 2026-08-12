@@ -1,0 +1,1 @@
+Guessing no longer gets stuck on "Scoring…". If the connection drops while your guess is on its way — leaving wifi, waking a sleeping phone — the game now gives up waiting after a few seconds and offers the guess again, with your pin still where you put it. Before, it could sit there until you reloaded the page.

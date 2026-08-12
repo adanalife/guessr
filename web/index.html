@@ -470,10 +470,22 @@ function alias(next = null) {
 // one, the server records the result and a re-guess gets the score already on
 // record; without one, nothing is stored. So practice can be replayed freely and
 // the daily cannot, which is the difference the board depends on.
+//
+// The deadline is what stops a round dying quietly. A fetch has no timeout of
+// its own, and a connection that goes away without closing -- a phone leaving
+// wifi, a laptop waking from sleep -- leaves the promise pending rather than
+// rejecting it. The round is off the guess phase for the duration, so a request
+// that never settles takes the map and the button down with it until a reload.
+// Aborting turns that into an ordinary failed request, which the page already
+// knows how to offer again. Generous, because the alternative to waiting on a
+// slow connection is telling a player their good guess didn't count.
+const SCORE_TIMEOUT_MS = 15000;
+
 async function scoreGuess(image, latlng, date) {
   const id = date && playerId();
   const res = await fetch('api/score', {
     method: 'POST',
+    signal: AbortSignal.timeout(SCORE_TIMEOUT_MS),
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       image, lat: latlng.lat, lng: latlng.lng,
