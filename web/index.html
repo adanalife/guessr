@@ -405,6 +405,7 @@
 import { ROUNDS_PER_GAME, dailyState, dateForDay, effectiveDay } from './daily.js';
 import { aliasFrom, isAlias } from './alias.js';
 import { linkUrl, parseLink } from './link.js';
+import { request } from './request.js';
 import { bandFor, scoreLine, shareText } from './share.js';
 import { fitScale, fitView, panView, zoomAbout } from './zoom.js';
 
@@ -472,7 +473,7 @@ function alias(next = null) {
 // the daily cannot, which is the difference the board depends on.
 async function scoreGuess(image, latlng, date) {
   const id = date && playerId();
-  const res = await fetch('api/score', {
+  const res = await request('api/score', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -841,13 +842,24 @@ const today = () => effectiveDay(savedDaily());
 //
 // One function for both modes because the only difference is the query: a date
 // for the daily, `practice` for a random draw over days that have finished.
+const UNREACHABLE = 'Could not reach the rounds';
+
 async function loadRounds(query) {
-  const res = await fetch(`/api/day?${query}`);
+  let res;
+  try {
+    res = await request(`/api/day?${query}`);
+  } catch {
+    // newGame puts this message on screen, so the wording has to be ours. A
+    // request that never arrived -- or one the deadline gave up on -- rejects
+    // with the browser's own phrasing for it, and "Failed to fetch" or "The
+    // operation was aborted due to timeout" is not a sentence to hand a player.
+    throw new Error(UNREACHABLE);
+  }
   if (res.ok) return (await res.json()).rounds;
   // The endpoint says why in the body — no game scheduled, or a date that has
   // not opened. A request that never reached it has no body worth reading.
   const { error } = await res.json().catch(() => ({}));
-  throw new Error(error || 'Could not reach the rounds');
+  throw new Error(error || UNREACHABLE);
 }
 
 // Entering the daily, from a page load or from the practice toggle: pick an
@@ -1016,7 +1028,7 @@ async function fillLiveTile() {
   if (!box) return;
   let videoId = null;
   try {
-    ({ videoId } = await (await fetch('/api/live')).json());
+    ({ videoId } = await (await request('/api/live')).json());
   } catch { /* the cell stays the link, which is the point of it being one */ }
   // Checked here and not only at the endpoint: this id goes into a URL, and a
   // page should not put a response it did not validate into one.
@@ -1228,7 +1240,7 @@ document.addEventListener('keydown', e => {
 // is, whereas a hostname test would be fooled by a Pages alias or a redirect
 // pointed at production. No version.json at all means someone is serving the
 // directory locally, which is a testing surface too.
-fetch('version.json')
+request('version.json')
   .then(r => r.json())
   .then(v => {
     el('version').textContent = v.label;
@@ -1323,7 +1335,7 @@ async function adoptLink() {
     + ' Both devices will play as one player from now on.')) return;
 
   try {
-    const res = await fetch('api/link', {
+    const res = await request('api/link', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ from, to }),
