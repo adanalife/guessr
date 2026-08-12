@@ -1,0 +1,1 @@
+Nothing in the game waits forever any more. Loading a day, linking a second device by QR code, and the live tile on the end screen all now give up after a few seconds on a connection that has quietly gone away, and say so, instead of sitting there — the same fix the guess button got.

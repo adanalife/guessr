@@ -69,6 +69,10 @@
 // day that has opened, and a second copy of "has it opened" here would be a
 // second thing to keep in step with it.
 import { playWindow } from '/daily.js';
+// The deadline, for the same reason the game imports it: an operator watching
+// `loading…` cannot tell a slow endpoint from one that will never answer, and a
+// reject that hangs leaves them not knowing whether it landed.
+import { request } from '/request.js';
 
 const el = id => document.getElementById(id);
 
@@ -210,7 +214,7 @@ async function show(date) {
 
   let res, body;
   try {
-    res = await fetch(`/admin/day?date=${date}`);
+    res = await request(`/admin/day?date=${date}`);
     body = await res.json();
   } catch {
     el('meta').textContent = 'could not reach /admin/day';
@@ -254,7 +258,7 @@ async function onReject(image) {
 
   let res, out;
   try {
-    res = await fetch('/admin/day', {
+    res = await request('/admin/day', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ date, image }),
