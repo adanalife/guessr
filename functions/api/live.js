@@ -51,9 +51,8 @@ export function newestVideoId(xml) {
 export async function onRequestGet() {
   let videoId = null;
   // Why a null is null. Without it the board silently keeps its link, and a
-  // resolver that can never resolve anything reads exactly like one whose channel
-  // is quiet -- which is how the previous version stayed broken through two
-  // releases while smoke.sh asserted only that the videoId key existed.
+  // resolver that can never resolve anything reads exactly like one whose
+  // channel is quiet -- so a permanently broken resolver ships green.
   const why = {};
   try {
     const res = await fetch(FEED, { cf: { cacheTtl: TTL, cacheEverything: true } });

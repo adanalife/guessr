@@ -167,9 +167,10 @@ the day. `task dev` stamps a `local` tier, so local work still gets it.
 The Pages projects and the DNS records are terraform, in the `infra` repo under
 `terraform/prod-1/cloudflare-pages-guessr.tf` and `terraform/core/route53.tf`.
 
-`web/` holds `index.html`, its scripts (`daily.js`, `zoom.js`,
-`changelog.js`), `manifest.json`, the icon and share-card assets (`favicon.svg`,
-`apple-touch-icon.png`, `icon-512.png`, `og.jpg`), and the ET Book faces under
+`web/` holds `index.html`, its scripts (`daily.js`, `zoom.js`, `alias.js`,
+`link.js`, `share.js`, `theme.js`), `base.css`, `manifest.json`, the icon and
+share-card assets (`favicon.svg`, `apple-touch-icon.png`, `icon-512.png`,
+`og.jpg`), the admin page under `admin/`, and the ET Book faces under
 `et-book/`.
 
 **No part of a round set is committed, and none of it is deployed.** The clips

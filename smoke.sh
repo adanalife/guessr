@@ -9,7 +9,7 @@
 # It guards the failure the README warns about and nothing enforced -- a
 # regenerated round set whose answers were never pushed to D1, where every guess
 # comes back "unknown round" on a deploy that looked green. And a missing table
-# from an unapplied schema.sql surfaces here as a 500 rather than on the stream.
+# from an unapplied migration surfaces here as a 500 rather than on the stream.
 #
 # Read-only by construction: a practice guess (no date) is scored and never
 # recorded, and the two rejections return before the write path. So this leaves
@@ -75,14 +75,13 @@ else
 fi
 
 # And the round set, separately, because version.json moving does not mean the
-# game is playable. This used to byte-compare a committed manifest; the set is
-# not deployed at all now, so the useful question is the one a player asks --
-# does this tier have a game for today?
+# game is playable. No part of a set is deployed, so the only useful question is
+# the one a player asks -- does this tier have a game for today?
 #
 # Which also covers what the version pin cannot. version.json is new bytes every
 # deploy, so it goes green the instant the deployment is live; /api/day is a
 # Function reading the live database, so waiting on it proves routing works AND
-# that a schedule was actually pushed. A deploy can now be flawless against a
+# that a schedule was actually pushed. A deploy can be flawless against a
 # database nobody seeded, and this is the only thing that would say so.
 #
 # UTC today, which is always inside the play window: a date opens at 10:00 UTC on
@@ -103,9 +102,10 @@ if [ "${rounds:-0}" -eq 0 ]; then
   # the suggested fix could not have worked.
   case "$status" in
     500) echo "::error::The endpoint threw, which at this point means the query" >&2
-         echo "::error::hit a table that is not there. schema.sql has never been" >&2
-         echo "::error::applied to this tier's database -- run \`task" >&2
-         echo "::error::schema:stage:push\`. Pushing a round set will not fix it." >&2 ;;
+         echo "::error::hit a table that is not there. The migrations under" >&2
+         echo "::error::migrations/ have never been applied to this tier's" >&2
+         echo "::error::database -- run \`task schema:stage:apply\`. Pushing a" >&2
+         echo "::error::round set will not fix it." >&2 ;;
     404) echo "::error::The endpoint answered, and round_days has nothing for" >&2
          echo "::error::today. Run \`task rounds:stage:push\` with a set whose" >&2
          echo "::error::schedule covers this date." >&2 ;;
@@ -145,7 +145,7 @@ image=$(printf '%s' "$day" | jq -r '.rounds[0].image')
 #
 # Retried while the answer is text/html for the same reason call() retries a `<`
 # body: Pages answering a path it holds no file for is the not-yet-propagated
-# signature, and on the first try it is indistinguishable from a tarball that was
+# signature, and on the first try it is indistinguishable from media that was
 # never pushed.
 for _ in $(seq 1 20); do
   ctype=$(curl -s -o /dev/null -w '%{content_type}' "$BASE/$image")
@@ -253,10 +253,8 @@ check "unknown round is refused" 404 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out"
 out=$(post "{\"image\":\"$image\",\"lat\":40,\"lng\":-100,\"date\":\"2099-01-01\",\"player_id\":\"ci-smoke\"}")
 check "a closed date is refused" 403 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
 
-# The one property /api/day adds. While the draw was a seeded shuffle the browser
-# could run, a future date was derivable and there was nothing to protect; now the
-# server is the only thing that knows next month's rounds, so refusing to say is
-# the whole of the protection.
+# The one property /api/day adds. The server is the only thing that knows next
+# month's rounds, so refusing to say is the whole of the protection.
 out=$(call "$BASE/api/day?date=2099-01-01")
 check "an unopened date is refused" 403 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
 
@@ -378,7 +376,7 @@ if [ -n "$custom" ]; then
   done
 fi
 
-# Both boards read. A 500 here is an unapplied schema.sql.
+# Both boards read. A 500 here is an unapplied migration.
 #
 # The shape assertion is not belt-and-braces: Pages serves the static site for a
 # path no Function claims, so a missing endpoint answers 200 with the game's HTML
@@ -392,18 +390,18 @@ done
 out=$(call "$BASE/api/leaderboard?board=weekly")
 check "an unknown board is refused" 400 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
 
-# The live-stream resolver, asserted on its value and not merely on the key. The
-# previous version of this check accepted any response carrying a "videoId" key,
-# which a permanently-null resolver satisfies -- so a resolver that never once
-# worked shipped green through two releases while the board quietly showed a link.
-# A real id is assertable because it does not depend on the channel being live
-# this second: the resolver answers the channel's newest video, and the channel
-# has videos whether or not the van is moving.
+# The live-stream resolver, asserted on its value and not merely on the key. A
+# response carrying a "videoId" key satisfies a permanently-null resolver just as
+# well, so a resolver that never once works reads as green while the board
+# quietly shows a link instead. A real id is assertable because it does not
+# depend on the channel being live this second: the resolver answers the
+# channel's newest video, and the channel has videos whether or not the van is
+# moving.
 #
-# Retried, because the endpoint predates the resolver that works and call() will
-# not catch that: an older build of this Function answers valid JSON carrying a
-# null, which is not the `<`-body signature, so the assertion lands on the
-# previous deployment's answer and reads it as a broken resolver. That is what
+# Retried, because call() cannot catch a stale build here: a previous
+# deployment's Function answers valid JSON carrying a null, which is not the
+# `<`-body signature, so the assertion lands on that answer and reads it as a
+# broken resolver. That is what
 # failed the v1.1.0 release, on a resolver that answered a real id the moment the
 # routing finished cutting over. version.json cannot pin this away -- it is new
 # bytes every deploy and goes green first, which is exactly what leaves an

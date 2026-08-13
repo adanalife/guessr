@@ -1,25 +1,19 @@
 // GET /clips/<slug>.mp4 -- a round's footage, streamed straight out of R2.
 //
-// The media has always travelled through R2 rather than git: a round set is
-// ~150 MB of mp4 and this is a public repo, so committing one would add that to
-// history on every regeneration, permanently. What changed is how it arrives. It
-// used to come as a tarball that each deploy unpacked into web/, which made the
-// clips *deployed assets* -- and that is what made a round set something only a
-// deploy could change, because the tarball is named after a hash of the committed
-// manifest. Serving the media from here instead is the prerequisite for
-// publishing a round set without a deploy at all.
+// The media travels through R2 rather than git: a round set is ~150 MB of mp4
+// and this is a public repo, so committing one would add that to history on
+// every regeneration, permanently. Streaming it from here rather than shipping
+// it as a deployed asset is what lets a round set be published without a deploy
+// at all, and it buys three more things:
 //
-// Three things this buys immediately, before any of that lands:
-//
-//   - The ~125 MB pull comes out of all three deploy workflows.
-//   - A regeneration stops having to be pushed as one object. `rounds:rebuild`
-//     can replace a single clip.
+//   - No ~125 MB pull in any of the three deploy workflows.
+//   - A single clip can be replaced without republishing the whole set.
 //   - The bucket stays private and reachable only through this binding, so
 //     nothing enumerates it -- which is what keeps the licence and bystander
 //     questions about publishing dashcam frames answerable.
 //
-// The cost is that clips now count against the Functions request budget where a
-// static asset did not: 100k/day on the free tier, about 9,000 plays. That is
+// The cost is that clips count against the Functions request budget, where a
+// static asset would not: 100k/day on the free tier, about 9,000 plays. That is
 // three orders of magnitude above current traffic and the fix at the ceiling is
 // the $5 Workers plan, not a redesign. An R2 custom domain would take clips off
 // the budget entirely and needs dana.lol on a Cloudflare zone, which is tracked
@@ -29,8 +23,8 @@
 // -- can only ever mean one three seconds of footage, so it is safe to cache
 // forever. A bare `<slug>.mp4` is not: a regeneration picking a different moment
 // from the same clip would put different footage behind a URL somebody already
-// holds. Round sets built before the moment was part of the name therefore get an
-// hour, and the set that replaces them gets a year without this having to change.
+// holds, so those get an hour instead. Every set the current generator builds
+// carries the moment and takes the year.
 const MOMENT_IN_NAME = /-\d{6,}\.mp4$/;
 const YEAR = 31536000;
 const HOUR = 3600;
@@ -55,7 +49,7 @@ export async function onRequest({ request, params, env }) {
     range: request.headers,
     onlyIf: request.headers,
   });
-  // A clip named by a manifest but never uploaded. Deliberately a real 404: Pages
+  // A clip a round names but nobody uploaded. Deliberately a real 404: Pages
   // answers a path it holds no file for with the site's own HTML at status 200,
   // which is how a deploy with no media reads as green and plays as black panes.
   if (object === null) return new Response(null, { status: 404 });

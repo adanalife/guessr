@@ -19,10 +19,10 @@ web/clips.old/
 # answers.* are the answer key, and a committed one is the game given away. Those
 # reach a database through `task answers:*:push`, never through git.
 #
-# rounds.* carry no coordinates, and are still not committed — because a round
-# set that lives in git is a round set that needs a deploy to change, which is
-# exactly what moving it into D1 (`task rounds:stage:push`) undid. rounds.json is
-# what check.py reads; rounds.sql is what wrangler eats.
+# rounds.* carry no coordinates and are still not committed — a round set that
+# lives in git is a round set that needs a deploy to change, which is exactly
+# what keeping it in D1 (`task rounds:stage:push`) avoids. rounds.json is what
+# check.py reads; rounds.sql is what wrangler eats.
 answers.json
 answers.sql
 rounds.json

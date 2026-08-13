@@ -5,7 +5,7 @@
 // nobody can reproduce on demand -- it needs a player who rerolled between two
 // plays, which no amount of clicking through `task dev` produces by accident.
 //
-// It runs the real query against a real SQLite over the real schema.sql, so the
+// It runs the real query against a real SQLite over the real migrations, so the
 // only thing not exercised here is D1's binding layer.
 
 import assert from 'node:assert/strict';

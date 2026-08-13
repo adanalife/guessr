@@ -58,8 +58,8 @@ jobs:
             > web/version.json
       # No build step, and no media either: web/ is the site, and the round
       # clips are served from R2 by functions/clips/[[path]].js rather than
-      # deployed alongside it. A preview is therefore a few hundred KB, where it
-      # used to carry a ~150 MB round set.
+      # deployed alongside it. A preview is therefore a few hundred KB rather
+      # than a ~150 MB round set.
       - name: Deploy to Cloudflare Pages (preview alias)
         id: deploy
         env:

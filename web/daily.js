@@ -4,11 +4,10 @@
 // date arithmetic rule, and those fail quietly across DST and timezones rather
 // than erroring.
 //
-// *Which rounds* a date plays is no longer here. It used to be a seeded shuffle
-// over a committed pool, run identically on both sides; it is a row set in D1
-// now, read through /api/day. What stayed is the half that is genuinely a rule
-// rather than data -- the page and the scorer still have to agree on when a date
-// is open, or one accepts plays the other refuses.
+// *Which rounds* a date plays is not here: that is a row set in D1, read through
+// /api/day. What lives here is the half that is genuinely a rule rather than
+// data -- the page and the scorer have to agree on when a date is open, or one
+// accepts plays the other refuses.
 //
 // An ES module, imported by the page and by functions/api/{day,score}.js alike.
 // Dependency-free, so `node test_daily.mjs` runs it with no bundler.
@@ -51,8 +50,9 @@ export function dateForDay(day) {
 // after). Up to three dates are therefore open at once.
 //
 // The close is what makes a board final. The open is what stops a player from
-// running next week: the draw is deterministic and computed on the client, so
-// without a lower bound anyone can work out and post a future date's five today.
+// running next week: /api/day refuses a date outside the window and /api/score
+// refuses a play against one, so the lower bound is the whole of what keeps a
+// future date's five out of reach.
 const OPENS_UTC_HOUR = 10;
 const CLOSES_UTC_HOUR = 12;
 

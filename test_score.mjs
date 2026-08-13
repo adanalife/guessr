@@ -164,10 +164,9 @@ for (const bad of [
 // Leap days are real days and must be playable.
 assert.ok(parsePlay({ ...play, date: '2028-02-29' }), 'rejected a real leap day');
 
-// Which round belongs to which date, read out of `round_days`. This used to be a
-// seeded shuffle both sides recomputed, which held only while the page and this
-// handler came from the same deploy; there is one row set now, so the schedule
-// the game was handed and the schedule it is scored against are the same rows.
+// Which round belongs to which date, read out of `round_days`. One row set, so
+// the schedule the game was handed and the schedule it is scored against are
+// the same rows whatever either side was deployed from.
 //
 // The guard has to refuse a round scheduled for a *different* date as firmly as
 // one that was never scheduled at all -- otherwise five known images buy an

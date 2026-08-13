@@ -25,16 +25,14 @@
 # is possible the whole time and required never; check.py below stays the gate
 # that runs unconditionally.
 #
-# What used to be here and is not: git. This opened a pull request to commit
-# web/rounds.json, because the round set was a deployed file and a deploy was the
-# only way it could reach anyone. Rows in D1 need no branch, no token with write
-# on a public repo's default branch, and no merge -- which deletes the one
-# genuinely new trust surface running this on a schedule was going to introduce.
+# Nothing here touches git, deliberately. Rows in D1 need no branch, no merge,
+# and no token with write on a public repo's default branch -- which is the one
+# trust surface running this on a schedule would otherwise introduce.
 #
-# The cost of that, stated plainly rather than discovered later: `pr-gates` used
-# to run check.py over the committed manifest, and there is no longer a pull
-# request for it to run on. check.py runs below instead, before anything is
-# published -- earlier than the PR gate did, but on this machine's word alone.
+# The cost of that, stated plainly rather than discovered later: no pull request
+# means no PR gate over the round set. check.py runs below instead, before
+# anything is published -- earlier than a gate could, but on this machine's word
+# alone.
 #
 # Needs, beyond what a laptop has: CLOUDFLARE_ACCOUNT_ID and an API token with R2
 # write on the clips bucket and D1 write on whichever database the mode targets --

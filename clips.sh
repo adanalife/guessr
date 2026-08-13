@@ -10,19 +10,14 @@
 # `image` value in the `rounds` table (`clips/<name>.mp4`), so there is no mapping
 # to keep in step: what a round says it is, is where its bytes are.
 #
-# It used to be one tarball per *set*, named after a hash of a committed manifest.
-# That was the right shape while the clips were deployed assets -- content-
-# addressing the archive made "this manifest, these clips" unrepresentable rather
-# than merely unlikely -- and it is the wrong shape now they are read from the
-# bucket at request time. Under the tarball a round set could only reach players
-# through a deploy, because a deploy was the thing that unpacked it. Per-object
-# also means a single clip can be replaced without republishing 300, and a
-# regeneration uploads only what is new.
+# Per object rather than one archive per set, because the endpoint reads the
+# bucket at request time: a single clip can be replaced without republishing 300,
+# and a regeneration uploads only what is new.
 #
 # Nothing here ever deletes. An object is load-bearing for as long as any round
 # names it, and at ~0.5 MB a clip against 10 GB of free storage there is no
-# pressure to work out which. The old clips-*.tar objects are left alone for the
-# same reason: a release tagged before this change still pulls one.
+# pressure to work out which. That covers the `clips-*.tar` objects from the
+# archive layout too -- a release tagged back then still pulls one.
 set -euo pipefail
 
 BUCKET="${BUCKET:-adanalife-guessr-clips}"
@@ -41,9 +36,8 @@ JOBS="${JOBS:-8}"
 # right list to pull -- a file in web/clips/ no round names is a leftover, and an
 # object no round names is history.
 #
-# From D1 rather than from a file, because the file this used to read is gone:
-# the schedule is the round set now, and a machine with no corpus -- the whole
-# reason `pull` exists -- has no local copy of it either.
+# From D1 rather than from a file: the schedule *is* the round set, and a machine
+# with no corpus -- the whole reason `pull` exists -- has no local copy of it.
 scheduled_clips() {
   npx wrangler d1 execute "$DB" --remote --json \
     --command="SELECT image FROM round_days ORDER BY date, position" \
@@ -108,8 +102,8 @@ case "${1:?usage: clips.sh push|pull}" in
         sh "$BUCKET" "$WEB" {}
     have=$(find "$WEB/clips" -name '*.mp4' | wc -l | tr -d ' ')
     want=$(printf '%s\n' "$want_list" | wc -l | tr -d ' ')
-    # A shortfall means a scheduled round's media was never pushed -- which, now a
-    # deployment reads the bucket at request time, is a black pane in somebody's
+    # A shortfall means a scheduled round's media was never pushed -- which, since
+    # a deployment reads the bucket at request time, is a black pane in somebody's
     # game rather than a deploy that fails.
     test "$have" -ge "$want" || {
       echo "::error::have $have of $want clips. Media for a round $DB has" >&2

@@ -121,17 +121,15 @@ export async function onRequestGet({ request, env }) {
 // POST /admin/day {date, image} -- throw a round out of an upcoming day and pull
 // its replacement off the back of the queue.
 //
-// The verb the viewer above was missing. Seeing that tomorrow's third round is a
-// tunnel, or that its coordinates land in a river, is only half of a review; the
-// other half is being able to do something about it in the same minute, on the
-// one tier where a schedule can still be changed without touching what anybody
-// is playing.
+// The other half of a review. Seeing that tomorrow's third round is a tunnel, or
+// that its coordinates land in a river, is worth little without being able to do
+// something about it in the same minute, on the one tier where a schedule can
+// still be changed without touching what anybody is playing.
 //
-// `rounds.status` was declared with 'rejected' in the baseline migration for
-// exactly this, and nothing wrote it until now. It is not the same fact as "no
-// longer in round_days": a round nobody has scheduled yet and a round somebody
-// threw out are both absent from the schedule, and the next generation run has
-// to be able to place the first and never the second.
+// A throw-out is recorded as `rounds.status = 'rejected'` rather than by absence
+// from round_days: a round nobody has scheduled yet and a round somebody threw
+// out are both absent from the schedule, and a generation run has to be able to
+// place the first and never the second.
 
 // Where a replacement comes from. Queued surplus first -- a generation run that
 // produced more rounds than it could place leaves some, and spending those costs
