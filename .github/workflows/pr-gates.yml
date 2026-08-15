@@ -64,11 +64,10 @@ jobs:
       # corpus or database, which is why they belong here as a step rather than a
       # job.
       #
-      # Globbed, not listed. A listed test file is one somebody has to remember to
-      # add to two places, and both had drifted: four tests ran nowhere in CI, and
-      # test_select.py -- which pins how a round set is chosen -- ran nowhere at
-      # all. `|| exit 1` because a for-loop reports its last command's status, so
-      # without it a failure anywhere but the end passes.
+      # Globbed, not listed. A listed test file is one somebody has to remember
+      # to add in two places, and a test nobody adds is a test that fails by
+      # staying green. `|| exit 1` because a for-loop reports its last command's
+      # status, so without it a failure anywhere but the end passes.
       - name: Node tests
         run: for f in test_*.mjs; do echo "== $f"; node "$f" || exit 1; done
 
@@ -76,21 +75,19 @@ jobs:
         with:
           python-version-file: .tool-versions
 
-      # No "validate the round set" step here any more, and its absence is worth
-      # a note rather than silence: the round set used to be a committed file, so
-      # CI could run check.py over the exact bytes a merge would deploy. A round
-      # set is rows in D1 now and nothing about it reaches this repo, so there is
-      # no artifact to check and no PR to hang the check on.
+      # Nothing here validates a round set, and the absence is deliberate rather
+      # than an oversight: a set is rows in D1 and none of it reaches this repo,
+      # so there is no artifact to check and no PR to hang a check on.
       #
-      # What replaced it is two-sided. check.py runs inside publish.sh before
-      # anything is pushed, which is earlier than this gate ran -- but on the
-      # generating machine's word alone. And smoke.sh measures a *deployed*
-      # clip's aspect ratio against every tier, which is the assertion that
-      # catches an uncropped HUD, i.e. the answer printed across the footage.
-      # test_check_main.py below still pins check.py's own behaviour.
+      # Two things cover it instead. check.py runs inside publish.sh before
+      # anything is pushed -- but on the generating machine's word alone. And
+      # smoke.sh measures a *deployed* clip's aspect ratio against every tier,
+      # which is the assertion that catches an uncropped HUD, i.e. the answer
+      # printed across the footage. test_check_main.py below pins check.py's own
+      # behaviour.
       #
-      # This is a real reduction in belt-and-braces, traded knowingly for taking
-      # the deploy out of publishing a round set.
+      # Thinner than a gate over committed bytes, knowingly: it is the price of
+      # taking the deploy out of publishing a round set.
 
       # test_check.py builds clips with ffmpeg and measures them with ffprobe,
       # and the runner image carries neither. Without this the dimension

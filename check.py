@@ -6,11 +6,10 @@ answers are looked up beside it or one level up, because a staged set keeps all
 of it together while a swapped-in one has clips/ under web/ and both JSON files
 at the repo root, outside the deployed directory.
 
-**This runs on the machine that generates a set, and nowhere else.** It used to
-run in CI too, over a committed web/rounds.json -- the round set is data in D1
-now, so there is nothing in the repo for CI to check. That is a real loss of a
-belt-and-braces guard and it is why the two assertions below that catch a ruined
-set both run before anything is published, rather than after.
+**This runs on the machine that generates a set, and nowhere else.** A round set
+is data in D1 and nothing about it reaches the repo, so CI has no artifact to
+check. Nothing stands behind this: the two assertions below that catch a ruined
+set both run before anything is published, and there is no second gate after.
 
 The check that matters is the aspect ratio: if the HUD crop ever stops applying,
 every clip ships with the answer ("W71.606763 N42.822437") printed across the
@@ -182,11 +181,11 @@ def main() -> int:
         assert r["image"] == f"clips/{Path(r['image']).name}", (
             f"round is not under clips/: {r['image']}"
         )
-        # The name has to carry the moment, not just the clip. `rounds:rebuild`
-        # re-cuts from it, and a long immutable cache header is only safe while a
+        # The name has to carry the moment, not just the clip. Re-cutting a lost
+        # clip reads it, and a long immutable cache header is only safe while a
         # regeneration cannot put different footage behind a name someone already
         # holds. Unconditional: every set this validates was built by the current
-        # make_rounds.py, since there is no longer a set in git to inherit.
+        # make_rounds.py, since no set is inherited from git.
         assert CLIP_NAME.match(r["image"]), (
             f"{r['image']} does not name the moment it was cut from -- a round is "
             f"clips/<slug>-<milliseconds>.mp4, so a rebuild lands at the same URL"
@@ -207,8 +206,8 @@ def main() -> int:
 
         # These fields become the `rounds` table, and /api/day hands a browser a
         # row from it. A coordinate here is the answer, given away before the
-        # guess. The separation is table-versus-table now rather than
-        # manifest-versus-database, and this is where it gets enforced.
+        # guess -- so this is where the round/answer split gets enforced on the
+        # way in.
         leaked = {"lat", "lng", "state", "filmed"} & r.keys()
         assert not leaked, (
             f"{r['image']}: a round is served to the player -- it must not carry "

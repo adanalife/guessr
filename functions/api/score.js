@@ -8,13 +8,13 @@
 // round set scores nothing until that push runs -- which is why an unknown round
 // is a 404 with a distinct message rather than a 500.
 // A guess that names a date is a daily play: checked against that date's
-// schedule, then recorded once in `plays` (schema.sql). A guess with no date is
+// schedule, then recorded once in `plays`. A guess with no date is
 // a practice round -- scored, never stored, never checked, because nothing is at
 // stake.
 import { haversineKm, isPlay, parseGuess, parsePlay, scoreFor } from '../_scoring.mjs';
-// Only the play window, now that the draw is a table. Both sides still have to
-// agree on when a date is open, and that is a rule about clocks rather than data
-// -- so it stays code, and stays shared.
+// Only the play window. The draw is a table, but both sides still have to agree
+// on when a date is open, and that is a rule about clocks rather than data -- so
+// it stays code, and stays shared.
 import { isOpen } from '../../web/daily.js';
 import { json, readJson } from '../_json.mjs';
 
@@ -32,10 +32,10 @@ export async function onRequestPost({ request, env }) {
   const play = parsePlay(body);
   if (isPlay(body) && !play) return json({ error: 'expected {date, player_id}' }, 400);
 
-  // What stops a posted play being invented rather than earned. The draw is
-  // deterministic and runs on the client, so without these two a script can work
-  // out any date's five -- including next week's -- and post whatever score it
-  // likes against them.
+  // What stops a posted play being invented rather than earned: a play has to
+  // name a date that is open, and a round that date actually plays. Without
+  // both, any image name a script has seen buys whatever score it likes on any
+  // date, including ones nobody has reached yet.
   //
   // Both are 403 rather than 400: the request is perfectly well formed, it is
   // just not a play this endpoint will accept, and the page tells them apart from
@@ -73,10 +73,8 @@ export async function onRequestPost({ request, env }) {
 
 // Whether an image is one of the five that date plays. The property this has to
 // hold is "the rounds scored against are provably the rounds the page handed
-// out", and reading the schedule is a stronger way to get it than recomputing
-// the draw was: that relied on the page and this handler being bundled from one
-// commit, so a half-finished deploy could break it. Now there is one row set and
-// both sides read it, and a deploy cannot come into it at all.
+// out", and reading the schedule gets it outright: there is one row set, both
+// sides read it, and a deploy cannot come into it at all.
 //
 // The primary key is (date, position), so this is an index scan on date and a
 // look at five rows.

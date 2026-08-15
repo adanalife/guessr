@@ -76,7 +76,7 @@ tasks:
   # Not part of any deploy -- the endpoint reads the bucket directly. This is for
   # a machine with no corpus that wants a local copy of the scheduled set, and for
   # checking by hand that a push landed. It asks the staging D1 what is scheduled,
-  # because the list of clips is no longer a file anybody has.
+  # because the schedule is the only list of clips there is.
   clips:pull:
     desc: Download the scheduled set's clips into web/clips/ (no corpus needed)
     cmds:
@@ -100,7 +100,7 @@ tasks:
       - task: schema:local:apply
       - task: answers:local:push
       - task: rounds:local:push
-      # A tier for the admin surface to read, and it now gates that surface
+      # A tier for the admin surface to read, and it gates that surface
       # twice: the day preview treats "no idea" as production, and the Access
       # login treats it as "sign in", which nothing can do against localhost. So
       # without this the one surface where a round set can be changed and looked
@@ -153,9 +153,9 @@ tasks:
       - task: _d1:migrate
         vars: {DB: adanalife-guessr-answers, VERB: apply}
 
-  # What a hand-run `schema.sql` push could never tell you: how far behind a tier
-  # is. Read-only, so it is safe against production and is the thing to run
-  # before assuming a deploy is broken.
+  # How far behind a tier is, which is the question the `d1_migrations` ledger
+  # exists to answer. Read-only, so it is safe against production and is the
+  # thing to run before assuming a deploy is broken.
   schema:stage:status:
     desc: List migrations the staging D1 has not applied
     cmds:
@@ -233,13 +233,12 @@ tasks:
       - task: _d1:push
         vars: {DB: adanalife-guessr-answers, FILE: answers.sql}
 
-  # The pool and the schedule -- what web/rounds.json used to be, and the leg that
-  # actually makes a date playable. Separate from answers:*:push and pushed after
-  # it, because the two fail in opposite directions: answers ahead of a schedule
-  # is invisible, a schedule ahead of its answers is `unknown round` on every
-  # guess of a live game.
+  # The pool and the schedule -- the leg that actually makes a date playable.
+  # Separate from answers:*:push and pushed after it, because the two fail in
+  # opposite directions: answers ahead of a schedule is invisible, a schedule
+  # ahead of its answers is `unknown round` on every guess of a live game.
   #
-  # STAGING ONLY from a full generation run. There is still deliberately no
+  # STAGING ONLY from a full generation run. There is deliberately no
   # rounds:prod:push: production is reached only through the top-up below, whose
   # contract (never inside the review window, never a clip the tier holds, only
   # what is missing) is exactly what a bare push of a fresh rounds.sql would not

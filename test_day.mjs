@@ -1,14 +1,13 @@
 // Cover /api/day: which rounds a date hands out, and which dates it refuses.
 //
 // Two things here are load-bearing in a way that fails quietly. The order rounds
-// come back in *is* the easy-to-hard ramp -- the page no longer sorts, so a
-// handler that dropped the ORDER BY would produce games in an arbitrary order and
-// nothing would error. And refusing an unopened date is the entire protection on
-// a schedule the browser can no longer derive for itself; while the draw was a
-// seeded shuffle there was nothing to leak, so this guard has no predecessor and
-// no second line behind it.
+// come back in *is* the easy-to-hard ramp -- nothing sorts them afterwards, so a
+// handler that dropped the ORDER BY would produce games in an arbitrary order
+// and nothing would error. And refusing an unopened date is the entire
+// protection on a schedule the browser cannot derive for itself: there is no
+// second line behind this guard.
 //
-// Against the real schema.sql over node:sqlite, so the queries are the ones that
+// Against the real migrations over node:sqlite, so the queries are the ones that
 // will run and the primary keys are the ones that will be enforced.
 import assert from 'node:assert/strict';
 
@@ -120,8 +119,8 @@ for (const bad of ['', 'date=', 'date=2026-8-1', 'date=yesterday', 'date=2026-08
 }
 
 // Practice draws only from dates that have finished. Drawing over the whole pool
-// -- which is what it used to do -- would hand out a date nobody has played yet,
-// which is a spoiler rather than practice.
+// would hand out a date nobody has played yet, which is a spoiler rather than
+// practice.
 {
   const scheduled = new Set(PAST.flatMap(d => [1, 2, 3, 4, 5].map(i => round(d, i))));
   const future = new Set([1, 2, 3, 4, 5].map(i => round(FUTURE, i)));

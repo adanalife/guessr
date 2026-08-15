@@ -5,11 +5,10 @@
 // rule that reads differently on the two sides means the server refuses plays
 // the page legitimately handed out, and says nothing about why.
 //
-// *Which rounds* a date plays is not tested here any more -- it is a row set in
-// D1 rather than a seeded shuffle, so the properties that used to live in this
-// file (a day draws the same five every time, no round twice in a game, the draw
-// does not depend on the order the pool was written in) are now properties of
-// make_rounds.py's schedule(). test_schedule.py is where they went.
+// *Which rounds* a date plays is not tested here: that is a row set in D1, so
+// the draw's properties (a day is the same five every time, no round twice in a
+// game, no dependence on the order the pool was written in) belong to
+// make_rounds.py's schedule() and are covered by test_schedule.py.
 import assert from 'node:assert';
 import {
   dailyState, dateForDay, dayNumber,

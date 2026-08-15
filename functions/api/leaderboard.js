@@ -50,7 +50,7 @@ const PLACEHOLDER = 'anonymous';
 // still has on every other row.
 //
 // The subquery below runs once per board row and seeks on player_id alone, which
-// is what `plays_by_player_recent` in schema.sql exists to serve. Without that
+// is what the `plays_by_player_recent` index exists to serve. Without that
 // index each of those seeks is a full table scan, and since the overlay polls
 // both boards continuously that reads millions of rows a day out of a table
 // holding a few hundred. The results are identical either way, so

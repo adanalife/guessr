@@ -2,11 +2,12 @@
 """Build a round set for the guessing game.
 
 Samples clips from the dashcam corpus, scores each one for how locatable it is,
-cuts a few seconds out of the good ones, and writes web/rounds.json +
-web/clips/*.mp4 -- the files the browser gets -- plus answers.json and
-answers.sql outside web/, which hold the coordinates and never ship.
+cuts a few seconds out of the good ones, and writes web/clips/*.mp4 -- the only
+part of a set the browser ever gets -- plus rounds.json, rounds.sql,
+answers.json and answers.sql at the repo root, which reach a database rather
+than a deploy.
 
-The split is the point: a manifest carrying the true lat/lng lets any player read
+The split is the point: a pool carrying the true lat/lng lets any player read
 the answer out of devtools, so the coords go to D1 instead (`task
 answers:{stage,prod}:push`) and functions/api/score.js is what turns a guess into
 points. Nothing under web/ says where a clip was taken.
@@ -704,12 +705,11 @@ def clip_name(row: dict) -> str:
     and only one becomes a round -- but mostly because two things downstream need
     a name that cannot mean two different sets of bytes:
 
-    - `task rounds:rebuild` re-cuts a clip that was deleted or corrupted, and it
-      can only land the result back at the same URL if the URL says which moment
-      it was.
+    - re-cutting a clip that was deleted or corrupted can only land the result
+      back at the same URL if the URL says which moment it was.
     - a long `immutable` cache header is only safe if a regeneration cannot put
-      different footage at a name someone already has cached. Under the old
-      `<slug>.mp4` it could, which is why web/clips/ has no _headers rule.
+      different footage at a name someone already has cached. A bare
+      `<slug>.mp4` could, which is why web/clips/ has no _headers rule.
 
     Milliseconds as an integer, so nothing depends on how a float formats.
 
@@ -723,9 +723,9 @@ def clip_name(row: dict) -> str:
 def answers_sql(answers: list[dict]) -> str:
     """The seed script for D1's answers table.
 
-    Rows only -- the table itself is declared in schema.sql, with every other
-    one, so `schema:*:push` is what a fresh database needs first and a definition
-    never depends on whichever laptop last built a round set.
+    Rows only -- the table itself is declared under migrations/, with every other
+    one, so `schema:*:apply` is what a fresh database needs first and a
+    definition never depends on whichever laptop last built a round set.
 
     INSERT OR REPLACE rather than DELETE-then-INSERT: a regeneration replaces the
     rows it shares and leaves the rest, so there is no window where the table is
@@ -806,9 +806,9 @@ def schedule(rounds: list[dict], first_date: dt.date, days: int) -> list[tuple]:
 def rounds_sql(rounds: list[dict], answers: list[dict], batch: str, days: list) -> str:
     """The pool and the schedule, as the script that puts them in D1.
 
-    This is what web/rounds.json used to be. The difference that matters is not
-    the format -- it is that a database can be written without deploying the
-    site, which is what takes the pull request out of publishing a round set.
+    Rows rather than a deployed file, which is what takes the pull request out
+    of publishing a round set: a database can be written without shipping the
+    site.
 
     INSERT OR IGNORE throughout, so re-running is safe and lands nowhere near a
     round somebody has rejected. An `image` names one clip cut at one moment, so
@@ -1128,7 +1128,7 @@ def main() -> int:
     days = schedule(rounds, first_date, args.horizon)
     batch = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
-    # rounds.json is no longer served or committed -- it is what check.py reads,
+    # rounds.json is neither served nor committed -- it is what check.py reads,
     # and rounds.sql is built from the same list. Kept as a file rather than held
     # in memory so a set can be looked at, diffed and re-checked after the fact.
     (STAGING / "rounds.json").write_text(json.dumps(rounds, indent=1) + "\n")
@@ -1169,7 +1169,7 @@ def main() -> int:
     swap_in(STAGING, WEB)
     size_mb = sum(f.stat().st_size for f in (WEB / "clips").iterdir()) / 1e6
     print(f"swapped into {WEB} ({size_mb:.0f} MB of clips)")
-    # Nothing here has reached anybody yet: a generated set now lives entirely in
+    # Nothing here has reached anybody yet: a generated set lives entirely in
     # three files and a directory on this laptop, and these are what publish it.
     # In this order -- the schedule is what makes a date playable, so it goes last
     # and finds its media and its answers already there.

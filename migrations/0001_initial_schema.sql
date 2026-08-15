@@ -29,14 +29,12 @@
 -- never read it again.
 
 -- The pool: every round ever generated, and everything about one that is not its
--- location. This is what web/rounds.json used to be, moved out of the deploy --
--- a round set can now change without shipping the site, which is the whole point
--- of the table existing.
+-- location. Rows rather than a deployed file, which is the whole point of the
+-- table existing -- a round set can change without shipping the site.
 --
 -- Deliberately carries NO lat/lng. The answers live one table over, so the
 -- endpoint that hands a browser its five rounds physically cannot leak a
--- coordinate; that separation used to be manifest-versus-database and is now
--- table-versus-table.
+-- coordinate.
 --
 -- Rows are never deleted. A round is ~0.5 MB of R2 against a 10 GB free tier, so
 -- there is no pressure that would make forgetting one attractive, and a played
@@ -57,11 +55,10 @@ CREATE TABLE IF NOT EXISTS rounds (
   batch TEXT NOT NULL,
   -- queued (generated, not yet given a date) | scheduled | rejected.
   --
-  -- Nothing writes 'rejected' yet -- /admin is the phase that adds the verb. The
-  -- column is here now rather than then because the alternative is an ALTER
-  -- against two live databases, and because "not in round_days" is NOT a
-  -- substitute: once a reject exists, the next generation run has to be able to
-  -- tell a round nobody has scheduled yet from one somebody threw out.
+  -- 'rejected' is written by /admin/day, and it is NOT the same fact as "not in
+  -- round_days": a round nobody has scheduled yet and a round somebody threw out
+  -- are both absent from the schedule, and a generation run has to be able to
+  -- place the first and never the second.
   status TEXT NOT NULL DEFAULT 'queued',
   -- The provenance a rebuild needs: which corpus clip, and which moment within
   -- it. source_ts_sec is an offset into the ORIGINAL recording and clip_ts_sec
@@ -80,12 +77,10 @@ CREATE TABLE IF NOT EXISTS rounds (
 
 -- The schedule: what a given date's game IS, and in what order.
 --
--- This replaces a seeded shuffle that both the page and the scorer recomputed
--- from the pool. Two things change by making it a stored fact rather than a
--- function. A regeneration can no longer reshuffle a day somebody is halfway
--- through -- the rows for an open date simply already exist. And a daily player
--- stops seeing repeats: under a reshuffling draw the same round came round again
--- roughly every other game by day 90, where a schedule hands out each round once.
+-- A stored fact rather than a function of the pool, which buys two things. A
+-- regeneration cannot reshuffle a day somebody is halfway through -- the rows
+-- for an open date simply already exist. And a daily player sees no repeats,
+-- because a schedule hands out each round exactly once.
 CREATE TABLE IF NOT EXISTS round_days (
   date TEXT NOT NULL,              -- YYYY-MM-DD, the date whose game this is
   position INTEGER NOT NULL,       -- 1..5, the order the player sees

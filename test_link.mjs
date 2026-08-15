@@ -9,7 +9,7 @@
 // behind, so the same round still counts twice and the board reads exactly as
 // wrong as before the merge ran.
 //
-// It runs the real statements against a real SQLite over the real schema.sql, so
+// It runs the real statements against a real SQLite over the real migrations, so
 // the only thing not exercised here is D1's binding layer.
 
 import assert from 'node:assert/strict';

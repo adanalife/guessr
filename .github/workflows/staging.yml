@@ -38,8 +38,8 @@ jobs:
           printf '{"label":"main@%s","tier":"staging"}\n' "${GITHUB_SHA::7}" > web/version.json
       # No build step, and no media either: web/ is the site, and the round
       # clips are served from R2 by functions/clips/[[path]].js rather than
-      # deployed alongside it. So what goes up is a few hundred KB of HTML, JS
-      # and the manifest, and a regeneration changes nothing here.
+      # deployed alongside it. So what goes up is a few hundred KB of HTML and
+      # JS, and a regeneration changes nothing here.
       - name: Deploy to Cloudflare Pages (staging)
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
