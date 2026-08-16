@@ -346,8 +346,9 @@ tasks:
 
   test:
     desc: Run the tests that need no corpus and no database to be running (daily
-      draw, leaderboard aliases and ranking, frame zoom, scoring, the device
-      merge, frame dimensions, round-set swap, seeding, selection, db route)
+      draw, leaderboard aliases and ranking, frame zoom, scoring, request
+      deadlines, the device merge, frame dimensions, round-set swap, seeding,
+      selection, db route)
     # Globbed rather than listed, because a list of test files is a list that
     # drifts: a test file nobody remembers to add to it is a test that never
     # runs, and it fails by staying green. Adding a test_*.py or test_*.mjs is
