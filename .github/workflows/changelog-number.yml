@@ -67,9 +67,10 @@ jobs:
           # branch.
           permission-contents: write
 
-      # zizmor: ignore[artipacked] the push at the end of this job is what the
-      # persisted credential is for
-      - uses: actions/checkout@v7
+      - name: Check out the head branch
+        # zizmor: ignore[artipacked] the push at the end of this job is what
+        # the persisted credential is for
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
