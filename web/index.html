@@ -266,11 +266,11 @@
 <header>
   <h1>Guessr</h1>
   <span class="stat" id="label">Daily</span>
-  <span class="stat">Round <b id="roundNum">1</b>/<b id="roundTot">5</b></span>
+  <span class="stat">Round <b id="roundnum">1</b>/<b id="roundtot">5</b></span>
   <span class="stat">Score <b id="score">0</b></span>
   <span class="spacer"></span>
   <details id="about" class="stat">
-    <summary>about<span class="dot" id="aboutDot" hidden></span></summary>
+    <summary>about<span class="dot" id="aboutdot" hidden></span></summary>
     <div class="panel">
       <p>Every round is a few seconds of real dashcam footage, filmed on a
         year-long drive around the United States in 2018. Five rounds a day, the
@@ -305,13 +305,13 @@
            picture: a screen reader announces a link, and a phone that has the
            panel open can follow it directly. Following it on the device that
            drew it is a no-op — it is already that player. -->
-      <p id="qrWrap" hidden><a id="qrLink"><span id="qr"></span></a></p>
+      <p id="qrwrap" hidden><a id="qrlink"><span id="qr"></span></a></p>
       <!-- Both halves are stamped in at deploy time, so the whole line stays
            hidden until version.json says something. The reset is for the
            testing tiers: the intro, the About dot and the daily record are all
            once-per-browser, so without it the only way to see any of them a
            second time is to clear site data by hand. -->
-      <p id="build" hidden><span id="buildLabel" hidden>Running <a id="version"
+      <p id="build" hidden><span id="buildlabel" hidden>Running <a id="version"
         href="https://github.com/adanalife/guessr/blob/main/CHANGELOG.md"></a></span>
         <button id="reset" class="secondary" hidden>Reset saved state</button></p>
       <!-- The footage is not under the repo's MIT licence, and a licence file
@@ -328,8 +328,8 @@
   <p>This is real footage from a year of traveling in a campervan</p>
   <p>Every player guesses the same 5 clips, new ones daily</p>
   <div class="actions">
-    <button id="welcomePlay" autofocus>Play</button>
-    <button id="welcomeMore" class="secondary">Learn more</button>
+    <button id="welcomeplay" autofocus>Play</button>
+    <button id="welcomemore" class="secondary">Learn more</button>
   </div>
 </dialog>
 <main>
@@ -719,7 +719,7 @@ map.on('click', e => {
 function startRound() {
   const r = game[idx];
   setFrame(r.image);
-  el('roundNum').textContent = idx + 1;
+  el('roundnum').textContent = idx + 1;
   clearMarks();
   if (guess) { map.removeLayer(guess); guess = null; }
   go.hidden = false;
@@ -1120,8 +1120,8 @@ async function showFinished(saved) {
   total = saved.total;
   results = saved.results;
   el('label').textContent = `Daily #${saved.day}`;
-  el('roundNum').textContent = saved.results.length;
-  el('roundTot').textContent = saved.results.length;
+  el('roundnum').textContent = saved.results.length;
+  el('roundtot').textContent = saved.results.length;
   el('score').textContent = saved.total.toLocaleString();
   setFrame(null);
   setLayout(false);
@@ -1244,7 +1244,7 @@ request('version.json')
   .then(r => r.json())
   .then(v => {
     el('version').textContent = v.label;
-    el('buildLabel').hidden = false;
+    el('buildlabel').hidden = false;
     el('reset').hidden = v.tier === 'production';
     // Only where a tier was actually read, unlike the reset button below. Reset
     // costs a misfire one browser's saved state; this one spends a real
@@ -1292,7 +1292,7 @@ el('reroll').addEventListener('click', () => {
 // camera reading a screen at an angle, through glare, in whatever the room is
 // lit by.
 el('link').addEventListener('click', () => {
-  const wrap = el('qrWrap');
+  const wrap = el('qrwrap');
   wrap.hidden = !wrap.hidden;
   if (wrap.hidden) return;
 
@@ -1306,7 +1306,7 @@ el('link').addEventListener('click', () => {
     cellSize: 4, margin: 16, scalable: true,
     alt: 'Scan from your other device to play as one player',
   });
-  el('qrLink').href = url;
+  el('qrlink').href = url;
 });
 
 // The other end: a browser that opens one of those links moves what it has
@@ -1384,7 +1384,7 @@ el('reset').addEventListener('click', () => {
 // keys: dismissing the intro doesn't count as having read the About panel,
 // which is where the stream and the bot live.
 const ABOUT_SEEN = 'guessr-about-seen', WELCOME_SEEN = 'guessr-welcome-seen';
-const welcome = el('welcome'), aboutDot = el('aboutDot');
+const welcome = el('welcome'), aboutDot = el('aboutdot');
 
 // localStorage throws in a Safari private window rather than returning null,
 // and neither of these is worth failing the page over.
@@ -1407,8 +1407,8 @@ if (!seen(WELCOME_SEEN)) welcome.showModal();
 // whose target is the dialog itself landed on the backdrop, not the content.
 welcome.addEventListener('close', () => markSeen(WELCOME_SEEN));
 welcome.addEventListener('click', e => { if (e.target === welcome) welcome.close(); });
-el('welcomePlay').addEventListener('click', () => welcome.close());
-el('welcomeMore').addEventListener('click', e => {
+el('welcomeplay').addEventListener('click', () => welcome.close());
+el('welcomemore').addEventListener('click', e => {
   // Without this the document-level click handler above sees a target outside
   // the panel and shuts it again in the same tick.
   e.stopPropagation();
@@ -1435,7 +1435,7 @@ async function newGame(which, saved = null) {
   el('label').textContent = mode === 'daily' ? `Daily #${day}` : 'Practice';
   // Not always five: practice comes up short until enough dates have finished
   // playing, and a game reads its length from what it was handed.
-  el('roundTot').textContent = game.length;
+  el('roundtot').textContent = game.length;
   results = saved ? [...saved.results] : [];
   guesses = saved ? [...(saved.guesses || [])] : [];
   restoreTruths(game, saved);
