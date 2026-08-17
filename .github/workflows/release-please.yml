@@ -60,6 +60,8 @@ jobs:
       # every push, so the rebuild is idempotent.
       - name: Check out the release PR branch
         if: ${{ steps.release.outputs.pr && !steps.release.outputs.release_created }}
+        # zizmor: ignore[artipacked] the push at the end of this job is what
+        # the persisted credential is for
         uses: actions/checkout@v7
         with:
           ref: release-please--branches--main

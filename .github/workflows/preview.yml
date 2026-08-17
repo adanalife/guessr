@@ -103,7 +103,9 @@ jobs:
       # Same script staging.yml and release.yml run, so a tier can't drift into
       # being the one nobody checks.
       - name: Smoke-test the endpoints
-        run: ./smoke.sh "${{ steps.deploy.outputs.alias }}"
+        env:
+          ALIAS: ${{ steps.deploy.outputs.alias }}
+        run: ./smoke.sh "$ALIAS"
 
       - name: Sticky preview URL comment
         # Posted even when the smoke test fails: that is exactly when someone
