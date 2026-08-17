@@ -62,6 +62,10 @@ jobs:
         with:
           app-id: ${{ vars.AUTOMATION_APP_ID }}
           private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
+          # Without this the token carries the app installation's whole
+          # permission set. All this job does is push a rename to the head
+          # branch.
+          permission-contents: write
 
       - uses: actions/checkout@v7
         with:

@@ -31,6 +31,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       # web/version.json is what the page's About panel reads to say which
       # build it is. Staging is not a release, so it names the commit.
       - name: Stamp the build

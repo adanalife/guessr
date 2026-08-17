@@ -44,6 +44,8 @@ jobs:
       && github.actor != 'dependabot[bot]'
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       # web/version.json is what the page's About panel reads to say which
       # build it is. A preview names the PR and its head commit, so a stale
       # tab is obvious. GITHUB_SHA on a pull_request event is the ephemeral

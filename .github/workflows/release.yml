@@ -22,6 +22,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       # web/version.json is what the page's About panel reads to say which
       # build it is. The panel links the changelog on GitHub rather than
       # shipping a copy, so there is nothing else to stamp.

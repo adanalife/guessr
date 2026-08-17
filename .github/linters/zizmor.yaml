@@ -1,0 +1,12 @@
+---
+# zizmor's security audit of .github/workflows/, as run by the weekly
+# super-linter sweep (super-linter reads linter configs from .github/linters/).
+rules:
+  unpinned-uses:
+    config:
+      # zizmor's default is a blanket hash-pin: every `uses:` must name a SHA.
+      # The fleet convention is the opposite — pin to a floating major tag so
+      # patch and minor releases flow in on their own, with Dependabot raising
+      # the major bumps. A pinned tag is still required; `@main` is not.
+      policies:
+        "*": ref-pin

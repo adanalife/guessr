@@ -40,6 +40,11 @@ jobs:
         with:
           app-id: ${{ vars.AUTOMATION_APP_ID }}
           private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
+          # Without these the token carries the app installation's whole
+          # permission set. release-please needs exactly two: contents to push
+          # the branch and cut the tag, pull-requests to maintain the release PR.
+          permission-contents: write
+          permission-pull-requests: write
 
       - uses: googleapis/release-please-action@v5
         id: release
@@ -63,6 +68,11 @@ jobs:
 
       - uses: astral-sh/setup-uv@v9.0.0 # no floating major tag published
         if: ${{ steps.release.outputs.pr && !steps.release.outputs.release_created }}
+        with:
+          # This job holds a write token and publishes a tag, so a poisoned
+          # cache entry would be restored straight into the release path. The
+          # one `uvx towncrier` call below is not worth that exposure.
+          enable-cache: false
 
       - name: Build the changelog on the release PR branch
         if: ${{ steps.release.outputs.pr && !steps.release.outputs.release_created }}
