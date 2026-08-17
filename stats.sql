@@ -74,3 +74,31 @@ GROUP BY image
 HAVING guesses >= 3
 ORDER BY avg_km DESC
 LIMIT 10;
+
+-- The best days anyone has had. The daily board ranks one date; this ranks every
+-- date against every other, so it is the all-time high score rather than today's
+-- leader. `rounds` is here to read the total honestly -- a day short of five is
+-- an unfinished game, not a bad one.
+--
+-- `player` follows the same rule the boards do (functions/_names.mjs): the name
+-- an operator gave them, else the last one they drew for themselves. `note` is
+-- the half no endpoint serves, and this is the only place it is ever read.
+--
+-- player_id is the last column because it is the widest and the least read --
+-- but it is the one to copy, since naming somebody is
+-- `task player:prod ID=<that> NAME=... NOTE=...`.
+SELECT date,
+       SUM(points) AS total,
+       COUNT(*) AS rounds,
+       COALESCE(
+         (SELECT n.alias FROM players n WHERE n.player_id = p.player_id),
+         (SELECT h.handle FROM plays h
+           WHERE h.player_id = p.player_id AND h.handle IS NOT NULL
+           ORDER BY h.played_at DESC, h.rowid DESC LIMIT 1)) AS player,
+       (SELECT n.note FROM players n WHERE n.player_id = p.player_id) AS note,
+       p.player_id
+FROM plays p
+WHERE date <= date('now')
+GROUP BY date, p.player_id
+ORDER BY total DESC
+LIMIT 10;
