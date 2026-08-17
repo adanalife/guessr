@@ -44,6 +44,8 @@ jobs:
       && github.actor != 'dependabot[bot]'
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       # web/version.json is what the page's About panel reads to say which
       # build it is. A preview names the PR and its head commit, so a stale
       # tab is obvious. GITHUB_SHA on a pull_request event is the ephemeral
@@ -101,7 +103,9 @@ jobs:
       # Same script staging.yml and release.yml run, so a tier can't drift into
       # being the one nobody checks.
       - name: Smoke-test the endpoints
-        run: ./smoke.sh "${{ steps.deploy.outputs.alias }}"
+        env:
+          ALIAS: ${{ steps.deploy.outputs.alias }}
+        run: ./smoke.sh "$ALIAS"
 
       - name: Sticky preview URL comment
         # Posted even when the smoke test fails: that is exactly when someone

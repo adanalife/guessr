@@ -53,8 +53,11 @@
   /* An explicit `display` beats the UA stylesheet's `[hidden] { display: none }`,
      so anything laid out with flex or grid stays on screen while hidden. Several
      things here toggle `hidden` between game phases; this makes that work. */
+  /* biome-ignore lint/complexity/noImportantStyles: outranking the UA stylesheet is the point */
   [hidden] { display: none !important; }
-  /* dvh so iOS Safari's collapsing chrome doesn't clip the footer. */
+  /* dvh so iOS Safari's collapsing chrome doesn't clip the footer. The 100vh
+     above it is the fallback for browsers without dvh, not a stray duplicate. */
+  /* biome-ignore lint/suspicious/noDuplicateProperties: 100vh is the pre-dvh fallback */
   body { margin: 0; height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
   /* Above Leaflet's controls (z-index 800), so the About panel isn't painted
      over by the map pane below it. */
@@ -96,6 +99,7 @@
      modules the spec asks for, carried by the SVG's own margin so it takes the
      ground colour too. */
   #qr { display: block; width: 9rem; height: 9rem; }
+  /* biome-ignore lint/style/noDescendingSpecificity: the more specific selector it trails is #about's, a different subtree */
   #qr svg { display: block; width: 100%; height: 100%; }
   #qr rect { fill: var(--color-panel); }
   #qr path { fill: var(--color-text); }
@@ -172,14 +176,6 @@
   #sheet .live { position: relative; line-height: 0; }
   #sheet .live iframe { width: 100%; aspect-ratio: 16 / 9; display: block;
                         border: 0; border-radius: 4px; }
-  /* The caption sits under this one rather than over it: on a round tile the
-     badge overlays a paused frame, but here it would cover YouTube's own
-     controls, and the link has to stay clickable. It is also the whole cell
-     until the player arrives, so it carries the type size rather than the 11px
-     a badge over footage wants. */
-  #sheet .live .cap { position: static; margin-top: .4rem; background: none;
-                      color: var(--color-text); line-height: 1.35;
-                      font-size: .82rem; font-weight: 400; }
   /* Same number and same band colour as the pin on the map, which is the only
      thing tying a thumbnail to the answer it belongs to.
      The badges here and on the map keep fixed colours and a sans face rather
@@ -188,10 +184,18 @@
   #sheet .cap { position: absolute; top: 4px; left: 4px;
                 display: flex; align-items: center; gap: .3rem;
                 padding: 2px 6px 2px 2px; border-radius: 999px;
-                background: #000a; color: #eee; line-height: 1;
-                font: 600 11px ui-sans-serif, system-ui, sans-serif; }
+                background: #000a; color: #eee;
+                font: 600 11px/1 ui-sans-serif, system-ui, sans-serif; }
   #sheet .n { width: 18px; height: 18px; border-radius: 50%; color: #111;
               text-align: center; font: 700 11px/18px ui-sans-serif, system-ui, sans-serif; }
+  /* The caption sits under the live embed rather than over it: on a round tile
+     the badge overlays a paused frame, but here it would cover YouTube's own
+     controls, and the link has to stay clickable. It is also the whole cell
+     until the player arrives, so it carries the type size rather than the 11px
+     a badge over footage wants. */
+  #sheet .live .cap { position: static; margin-top: .4rem; background: none;
+                      color: var(--color-text); line-height: 1.35;
+                      font-size: .82rem; font-weight: 400; }
   #mapwrap { min-height: 0; }
   #map { height: 100%; background: var(--color-bg); }
   /* While a round is being guessed the frame takes the whole pane and the map
@@ -266,11 +270,11 @@
 <header>
   <h1>Guessr</h1>
   <span class="stat" id="label">Daily</span>
-  <span class="stat">Round <b id="roundNum">1</b>/<b id="roundTot">5</b></span>
+  <span class="stat">Round <b id="roundnum">1</b>/<b id="roundtot">5</b></span>
   <span class="stat">Score <b id="score">0</b></span>
   <span class="spacer"></span>
   <details id="about" class="stat">
-    <summary>about<span class="dot" id="aboutDot" hidden></span></summary>
+    <summary>about<span class="dot" id="aboutdot" hidden></span></summary>
     <div class="panel">
       <p>Every round is a few seconds of real dashcam footage, filmed on a
         year-long drive around the United States in 2018. Five rounds a day, the
@@ -295,25 +299,28 @@
            (web/alias.js says why), so the control is a reroll rather than a
            field: keep drawing until one reads right. -->
       <p id="identity">Your leaderboard name is <b id="alias"></b><br>
-        <button id="reroll" class="secondary" title="Draw another name">Generate new name</button>
+        <button type="button" id="reroll" class="secondary" title="Draw another name">Generate new name</button>
         <!-- Playing on a phone and a desktop otherwise puts the same person on
              the board twice. The code carries the player id, so scanning it
              from the other device is the whole mechanism. -->
-        <button id="link" class="secondary"
+        <button type="button" id="link" class="secondary"
           title="Show a code that adds another device's scores to yours">Link a device</button></p>
       <!-- An anchor around it, so the id is reachable by anyone who can't scan a
            picture: a screen reader announces a link, and a phone that has the
            panel open can follow it directly. Following it on the device that
            drew it is a no-op — it is already that player. -->
-      <p id="qrWrap" hidden><a id="qrLink"><span id="qr"></span></a></p>
+      <!-- biome-ignore lint/a11y/useValidAnchor: href is the player link, set when the code is drawn -->
+      <!-- biome-ignore lint/a11y/useAnchorContent: the code and its label are set at the same moment -->
+      <p id="qrwrap" hidden><a id="qrlink"><span id="qr"></span></a></p>
       <!-- Both halves are stamped in at deploy time, so the whole line stays
            hidden until version.json says something. The reset is for the
            testing tiers: the intro, the About dot and the daily record are all
            once-per-browser, so without it the only way to see any of them a
            second time is to clear site data by hand. -->
-      <p id="build" hidden><span id="buildLabel" hidden>Running <a id="version"
+      <!-- biome-ignore lint/a11y/useAnchorContent: the version string is stamped in at deploy time -->
+      <p id="build" hidden><span id="buildlabel" hidden>Running <a id="version"
         href="https://github.com/adanalife/guessr/blob/main/CHANGELOG.md"></a></span>
-        <button id="reset" class="secondary" hidden>Reset saved state</button></p>
+        <button type="button" id="reset" class="secondary" hidden>Reset saved state</button></p>
       <!-- The footage is not under the repo's MIT licence, and a licence file
            cannot speak to anyone who never opens the repo — which is nearly
            everyone who plays. LICENSE-CONTENT is the long version. Outside
@@ -328,8 +335,8 @@
   <p>This is real footage from a year of traveling in a campervan</p>
   <p>Every player guesses the same 5 clips, new ones daily</p>
   <div class="actions">
-    <button id="welcomePlay" autofocus>Play</button>
-    <button id="welcomeMore" class="secondary">Learn more</button>
+    <button type="button" id="welcomeplay" autofocus>Play</button>
+    <button type="button" id="welcomemore" class="secondary">Learn more</button>
   </div>
 </dialog>
 <main>
@@ -349,21 +356,21 @@
            autoplay muted loop playsinline preload="auto"
            aria-label="A few seconds of dashcam footage to locate"></video>
     <div id="zoomctl" hidden>
-      <button id="zin" title="Zoom in — or scroll, pinch, or double-click the frame"
+      <button type="button" id="zin" title="Zoom in — or scroll, pinch, or double-click the frame"
               aria-label="Zoom in">+</button>
-      <button id="zout" title="Zoom out" aria-label="Zoom out">&minus;</button>
+      <button type="button" id="zout" title="Zoom out" aria-label="Zoom out">&minus;</button>
       <!-- The glyphs carry U+FE0E, the text variation selector, or a platform
            with emoji for these code points renders two coloured cartoons in a
            row of monochrome map controls. The label is set from the video's own
            play/pause events rather than on click, so it stays honest when
            playback stops for a reason the page didn't ask for — an autoplay
            block on iOS being the one that actually happens. -->
-      <button id="playpause" title="Pause — or press space"
+      <button type="button" id="playpause" title="Pause — or press space"
               aria-label="Pause">&#9208;&#xFE0E;</button>
       <!-- Only up while a single round is open from the end-of-game sheet, which
            is the one state the pane can be in that the player did not arrive at
            by playing. -->
-      <button id="board" hidden title="Back to all five rounds — or press Escape"
+      <button type="button" id="board" hidden title="Back to all five rounds — or press Escape"
               aria-label="Back to all five rounds">&#9638;&#xFE0E;</button>
     </div>
     <div id="sheet" hidden></div>
@@ -374,16 +381,16 @@
   <div id="mapwrap"><div id="map"></div></div>
 </main>
 <footer>
-  <button id="go" disabled>Drop a pin to guess</button>
+  <button type="button" id="go" disabled>Drop a pin to guess</button>
   <!-- Testing tiers only, like the reset button, and for the same reason: the
        slow part of walking a change through five rounds is aiming the pin, not
        committing it. Guesses and advances, so a whole game is one click per
        round. -->
-  <button id="rando" class="secondary" hidden
+  <button type="button" id="rando" class="secondary" hidden
           title="Guess a random point and move on">Place random</button>
-  <button id="share" class="secondary" hidden>Share</button>
-  <button id="practice" class="secondary" hidden>Practice</button>
-  <button id="history" class="secondary" hidden>All my guesses</button>
+  <button type="button" id="share" class="secondary" hidden>Share</button>
+  <button type="button" id="practice" class="secondary" hidden>Practice</button>
+  <button type="button" id="history" class="secondary" hidden>All my guesses</button>
   <span id="result">Somewhere in the United States. Where?</span>
   <!-- After #result, which is flex: 1, so the toggle sits at the far end. -->
   <button type="button" class="theme-toggle" aria-label="Toggle dark mode"
@@ -599,8 +606,9 @@ el('zin').addEventListener('click', () => zoomCentre(1.5));
 el('zout').addEventListener('click', () => zoomCentre(1 / 1.5));
 // The controls sit inside the pane, so without this a click on one starts a
 // drag and a quick double-click on + hits the pane's reset-to-fit.
-['pointerdown', 'dblclick'].forEach(type =>
-  zoomctl.addEventListener(type, e => e.stopPropagation()));
+['pointerdown', 'dblclick'].forEach(type => {
+  zoomctl.addEventListener(type, e => e.stopPropagation());
+});
 
 // Whether the player asked for a still. Held here rather than read off
 // frame.paused, because that is also true for the moment between rounds while a
@@ -620,12 +628,14 @@ playpause.addEventListener('click', togglePlay);
 // happening rather than what was last clicked: autoplay refused on iOS, or the
 // clip stalling on a slow connection, both land here and relabel the button
 // into the one that will fix it.
-['play', 'pause'].forEach(type => frame.addEventListener(type, () => {
-  const playing = !frame.paused;
-  playpause.innerHTML = playing ? '&#9208;&#xFE0E;' : '&#9654;&#xFE0E;';
-  playpause.title = playing ? 'Pause — or press space' : 'Play — or press space';
-  playpause.setAttribute('aria-label', playing ? 'Pause' : 'Play');
-}));
+['play', 'pause'].forEach(type => {
+  frame.addEventListener(type, () => {
+    const playing = !frame.paused;
+    playpause.innerHTML = playing ? '&#9208;&#xFE0E;' : '&#9654;&#xFE0E;';
+    playpause.title = playing ? 'Pause — or press space' : 'Play — or press space';
+    playpause.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+  });
+});
 
 // loadedmetadata, not canplay: the intrinsic size is what the fit needs and it
 // is known well before enough data to play has arrived.
@@ -706,7 +716,7 @@ let mode = 'daily', results = [], guesses = [];
 // rounds, and resume the next day holding the previous day's results.
 let gameDay = 0;
 
-function clearMarks() { marks.forEach(m => map.removeLayer(m)); marks = []; }
+function clearMarks() { marks.forEach(m => { map.removeLayer(m); }); marks = []; }
 
 map.on('click', e => {
   if (go.dataset.phase !== 'guess') return;
@@ -719,7 +729,7 @@ map.on('click', e => {
 function startRound() {
   const r = game[idx];
   setFrame(r.image);
-  el('roundNum').textContent = idx + 1;
+  el('roundnum').textContent = idx + 1;
   clearMarks();
   if (guess) { map.removeLayer(guess); guess = null; }
   go.hidden = false;
@@ -1120,8 +1130,8 @@ async function showFinished(saved) {
   total = saved.total;
   results = saved.results;
   el('label').textContent = `Daily #${saved.day}`;
-  el('roundNum').textContent = saved.results.length;
-  el('roundTot').textContent = saved.results.length;
+  el('roundnum').textContent = saved.results.length;
+  el('roundtot').textContent = saved.results.length;
   el('score').textContent = saved.total.toLocaleString();
   setFrame(null);
   setLayout(false);
@@ -1244,7 +1254,7 @@ request('version.json')
   .then(r => r.json())
   .then(v => {
     el('version').textContent = v.label;
-    el('buildLabel').hidden = false;
+    el('buildlabel').hidden = false;
     el('reset').hidden = v.tier === 'production';
     // Only where a tier was actually read, unlike the reset button below. Reset
     // costs a misfire one browser's saved state; this one spends a real
@@ -1292,7 +1302,7 @@ el('reroll').addEventListener('click', () => {
 // camera reading a screen at an angle, through glare, in whatever the room is
 // lit by.
 el('link').addEventListener('click', () => {
-  const wrap = el('qrWrap');
+  const wrap = el('qrwrap');
   wrap.hidden = !wrap.hidden;
   if (wrap.hidden) return;
 
@@ -1306,7 +1316,11 @@ el('link').addEventListener('click', () => {
     cellSize: 4, margin: 16, scalable: true,
     alt: 'Scan from your other device to play as one player',
   });
-  el('qrLink').href = url;
+  // Both at once: until the href lands this is not a link, and a link whose only
+  // content is a QR image has no name for a screen reader to announce.
+  const qrlink = el('qrlink');
+  qrlink.href = url;
+  qrlink.setAttribute('aria-label', 'Link a device to play as one player');
 });
 
 // The other end: a browser that opens one of those links moves what it has
@@ -1374,7 +1388,7 @@ el('reset').addEventListener('click', () => {
   try {
     Object.keys(localStorage)
       .filter(k => k.startsWith('guessr-'))
-      .forEach(k => localStorage.removeItem(k));
+      .forEach(k => { localStorage.removeItem(k); });
   } catch { /* private-window localStorage; nothing was stored to clear */ }
   location.reload();
 });
@@ -1384,7 +1398,7 @@ el('reset').addEventListener('click', () => {
 // keys: dismissing the intro doesn't count as having read the About panel,
 // which is where the stream and the bot live.
 const ABOUT_SEEN = 'guessr-about-seen', WELCOME_SEEN = 'guessr-welcome-seen';
-const welcome = el('welcome'), aboutDot = el('aboutDot');
+const welcome = el('welcome'), aboutDot = el('aboutdot');
 
 // localStorage throws in a Safari private window rather than returning null,
 // and neither of these is worth failing the page over.
@@ -1407,8 +1421,8 @@ if (!seen(WELCOME_SEEN)) welcome.showModal();
 // whose target is the dialog itself landed on the backdrop, not the content.
 welcome.addEventListener('close', () => markSeen(WELCOME_SEEN));
 welcome.addEventListener('click', e => { if (e.target === welcome) welcome.close(); });
-el('welcomePlay').addEventListener('click', () => welcome.close());
-el('welcomeMore').addEventListener('click', e => {
+el('welcomeplay').addEventListener('click', () => welcome.close());
+el('welcomemore').addEventListener('click', e => {
   // Without this the document-level click handler above sees a target outside
   // the panel and shuts it again in the same tick.
   e.stopPropagation();
@@ -1421,7 +1435,8 @@ el('welcomeMore').addEventListener('click', e => {
 // carried over; the next unplayed round follows from how many there are.
 async function newGame(which, saved = null) {
   mode = which;
-  const day = gameDay = today();
+  gameDay = today();
+  const day = gameDay;
   try {
     game = await loadRounds(mode === 'daily' ? `date=${dateForDay(day)}` : 'practice');
   } catch (e) {
@@ -1435,7 +1450,7 @@ async function newGame(which, saved = null) {
   el('label').textContent = mode === 'daily' ? `Daily #${day}` : 'Practice';
   // Not always five: practice comes up short until enough dates have finished
   // playing, and a game reads its length from what it was handed.
-  el('roundTot').textContent = game.length;
+  el('roundtot').textContent = game.length;
   results = saved ? [...saved.results] : [];
   guesses = saved ? [...(saved.guesses || [])] : [];
   restoreTruths(game, saved);

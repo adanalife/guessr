@@ -16,6 +16,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       # gitleaks + actionlint build from source (language: golang);
       # ubuntu-latest ships the Go toolchain preinstalled.
       - uses: actions/setup-python@v7

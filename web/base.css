@@ -9,13 +9,15 @@
 
    Paths are relative to this file, which sits beside et-book/, so /admin/ gets
    the same faces without a second set of URLs. */
-@font-face { font-family: "et-book"; font-weight: normal; font-style: normal;
+@font-face { font-family: et-book; font-weight: normal; font-style: normal;
              font-display: swap;
              src: url("et-book/et-book-roman-line-figures.woff") format("woff"); }
-@font-face { font-family: "et-book"; font-weight: normal; font-style: italic;
+
+@font-face { font-family: et-book; font-weight: normal; font-style: italic;
              font-display: swap;
              src: url("et-book/et-book-display-italic-old-style-figures.woff") format("woff"); }
-@font-face { font-family: "et-book"; font-weight: bold; font-style: normal;
+
+@font-face { font-family: et-book; font-weight: bold; font-style: normal;
              font-display: swap;
              src: url("et-book/et-book-bold-line-figures.woff") format("woff"); }
 
@@ -31,6 +33,7 @@
   --color-panel: #fff;
   --color-accent: #0369a1;
 }
+
 [data-theme='dark'] {
   --color-bg: #1a1a1a;
   --color-text: #e8e6d8;
@@ -43,18 +46,31 @@
 ::selection { background: var(--color-selection); }
 
 * { box-sizing: border-box; }
+
 body { background: var(--color-bg); color: var(--color-text);
        font: 17px/1.45 et-book, Palatino, "Palatino Linotype", "Palatino LT STD",
              "Book Antiqua", Georgia, serif; }
+
 /* Blog links: the text's own colour, underlined clear of the descenders. */
-a { color: inherit; text-underline-offset: .1em; text-decoration-thickness: .05em; }
+a {
+  color: inherit;
+  text-underline-offset: .1em;
+  text-decoration-thickness: .05em;
+}
+
 /* Inverted against the page, so the button that plays the round is the
    highest-contrast thing on screen whichever way the theme is set. */
 button { font: inherit; padding: .35rem 1.1rem; border-radius: 6px;
          border: 1px solid var(--color-text);
          background: var(--color-text); color: var(--color-bg); cursor: pointer; }
+
 button:disabled { background: transparent; color: var(--color-muted);
                   border-color: var(--color-border); cursor: default; }
+
 button.secondary { background: transparent; color: var(--color-muted);
                    border-color: var(--color-border); }
-button.secondary:hover { color: var(--color-text); border-color: var(--color-text); }
+
+button.secondary:hover {
+  color: var(--color-text);
+  border-color: var(--color-text);
+}

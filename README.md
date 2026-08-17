@@ -125,7 +125,7 @@ unattended reasonable at all.
 Three tiers, two Cloudflare Pages projects:
 
 | | URL | Deploys when | Workflow |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | preview | a `*.pages.dev` branch alias, posted as a PR comment | every pull request | `preview.yml` |
 | staging | [stage.guessr.dana.lol](https://stage.guessr.dana.lol) | every merge to `main` | `staging.yml` |
 | production | [guessr.dana.lol](https://guessr.dana.lol) | a `vX.Y.Z` tag ships | `release.yml` |
@@ -562,7 +562,7 @@ local midnight.
 The share string is the Wordle shape — a square per round, banded by score, with
 no locations in it:
 
-```
+```text
 Guessr #1
 🟩🟨🟩⬜🟧
 18,204 / 25,000

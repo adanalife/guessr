@@ -84,7 +84,7 @@ function within(ms, promise) {
 // The other half of the property, and the reason the deadline is generous: a
 // request that answers slowly is not a request to abandon.
 {
-  const slow = await serve((req, res) => {
+  const slow = await serve((_req, res) => {
     setTimeout(() => {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ rounds: ['a'] }));
