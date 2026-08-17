@@ -1,0 +1,4 @@
+[codespell]
+# isPlay is a scoring flag (functions/_scoring.mjs and its callers); codespell
+# reads it as a misspelling of "display".
+ignore-words-list = isplay

@@ -88,7 +88,7 @@ const body = async res => [res.status, await res.json()];
 }
 
 // And every way of not knowing which tier this is has to land there too: no
-// version.json, an unparseable one, a tier nobody has heard of -- including the
+// version.json, an unparsable one, a tier nobody has heard of -- including the
 // right name in the wrong shape, since the match is exact -- and no ASSETS
 // binding at all.
 for (const tier of [undefined, 'broken', 'PRODUCTION', 'prod', '', null]) {
