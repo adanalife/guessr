@@ -3,9 +3,9 @@ name: super-linter
 
 # Per-PR lint coverage comes from pre-commit (pre-commit.yml); super-linter runs
 # as a weekly whole-codebase sweep instead of on every PR/push. Because it never
-# gates a merge, it is left close to default on purpose — a noisy first run is
-# information, and pre-disabling validators speculatively is how a sweep quietly
-# stops covering anything.
+# gates a merge, it stays as close to default as it can: a validator is turned
+# off only with a reason recorded next to it, because pre-disabling validators
+# speculatively is how a sweep quietly stops covering anything.
 on:
   schedule:
     - cron: '19 9 * * 2' # Tuesdays 09:19 UTC
@@ -13,6 +13,9 @@ on:
 
 permissions:
   contents: read
+  # super-linter reports each validator's verdict as a commit status; without
+  # this the API call 403s and the per-linter breakdown never lands.
+  statuses: write
 
 jobs:
   build:
@@ -28,6 +31,7 @@ jobs:
       # which means main has to be present in the local checkout.
       - uses: actions/checkout@v7
         with:
+          persist-credentials: false
           fetch-depth: 0
       - name: run-linters
         uses: super-linter/super-linter@v8.7.0
@@ -36,9 +40,57 @@ jobs:
           # weekly sweep: lint everything, not just files changed vs main
           VALIDATE_ALL_CODEBASE: true
           ENABLE_GITHUB_PULL_REQUEST_SUMMARY_COMMENT: false
+          # Excluded paths:
+          #   - web/leaflet/, web/et-book/: vendored third-party assets (the
+          #     Leaflet dist bundle and the ET Book webfont), kept byte-for-byte
+          #     as upstream ships them so a version bump stays a clean wholesale
+          #     replace. .pre-commit-config.yaml excludes the same two dirs.
+          #   - CHANGELOG.md and changelog.d/: towncrier's output and its input.
+          #     Fragments are a single sentence with no heading and the collated
+          #     file repeats a section heading per release — markdownlint's MD041
+          #     and MD024 by construction.
+          #   - towncrier-template.md: a Jinja template that *produces* markdown;
+          #     towncrier picks its markup from the .md extension, but the
+          #     `{% %}`/`[...]` syntax isn't valid markdown.
+          FILTER_REGEX_EXCLUDE: '.*web/(et-book|leaflet)/.*|.*(^|/)CHANGELOG\.md$|.*changelog\.d/.*|.*(^|/)towncrier-template\.md$'
           # Biome wants to reformat release-please's own manifest/config JSON,
           # which release-please then rewrites on its next run. Disabled across
           # the release-please repos in the fleet for the same reason.
           VALIDATE_BIOME_FORMAT: false
           # Copy-paste detection is noise on a codebase this small.
           VALIDATE_JSCPD: false
+          # Prettier: the repo has no Prettier config and no Prettier hook, so
+          # these grade every hand-written file against a style nothing else
+          # enforces. Adopting Prettier means a repo-wide reformat plus a
+          # pre-commit hook to hold the line — a deliberate change, not a side
+          # effect of the weekly sweep.
+          VALIDATE_CSS_PRETTIER: false
+          VALIDATE_HTML_PRETTIER: false
+          VALIDATE_JAVASCRIPT_PRETTIER: false
+          VALIDATE_JSONC_PRETTIER: false
+          VALIDATE_MARKDOWN_PRETTIER: false
+          VALIDATE_YAML_PRETTIER: false
+          # shfmt indents with tabs; the shell scripts here use two spaces. Same
+          # story as the Prettier block — a formatter the repo hasn't adopted.
+          VALIDATE_SHELL_SHFMT: false
+          # Biome is the JavaScript linter for this repo; ESLint duplicates it,
+          # and super-linter warns when both run over the same files.
+          VALIDATE_JAVASCRIPT_ES: false
+          # Python lint and format live in .pre-commit-config.yaml (Ruff, both
+          # halves). The rest either duel with it (BLACK, RUFF_FORMAT, ISORT) or
+          # grade the standalone scripts against rules the repo hasn't adopted
+          # (MYPY, PYLINT, FLAKE8). PYTHON_RUFF — the same linter pre-commit
+          # runs — stays on.
+          VALIDATE_PYTHON_BLACK: false
+          VALIDATE_PYTHON_RUFF_FORMAT: false
+          VALIDATE_PYTHON_MYPY: false
+          VALIDATE_PYTHON_PYLINT: false
+          VALIDATE_PYTHON_FLAKE8: false
+          VALIDATE_PYTHON_ISORT: false
+          # textlint grades prose against writing-style rules; CHANGELOG.md and
+          # README.md are written for players, not for a style guide.
+          VALIDATE_NATURAL_LANGUAGE: false
+          # sqlfluff refuses to run without a dialect, and picking one (D1 is
+          # SQLite) also opts the schema into sqlfluff's layout rules — a
+          # separate decision from getting this sweep meaningful.
+          VALIDATE_SQLFLUFF: false
