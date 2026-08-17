@@ -18,14 +18,16 @@ function setTheme(theme) {
   if (meta) meta.setAttribute('content', theme === 'dark' ? '#1a1a1a' : '#fffff8');
 }
 
+// The theme button calls this from an inline onclick, which analysis of this file alone can't see.
+// biome-ignore lint/correctness/noUnusedVariables: called from an inline onclick handler
 function toggleTheme() {
   var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
   setTheme(next);
-  try { localStorage.setItem('theme', next); } catch (e) { /* nothing to remember */ }
+  try { localStorage.setItem('theme', next); } catch { /* nothing to remember */ }
 }
 
 // A Safari private window throws rather than returning null, and an
 // unreadable preference is no reason to serve an unthemed page.
 var savedTheme = null;
-try { savedTheme = localStorage.getItem('theme'); } catch (e) { /* fall back to the OS */ }
+try { savedTheme = localStorage.getItem('theme'); } catch { /* fall back to the OS */ }
 setTheme(savedTheme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
