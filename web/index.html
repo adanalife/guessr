@@ -53,8 +53,11 @@
   /* An explicit `display` beats the UA stylesheet's `[hidden] { display: none }`,
      so anything laid out with flex or grid stays on screen while hidden. Several
      things here toggle `hidden` between game phases; this makes that work. */
+  /* biome-ignore lint/complexity/noImportantStyles: outranking the UA stylesheet is the point */
   [hidden] { display: none !important; }
-  /* dvh so iOS Safari's collapsing chrome doesn't clip the footer. */
+  /* dvh so iOS Safari's collapsing chrome doesn't clip the footer. The 100vh
+     above it is the fallback for browsers without dvh, not a stray duplicate. */
+  /* biome-ignore lint/suspicious/noDuplicateProperties: 100vh is the pre-dvh fallback */
   body { margin: 0; height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
   /* Above Leaflet's controls (z-index 800), so the About panel isn't painted
      over by the map pane below it. */
@@ -96,6 +99,7 @@
      modules the spec asks for, carried by the SVG's own margin so it takes the
      ground colour too. */
   #qr { display: block; width: 9rem; height: 9rem; }
+  /* biome-ignore lint/style/noDescendingSpecificity: the more specific selector it trails is #about's, a different subtree */
   #qr svg { display: block; width: 100%; height: 100%; }
   #qr rect { fill: var(--color-panel); }
   #qr path { fill: var(--color-text); }
@@ -172,14 +176,6 @@
   #sheet .live { position: relative; line-height: 0; }
   #sheet .live iframe { width: 100%; aspect-ratio: 16 / 9; display: block;
                         border: 0; border-radius: 4px; }
-  /* The caption sits under this one rather than over it: on a round tile the
-     badge overlays a paused frame, but here it would cover YouTube's own
-     controls, and the link has to stay clickable. It is also the whole cell
-     until the player arrives, so it carries the type size rather than the 11px
-     a badge over footage wants. */
-  #sheet .live .cap { position: static; margin-top: .4rem; background: none;
-                      color: var(--color-text); line-height: 1.35;
-                      font-size: .82rem; font-weight: 400; }
   /* Same number and same band colour as the pin on the map, which is the only
      thing tying a thumbnail to the answer it belongs to.
      The badges here and on the map keep fixed colours and a sans face rather
@@ -192,6 +188,14 @@
                 font: 600 11px/1 ui-sans-serif, system-ui, sans-serif; }
   #sheet .n { width: 18px; height: 18px; border-radius: 50%; color: #111;
               text-align: center; font: 700 11px/18px ui-sans-serif, system-ui, sans-serif; }
+  /* The caption sits under the live embed rather than over it: on a round tile
+     the badge overlays a paused frame, but here it would cover YouTube's own
+     controls, and the link has to stay clickable. It is also the whole cell
+     until the player arrives, so it carries the type size rather than the 11px
+     a badge over footage wants. */
+  #sheet .live .cap { position: static; margin-top: .4rem; background: none;
+                      color: var(--color-text); line-height: 1.35;
+                      font-size: .82rem; font-weight: 400; }
   #mapwrap { min-height: 0; }
   #map { height: 100%; background: var(--color-bg); }
   /* While a round is being guessed the frame takes the whole pane and the map
@@ -305,12 +309,15 @@
            picture: a screen reader announces a link, and a phone that has the
            panel open can follow it directly. Following it on the device that
            drew it is a no-op — it is already that player. -->
+      <!-- biome-ignore lint/a11y/useValidAnchor: href is the player link, set when the code is drawn -->
+      <!-- biome-ignore lint/a11y/useAnchorContent: the code and its label are set at the same moment -->
       <p id="qrwrap" hidden><a id="qrlink"><span id="qr"></span></a></p>
       <!-- Both halves are stamped in at deploy time, so the whole line stays
            hidden until version.json says something. The reset is for the
            testing tiers: the intro, the About dot and the daily record are all
            once-per-browser, so without it the only way to see any of them a
            second time is to clear site data by hand. -->
+      <!-- biome-ignore lint/a11y/useAnchorContent: the version string is stamped in at deploy time -->
       <p id="build" hidden><span id="buildlabel" hidden>Running <a id="version"
         href="https://github.com/adanalife/guessr/blob/main/CHANGELOG.md"></a></span>
         <button type="button" id="reset" class="secondary" hidden>Reset saved state</button></p>
@@ -1309,7 +1316,11 @@ el('link').addEventListener('click', () => {
     cellSize: 4, margin: 16, scalable: true,
     alt: 'Scan from your other device to play as one player',
   });
-  el('qrlink').href = url;
+  // Both at once: until the href lands this is not a link, and a link whose only
+  // content is a QR image has no name for a screen reader to announce.
+  const qrlink = el('qrlink');
+  qrlink.href = url;
+  qrlink.setAttribute('aria-label', 'Link a device to play as one player');
 });
 
 // The other end: a browser that opens one of those links moves what it has
@@ -1424,7 +1435,8 @@ el('welcomemore').addEventListener('click', e => {
 // carried over; the next unplayed round follows from how many there are.
 async function newGame(which, saved = null) {
   mode = which;
-  const day = gameDay = today();
+  gameDay = today();
+  const day = gameDay;
   try {
     game = await loadRounds(mode === 'daily' ? `date=${dateForDay(day)}` : 'practice');
   } catch (e) {
