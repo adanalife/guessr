@@ -295,11 +295,11 @@
            (web/alias.js says why), so the control is a reroll rather than a
            field: keep drawing until one reads right. -->
       <p id="identity">Your leaderboard name is <b id="alias"></b><br>
-        <button id="reroll" class="secondary" title="Draw another name">Generate new name</button>
+        <button type="button" id="reroll" class="secondary" title="Draw another name">Generate new name</button>
         <!-- Playing on a phone and a desktop otherwise puts the same person on
              the board twice. The code carries the player id, so scanning it
              from the other device is the whole mechanism. -->
-        <button id="link" class="secondary"
+        <button type="button" id="link" class="secondary"
           title="Show a code that adds another device's scores to yours">Link a device</button></p>
       <!-- An anchor around it, so the id is reachable by anyone who can't scan a
            picture: a screen reader announces a link, and a phone that has the
@@ -313,7 +313,7 @@
            second time is to clear site data by hand. -->
       <p id="build" hidden><span id="buildlabel" hidden>Running <a id="version"
         href="https://github.com/adanalife/guessr/blob/main/CHANGELOG.md"></a></span>
-        <button id="reset" class="secondary" hidden>Reset saved state</button></p>
+        <button type="button" id="reset" class="secondary" hidden>Reset saved state</button></p>
       <!-- The footage is not under the repo's MIT licence, and a licence file
            cannot speak to anyone who never opens the repo — which is nearly
            everyone who plays. LICENSE-CONTENT is the long version. Outside
@@ -328,8 +328,8 @@
   <p>This is real footage from a year of traveling in a campervan</p>
   <p>Every player guesses the same 5 clips, new ones daily</p>
   <div class="actions">
-    <button id="welcomeplay" autofocus>Play</button>
-    <button id="welcomemore" class="secondary">Learn more</button>
+    <button type="button" id="welcomeplay" autofocus>Play</button>
+    <button type="button" id="welcomemore" class="secondary">Learn more</button>
   </div>
 </dialog>
 <main>
@@ -349,21 +349,21 @@
            autoplay muted loop playsinline preload="auto"
            aria-label="A few seconds of dashcam footage to locate"></video>
     <div id="zoomctl" hidden>
-      <button id="zin" title="Zoom in — or scroll, pinch, or double-click the frame"
+      <button type="button" id="zin" title="Zoom in — or scroll, pinch, or double-click the frame"
               aria-label="Zoom in">+</button>
-      <button id="zout" title="Zoom out" aria-label="Zoom out">&minus;</button>
+      <button type="button" id="zout" title="Zoom out" aria-label="Zoom out">&minus;</button>
       <!-- The glyphs carry U+FE0E, the text variation selector, or a platform
            with emoji for these code points renders two coloured cartoons in a
            row of monochrome map controls. The label is set from the video's own
            play/pause events rather than on click, so it stays honest when
            playback stops for a reason the page didn't ask for — an autoplay
            block on iOS being the one that actually happens. -->
-      <button id="playpause" title="Pause — or press space"
+      <button type="button" id="playpause" title="Pause — or press space"
               aria-label="Pause">&#9208;&#xFE0E;</button>
       <!-- Only up while a single round is open from the end-of-game sheet, which
            is the one state the pane can be in that the player did not arrive at
            by playing. -->
-      <button id="board" hidden title="Back to all five rounds — or press Escape"
+      <button type="button" id="board" hidden title="Back to all five rounds — or press Escape"
               aria-label="Back to all five rounds">&#9638;&#xFE0E;</button>
     </div>
     <div id="sheet" hidden></div>
@@ -374,16 +374,16 @@
   <div id="mapwrap"><div id="map"></div></div>
 </main>
 <footer>
-  <button id="go" disabled>Drop a pin to guess</button>
+  <button type="button" id="go" disabled>Drop a pin to guess</button>
   <!-- Testing tiers only, like the reset button, and for the same reason: the
        slow part of walking a change through five rounds is aiming the pin, not
        committing it. Guesses and advances, so a whole game is one click per
        round. -->
-  <button id="rando" class="secondary" hidden
+  <button type="button" id="rando" class="secondary" hidden
           title="Guess a random point and move on">Place random</button>
-  <button id="share" class="secondary" hidden>Share</button>
-  <button id="practice" class="secondary" hidden>Practice</button>
-  <button id="history" class="secondary" hidden>All my guesses</button>
+  <button type="button" id="share" class="secondary" hidden>Share</button>
+  <button type="button" id="practice" class="secondary" hidden>Practice</button>
+  <button type="button" id="history" class="secondary" hidden>All my guesses</button>
   <span id="result">Somewhere in the United States. Where?</span>
   <!-- After #result, which is flex: 1, so the toggle sits at the far end. -->
   <button type="button" class="theme-toggle" aria-label="Toggle dark mode"
