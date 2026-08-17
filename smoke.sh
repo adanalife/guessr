@@ -57,7 +57,18 @@ call() {
 # is live, while an asset whose bytes did not change can still be answered from
 # an edge cache for a while longer. The /api/day check below covers both that and
 # routing, since it is a Function reading the live database.
-if [ -f web/version.json ]; then
+#
+# One local copy is not an expectation: `task dev` stamps tier "local" so the
+# admin surface knows not to treat itself as production, and that file outlives
+# the dev server. Pinning against it asks a deployed tier to serve a build that
+# by definition never ships, so the gate spins out its full two minutes and then
+# fails, taking every assertion below with it -- which is how a health probe run
+# from a laptop that had once run `task dev` reported a healthy production as
+# broken (2026-08-15). Gate on tier, not the label: tier is the field that exists
+# to say what kind of build this is.
+if [ -f web/version.json ] && [ "$(jq -r .tier web/version.json)" = "local" ]; then
+  echo "note: local web/version.json is a dev-server stamp, not a deployment, so nothing pins which build answers"
+elif [ -f web/version.json ]; then
   want=$(jq -r .label web/version.json)
   for _ in $(seq 1 40); do
     got=$(curl -s "$BASE/version.json" | jq -r .label 2>/dev/null || true)
