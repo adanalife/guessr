@@ -53,10 +53,20 @@ def parse_image(image: str) -> tuple[str, int | None]:
     production still schedules ten of them -- refusing to parse them would put the
     oldest rounds, the ones likeliest to have lost their media, out of reach of the
     tool that exists to restore it.
+
+    The six-digit floor is the same one `functions/clips/[[path]].js` applies to
+    decide whether a name may be cached forever, and the two have to agree: a
+    legacy slug ending in `-123` reads as a moment to a rule with no length floor
+    and as no moment to the worker's. The disagreement fails safe -- `check` would
+    catch the resulting slug mismatch and refuse -- but it refuses with the wrong
+    diagnosis, skipping the moment-less branch written for exactly these rounds
+    and telling the operator the key and the round disagree instead of that the
+    moment is recorded nowhere. Pinned in test_clip_name.py, which reads the
+    worker's regex out of its own source.
     """
     name = image.removeprefix("clips/").removesuffix(".mp4")
     slug, sep, ms = name.rpartition("-")
-    if not sep or not ms.isdigit():
+    if not sep or not ms.isdigit() or len(ms) < 6:
         return name, None
     return slug, int(ms)
 
