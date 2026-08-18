@@ -129,8 +129,19 @@ PY
     npx wrangler d1 execute "$DB" --remote --json --command="SELECT DISTINCT r.slug FROM rounds r WHERE r.status IN ('queued', 'rejected') OR NOT EXISTS (SELECT 1 FROM round_days d WHERE d.image = r.image) OR EXISTS (SELECT 1 FROM round_days d WHERE d.image = r.image AND d.date >= date('now', '-${TOPUP_REPLAY_DAYS} days'))" | jq -r '.[0].results[].slug'
   } >burned.txt
 
+  # Where the tier already dealt, which burned.txt cannot express: a different
+  # clip on the same stretch of road is a fresh slug and a repeat to the player.
+  # Aired within the same replay window, so a location frees up alongside the
+  # clip that showed it -- plus everything still queued, since those will be
+  # shown and nothing in this run can see them. Rejected rounds are left out on
+  # purpose: nobody was ever shown one, so its location is not spent.
+  {
+    echo "# lat,lng $TIER already dealt (aired within ${TOPUP_REPLAY_DAYS}d, or queued), read $(date -u +%Y-%m-%dT%H:%MZ) -- written by publish.sh --top-up, not by hand"
+    npx wrangler d1 execute "$DB" --remote --json --command="SELECT DISTINCT a.lat, a.lng FROM answers a WHERE EXISTS (SELECT 1 FROM round_days d WHERE d.image = a.image AND d.date >= date('now', '-${TOPUP_REPLAY_DAYS} days')) OR EXISTS (SELECT 1 FROM rounds r WHERE r.image = a.image AND r.status = 'queued')" | jq -r '.[0].results[] | "\(.lat),\(.lng)"'
+  } >avoid.txt
+
   echo "top-up: $days_needed days from $from plus $queue_needed for the queue = $count rounds ($TIER has $days_left days, $queued queued)"
-  set -- -n "$count" --horizon "$days_needed" --schedule-from "$from" --exclude burned.txt "$@"
+  set -- -n "$count" --horizon "$days_needed" --schedule-from "$from" --exclude burned.txt --avoid avoid.txt "$@"
 fi
 
 echo "== generating"

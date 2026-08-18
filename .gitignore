@@ -45,3 +45,4 @@ __pycache__/
 .DS_Store
 .ruff_cache/
 /burned.txt
+/avoid.txt

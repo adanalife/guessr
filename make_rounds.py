@@ -544,13 +544,24 @@ def rank(scored: list[dict], weight: float) -> list[dict]:
 
 
 def select(
-    ranked: list[dict], count: int, min_km: float, state_cap: int
+    ranked: list[dict],
+    count: int,
+    min_km: float,
+    state_cap: int,
+    avoid: list[dict] | None = None,
 ) -> tuple[list[dict], int]:
     """Take the best `count` rounds that aren't the same place twice.
 
     Greedy down the ranked list, skipping any clip within `min_km` of one
     already taken, or from a state that has already filled its share. Returns
     the set and how many of it had to be backfilled without the spacing.
+
+    `avoid` is locations a target tier has already dealt, and they enter the
+    spacing rule as points that are simply already taken. Burning the whole clip
+    stops the same road coming back as the same clip; it does nothing about a
+    *different* clip 200 m along the same stretch, and the corpus has interstate
+    legs the van drove many times, so that is the shape the repeat actually
+    takes. A player who was shown that road last week gets the answer for free.
 
     Both constraints exist because nothing upstream knows about spread: every
     clip is scored alone, so the roads the van drove repeatedly score well
@@ -571,6 +582,11 @@ def select(
     chosen: list[dict] = []
     taken: set[str] = set()
     per_state: Counter = Counter()
+    # Seeded with the already-dealt locations so one distance check covers both
+    # kinds of crowding. They never enter `chosen`, so they cost no round slots
+    # and can't be returned; the backfill pass drops the spacing entirely, which
+    # relaxes them on exactly the same terms as the set's own rounds.
+    occupied: list[dict] = list(avoid or [])
 
     def take(spacing: float) -> None:
         for r in ranked:
@@ -580,9 +596,10 @@ def select(
                 continue
             if state_cap and per_state[r["state"]] >= state_cap:
                 continue
-            if spacing and any(km(r, c) < spacing for c in chosen):
+            if spacing and any(km(r, c) < spacing for c in occupied):
                 continue
             chosen.append(r)
+            occupied.append(r)
             taken.add(r["slug"])
             per_state[r["state"]] += 1
 
@@ -767,6 +784,29 @@ def burned_slugs(path: Path) -> set[str]:
         for line in path.read_text().splitlines()
         if line.strip() and not line.lstrip().startswith("#")
     }
+
+
+def avoided_points(path: Path) -> list[dict]:
+    """Locations a target tier has already dealt, read `lat,lng` per line.
+
+    Points rather than slugs, because this is the constraint burning a clip
+    can't express: a different clip on the same stretch of road is a fresh slug
+    and a repeat to the player. They feed select()'s spacing rule, so the unit
+    has to be whatever km() reads.
+
+    Blank lines and #-comments pass through silently so the file can carry a
+    provenance header, matching burned_slugs(). A line that isn't two numbers is
+    a malformed file rather than a point to skip -- silently dropping it would
+    weaken the guard exactly when the query that wrote it broke.
+    """
+    points = []
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        lat, _, lng = line.partition(",")
+        points.append({"lat": float(lat), "lng": float(lng)})
+    return points
 
 
 def drop_burned(scored: list[dict], burned: set[str]) -> tuple[list[dict], int]:
@@ -1017,6 +1057,14 @@ def main() -> int:
         "or re-schedule one that was rejected. See burned_slugs() for why the "
         "unit is the clip and not the moment.",
     )
+    ap.add_argument(
+        "--avoid",
+        metavar="FILE",
+        help="locations never to select near, `lat,lng` one per line: where a "
+        "target tier has already dealt rounds, so a top-up cannot put a "
+        "different clip 200 m from one players saw last week. Held to the same "
+        "--min-spacing as the set's own rounds.",
+    )
     args = ap.parse_args()
 
     shutil.rmtree(STAGING, ignore_errors=True)
@@ -1049,8 +1097,15 @@ def main() -> int:
         f"distinctiveness together"
     )
 
+    avoid = avoided_points(Path(args.avoid)) if args.avoid else []
+    if avoid:
+        print(
+            f"avoiding {len(avoid)} locations the target tier already dealt, "
+            f"under the same {args.min_spacing:g} km spacing"
+        )
+
     cap = max(1, int(args.count * args.state_cap)) if args.state_cap else 0
-    eligible, backfilled = select(eligible, args.count, args.min_spacing, cap)
+    eligible, backfilled = select(eligible, args.count, args.min_spacing, cap, avoid)
     if len(eligible) < args.count:
         print(
             f"only {len(eligible)} rounds fit under a {cap}-per-state cap -- "
@@ -1061,7 +1116,8 @@ def main() -> int:
         # check.py's spread line below will report these rather than zero.
         print(
             f"{backfilled} rounds are closer than {args.min_spacing:g} km to "
-            f"another -- the pool ran out of spread before it ran out of rounds"
+            f"another round{' or an avoided location' if avoid else ''} -- the "
+            f"pool ran out of spread before it ran out of rounds"
         )
 
     rounds, answers = [], []
