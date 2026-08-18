@@ -276,6 +276,23 @@ tasks:
     cmds:
       - ./publish.sh --top-up {{.CLI_ARGS}}
 
+  # Restore one round's media: re-cut it from the corpus and put it back at the
+  # same key. For a clip that was deleted, corrupted, or never uploaded.
+  #
+  # One task rather than a :stage/:prod pair, because there is only one bucket
+  # (see BUCKET above) and so only one place the bytes can go. DB selects which
+  # tier's round pool is read for provenance, and that read is a SELECT.
+  rounds:rebuild:
+    desc: "Re-cut and re-upload one round's clip (IMAGE=clips/<slug>-<ms>.mp4,
+      optional DB=, DRY_RUN=1). Needs the corpus"
+    cmds:
+      - python3 rebuild.py {{.IMAGE}}
+        {{if .DB}}--db {{.DB}}{{end}}
+        {{if .DRY_RUN}}--dry-run{{end}}
+        {{if .FORCE}}--force{{end}}
+    requires:
+      vars: [IMAGE]
+
   _d1:push:
     internal: true
     cmds:

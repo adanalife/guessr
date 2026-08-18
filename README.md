@@ -33,6 +33,7 @@ taken only by committing a guess and getting the score back.
 task rounds   # needs the corpus mounted + kubectl access to the tripbot DB
 task check    # validates the round set
 task clips:push  # uploads the media to R2, which is where the game reads it from
+task rounds:rebuild IMAGE=clips/<slug>-<ms>.mp4  # restore one lost or corrupt clip
 task test     # scheduling, scoring, the endpoints, the swap; needs neither
 task test:integration  # the whole game against a throwaway local D1
 task dev      # http://localhost:8000, with scoring
@@ -253,6 +254,15 @@ no date has a game at all and `/api/day` 404s; with a schedule but no answers th
 game looks perfect and returns "unknown round" on every guess. `task rounds`
 prints both on the way out, alongside `task clips:push`, without which the rounds
 have no footage to show in the first place.
+
+Losing a single clip is a black pane in somebody's game rather than a broken
+deploy, because the endpoint reads the bucket per request. `task rounds:rebuild
+IMAGE=clips/<slug>-<ms>.mp4` puts it back: it reads the round's provenance out of
+D1, re-cuts from the corpus with the same ffmpeg invocation that made it, and
+replaces the object under the same key. The moment being in the filename is what
+makes that land the same footage at the same URL, which is also what makes the
+year-long `immutable` cache header on `functions/clips/[[path]].js` safe — so the
+command refuses rather than guesses whenever the key and the round disagree.
 
 There is deliberately no `rounds:prod:push`. Production is reached only through
 `task rounds:topup`, whose contract — only what is missing, never inside the

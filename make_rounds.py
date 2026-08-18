@@ -1144,11 +1144,11 @@ def main() -> int:
         # What it does not. The first five go to D1; the rest stay in
         # answers.json, which is the record of how a round was made.
         #
-        # ponytail: `answers` in D1 keeps its five columns for now. Adding one
-        # means an ALTER against two live databases, and nothing consumes these
-        # four yet -- the reveal circle, `rounds:rebuild` and a coords report all
-        # want them, and all three land with the D1 schema that carries the round
-        # pool. See vault/guessr/round-pipeline-design.md.
+        # ponytail: `answers` in D1 keeps its five columns. Adding one means an
+        # ALTER against two live databases, and nothing needs them there -- the
+        # four below go to D1 on the `rounds` row instead, which is where
+        # `rounds:rebuild` reads a clip's provenance from. What still wants them
+        # and does not have them is the reveal circle and a coords report.
         answers.append(
             {
                 "image": image,

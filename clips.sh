@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Move a round set's media between the laptop that cuts it and the bucket that
-# serves it. `clips.sh push` after generating; `clips.sh pull` to get a playable
-# copy onto a machine with no corpus.
+# serves it. `clips.sh push` after generating, or `clips.sh push <file>...` to
+# replace named objects; `clips.sh pull` to get a playable copy onto a machine
+# with no corpus.
 #
 # web/clips/ is gitignored: a set is ~150 MB of mp4 and this repo is public, so
 # committing one would add that to history on every regeneration, for good.
@@ -44,11 +45,23 @@ scheduled_clips() {
     | jq -r '.[0].results[].image | sub("^clips/"; "")'
 }
 
-case "${1:?usage: clips.sh push|pull}" in
+verb="${1:?usage: clips.sh push [file...]|pull}"
+shift
+
+case "$verb" in
   push)
-    test -d "$WEB/clips" || { echo "no web/clips/ to push -- run \`task rounds\`" >&2; exit 1; }
-    count=$(find "$WEB/clips" -name '*.mp4' | wc -l | tr -d ' ')
-    test "$count" -gt 0 || { echo "web/clips/ holds no mp4s" >&2; exit 1; }
+    # Named files push just those; no arguments pushes the whole directory. The
+    # single-file form is what `rounds:rebuild` uses to replace one object, and it
+    # goes through here rather than calling wrangler itself so a rebuild inherits
+    # the retry loop and the explicit content type.
+    if [ "$#" -gt 0 ]; then
+      files=$(printf '%s\n' "$@")
+    else
+      test -d "$WEB/clips" || { echo "no web/clips/ to push -- run \`task rounds\`" >&2; exit 1; }
+      files=$(find "$WEB/clips" -name '*.mp4')
+    fi
+    count=$(printf '%s' "$files" | grep -c . || true)
+    test "$count" -gt 0 || { echo "nothing to push (no mp4s)" >&2; exit 1; }
     echo "pushing $count clips to $BUCKET, $JOBS at a time"
     # --content-type explicitly, even though the endpoint sets it on the way out
     # too. An object stored as octet-stream is a <video> that plays nothing and
@@ -67,7 +80,7 @@ case "${1:?usage: clips.sh push|pull}" in
     # fails the run, which is what the weekly cadence's failure budget is for.
     # shellcheck disable=SC2016  # deliberate: $1/$2/$3 are the inner sh's own
     # positional parameters, passed after the script, not this shell's.
-    find "$WEB/clips" -name '*.mp4' -print0 \
+    printf '%s\n' "$files" | tr '\n' '\0' \
       | xargs -0 -P "$JOBS" -I{} sh -c \
         'n=0
          until npx wrangler r2 object put "$1/clips/$(basename "$2")" \
@@ -114,5 +127,5 @@ case "${1:?usage: clips.sh push|pull}" in
     echo "ok: $want clips in web/clips/"
     ;;
 
-  *) echo "usage: clips.sh push|pull" >&2; exit 1 ;;
+  *) echo "usage: clips.sh push [file...]|pull" >&2; exit 1 ;;
 esac
