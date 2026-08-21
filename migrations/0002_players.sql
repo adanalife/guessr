@@ -8,9 +8,9 @@
 -- Two columns because they answer two different questions, and only one of them
 -- is anybody else's business:
 --
---   alias -- what the boards and a shared recap should call this player,
---            replacing the name they drew for themselves. It is published, so
---            it goes on a stream overlay the moment it is set.
+--   alias -- what anything showing this player should call them, replacing the
+--            name they drew for themselves. It is published, so it goes on a
+--            stream overlay the moment it is set.
 --   note  -- who they actually are, for whoever is reading the stats. Served by
 --            nothing. It exists so that recognising a player does not require
 --            publishing what you recognised them by.

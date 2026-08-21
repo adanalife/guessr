@@ -1,10 +1,10 @@
-// What to call a player, as one SQL expression both the boards and a shared
-// recap are built from.
+// What to call a player, as one SQL expression every query that renders a name
+// is built from.
 //
 // The rule has two halves and they have to stay in one piece: an operator-set
 // alias wins, and failing that the last name the player drew for themselves.
-// Written out twice it would drift, and the drift is invisible until the day a
-// board and a recap of that same day disagree about who won it.
+// Written out twice it would drift, and the drift is invisible until the day two
+// views of the same game disagree about who played it.
 //
 // Underscore-prefixed, so Pages leaves it out of the routing table.
 

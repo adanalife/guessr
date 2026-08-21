@@ -215,8 +215,9 @@ map tiles rather than on the page.
 `functions/` holds the endpoints. It is not served: Pages routes
 `functions/api/score.js` to `/api/score`, `functions/api/day.js` to `/api/day`,
 `functions/admin/day.js` to `/admin/day` and `functions/clips/[[path]].js` to
-everything under `/clips/`. `_scoring.mjs` is skipped by the router (leading
-underscore) so the handlers can import it.
+everything under `/clips/`. The underscore-prefixed files — `_scoring.mjs`,
+`_json.mjs`, `_names.mjs` — are skipped by the router, so the handlers can
+import them.
 
 `/api/day` is what a date's game *is*: five rounds by name, in the order they
 play. `/api/score` checks a posted round against the same rows before it will
