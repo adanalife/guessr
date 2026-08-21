@@ -4,6 +4,25 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.4.0 — 2026-08-21
+
+### Fixed
+
+- **`rebuild.py` and the clips worker now read a clip name the same way.** `parse_image` accepted any run of trailing digits as a millisecond where `functions/clips/[[path]].js` requires at least six, so a legacy slug ending in `-123` was a moment to one and no moment to the other. The disagreement failed safe — `check` caught the resulting slug mismatch and refused — but it refused with the wrong diagnosis, skipping the moment-less branch written for exactly those pre-guessr#81 rounds and reporting that the key and the round disagree instead of that the moment is recorded nowhere. ([#152](https://github.com/adanalife/guessr/pull/152))
+- The stream player in the sixth cell of the end-of-game board went missing for minutes at a time whenever YouTube's channel feed hiccuped, because the failed lookup was cached as though it were an answer. Failures now expire in seconds and get one immediate second try, so a hiccup costs at most one player their embed instead of everyone's for five minutes. ([#154](https://github.com/adanalife/guessr/pull/154))
+- On the testing tiers, the "place random" shortcut no longer sits in the footer of screens with no round to guess — a finished game, or somebody else's shared one. ([#155](https://github.com/adanalife/guessr/pull/155))
+
+### Behind the scenes
+
+- The weekly code-quality sweep now reads the game's own code rather than the mapping library bundled with it, and the release automation hands out narrower credentials. ([#146](https://github.com/adanalife/guessr/pull/146))
+- The deployment smoke test no longer aborts when it is run from a checkout that has served the game locally. `task dev` leaves behind a `web/version.json` stamped tier `local`, and the smoke's version gate was treating it as the build to wait for — so a health probe against production spent two minutes waiting for a build that by definition never ships, then failed before running a single assertion. ([#147](https://github.com/adanalife/guessr/pull/147))
+- A weekly top-up no longer deals a round on a stretch of road the tier played recently. Burning the whole clip only stopped the *same* clip coming back; a different clip 200 m along the same interstate leg was a fresh slug and a repeat to the player. `publish.sh --top-up` now writes an `avoid.txt` of already-dealt coordinates and `make_rounds.py --avoid` holds new rounds to the same `--min-spacing` against them. ([#149](https://github.com/adanalife/guessr/pull/149))
+- The changelog-fragment numbering workflow now fails loudly when it cannot diff against the base commit, instead of reporting success having numbered nothing. ([#150](https://github.com/adanalife/guessr/pull/150))
+- `task rounds:rebuild IMAGE=clips/<slug>-<ms>.mp4` restores one round's clip: it reads the round's provenance from D1, re-cuts from the corpus with the same ffmpeg invocation that made it, and replaces the object under the same key. The moment being in the filename is what makes that land the same footage at the same URL — three shipped things already assumed the command existed, including the year-long `immutable` cache header the clips endpoint sets. ([#151](https://github.com/adanalife/guessr/pull/151))
+- **`test_clip_name.py` pins the one naming rule three programs implement separately.** `make_rounds.clip_name` writes `<slug>-<milliseconds>.mp4`, the clips worker decides from that name whether the footage may be cached for a year as `immutable`, and `rebuild.parse_image` reads it back to find the moment to re-cut — none of them calling the others. The test reads the worker's regex out of its own source rather than copying it, so it cannot become a fourth thing that drifts. ([#152](https://github.com/adanalife/guessr/pull/152))
+- Your guesses are now kept with your scores, so a game you played can be looked at again from any device rather than only from the browser that played it. ([#155](https://github.com/adanalife/guessr/pull/155))
+- Boards can show a name chosen for a player rather than the one they drew, for the regulars worth recognising. ([#155](https://github.com/adanalife/guessr/pull/155))
+
 ## v1.3.0 — 2026-08-16
 
 ### Changed
