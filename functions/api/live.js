@@ -29,16 +29,17 @@ const FEED = 'https://www.youtube.com/feeds/videos.xml?channel_id=UC8Q7uFC1Xyr2Z
 
 // Five minutes for an answer, and half a minute for a failure to reach one.
 //
-// The long number is the same reasoning it always was: the feed is the same
-// bytes for every player and only changes when a broadcast starts, so one read
-// serves every game finished in the window. `cacheEverything` is what makes that
-// true, since the feed carries no cache headers worth honouring.
+// The feed is the same bytes for every player and changes only when a broadcast
+// starts, so one read serves every game finished in the window. It offers 900
+// seconds of its own, which is three times longer than a player should have to
+// wait to see a stream that has just gone up -- hence a number here at all, and
+// hence `cacheEverything`, which is what lets one be set.
 //
-// The short one is because that reasoning inverts on a bad read. YouTube serves
-// this feed unreliably -- four identical requests seconds apart answered 404,
-// 500, 500, 200 -- and a five-minute cache over one of those failures is a board
-// with nothing in its sixth cell for every player behind it, long after the feed
-// came back. A failure is not an answer, so it is not cached like one.
+// That reasoning inverts on a bad read. YouTube serves this feed unreliably --
+// four identical requests seconds apart answered 404, 500, 500, 200 -- and a
+// five-minute cache over one of those failures is a board with nothing in its
+// sixth cell for every player behind it, long after the feed came back. A
+// failure is not an answer, so it is not cached like one.
 const TTL = 300, RETRY_TTL = 30;
 
 // The feed is Atom and its entries are newest-first, so the first id is the
@@ -73,6 +74,11 @@ async function readFeed() {
         // transient 404 in Cloudflare's cache for the whole window, where a
         // retry -- this request's or the next player's -- reads the same
         // failure back rather than asking YouTube again.
+        //
+        // Safe to lose. Where this property is not honoured, `cacheEverything`
+        // falls back to the feed's own headers, and those cache a success for
+        // longer than asked and an error not at all -- slower to notice a new
+        // broadcast, never a pinned failure.
         cacheTtlByStatus: { '200-299': TTL, '300-599': 0 },
       },
     });
