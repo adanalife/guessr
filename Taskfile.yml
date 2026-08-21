@@ -312,6 +312,65 @@ tasks:
       - task: _d1:ask
         vars: {DB: adanalife-guessr-answers, FILE: stats.sql}
 
+  # Putting a name to a player id, so a board and the stats say who someone is
+  # rather than which wordlist pair they drew. The ids come out of `stats:*` --
+  # the best-days query prints one beside every score.
+  #
+  # NAME is published: it replaces that player's own name everywhere one renders,
+  # including the stream overlay. NOTE is not, and no endpoint reads it -- it is
+  # for recognising a player without announcing what you recognised them by. So
+  # NOTE alone is the private option, and both together is "call them this, and
+  # here is why".
+  #
+  # Either one empty clears it, which is how a published name is taken back down.
+  player:stage:
+    desc: Name a player in staging (ID=<player_id> NAME='Phil' NOTE='met at the meetup')
+    cmds:
+      - task: _d1:name
+        vars: {DB: adanalife-guessr-answers-staging}
+
+  player:prod:
+    desc: Name a player in production (ID=<player_id> NAME='Phil' NOTE='...')
+    cmds:
+      - task: _d1:name
+        vars: {DB: adanalife-guessr-answers}
+
+  # The one write in this file that takes free text from the command line, so it
+  # is the one that has to quote, twice over.
+  #
+  # The arguments reach the shell as environment variables rather than as
+  # template substitutions, because a substitution is spliced in before the shell
+  # parses the line: NAME="Phil's" would close the quote it was pasted inside and
+  # the rest would be read as code. Through the environment the value is never
+  # parsed at all.
+  #
+  # `q` is the second half, and quotes for SQLite rather than for the shell --
+  # doubling any apostrophe and wrapping the result, which is SQLite's own
+  # escaping. "Phil's roommate" is an ordinary thing to put in a NOTE and would
+  # otherwise end the string literal mid-sentence.
+  #
+  # NULLIF turns an empty argument into a NULL rather than an empty string, so
+  # `NAME=` clears the alias instead of publishing a blank one, and omitting an
+  # argument entirely clears the column it names.
+  _d1:name:
+    internal: true
+    requires:
+      vars: [ID]
+    env:
+      PLAYER_ID: '{{.ID}}'
+      PLAYER_NAME: '{{.NAME}}'
+      PLAYER_NOTE: '{{.NOTE}}'
+    cmds:
+      - |
+        q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/''/g")"; }
+        npx wrangler d1 execute {{.DB}} --remote --command="
+          INSERT INTO players (player_id, alias, note)
+          VALUES ($(q "$PLAYER_ID"), NULLIF($(q "$PLAYER_NAME"), ''), NULLIF($(q "$PLAYER_NOTE"), ''))
+          ON CONFLICT (player_id) DO UPDATE SET
+            alias = excluded.alias,
+            note = excluded.note,
+            updated_at = datetime('now')"
+
   # How far ahead each tier is scheduled, and what there is to schedule with.
   # See schedule.sql for the questions.
   schedule:stage:

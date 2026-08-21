@@ -8,6 +8,7 @@
 // nicely -- the board being unreachable costs a rotation slot, nothing more.
 import { lastClosedDate, monthOf } from '../../web/daily.js';
 import { json } from '../_json.mjs';
+import { nameExpr, PLACEHOLDER } from '../_names.mjs';
 
 // The overlay renders five rows; ten leaves the bot room to filter or re-rank
 // without a second request.
@@ -17,25 +18,19 @@ const ROWS = 10;
 // minute of cache costs nothing and stops a retry loop hammering D1.
 const CACHE = { 'cache-control': 'public, max-age=60' };
 
-// What renders for a play carrying no name -- one recorded before aliases
-// existed, or from a browser that cannot keep localStorage and so cannot hold a
-// place on a board anyway. The score still counts and still places, so a board
-// is never short a row.
-const PLACEHOLDER = 'anonymous';
-
 // Both boards are the same shape over the same table: sum a player's points
 // across a span of dates, best first. The span is the only difference, so it is
 // the only thing that varies -- `date = ?` for a day, `date LIKE ?` for a month.
 //
-// The name is safe to render as stored because of where it comes from: it is
-// drawn from a curated wordlist, so the review happens when the name is made
-// rather than after it is typed. That is what removes the moderation queue this
-// endpoint would otherwise have to consult -- there is nothing here a stranger
-// chose. Should typed names ever land, the allowlist lands with them and joins
-// in right here.
+// A player's own name is safe to render as stored because of where it comes
+// from: it is drawn from a curated wordlist, so the review happens when the name
+// is made rather than after it is typed. That is what removes the moderation
+// queue this endpoint would otherwise have to consult -- there is nothing here a
+// stranger chose. An operator alias is not from that list and does not need to
+// be: whoever set it is the person the queue would have reported to.
 //
-// Which name: the last one that player recorded anywhere, rather than the last
-// one inside this span. A handle is a label and not an identity, so rerolling
+// Which of a player's own names: the last one they recorded anywhere, rather
+// than the last one inside this span. A handle is a label and not an identity, so rerolling
 // renames a player's whole history at once -- and scoped to the span instead, a
 // name changed after a day had closed could never reach that day's board, which
 // is the board the overlay shows most. Nothing is lost by renaming backwards,
@@ -43,17 +38,13 @@ const PLACEHOLDER = 'anonymous';
 //
 // A reroll lands on the boards from that player's next recorded round: a handle
 // only reaches this table on the back of a play, and no endpoint sets one alone.
+// An alias lands at once, being a row of its own rather than a field on a play.
 //
-// `handle IS NOT NULL` because a play can be nameless -- from a browser that
-// refuses localStorage, or carrying a name the wordlist could not have made,
-// which parsePlay drops. Without it, one such play would blank a name the player
-// still has on every other row.
-//
-// The subquery below runs once per board row and seeks on player_id alone, which
-// is what the `plays_by_player_recent` index exists to serve. Without that
-// index each of those seeks is a full table scan, and since the overlay polls
-// both boards continuously that reads millions of rows a day out of a table
-// holding a few hundred. The results are identical either way, so
+// The name expression runs once per board row and both of its lookups are seeks
+// -- `players` by its primary key, `plays` by `plays_by_player_recent`. Without
+// that second index each of those seeks is a full table scan, and since the
+// overlay polls both boards continuously that reads millions of rows a day out
+// of a table holding a few hundred. The results are identical either way, so
 // test_leaderboard.mjs asserts the plan rather than the rows.
 //
 // Exported for test_leaderboard.mjs, which runs it against a real SQLite rather
@@ -61,13 +52,7 @@ const PLACEHOLDER = 'anonymous';
 export const query = span => `
   SELECT p.player_id,
          SUM(p.points) AS points,
-         (SELECT h.handle
-            FROM plays h
-           WHERE h.player_id = p.player_id AND h.handle IS NOT NULL
-           -- played_at is second-resolution, so two rounds committed inside one
-           -- second tie; rowid breaks it by insert order.
-           ORDER BY h.played_at DESC, h.rowid DESC
-           LIMIT 1) AS name
+         ${nameExpr('p.player_id')} AS name
     FROM plays p
    WHERE p.date ${span}
    GROUP BY p.player_id

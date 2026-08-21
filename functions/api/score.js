@@ -64,7 +64,7 @@ export async function onRequestPost({ request, env }) {
 
   if (!play) return json({ ...scored, ...truth, recorded: false });
 
-  const { km: keptKm, points: keptPoints } = await record(env, play, guess.image, scored);
+  const { km: keptKm, points: keptPoints } = await record(env, play, guess, scored);
   // The truth goes back either way: a replay has already committed a guess for
   // this round once, so it is not learning anything it wasn't told the first
   // time -- and the page needs it to draw the map.
@@ -91,21 +91,27 @@ async function inDraw(env, date, image) {
 // stored one if it isn't. First write wins, so re-scoring a round cannot improve
 // what the board sees.
 //
+// The pin goes in beside the distance it earned, because km cannot be turned
+// back into it -- a radius is not a point -- and where a guess went is the half
+// of a result worth looking at again. Only for a recorded play: a practice round
+// writes nothing at all, so there is nothing to put coordinates on.
+//
 // ponytail: two statements rather than one INSERT ... RETURNING, because D1's
 // `changes` is the reliable way to tell an insert from an ignored conflict and
 // the second query only runs on the replay path.
-async function record(env, play, image, scored) {
+async function record(env, play, guess, scored) {
   const insert = await env.ANSWERS
-    .prepare(`INSERT INTO plays (date, player_id, image, km, points, handle)
-              VALUES (?, ?, ?, ?, ?, ?)
+    .prepare(`INSERT INTO plays (date, player_id, image, km, points, handle, guess_lat, guess_lng)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
               ON CONFLICT (date, player_id, image) DO NOTHING`)
-    .bind(play.date, play.playerId, image, scored.km, scored.points, play.handle)
+    .bind(play.date, play.playerId, guess.image, scored.km, scored.points, play.handle,
+      guess.lat, guess.lng)
     .run();
   if (insert.meta.changes > 0) return scored;
 
   const kept = await env.ANSWERS
     .prepare('SELECT km, points FROM plays WHERE date = ? AND player_id = ? AND image = ?')
-    .bind(play.date, play.playerId, image)
+    .bind(play.date, play.playerId, guess.image)
     .first();
   // A conflict means the row is there, so a miss here is a database that changed
   // under the request. Returning the fresh score beats failing the round.

@@ -215,8 +215,9 @@ map tiles rather than on the page.
 `functions/` holds the endpoints. It is not served: Pages routes
 `functions/api/score.js` to `/api/score`, `functions/api/day.js` to `/api/day`,
 `functions/admin/day.js` to `/admin/day` and `functions/clips/[[path]].js` to
-everything under `/clips/`. `_scoring.mjs` is skipped by the router (leading
-underscore) so the handlers can import it.
+everything under `/clips/`. The underscore-prefixed files — `_scoring.mjs`,
+`_json.mjs`, `_names.mjs` — are skipped by the router, so the handlers can
+import them.
 
 `/api/day` is what a date's game *is*: five rounds by name, in the order they
 play. `/api/score` checks a posted round against the same rows before it will
@@ -275,8 +276,9 @@ tier has its own so a regeneration on one doesn't strand the other.
 ### The tables the game owns
 
 Every table definition lives in numbered migrations under `migrations/` —
-`rounds`, `round_days`, `answers`, and `plays`, one row per player per round per
-date, which is the whole storage behind the leaderboard.
+`rounds`, `round_days`, `answers`, `plays`, one row per player per round per
+date, which is the whole storage behind the leaderboard, and `players`, which
+holds only the ids somebody has put a name to.
 
 ```sh
 task schema:stage:status   # what this tier has not applied yet
@@ -416,6 +418,21 @@ aliases existed, or from a browser that can't keep `localStorage` — renders as
 
 If typed names ever land, an allowlist lands with them and joins into the board
 query; until then it would be a table with nothing to hold.
+
+One name does not come from the wordlist. `players` maps a player id to an alias
+an operator set by hand, and it wins over the one the player drew — for the
+friends and regulars worth recognising by name:
+
+```sh
+task player:prod ID=<player_id> NAME='Phil' NOTE='met at the meetup'
+```
+
+The ids come out of `task stats:prod`, which prints one beside every best-day
+score. **`NAME` is published** — it replaces that player's own name everywhere
+one renders, the stream overlay included — while `NOTE` is read by nothing and
+served by nothing. So a note alone recognises somebody without announcing what
+you recognised them by, which is usually the one you want. Either argument left
+empty clears it.
 
 One thing this does *not* buy outright: the round sets published before scoring
 moved server-side carried their coordinates in `rounds.json`, and that file is in

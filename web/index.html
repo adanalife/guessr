@@ -241,6 +241,13 @@
      what it is: not pressable yet, and the place the round gets played from. */
   #go:disabled { color: var(--color-text); border-style: dashed;
                  border-color: var(--color-muted); }
+  /* Place random drives #go, so it is up on exactly the tiers that get it and
+     only while there is a round to spend it on -- a finished game, or a daily
+     already played, both leave #go hidden. Expressed as a sibling selector
+     rather than as a second flag five places would have to keep in step with
+     #go's own. */
+  #rando { display: none; }
+  #go:not([hidden]) ~ #rando.testing { display: revert; }
   #result { flex: 1; min-width: 14rem; color: var(--color-muted); }
   #result b { color: var(--color-text); }
   .squares { letter-spacing: .1em; }
@@ -386,7 +393,7 @@
        slow part of walking a change through five rounds is aiming the pin, not
        committing it. Guesses and advances, so a whole game is one click per
        round. -->
-  <button type="button" id="rando" class="secondary" hidden
+  <button type="button" id="rando" class="secondary"
           title="Guess a random point and move on">Place random</button>
   <button type="button" id="share" class="secondary" hidden>Share</button>
   <button type="button" id="practice" class="secondary" hidden>Practice</button>
@@ -1261,7 +1268,7 @@ request('version.json')
     // player's single play of the day, so an unanswered version.json has to
     // mean no button rather than "probably not production". `task dev` stamps a
     // `local` tier, so local work still gets it.
-    el('rando').hidden = v.tier === 'production';
+    el('rando').classList.toggle('testing', v.tier !== 'production');
     el('build').hidden = false;
   })
   .catch(() => {

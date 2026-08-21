@@ -217,6 +217,16 @@ assert.ok(parsePlay({ ...play, date: '2028-02-29' }), 'rejected a real leap day'
   });
   assert.equal(practice.status, 200, 'practice was gated on the schedule');
   assert.equal((await practice.json()).recorded, false);
+
+  // The pin lands beside the score it earned. km is a radius and a map needs a
+  // point, so a guess whose coordinates were dropped here is one that can never
+  // be drawn again -- and nothing about the round it was part of would look
+  // wrong at the time.
+  const row = env.ANSWERS.db
+    .prepare('SELECT guess_lat, guess_lng FROM plays WHERE image = ?')
+    .get(MINE);
+  assert.deepEqual([row.guess_lat, row.guess_lng], [40, -100],
+    'a recorded play did not keep where the pin went');
 }
 
 console.log('ok: scoring curve and guess validation');

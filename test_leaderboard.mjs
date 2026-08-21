@@ -84,6 +84,41 @@ for (const [first, second] of [
   assert.deepEqual(board(d, DAILY, '2026-08-01'), [[null, 100]]);
 }
 
+// An operator alias outranks the name the player drew, on every board and back
+// through their history -- the same reach a reroll has, since both are "what to
+// call this id" rather than a property of one play.
+//
+// The reroll has to keep working underneath it: an alias is set once and a
+// player goes on drawing names afterwards, so an implementation that dropped the
+// handle lookup entirely would pass a test that only checked the override.
+{
+  const d = db([
+    ['2026-08-01', 'p1', 'a.jpg', 100, 'Amber Basin'],
+    ['2026-08-02', 'p1', 'b.jpg', 200, 'Winding Valley'],
+    ['2026-08-02', 'p2', 'c.jpg', 50, 'Dusty Lookout'],
+  ]);
+  d.prepare('INSERT INTO players (player_id, alias, note) VALUES (?, ?, ?)')
+    .run('p1', 'Phil', 'from the meetup');
+
+  assert.deepEqual(board(d, DAILY, '2026-08-01'), [['Phil', 100]],
+    'the alias did not reach a day that closed before it was set');
+  assert.deepEqual(board(d, DAILY, '2026-08-02'), [['Phil', 200], ['Dusty Lookout', 50]],
+    'the alias did not replace the drawn name, or displaced a player who has none');
+
+  // A row that names nobody is not a name. Clearing an alias hands the player
+  // back to their own, rather than leaving a board rendering nothing.
+  d.prepare('UPDATE players SET alias = NULL WHERE player_id = ?').run('p1');
+  assert.deepEqual(board(d, DAILY, '2026-08-02'), [['Winding Valley', 200], ['Dusty Lookout', 50]],
+    'clearing the alias did not restore the drawn name');
+
+  // The note is the half nothing serves. Asserted here because the only thing
+  // standing between it and a stream overlay is which column the expression
+  // reads.
+  d.prepare('UPDATE players SET note = ? WHERE player_id = ?').run('secret', 'p1');
+  assert.ok(!JSON.stringify(board(d, DAILY, '2026-08-02')).includes('secret'),
+    'the private note reached the board');
+}
+
 // Same second, two rounds: insert order decides, so a reroll between two quick
 // plays is not a coin flip.
 {
@@ -243,6 +278,7 @@ for (const name of label(Array(10).fill(longest))) {
 }
 
 console.log('ok: a reroll renames a player on every board, back through history');
+console.log('ok: an operator alias outranks a drawn name, and its note stays private');
 console.log('ok: a nameless play does not cost a player their name');
 console.log('ok: the boards still rank by summed points over their own span');
 console.log('ok: players sharing an alias are numbered apart on the board');
