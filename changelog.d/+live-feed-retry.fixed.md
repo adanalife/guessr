@@ -1,0 +1,1 @@
+The stream player in the sixth cell of the end-of-game board went missing for minutes at a time whenever YouTube's channel feed hiccuped, because the failed lookup was cached as though it were an answer. Failures now expire in seconds and get one immediate second try, so a hiccup costs at most one player their embed instead of everyone's for five minutes.
