@@ -1,0 +1,1 @@
+Rounds are now scored on a frame from the same instant they show. The corpus was re-analysed at a finer resolution, so the picture a round plays and the frame its difficulty is measured from line up far more closely than before.
