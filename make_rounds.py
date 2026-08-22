@@ -134,13 +134,23 @@ CREDIT = "A Dana Life"
 CREDIT_URL = "https://dana.lol"
 
 # How far from a candidate moment an embedding may sit and still be what the round
-# is scored on. Half of `frame_embeddings`' own 5 s sampling step, so the scored
-# frame stays inside the stretch of road the round plays. Not a tuning knob: it is
-# a property of that table's grid, and it moves when the grid does -- re-embedding
-# the corpus at 2 s would make 1.0 the equivalent bound. Measured against the
-# corpus, 90% of track moments have an embedding this close (mean 1.7 s), and the
-# gaps it excludes run to 32 s.
-EMBED_WINDOW_SEC = 2.5
+# is scored on. Half of `frame_embeddings`' 2 s sampling step, so the scored frame
+# stays inside the stretch of road the round plays. Not a tuning knob: it is a
+# property of that table's grid, and it moves when the grid does.
+#
+# The corpus does not spread evenly inside this bound, which is what makes 1.0 the
+# right number rather than merely the arithmetic one. Both the coords track and the
+# embedding grid step 2 s, and they are either phase-aligned or a whole step apart:
+# the distance from a track moment to its nearest embedding has p50 **0.00 s** and
+# p90 2.00 s, with almost nothing in between (mean 1.09 s, reaching 126 s in the
+# gaps). So a 1.0 bound keeps the half of the moments whose embedding is the very
+# same instant and drops the ones a full step away, while a 2.0 bound would readmit
+# that whole step -- and a round only plays SECONDS of footage, so a frame 2 s off
+# the cut describes road the player is never shown.
+#
+# What it costs is affordable: 66.9 usable moments per clip against 73.8 at the old
+# 2.5 s bound, which is still ~17x what `--per-clip 4` draws.
+EMBED_WINDOW_SEC = 1.0
 
 # How much of a clip's coordinate track has to hold up before the clip may supply
 # a round. Below this the coords stage's own reads disagreed with each other or
@@ -175,11 +185,12 @@ HORIZON_DAYS = 60
 #   1,317 m between the answer pin and the road the player was shown, and blurred
 #   the neighbour distances that decide which rounds exist at all. Both are joined
 #   per moment below.
-# - The track is also what *enumerates* the moments. It samples every 2 s against
-#   `frame_embeddings`' 5 s, so asking the track what moments exist and fetching an
-#   embedding for each offers ~81 candidates per clip where asking the embeddings
-#   offered ~28. The two grids do not line up either way, so both directions are
-#   nearest-sample joins bounded to half the other side's step -- a moment with
+# - The track is also what *enumerates* the moments. Both it and
+#   `frame_embeddings` step 2 s, and asking the track what moments exist and
+#   fetching an embedding for each offers ~77 candidates per clip where asking the
+#   embeddings offered ~28. The two grids do not line up either way, so both
+#   directions are nearest-sample joins bounded to half the other side's step -- a
+#   moment with
 #   nothing near it drops out rather than being answered, or scored, from across a
 #   gap.
 SCORE_SQL = """
@@ -233,18 +244,25 @@ cand AS (
     -- and has to drop out.
     --
     -- The BETWEEN is not an optimisation. Embedding coverage has gaps -- the
-    -- nearest one averages 1.7 s away but reaches 32 s -- and without a bound the
-    -- round would be scored on a frame half a minute down the road, i.e. on a
-    -- different place than it shows. Half the embedding grid's own 5 s step keeps
-    -- the scored frame inside the stretch the round plays; 90% of track moments
+    -- nearest one averages 1.09 s away but reaches 126 s -- and without a bound the
+    -- round would be scored on a frame two minutes down the road, i.e. on a
+    -- different place than it shows. Half the embedding grid's own 2 s step keeps
+    -- the scored frame inside the stretch the round plays; 87% of track moments
     -- qualify.
+    --
+    -- Matched on `source_ts_sec`, the offset into the original recording, because
+    -- that is the one clock a re-cut cannot move. `ts_sec` is an offset into the
+    -- airing clip, so re-trimming any of the 122 trimmed clips would silently
+    -- re-point this join at different frames. Both tables are fully keyed to the
+    -- source clock, so today the two agree -- they differ by a per-clip constant
+    -- and the same moments come back -- and only this one survives a re-trim.
     CROSS JOIN LATERAL (
       SELECT fe.embedding
       FROM frame_embeddings fe
       WHERE fe.video_id = vc.video_id
-        AND fe.ts_sec BETWEEN vc.ts_sec - :embed_window
-                          AND vc.ts_sec + :embed_window
-      ORDER BY abs(fe.ts_sec - vc.ts_sec)
+        AND fe.source_ts_sec BETWEEN vc.source_ts_sec - :embed_window
+                                 AND vc.source_ts_sec + :embed_window
+      ORDER BY abs(fe.source_ts_sec - vc.source_ts_sec)
       LIMIT 1
     ) emb
     -- Where the van has got to by the time the round stops playing. LEFT, because
@@ -259,6 +277,14 @@ cand AS (
       ORDER BY abs(ts_sec - (vc.ts_sec + :clip_secs))
       LIMIT 1
     ) ahead ON true
+    -- `vc.ts_sec > 15` reads like a vestigial clip-relative filter next to a
+    -- source-keyed join, and it is not: it is what refuses moments the current
+    -- cut excludes. 33,532 track rows carry a `source_ts_sec` with a NULL
+    -- `ts_sec` -- road that exists in the original recording and never airs --
+    -- and NULL fails this comparison, which is the only thing keeping them out.
+    -- 224 of them sit within EMBED_WINDOW_SEC of an aired embedding on the source
+    -- clock, so relaxing this grades a player on footage they were never shown.
+    -- The cut stays clip-relative for the same reason (`-ss ts`).
     WHERE vc.video_id = p.id AND vc.source = 'ocr' AND vc.ts_sec > 15
     ORDER BY random()
     LIMIT :per_clip
