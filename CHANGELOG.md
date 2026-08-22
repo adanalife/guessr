@@ -4,6 +4,12 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.5.0 — 2026-08-22
+
+### Changed
+
+- Rounds are now scored on a frame from the same instant they show. The corpus was re-analysed at a finer resolution, so the picture a round plays and the frame its difficulty is measured from line up far more closely than before. ([#156](https://github.com/adanalife/guessr/pull/156))
+
 ## v1.4.0 — 2026-08-21
 
 ### Fixed
