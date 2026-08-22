@@ -249,13 +249,20 @@ cand AS (
     -- different place than it shows. Half the embedding grid's own 2 s step keeps
     -- the scored frame inside the stretch the round plays; 87% of track moments
     -- qualify.
+    --
+    -- Matched on `source_ts_sec`, the offset into the original recording, because
+    -- that is the one clock a re-cut cannot move. `ts_sec` is an offset into the
+    -- airing clip, so re-trimming any of the 122 trimmed clips would silently
+    -- re-point this join at different frames. Both tables are fully keyed to the
+    -- source clock, so today the two agree -- they differ by a per-clip constant
+    -- and the same moments come back -- and only this one survives a re-trim.
     CROSS JOIN LATERAL (
       SELECT fe.embedding
       FROM frame_embeddings fe
       WHERE fe.video_id = vc.video_id
-        AND fe.ts_sec BETWEEN vc.ts_sec - :embed_window
-                          AND vc.ts_sec + :embed_window
-      ORDER BY abs(fe.ts_sec - vc.ts_sec)
+        AND fe.source_ts_sec BETWEEN vc.source_ts_sec - :embed_window
+                                 AND vc.source_ts_sec + :embed_window
+      ORDER BY abs(fe.source_ts_sec - vc.source_ts_sec)
       LIMIT 1
     ) emb
     -- Where the van has got to by the time the round stops playing. LEFT, because
@@ -270,6 +277,14 @@ cand AS (
       ORDER BY abs(ts_sec - (vc.ts_sec + :clip_secs))
       LIMIT 1
     ) ahead ON true
+    -- `vc.ts_sec > 15` reads like a vestigial clip-relative filter next to a
+    -- source-keyed join, and it is not: it is what refuses moments the current
+    -- cut excludes. 33,532 track rows carry a `source_ts_sec` with a NULL
+    -- `ts_sec` -- road that exists in the original recording and never airs --
+    -- and NULL fails this comparison, which is the only thing keeping them out.
+    -- 224 of them sit within EMBED_WINDOW_SEC of an aired embedding on the source
+    -- clock, so relaxing this grades a player on footage they were never shown.
+    -- The cut stays clip-relative for the same reason (`-ss ts`).
     WHERE vc.video_id = p.id AND vc.source = 'ocr' AND vc.ts_sec > 15
     ORDER BY random()
     LIMIT :per_clip
