@@ -68,7 +68,7 @@ jobs:
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
 
-      - uses: astral-sh/setup-uv@v9.0.0 # no floating major tag published
+      - uses: astral-sh/setup-uv@v10.0.1 # no floating major tag published
         if: ${{ steps.release.outputs.pr && !steps.release.outputs.release_created }}
         with:
           # This job holds a write token and publishes a tag, so a poisoned
