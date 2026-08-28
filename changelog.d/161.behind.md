@@ -1,0 +1,1 @@
+The database now refuses to delete an answer a recorded play depends on — the row the recap and share screens read their truth from. The answer-key seed script upserts rather than replaces, so a regeneration never momentarily removes one.

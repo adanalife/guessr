@@ -103,6 +103,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS round_days_once ON round_days (image);
 -- they are the answer key, and this is a public repo. The *definition* belongs
 -- here with every other one, so a fresh database has somewhere to put them
 -- before a round set has ever been generated for it.
+--
+-- A row here is never deleted while a play references it: the reveal for an
+-- already-played round reads its truth from this table, so dropping the row
+-- breaks history rather than tidying it. Enforced since 0004, which points
+-- `plays.image` at this key.
 CREATE TABLE IF NOT EXISTS answers (
   image TEXT PRIMARY KEY,
   lat REAL NOT NULL,

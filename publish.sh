@@ -57,6 +57,15 @@ TOPUP_DAYS="${TOPUP_DAYS:-14}"
 TOPUP_LEAD="${TOPUP_LEAD:-3}"
 TOPUP_QUEUE="${TOPUP_QUEUE:-10}"
 TOPUP_REPLAY_DAYS="${TOPUP_REPLAY_DAYS:-180}"
+# How many clips the scoring pass draws from. make_rounds.py defaults to 400,
+# which is a laptop-sized pool; the sweep that chose the ranking weights scored
+# 2,000, and a top-up run at 400 produced openers averaging 5.6 km against 1.7 km
+# for the larger-pool sets before it. More to choose from improves the schedule on
+# locatability and distinctiveness at once -- it is a bigger pool, not a different
+# preference -- so the only question was cost. Measured against stage-1-data
+# 2026-08-28: 400 clips scores in 180 s, 2,000 in 1,189 s (~20 min), near enough
+# linear. The job's activeDeadlineSeconds is 7200, so 20 min is comfortable.
+TOPUP_POOL="${TOPUP_POOL:-2000}"
 # Interpolated into SQL below, so a non-number must die here rather than there.
 : $((TOPUP_REPLAY_DAYS + 0))
 
@@ -141,7 +150,7 @@ PY
   } >avoid.txt
 
   echo "top-up: $days_needed days from $from plus $queue_needed for the queue = $count rounds ($TIER has $days_left days, $queued queued)"
-  set -- -n "$count" --horizon "$days_needed" --schedule-from "$from" --exclude burned.txt --avoid avoid.txt "$@"
+  set -- -n "$count" --horizon "$days_needed" --schedule-from "$from" --exclude burned.txt --avoid avoid.txt --pool "$TOPUP_POOL" "$@"
 fi
 
 echo "== generating"
