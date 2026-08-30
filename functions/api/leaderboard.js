@@ -11,8 +11,9 @@ import { json } from '../_json.mjs';
 import { nameExpr, PLACEHOLDER } from '../_names.mjs';
 
 // The overlay renders five rows; ten leaves the bot room to filter or re-rank
-// without a second request.
-const ROWS = 10;
+// without a second request. Also the deepest rank guesses.js will resolve,
+// since a rank below the board names nobody.
+export const ROWS = 10;
 
 // A board changes when a play lands, and the bot polls on its own timer. A
 // minute of cache costs nothing and stops a retry loop hammering D1.
