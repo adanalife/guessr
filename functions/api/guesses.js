@@ -1,18 +1,18 @@
-// GET /api/guesses?board=daily|monthly&rank=N -- the plays behind one board
-// row: which round, how far off, and where the pin actually went.
+// GET /api/guesses?board=daily|monthly&rank=N[&date=YYYY-MM-DD] -- the plays
+// behind one board row: which round, how far off, and where the pin went.
 //
 // Keyed by rank rather than player_id, because the id is a write credential --
 // /api/score records plays under it and /api/link moves a player's whole
 // history by it -- so no public response may carry one. A rank is resolved by
 // re-running the board query, whose ordering (points DESC, then player_id) is
 // deterministic, so the same rank names the same player for as long as the
-// board itself holds still.
-import { lastClosedDate, monthOf } from '../../web/daily.js';
+// board itself holds still. `date` picks which board that is, on exactly the
+// terms the board endpoint takes it, so a drilldown resolves against the same
+// standings the caller is looking at rather than against today's.
+import { lastClosedDate } from '../../web/daily.js';
 import { json } from '../_json.mjs';
 import { PLACEHOLDER } from '../_names.mjs';
-import { query, ROWS } from './leaderboard.js';
-
-const CACHE = { 'cache-control': 'public, max-age=60' };
+import { CACHE, query, ROWS, span } from './leaderboard.js';
 
 // One player's plays across a span, in the order they were dealt. The join
 // recovers which of the day's five rounds a play answered; LEFT, because a play
@@ -23,7 +23,8 @@ const CACHE = { 'cache-control': 'public, max-age=60' };
 // yet, so a strong player's pin on an open round is a public copy of roughly
 // where the answer is. Distance and points leak nothing without the pin, so
 // they stay. (`?3` is the last closed date; the daily board's span is always at
-// or behind it, so the guard only ever bites on the monthly board.)
+// or behind it -- a requested date is refused unless it has closed -- so the
+// guard only ever bites on the monthly board.)
 //
 // Exported for test_guesses.mjs, same arrangement as the board query above it.
 export const guesses = span => `
@@ -47,7 +48,8 @@ export async function onRequestGet({ request, env }) {
   }
 
   const daily = board === 'daily';
-  const period = daily ? lastClosedDate() : monthOf();
+  const { period, cache, error } = span(board, params);
+  if (error) return json({ error }, 400, CACHE);
 
   // The board query with the rank as its LIMIT: the row wanted is the last one,
   // and coming up short means the board has no such rank today -- an answer,
@@ -57,7 +59,7 @@ export async function onRequestGet({ request, env }) {
     .bind(period, rank)
     .all();
   if (standings.length < rank) {
-    return json({ error: 'no player at that rank' }, 404, CACHE);
+    return json({ error: 'no player at that rank' }, 404, cache);
   }
   const row = standings[rank - 1];
 
@@ -73,5 +75,5 @@ export async function onRequestGet({ request, env }) {
     board, period, rank,
     name: row.name || PLACEHOLDER,
     rows: results,
-  }, 200, CACHE);
+  }, 200, cache);
 }
