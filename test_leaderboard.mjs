@@ -249,6 +249,10 @@ for (const name of label(Array(10).fill(longest))) {
     const res = await onRequestGet({ request, env });
     return [res.status, await res.json()];
   };
+  const cacheOf = async search => {
+    const request = { url: `https://guessr.dana.lol/api/leaderboard${search}` };
+    return (await onRequestGet({ request, env })).headers.get('cache-control');
+  };
 
   const DAILY_ROWS = [['Winding Valley', 400], ['Amber Basin', 100]];
   const MONTHLY_ROWS = bothBoards
@@ -277,6 +281,47 @@ for (const name of label(Array(10).fill(longest))) {
       [400, { error: 'board must be daily or monthly' }],
       `"${board}" was accepted as a board`);
   }
+
+  // Paging back: `date` serves that date's board instead of the newest one.
+  // The 2020 player is seeded above and places nowhere on the default board,
+  // so seeing them at all is the requested date doing the work.
+  assert.deepEqual(await get('?board=daily&date=2020-01-01'),
+    [200, { board: 'daily', period: '2020-01-01', rows: [['Distant Shore', 4000]] }],
+    'a closed date did not serve its own board');
+
+  // A closed date nobody played is an empty board, not a 404 or a fallback to
+  // the newest one -- "nobody placed" is an answer.
+  assert.deepEqual(await get('?board=daily&date=2019-06-15'),
+    [200, { board: 'daily', period: '2019-06-15', rows: [] }],
+    'a closed date with no plays was not served as an empty board');
+
+  // A board still filling is refused. Serving it would put standings on screen
+  // that reorder while they are up, which is the whole reason the closing rule
+  // exists -- and an empty 200 would be indistinguishable from a quiet day.
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  for (const date of [tomorrow, new Date().toISOString().slice(0, 10)]) {
+    assert.deepEqual(await get(`?board=daily&date=${date}`),
+      [400, { error: 'date has not closed yet' }], `"${date}" was served`);
+  }
+
+  // Shape and calendar both. The 31st of February passes the regex, so the
+  // parse is what keeps it out.
+  for (const date of ['2026-8-1', '2026-08', 'yesterday', '2026-02-31', '']) {
+    assert.deepEqual(await get(`?board=daily&date=${encodeURIComponent(date)}`),
+      [400, { error: 'date must be YYYY-MM-DD' }], `"${date}" was accepted`);
+  }
+
+  // Only the daily board pages. A month is a running total, and one date
+  // against it names no span it could sum.
+  assert.deepEqual(await get('?board=monthly&date=2020-01-01'),
+    [400, { error: 'date applies to the daily board only' }],
+    'the monthly board took a date');
+
+  // A board asked for by date can never change again, so it is cached for an
+  // hour where the live board gets the minute the overlay polls at.
+  assert.equal(await cacheOf('?board=daily&date=2020-01-01'),
+    'public, max-age=3600', 'a closed date was served with the live cache');
+  assert.equal(await cacheOf('?board=daily'), 'public, max-age=60');
 }
 
 console.log('ok: a reroll renames a player on every board, back through history');
@@ -287,3 +332,6 @@ console.log('ok: players sharing an alias are numbered apart on the board');
 console.log('ok: both boards seek the name index instead of scanning per row');
 console.log('ok: each board asks for its own span, and defaults to daily');
 console.log('ok: a board that is neither daily nor monthly is refused');
+console.log('ok: a closed date serves its own board, empty if nobody played it');
+console.log('ok: an open, future, malformed or monthly date is refused');
+console.log('ok: a dated board is cached for an hour, a live one for a minute');
