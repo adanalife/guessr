@@ -146,7 +146,7 @@ jobs:
       - name: The game runs against a real local D1
         run: ./integration.sh
 
-      - uses: astral-sh/setup-uv@v9.0.0 # no floating major tag published
+      - uses: astral-sh/setup-uv@v10.0.1 # no floating major tag published
 
       # Require every PR to add a towncrier changelog fragment under
       # changelog.d/ (see README "Changelog"). CHANGELOG.md is linked from the

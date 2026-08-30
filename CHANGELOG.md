@@ -4,6 +4,13 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.6.0 — 2026-08-28
+
+### Behind the scenes
+
+- The weekly round top-up now scores from a 2,000-clip pool instead of 400, matching the pool the ranking weights were tuned against. More candidates improves how locatable and how distinctive the scheduled rounds are at the same time. Scoring takes about 20 minutes at the larger pool, well inside the job's two-hour allowance. ([#159](https://github.com/adanalife/guessr/pull/159))
+- The database now refuses to delete an answer a recorded play depends on — the row the recap and share screens read their truth from. The answer-key seed script upserts rather than replaces, so a regeneration never momentarily removes one. ([#161](https://github.com/adanalife/guessr/pull/161))
+
 ## v1.5.0 — 2026-08-22
 
 ### Changed
