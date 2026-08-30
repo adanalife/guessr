@@ -70,8 +70,8 @@ const get = async search => {
 assert.deepEqual(await get('?board=daily&rank=1'), [200, {
   board: 'daily', period: day, rank: 1, name: 'Amber Basin',
   rows: [
-    { date: day, position: 1, km: 1.2, points: 4800, guess_lat: 34.1, guess_lng: -118.2 },
-    { date: day, position: 2, km: 250.0, points: 900, guess_lat: 36.0, guess_lng: -120.0 },
+    { date: day, position: 1, image: 'a.mp4', km: 1.2, points: 4800, guess_lat: 34.1, guess_lng: -118.2 },
+    { date: day, position: 2, image: 'b.mp4', km: 250.0, points: 900, guess_lat: 36.0, guess_lng: -120.0 },
   ],
 }]);
 
@@ -89,8 +89,8 @@ assert.deepEqual(await get('?board=daily&rank=3'),
   [404, { error: 'no player at that rank' }]);
 
 // The monthly drilldown carries the open date's play with its distance and
-// points but WITHOUT its pin -- and the closed day's pins survive alongside it,
-// so the guard is the date test and not a blanket strip.
+// points but WITHOUT its pin or its clip -- and the closed day's pins and clips
+// survive alongside it, so the guard is the date test and not a blanket strip.
 {
   const [status, body] = await get('?board=monthly&rank=1');
   assert.equal(status, 200);
@@ -98,15 +98,18 @@ assert.deepEqual(await get('?board=daily&rank=3'),
 
   const openRow = body.rows.find(r => r.date === today);
   assert.deepEqual(openRow,
-    { date: today, position: null, km: 3.3, points: 4500, guess_lat: null, guess_lng: null },
-    'the open date leaked its pin, kept a schedule position it has none of, '
-    + 'or lost its score');
+    { date: today, position: null, image: null, km: 3.3, points: 4500,
+      guess_lat: null, guess_lng: null },
+    'the open date leaked its pin or the clip it was guessed against, kept a '
+    + 'schedule position it has none of, or lost its score');
 
   const closedRows = body.rows.filter(r => r.date === day);
   assert.equal(closedRows.length, bothBoards ? 2 : 0);
   for (const r of closedRows) {
     assert.ok(r.guess_lat !== null && r.guess_lng !== null,
       'a closed date lost its pin to the open-date guard');
+    assert.ok(r.image !== null,
+      'a closed date lost its clip to the open-date guard');
   }
 }
 
@@ -129,7 +132,7 @@ assert.equal((await get(''))[0], 400, 'a missing rank was accepted');
 assert.deepEqual(await get(`?board=daily&rank=1&date=${earlier}`), [200, {
   board: 'daily', period: earlier, rank: 1, name: 'Winding Valley',
   rows: [{
-    date: earlier, position: 1, km: 5.5, points: 3300,
+    date: earlier, position: 1, km: 5.5, points: 3300, image: 'd.mp4',
     guess_lat: 40.0, guess_lng: -111.0,
   }],
 }]);
@@ -164,7 +167,7 @@ for (const [search, error] of [
 }
 
 console.log('ok: a rank resolves through the board ordering to that row\'s plays');
-console.log('ok: an open date answers with score and distance but never its pin');
+console.log('ok: an open date answers with score and distance but never its pin or clip');
 console.log('ok: a rank the board does not reach is a 404, not a 400 or an empty 200');
 console.log('ok: bad boards and bad ranks are refused');
 console.log('ok: a dated drilldown resolves its rank against that date\'s board');

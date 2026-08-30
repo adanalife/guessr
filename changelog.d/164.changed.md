@@ -1,0 +1,1 @@
+`/api/guesses` rows carry the round's `image` — both the R2 key and the path `/clips/` serves it under — so a caller can play back the footage a guess was made against. Withheld for dates still open, alongside the pin, so the monthly drilldown never names which clips today's game serves before anyone has been dealt them.

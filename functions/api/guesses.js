@@ -18,17 +18,23 @@ import { CACHE, query, ROWS, span } from './leaderboard.js';
 // recovers which of the day's five rounds a play answered; LEFT, because a play
 // outliving its schedule row should lose its number, not the whole row.
 //
-// The pin is withheld for a date still open. The monthly board sums the running
-// month, today included -- and today is a game other people have not played
-// yet, so a strong player's pin on an open round is a public copy of roughly
-// where the answer is. Distance and points leak nothing without the pin, so
-// they stay. (`?3` is the last closed date; the daily board's span is always at
-// or behind it -- a requested date is refused unless it has closed -- so the
-// guard only ever bites on the monthly board.)
+// The pin and the clip are both withheld for a date still open. The monthly
+// board sums the running month, today included -- and today is a game other
+// people have not played yet, so a strong player's pin on an open round is a
+// public copy of roughly where the answer is, and the clip key names which
+// footage today serves before anyone has been dealt it. Distance and points
+// leak nothing without either, so they stay. (`?3` is the last closed date; the
+// daily board's span is always at or behind it -- a requested date is refused
+// unless it has closed -- so the guard only ever bites on the monthly board.)
+//
+// The image doubles as the clip's public path -- `clips/<slug>-<ms>.mp4` is
+// both the R2 key and what /clips/ serves it under -- so a caller holding one
+// can play back the footage the guess was made against.
 //
 // Exported for test_guesses.mjs, same arrangement as the board query above it.
 export const guesses = span => `
   SELECT p.date, rd.position, p.km, p.points,
+         CASE WHEN p.date <= ?3 THEN p.image END AS image,
          CASE WHEN p.date <= ?3 THEN p.guess_lat END AS guess_lat,
          CASE WHEN p.date <= ?3 THEN p.guess_lng END AS guess_lng
     FROM plays p
