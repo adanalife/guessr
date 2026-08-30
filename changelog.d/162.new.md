@@ -1,0 +1,1 @@
+`GET /api/guesses?board=daily|monthly&rank=N` — the plays behind one leaderboard row (round, distance, points, and the guess pin), keyed by rank so no player id is ever published. Pins are withheld for dates still open, so the monthly drilldown can't leak a strong player's guess on a round others haven't played yet.
