@@ -4,6 +4,21 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.7.0 — 2026-08-30
+
+### New
+
+- `GET /api/guesses?board=daily|monthly&rank=N` — the plays behind one leaderboard row (round, distance, points, and the guess pin), keyed by rank so no player id is ever published. Pins are withheld for dates still open, so the monthly drilldown can't leak a strong player's guess on a round others haven't played yet. ([#162](https://github.com/adanalife/guessr/pull/162))
+
+### Changed
+
+- `/api/guesses` rows carry the round's `image` — both the R2 key and the path `/clips/` serves it under — so a caller can play back the footage a guess was made against. Withheld for dates still open, alongside the pin, so the monthly drilldown never names which clips today's game serves before anyone has been dealt them. ([#164](https://github.com/adanalife/guessr/pull/164))
+- `GET /api/leaderboard` and `GET /api/guesses` take an optional `date=YYYY-MM-DD` on the daily board, serving that date's standings and the plays behind them rather than only the newest closed day. A date that hasn't closed is refused rather than served, so an in-progress board still can't reach a screen; a closed date nobody played answers as an empty board. Dated responses cache for an hour, since a closed board can never change again. ([#165](https://github.com/adanalife/guessr/pull/165))
+
+### Behind the scenes
+
+- The deploy check's advice when a tier's database is missing a table now names the migrations the game actually ships and the command that applies them, instead of a file and a task that no longer exist. ([#132](https://github.com/adanalife/guessr/pull/132))
+
 ## v1.6.0 — 2026-08-28
 
 ### Behind the scenes
