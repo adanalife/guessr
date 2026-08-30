@@ -10,7 +10,7 @@
 
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { d1, schema } from './_d1.mjs';
+import { d1, schema, seedAnswers } from './_d1.mjs';
 import { label, onRequestGet, query } from './functions/api/leaderboard.js';
 import { ADJECTIVES, NOUNS } from './web/alias.js';
 import { lastClosedDate, monthOf } from './web/daily.js';
@@ -26,6 +26,7 @@ const at = () => `2026-08-01 12:00:${String(tick++).padStart(2, '0')}`;
 function db(rows) {
   const d = new DatabaseSync(':memory:');
   d.exec(schema());
+  seedAnswers(d, rows.map(([, , image]) => image));
   const insert = d.prepare(`INSERT INTO plays
     (date, player_id, image, km, points, handle, played_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)`);
@@ -222,6 +223,7 @@ for (const name of label(Array(10).fill(longest))) {
 // error and nothing on screen to read as wrong.
 {
   const env = { ANSWERS: d1(schema()) };
+  seedAnswers(env.ANSWERS.db, ['a.jpg']);
   const insert = env.ANSWERS.db.prepare(`INSERT INTO plays
     (date, player_id, image, km, points, handle) VALUES (?, ?, ?, ?, ?, ?)`);
 

@@ -770,11 +770,20 @@ def answers_sql(answers: list[dict]) -> str:
     one, so `schema:*:apply` is what a fresh database needs first and a
     definition never depends on whichever laptop last built a round set.
 
-    INSERT OR REPLACE rather than DELETE-then-INSERT: a regeneration replaces the
-    rows it shares and leaves the rest, so there is no window where the table is
-    empty and a push that dies halfway leaves every round still scorable. Old rows
-    for retired frames cost nothing -- the schedule is what decides which rounds
-    are playable.
+    An upsert rather than DELETE-then-INSERT: a regeneration replaces the rows it
+    shares and leaves the rest, so there is no window where the table is empty and
+    a push that dies halfway leaves every round still scorable. Old rows for
+    retired frames cost nothing -- the schedule is what decides which rounds are
+    playable.
+
+    ON CONFLICT rather than INSERT OR REPLACE, which reads like the same statement
+    and is not: SQLite implements REPLACE as a DELETE followed by an INSERT, and
+    `plays` holds a foreign key into this table. It survives today only because
+    the constraint carries no ON DELETE action and the check runs at end of
+    statement, by which point the row is back -- a coincidence of two independent
+    choices rather than a property. Give that FK an ON DELETE CASCADE and the
+    same statement silently deletes the plays instead, with no error (measured on
+    sqlite 3.53). ON CONFLICT updates in place and depends on neither.
     """
     values = ",\n".join(
         "  ('{}', {}, {}, '{}', '{}')".format(
@@ -787,8 +796,13 @@ def answers_sql(answers: list[dict]) -> str:
         for a in answers
     )
     return (
-        "INSERT OR REPLACE INTO answers (image, lat, lng, state, filmed) VALUES\n"
-        f"{values};\n"
+        "INSERT INTO answers (image, lat, lng, state, filmed) VALUES\n"
+        f"{values}\n"
+        "ON CONFLICT (image) DO UPDATE SET\n"
+        "  lat = excluded.lat,\n"
+        "  lng = excluded.lng,\n"
+        "  state = excluded.state,\n"
+        "  filmed = excluded.filmed;\n"
     )
 
 
