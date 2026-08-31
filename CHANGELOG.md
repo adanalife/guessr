@@ -4,6 +4,15 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.8.0 — 2026-08-31
+
+### Changed
+
+- `/api/guesses` rows now carry `answer_lat`/`answer_lng` — where the round
+  actually was — alongside the guess pin, so a drilldown can show the miss rather
+  than only measure it. Withheld by the same open-date guard the pin and the clip
+  use: on a date still open the round's location is the answer key itself. ([#166](https://github.com/adanalife/guessr/pull/166))
+
 ## v1.7.0 — 2026-08-30
 
 ### New
