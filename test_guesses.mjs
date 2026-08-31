@@ -1,16 +1,17 @@
 // Cover the board-row drilldown: which player a rank resolves to, which plays
 // come back, and -- the half that matters most -- which coordinates do NOT.
 //
-// The pin guard is the security property here: the monthly board includes the
-// open date, and a strong player's pin on an open round is a public copy of
-// roughly where the answer is. Everything else on this endpoint could regress
-// visibly; that one regresses as a working response with two extra fields.
+// The withholding guard is the security property here: the monthly board
+// includes the open date, where a strong player's pin is a public copy of
+// roughly where the answer is and the round's own coordinates are the answer
+// itself. Everything else on this endpoint could regress visibly; that one
+// regresses as a working response with a few extra fields.
 //
 // Same arrangement as test_leaderboard.mjs: the real handler over the real
 // migrations, with only D1's binding layer stubbed.
 
 import assert from 'node:assert/strict';
-import { d1, schema, seedAnswers } from './_d1.mjs';
+import { d1, schema } from './_d1.mjs';
 import { onRequestGet } from './functions/api/guesses.js';
 import { lastClosedDate, monthOf } from './web/daily.js';
 
@@ -30,7 +31,18 @@ const earlier = '2020-01-01';
 // the daily board's plays are then absent from the monthly drilldown.
 const bothBoards = day.startsWith(month);
 
-seedAnswers(db, ['a.mp4', 'b.mp4', 'c.mp4', 'd.mp4']);
+// Answers with a distinct location each, rather than the shared placeholder
+// seedAnswers writes: the endpoint now serves these back, so a fixture where
+// every round sits at the same point could not tell a truth apart from its
+// neighbour's -- nor from the guess, which is the pair the drilldown draws a
+// line between. Every one is deliberately somewhere the guesses below are not.
+const answer = db.prepare(
+  `INSERT INTO answers (image, lat, lng, state, filmed)
+   VALUES (?, ?, ?, 'CA', '2018-03-20')`);
+answer.run('a.mp4', 34.11, -118.21);
+answer.run('b.mp4', 37.77, -122.42);
+answer.run('c.mp4', 45.52, -122.68);
+answer.run('d.mp4', 39.74, -104.99);
 
 // Schedule the closed day's rounds so the drilldown can number them. Today's
 // play is deliberately left unscheduled, covering the play-without-a-schedule
@@ -70,8 +82,10 @@ const get = async search => {
 assert.deepEqual(await get('?board=daily&rank=1'), [200, {
   board: 'daily', period: day, rank: 1, name: 'Amber Basin',
   rows: [
-    { date: day, position: 1, image: 'a.mp4', km: 1.2, points: 4800, guess_lat: 34.1, guess_lng: -118.2 },
-    { date: day, position: 2, image: 'b.mp4', km: 250.0, points: 900, guess_lat: 36.0, guess_lng: -120.0 },
+    { date: day, position: 1, image: 'a.mp4', km: 1.2, points: 4800,
+      guess_lat: 34.1, guess_lng: -118.2, answer_lat: 34.11, answer_lng: -118.21 },
+    { date: day, position: 2, image: 'b.mp4', km: 250.0, points: 900,
+      guess_lat: 36.0, guess_lng: -120.0, answer_lat: 37.77, answer_lng: -122.42 },
   ],
 }]);
 
@@ -89,8 +103,9 @@ assert.deepEqual(await get('?board=daily&rank=3'),
   [404, { error: 'no player at that rank' }]);
 
 // The monthly drilldown carries the open date's play with its distance and
-// points but WITHOUT its pin or its clip -- and the closed day's pins and clips
-// survive alongside it, so the guard is the date test and not a blanket strip.
+// points but WITHOUT its pin, its clip or its truth -- and the closed day's
+// keep all three alongside it, so the guard is the date test and not a blanket
+// strip.
 {
   const [status, body] = await get('?board=monthly&rank=1');
   assert.equal(status, 200);
@@ -99,9 +114,10 @@ assert.deepEqual(await get('?board=daily&rank=3'),
   const openRow = body.rows.find(r => r.date === today);
   assert.deepEqual(openRow,
     { date: today, position: null, image: null, km: 3.3, points: 4500,
-      guess_lat: null, guess_lng: null },
-    'the open date leaked its pin or the clip it was guessed against, kept a '
-    + 'schedule position it has none of, or lost its score');
+      guess_lat: null, guess_lng: null, answer_lat: null, answer_lng: null },
+    'the open date leaked its pin, the clip it was guessed against or the '
+    + 'round\'s own location, kept a schedule position it has none of, or lost '
+    + 'its score');
 
   const closedRows = body.rows.filter(r => r.date === day);
   assert.equal(closedRows.length, bothBoards ? 2 : 0);
@@ -110,6 +126,10 @@ assert.deepEqual(await get('?board=daily&rank=3'),
       'a closed date lost its pin to the open-date guard');
     assert.ok(r.image !== null,
       'a closed date lost its clip to the open-date guard');
+    assert.ok(r.answer_lat !== null && r.answer_lng !== null,
+      'a closed date lost the round\'s own location to the open-date guard');
+    assert.ok(r.answer_lat !== r.guess_lat,
+      'the truth came back as a copy of the guess');
   }
 }
 
@@ -133,7 +153,7 @@ assert.deepEqual(await get(`?board=daily&rank=1&date=${earlier}`), [200, {
   board: 'daily', period: earlier, rank: 1, name: 'Winding Valley',
   rows: [{
     date: earlier, position: 1, km: 5.5, points: 3300, image: 'd.mp4',
-    guess_lat: 40.0, guess_lng: -111.0,
+    guess_lat: 40.0, guess_lng: -111.0, answer_lat: 39.74, answer_lng: -104.99,
   }],
 }]);
 
@@ -167,7 +187,8 @@ for (const [search, error] of [
 }
 
 console.log('ok: a rank resolves through the board ordering to that row\'s plays');
-console.log('ok: an open date answers with score and distance but never its pin or clip');
+console.log('ok: an open date answers with score and distance but never its pin, clip or truth');
+console.log('ok: a closed date carries the round\'s own location beside the guess');
 console.log('ok: a rank the board does not reach is a 404, not a 400 or an empty 200');
 console.log('ok: bad boards and bad ranks are refused');
 console.log('ok: a dated drilldown resolves its rank against that date\'s board');

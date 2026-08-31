@@ -18,7 +18,8 @@ import { CACHE, query, ROWS, span } from './leaderboard.js';
 // recovers which of the day's five rounds a play answered; LEFT, because a play
 // outliving its schedule row should lose its number, not the whole row.
 //
-// The pin and the clip are both withheld for a date still open. The monthly
+// The pin, the clip and the round's own coordinates are all withheld for a date
+// still open, on one shared `?3` test so they cannot drift apart. The monthly
 // board sums the running month, today included -- and today is a game other
 // people have not played yet, so a strong player's pin on an open round is a
 // public copy of roughly where the answer is, and the clip key names which
@@ -31,14 +32,30 @@ import { CACHE, query, ROWS, span } from './leaderboard.js';
 // both the R2 key and what /clips/ serves it under -- so a caller holding one
 // can play back the footage the guess was made against.
 //
+// The round's own coordinates come along under the SAME guard, and that is the
+// whole of the reasoning about them. On an open date the truth is the answer
+// key itself -- the one thing this endpoint exists never to hand out -- so it
+// is withheld by the identical `p.date <= ?3` test the pin is, rather than by a
+// second rule that could drift away from it. On a closed date it publishes
+// nothing that is not already public: the game reveals a round's location to
+// anyone who finishes it in practice mode, so a date that has closed has
+// already told its truth to whoever asked.
+//
+// A drilldown wants both halves at once -- where the player clicked and where
+// the round actually was -- which is a pair, not two lookups: a reader holding
+// only the pin can say how far off it was but not in which direction.
+//
 // Exported for test_guesses.mjs, same arrangement as the board query above it.
 export const guesses = span => `
   SELECT p.date, rd.position, p.km, p.points,
          CASE WHEN p.date <= ?3 THEN p.image END AS image,
          CASE WHEN p.date <= ?3 THEN p.guess_lat END AS guess_lat,
-         CASE WHEN p.date <= ?3 THEN p.guess_lng END AS guess_lng
+         CASE WHEN p.date <= ?3 THEN p.guess_lng END AS guess_lng,
+         CASE WHEN p.date <= ?3 THEN a.lat END AS answer_lat,
+         CASE WHEN p.date <= ?3 THEN a.lng END AS answer_lng
     FROM plays p
     LEFT JOIN round_days rd ON rd.date = p.date AND rd.image = p.image
+    LEFT JOIN answers a ON a.image = p.image
    WHERE p.player_id = ?2 AND p.date ${span}
    ORDER BY p.date, rd.position`;
 
