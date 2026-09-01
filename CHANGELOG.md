@@ -4,6 +4,20 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.9.0 — 2026-09-01
+
+### New
+
+- `/api/leaderboard?board=monthly` takes a `month=YYYY-MM`, so a month that has ended can be asked for by name instead of only while it is running. `/api/guesses` takes it on the same terms. ([#170](https://github.com/adanalife/guessr/pull/170))
+
+### Changed
+
+- The neighbour lookup behind a round's difficulty scores now matches on the original recording's clock instead of the airing clip's, so re-trimming a clip can no longer silently re-point it at different frames. ([#168](https://github.com/adanalife/guessr/pull/168))
+
+### Behind the scenes
+
+- Release notes now find their way back to the pull request that added them even when that pull request finishes merging before its number gets stamped on, instead of publishing unlinked. ([#171](https://github.com/adanalife/guessr/pull/171))
+
 ## v1.8.0 — 2026-08-31
 
 ### Changed
