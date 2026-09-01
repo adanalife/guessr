@@ -1,5 +1,5 @@
-// GET /api/leaderboard?board=daily|monthly[&date=YYYY-MM-DD] -- the boards, for
-// the Twitch overlay to render.
+// GET /api/leaderboard?board=daily[&date=YYYY-MM-DD] | board=monthly[&month=YYYY-MM]
+// -- the boards, for the Twitch overlay to render.
 //
 // It is a read the stream pulls rather than a write the game pushes: the
 // cluster tripbot runs in has no inbound path, deliberately, and a leaderboard
@@ -7,7 +7,7 @@
 // writes them and the bot fetches on its own schedule, which also degrades
 // nicely -- the board being unreachable costs a rotation slot, nothing more.
 import { lastClosedDate, monthOf } from '../../web/daily.js';
-import { DATE, json } from '../_json.mjs';
+import { DATE, json, MONTH } from '../_json.mjs';
 import { nameExpr, PLACEHOLDER } from '../_names.mjs';
 
 // The overlay renders five rows; ten leaves the bot room to filter or re-rank
@@ -31,9 +31,10 @@ export const DATED_CACHE = { 'cache-control': 'public, max-age=3600' };
 // would name a different player than the row that was clicked.
 //
 // The default is the current board: the last closed date for the daily one, the
-// running month for the monthly one. `date` names a specific closed date
-// instead, and only on the daily board -- a month is a running total, and a
-// single date against it names no span it could sum.
+// running month for the monthly one. Each board pages back through its own
+// spans and only its own -- `date` names a closed date, `month` names a month --
+// because one date against a monthly sum names no span it could cover, and a
+// month against a daily board names thirty of them.
 //
 // A date at or past the close is refused rather than served, because the
 // closing rule is the whole reason a board can be broadcast: an open date's
@@ -41,21 +42,37 @@ export const DATED_CACHE = { 'cache-control': 'public, max-age=3600' };
 // roughly where today's answers are. Refusing is also the only way a caller can
 // tell "that day is not finished" from "nobody played that day" -- the latter is
 // a closed date with an empty `rows`, which is an answer rather than an error.
+//
+// A month has no closing rule to enforce -- the running one is what the default
+// already serves, and naming it explicitly asks for the same board on the same
+// terms. Only a month that has not started is refused, and for the reason above:
+// an empty board would read as a month nobody played.
 export function span(board, params) {
   const date = params.get('date');
-  if (date === null) {
-    return { period: board === 'daily' ? lastClosedDate() : monthOf(), cache: CACHE };
+  const month = params.get('month');
+
+  if (board === 'daily') {
+    if (month !== null) return { error: 'month applies to the monthly board only' };
+    if (date === null) return { period: lastClosedDate(), cache: CACHE };
+    // DATE is a shape test -- it matches the 31st of February, which the parser
+    // then rolls forward into March rather than rejecting. Round-tripping is what
+    // catches that: a date that formats back as itself is one the calendar has.
+    const parsed = new Date(`${date}T00:00:00Z`);
+    const real = !Number.isNaN(parsed.getTime())
+      && parsed.toISOString().slice(0, 10) === date;
+    if (!DATE.test(date) || !real) return { error: 'date must be YYYY-MM-DD' };
+    if (date > lastClosedDate()) return { error: 'date has not closed yet' };
+    return { period: date, cache: DATED_CACHE };
   }
-  if (board !== 'daily') return { error: 'date applies to the daily board only' };
-  // DATE is a shape test -- it matches the 31st of February, which the parser
-  // then rolls forward into March rather than rejecting. Round-tripping is what
-  // catches that: a date that formats back as itself is one the calendar has.
-  const parsed = new Date(`${date}T00:00:00Z`);
-  const real = !Number.isNaN(parsed.getTime())
-    && parsed.toISOString().slice(0, 10) === date;
-  if (!DATE.test(date) || !real) return { error: 'date must be YYYY-MM-DD' };
-  if (date > lastClosedDate()) return { error: 'date has not closed yet' };
-  return { period: date, cache: DATED_CACHE };
+
+  if (date !== null) return { error: 'date applies to the daily board only' };
+  const running = monthOf();
+  if (month === null) return { period: running, cache: CACHE };
+  if (!MONTH.test(month)) return { error: 'month must be YYYY-MM' };
+  if (month > running) return { error: 'month has not started yet' };
+  // The running month is still filling, so it takes the live cache whether it
+  // was asked for by name or by default; a month that has ended is settled.
+  return { period: month, cache: month === running ? CACHE : DATED_CACHE };
 }
 
 // Both boards are the same shape over the same table: sum a player's points
@@ -142,8 +159,8 @@ export async function onRequestGet({ request, env }) {
   }
 
   // The daily board is a closed date, never one still filling -- the last one
-  // by default, or the one asked for. The monthly board is the current month,
-  // today included.
+  // by default, or the one asked for. The monthly board is the running month,
+  // today included, or a month that has already ended.
   const daily = board === 'daily';
   const { period, cache, error } = span(board, params);
   if (error) return json({ error }, 400, CACHE);

@@ -1,13 +1,13 @@
-// GET /api/guesses?board=daily|monthly&rank=N[&date=YYYY-MM-DD] -- the plays
-// behind one board row: which round, how far off, and where the pin went.
+// GET /api/guesses?board=daily|monthly&rank=N[&date=YYYY-MM-DD|&month=YYYY-MM]
+// -- the plays behind one board row: which round, how far off, and where the pin went.
 //
 // Keyed by rank rather than player_id, because the id is a write credential --
 // /api/score records plays under it and /api/link moves a player's whole
 // history by it -- so no public response may carry one. A rank is resolved by
 // re-running the board query, whose ordering (points DESC, then player_id) is
 // deterministic, so the same rank names the same player for as long as the
-// board itself holds still. `date` picks which board that is, on exactly the
-// terms the board endpoint takes it, so a drilldown resolves against the same
+// board itself holds still. `date` and `month` pick which board that is, on
+// exactly the terms the board endpoint takes them, so a drilldown resolves against the same
 // standings the caller is looking at rather than against today's.
 import { lastClosedDate } from '../../web/daily.js';
 import { json } from '../_json.mjs';

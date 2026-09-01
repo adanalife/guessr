@@ -311,11 +311,55 @@ for (const name of label(Array(10).fill(longest))) {
       [400, { error: 'date must be YYYY-MM-DD' }], `"${date}" was accepted`);
   }
 
-  // Only the daily board pages. A month is a running total, and one date
-  // against it names no span it could sum.
+  // Each board pages through its own spans and refuses the other's. A single
+  // date against a monthly sum names no span it could cover, and a month
+  // against a daily board names thirty of them.
   assert.deepEqual(await get('?board=monthly&date=2020-01-01'),
     [400, { error: 'date applies to the daily board only' }],
     'the monthly board took a date');
+  assert.deepEqual(await get('?board=daily&month=2020-01'),
+    [400, { error: 'month applies to the monthly board only' }],
+    'the daily board took a month');
+
+  // Paging back the monthly board. Same job `date` does for the daily one: the
+  // 2020 player places nowhere on the running month, so seeing them is the
+  // requested month doing the work.
+  assert.deepEqual(await get('?board=monthly&month=2020-01'),
+    [200, { board: 'monthly', period: '2020-01', rows: [['Distant Shore', 4000]] }],
+    'a past month did not serve its own board');
+
+  // A month nobody played is an empty board, not a fallback to the running one.
+  assert.deepEqual(await get('?board=monthly&month=2019-06'),
+    [200, { board: 'monthly', period: '2019-06', rows: [] }],
+    'a month with no plays was not served as an empty board');
+
+  // Naming the running month asks for the board the default already serves --
+  // there is no closing rule on a sum, so there is nothing to refuse.
+  assert.deepEqual(await get(`?board=monthly&month=${month}`),
+    [200, { board: 'monthly', period: month, rows: MONTHLY_ROWS }],
+    'the running month was not served under its own name');
+
+  // A month that has not started is refused, so an empty board can only ever
+  // mean nobody played -- the same reason an unclosed date is.
+  // Date.UTC rolls December over into the next year, so no special case.
+  const nextMonth = new Date(Date.UTC(+month.slice(0, 4), +month.slice(5), 1))
+    .toISOString().slice(0, 7);
+  assert.deepEqual(await get(`?board=monthly&month=${nextMonth}`),
+    [400, { error: 'month has not started yet' }], `"${nextMonth}" was served`);
+
+  // Shape is the whole check here: every month the regex matches is one the
+  // calendar has, so there is no round-trip to do.
+  for (const m of ['2026-8', '2026-13', '2026-00', '2026-08-01', 'august', '']) {
+    assert.deepEqual(await get(`?board=monthly&month=${encodeURIComponent(m)}`),
+      [400, { error: 'month must be YYYY-MM' }], `"${m}" was accepted`);
+  }
+
+  // A month that has ended can never change again, so it caches like a closed
+  // date; the running one keeps the overlay's minute even when named.
+  assert.equal(await cacheOf('?board=monthly&month=2020-01'),
+    'public, max-age=3600', 'a settled month was served with the live cache');
+  assert.equal(await cacheOf(`?board=monthly&month=${month}`), 'public, max-age=60',
+    'the running month was served as settled');
 
   // A board asked for by date can never change again, so it is cached for an
   // hour where the live board gets the minute the overlay polls at.
@@ -333,5 +377,6 @@ console.log('ok: both boards seek the name index instead of scanning per row');
 console.log('ok: each board asks for its own span, and defaults to daily');
 console.log('ok: a board that is neither daily nor monthly is refused');
 console.log('ok: a closed date serves its own board, empty if nobody played it');
+console.log('ok: a past month serves its own board, and a future one is refused');
 console.log('ok: an open, future, malformed or monthly date is refused');
 console.log('ok: a dated board is cached for an hour, a live one for a minute');
