@@ -398,6 +398,12 @@ screen that can reorder while it's up. The **monthly** board is a running total
 over the current month and needs no closing rule, because a sum has nothing to
 settle.
 
+Each board pages back through its own spans: `&date=YYYY-MM-DD` on the daily one
+names a closed date, `&month=YYYY-MM` on the monthly one names a month. Crossing
+them is refused — a single date against a monthly sum names no span it could
+cover. A span that has settled is cached for an hour where a live one gets the
+minute the overlay polls at.
+
 It's a read the stream pulls, not a write the game pushes. The cluster tripbot
 runs in has no inbound path, deliberately, and a leaderboard isn't a reason to
 open one — so the game keeps scores where it already writes them and the bot

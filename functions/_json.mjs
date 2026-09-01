@@ -17,6 +17,11 @@ export const json = (body, status = 200, headers = {}) =>
 // February matches, and parsePlay is where a date meets a real calendar.
 export const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+// The month a monthly board covers, YYYY-MM. Unlike DATE this is the whole
+// check: every month it matches is a month the calendar has, so there is no
+// 31st-of-February case left for a parse to catch.
+export const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+
 // A body that failed to parse comes back as null and meets the same validation
 // as a well-formed one that says nothing useful -- there is nothing worth
 // telling a client about which of the two it sent.
