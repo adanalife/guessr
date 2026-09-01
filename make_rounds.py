@@ -313,7 +313,7 @@ CROSS JOIN LATERAL (
     -- subquery would evaluate a lateral per row the scan touches -- thousands --
     -- rather than :k times.
     FROM (
-      SELECT f2.video_id, f2.ts_sec, f2.embedding <=> c.embedding AS cos_d
+      SELECT f2.video_id, f2.source_ts_sec, f2.embedding <=> c.embedding AS cos_d
       FROM frame_embeddings f2
       JOIN videos vf ON vf.id = f2.video_id
       WHERE vf.lat <> 0
@@ -322,12 +322,24 @@ CROSS JOIN LATERAL (
       LIMIT :k
     ) n
     JOIN videos nv ON nv.id = n.video_id
+    -- On `source_ts_sec`, the same clock the scored join uses, so a re-cut of
+    -- the neighbour's clip cannot re-point this at a different moment. The two
+    -- clocks differ by a per-clip constant, so the same coordinates come back
+    -- today; only this one survives a re-trim.
+    --
+    -- `ts_sec IS NOT NULL` stays, and stays load-bearing for the same reason it
+    -- does in the scored join: it is what excludes the 33,532 track rows
+    -- describing road that exists in the original recording and never airs. A
+    -- neighbour is an embedded frame, so it is aired footage by construction and
+    -- the guard costs nothing here -- but dropping it would let an unaired row
+    -- win the ±1.5 s race and answer for a frame nobody was shown.
     LEFT JOIN LATERAL (
       SELECT lat, lng
       FROM video_coords
       WHERE video_id = n.video_id AND ts_sec IS NOT NULL
-        AND ts_sec BETWEEN n.ts_sec - 1.5 AND n.ts_sec + 1.5
-      ORDER BY abs(ts_sec - n.ts_sec)
+        AND source_ts_sec BETWEEN n.source_ts_sec - 1.5
+                              AND n.source_ts_sec + 1.5
+      ORDER BY abs(source_ts_sec - n.source_ts_sec)
       LIMIT 1
     ) nc ON true
   ) nn
