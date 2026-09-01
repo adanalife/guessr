@@ -1,0 +1,1 @@
+The neighbour lookup behind a round's difficulty scores now matches on the original recording's clock instead of the airing clip's, so re-trimming a clip can no longer silently re-point it at different frames.
