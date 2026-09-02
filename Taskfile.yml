@@ -266,6 +266,16 @@ tasks:
     cmds:
       - ./verify_days.sh adanalife-guessr-answers production
 
+  # How staging stays playable: copy production's upcoming schedule over, which
+  # the shared clips bucket makes a row copy rather than a generation. No-op
+  # when staging is not short, so it leaves a set under review alone. The same
+  # invocation the daily stage-schedule workflow runs.
+  rounds:stage:mirror:
+    desc: Mirror production's upcoming schedule onto staging (no-op when playable,
+      DRY_RUN=1 to print the script)
+    cmds:
+      - python3 mirror_stage.py {{if .DRY_RUN}}--dry-run{{end}}
+
   # How production stays scheduled: generate only what is missing to keep it
   # TOPUP_DAYS ahead, never inside TOPUP_LEAD days of an open date (that lead is
   # the reject window), never a clip production already holds. Exits without

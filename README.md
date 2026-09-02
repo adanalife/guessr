@@ -86,7 +86,8 @@ answers). Push it last and the worst case is a date that is not scheduled yet,
 which nobody can see.
 
 **Two modes, one target each.** Bare, this builds a full fresh set for staging,
-whose schedule is disposable. With `--top-up` it writes production: read how far
+whose schedule is disposable — and disposable in the literal sense that the
+mirror above overwrites it once it lapses. With `--top-up` it writes production: read how far
 ahead the game is scheduled, generate only what is missing, never place a date
 inside the next three days, and exit having generated nothing at all on the weeks
 none of that is short.
@@ -269,6 +270,16 @@ There is deliberately no `rounds:prod:push`. Production is reached only through
 `task rounds:topup`, whose contract — only what is missing, never inside the
 review window, never a clip the tier already holds — is exactly what a bare push
 of a fresh `rounds.sql` would not honour.
+
+Staging's schedule keeps itself filled, because it is what every preview deploy
+is smoke-tested against: a lapsed one turns the whole open PR queue red at once,
+for reasons in nobody's diff. The `stage-schedule` workflow mirrors
+production's upcoming schedule onto staging daily — a row copy rather than a
+generation, since one bucket holds the clips for every tier and only the rows
+are per-tier, so it needs no corpus and finishes in seconds. It exits having
+done nothing whenever staging is not short, which is what leaves a set under
+review in place. By hand: `task rounds:stage:mirror`, or `DRY_RUN=1` to read the
+script first.
 
 The databases are terraform, in `infra` alongside the Pages projects, and each
 tier has its own so a regeneration on one doesn't strand the other.
