@@ -87,10 +87,42 @@ fi
 
 if [ "$MODE" = "topup" ]; then
   echo "== reading $TIER's horizon"
-  state=$(npx wrangler d1 execute "$DB" --remote --json --command="SELECT (SELECT MAX(date) FROM round_days) AS last_day, (SELECT CAST(julianday(MAX(date)) - julianday(date('now')) AS INTEGER) FROM round_days) AS days_left, (SELECT COUNT(*) FROM rounds WHERE status = 'queued') AS queued")
+  state=$(npx wrangler d1 execute "$DB" --remote --json --command="SELECT (SELECT MAX(date) FROM round_days) AS last_day, (SELECT CAST(julianday(MAX(date)) - julianday(date('now')) AS INTEGER) FROM round_days) AS days_left, (SELECT COUNT(*) FROM rounds WHERE status = 'queued') AS queued, date('now') AS today")
   last_day=$(jq -r '.[0].results[0].last_day // empty' <<<"$state")
   days_left=$(jq -r '.[0].results[0].days_left // 0' <<<"$state")
   queued=$(jq -r '.[0].results[0].queued' <<<"$state")
+  today=$(jq -r '.[0].results[0].today' <<<"$state")
+
+  # days_left is MAX(date) - today, which reads a horizon with a hole in it as
+  # exactly as deep as a whole one. That arithmetic is only true while coverage
+  # from today to MAX(date) is unbroken, so it gets asserted here rather than
+  # assumed -- and the assertion has to come before the healthy exit below,
+  # which is the path that returns 0 without ever reaching verify_days.sh. A
+  # hole behind a deep MAX(date) took both: healthy depth, no check run, green
+  # every week.
+  #
+  # Refusing rather than generating, because a top-up cannot repair this. New
+  # dates land after MAX(date) (see `from` below), so appending fills the tail
+  # and leaves the hole where it was -- the run would encode for 25 minutes and
+  # then fail verify_days.sh over a date that was already broken when it
+  # started. Filling one needs a set scheduled onto those dates specifically,
+  # and if the hole is inside the lead time it needs a person.
+  #
+  # Only when the schedule still reaches today or later. With MAX(date) behind
+  # today the horizon has run out rather than broken, there is no covered range
+  # for a hole to be inside, and appending is exactly the fix -- so that case
+  # falls through to the arithmetic below.
+  if [ -n "$last_day" ] && [[ ! "$last_day" < "$today" ]]; then
+    hole=$(npx wrangler d1 execute "$DB" --remote --json \
+      --command="$(cat schedule_gaps.sql)" |
+      jq -r '[.[0].results[] | select(.n < 5)][0] | select(.) | "\(.date) has \(.n) of 5"')
+    if [ -n "$hole" ]; then
+      echo "::error::$TIER is scheduled through $last_day but $hole" >&2
+      echo "a top-up appends past $last_day, so it cannot fill that date." >&2
+      echo "schedule a set onto it before topping the horizon up." >&2
+      exit 1
+    fi
+  fi
 
   days_needed=$((TOPUP_DAYS - days_left))
   [ "$days_needed" -lt 0 ] && days_needed=0
