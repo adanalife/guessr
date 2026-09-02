@@ -177,6 +177,12 @@ def short_dates(db: str) -> list[str]:
 
 
 def main(argv: list[str]) -> int:
+    # Unbuffered, because this interleaves its own output with wrangler's. Python
+    # block-buffers stdout whenever it is not a TTY -- which is every CI run --
+    # so the lines saying what is about to happen otherwise land after the dump
+    # of what happened, and a failure reads in the wrong order.
+    sys.stdout.reconfigure(line_buffering=True)
+
     dry_run = "--dry-run" in argv
 
     short = short_dates(STAGE)
