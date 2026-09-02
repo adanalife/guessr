@@ -51,6 +51,10 @@ jobs:
       # horizon, which is what keeps it clear of a set under review: a
       # `task rounds:publish` set is not short, so there is nothing to mirror
       # and it is left alone.
+      # The only workflow here that needs D1 write out of CLOUDFLARE_API_TOKEN —
+      # every other use of that secret is `wrangler pages deploy`, which does
+      # not. So a token narrowed to Pages breaks this job and nothing else,
+      # which is not the sort of thing the failure would say on its own.
       - name: Mirror production's schedule onto staging
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
