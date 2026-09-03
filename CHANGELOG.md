@@ -4,6 +4,38 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.10.0 — 2026-09-03
+
+### New
+
+- Staging's schedule now keeps itself filled: a daily workflow mirrors
+  production's upcoming schedule onto it, so a preview deploy is playable and a
+  lapsed staging schedule can no longer turn the whole open PR queue red. A row
+  copy rather than a generation — one bucket holds every tier's clips — so it
+  needs no corpus and finishes in seconds, and it does nothing at all when
+  staging is not short, leaving a set under review in place. ([#175](https://github.com/adanalife/guessr/pull/175))
+
+### Changed
+
+- Each day now opens on its most striking round rather than its easiest one. The five still get harder as you go — the first one just has more to look at. ([#180](https://github.com/adanalife/guessr/pull/180))
+
+### Fixed
+
+- Schedule depth now accounts for the dates holding no rounds at all, not just
+  the short ones. A horizon that had run out, or had a hole in it, read as
+  healthy — the check grouped `round_days`' own rows, so a date with none
+  produced no row to count, and the top-up's "nothing to generate" exit returned
+  before any check ran. ([#175](https://github.com/adanalife/guessr/pull/175))
+
+### Behind the scenes
+
+- Release notes now assemble correctly when a single update contributes more than one note of the same kind. ([#172](https://github.com/adanalife/guessr/pull/172))
+- The pull-request gates now name which gate failed, in the checks tab and in the run summary. ([#173](https://github.com/adanalife/guessr/pull/173))
+- A pre-push hook now blocks a push whose branch adds no changelog fragment, catching it locally instead of in CI. ([#174](https://github.com/adanalife/guessr/pull/174))
+- The folder that holds pending release notes now stays put between releases, so the tooling that writes them always has somewhere to go. ([#176](https://github.com/adanalife/guessr/pull/176))
+- Add a pre-commit hook (run in CI too) that fails on any private-notes `vault/<dir>/` path in the tree. ([#178](https://github.com/adanalife/guessr/pull/178))
+- The day in progress, your all-time map and the intro you already dismissed all live in one place now, with tests covering the private-window case where the browser refuses to remember anything at all. ([#179](https://github.com/adanalife/guessr/pull/179))
+
 ## v1.9.0 — 2026-09-01
 
 ### New
