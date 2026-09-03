@@ -430,6 +430,24 @@ tasks:
     cmds:
       - uvx towncrier build --yes --config towncrier.toml --version {{trimPrefix "v" .VERSION}}
 
+  # Vendored third-party frontend assets (Leaflet, the et-book fonts). vendor.txt
+  # is the pin list; bump a version there and re-sync rather than editing a file
+  # under web/leaflet/ or web/et-book/ by hand.
+  vendor:sync:
+    desc: Re-download the vendored frontend assets at the versions pinned in vendor.txt
+    cmds:
+      - ./scripts/vendor.sh sync
+
+  vendor:check:
+    desc: Assert each vendored asset is still byte-identical to its pinned upstream release
+    cmds:
+      - ./scripts/vendor.sh check
+
+  vendor:latest:
+    desc: Report vendored assets with a newer release upstream
+    cmds:
+      - ./scripts/vendor.sh latest
+
   test:
     desc: Run the tests that need no corpus and no database to be running (daily
       draw, leaderboard aliases and ranking, frame zoom, scoring, request
