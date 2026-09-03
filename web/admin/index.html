@@ -57,6 +57,7 @@
 <ol id="rounds"></ol>
 
 <script src="/leaflet/leaflet.js"></script>
+<script src="/leaflet/leaflet-heat.js"></script>
 
 <script type="module">
 // The viewer half of the admin surface: pick a date, watch its five clips, check
@@ -127,6 +128,20 @@ el('legend').innerHTML = Object.entries({ ...STATUS, 'this day': TODAY })
   .map(([label, colour]) =>
     `<span><span class="swatch" style="background:${colour}"></span>${label}</span>`)
   .join('');
+
+// Where players' pins actually land, as heat under the pool: the pool says
+// where the game was, this says where everyone thought it was. Loaded once --
+// guesses span every date, so stepping through days has nothing to refetch --
+// and failing soft, because a tier whose plays rows predate the coordinate
+// columns answers with an error and the rest of the page still works. The
+// layers control is the off switch for when the heat sits on the pin being
+// judged.
+const heat = L.heatLayer([], { radius: 20 }).addTo(map);
+L.control.layers(null, { guesses: heat }).addTo(map);
+request('/admin/guesses')
+  .then(res => res.json())
+  .then(body => heat.setLatLngs(body.guesses ?? []))
+  .catch(() => {});
 
 const pins = L.layerGroup().addTo(map);
 // Fitted once. The pool is the same whichever date is being reviewed, so
