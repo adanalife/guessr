@@ -163,6 +163,12 @@ MIN_CONFIDENCE = 0.8
 # left over in the queue.
 HORIZON_DAYS = 60
 
+# How much of a round's merit is having a visual signature of its own rather
+# than being locatable. Both rank() and schedule() take it, because a pool
+# chosen on one blend and dealt on another orders its positions by a rule
+# nothing selected for. See rank() for why 0.25 and not more.
+DISTINCTIVENESS = 0.25
+
 # What the two scores mean, why same-day frames are excluded, and why several
 # moments are scored per clip: README, "How rounds are chosen". The four things
 # that are about this query rather than about the scoring:
@@ -872,20 +878,30 @@ def drop_burned(scored: list[dict], burned: set[str]) -> tuple[list[dict], int]:
     return kept, len(scored) - len(kept)
 
 
-def schedule(rounds: list[dict], first_date: dt.date, days: int) -> list[tuple]:
-    """Lay a pool out over consecutive dates, each day ramped easy to hard.
+def schedule(
+    rounds: list[dict], first_date: dt.date, days: int, weight: float
+) -> list[tuple]:
+    """Lay a pool out over consecutive dates, each day ramped best round first.
 
-    Sorted easy-first, then dealt round-robin across the days: day 0 takes rounds
-    0, D, 2D, 3D, 4D, so it gets one round from each fifth of the difficulty
-    range and its five come out already in ramp order. Dealing in blocks instead
-    would give the first date the five easiest rounds in the whole set and the
-    last date the five hardest -- a month that gets steadily harder, rather than
-    a game that does.
+    Dealt round-robin off rank()'s order across the days: day 0 takes rounds 0,
+    D, 2D, 3D, 4D, so it gets one round from each fifth of the merit range and
+    its five come out already in position order. Dealing in blocks instead would
+    give the first date the five best rounds in the whole set and the last date
+    the five worst -- a month that gets steadily worse, rather than a game that
+    ramps.
+
+    Off rank() rather than median_km alone, because position 1 is the round a
+    player sees while deciding whether to engage. Ordering the deal on
+    locatability makes the opener the most placeable round of the day and spends
+    none of the pool's distinctiveness on the one round everybody sees; the two
+    signals correlate loosely enough that it came out near the pool median.
+    `weight` is the same --distinctiveness the pool was ranked with, so a date's
+    positions read in the same order the pool was chosen in.
 
     Whatever will not fill a whole day is left out, and stays queued for the next
     run to schedule.
     """
-    ranked = sorted(rounds, key=lambda r: r["median_km"])
+    ranked = rank(rounds, weight)
     days = min(days, len(ranked) // ROUNDS_PER_GAME)
     if days < 1:
         return []
@@ -1029,7 +1045,7 @@ def main() -> int:
     ap.add_argument(
         "--distinctiveness",
         type=float,
-        default=0.25,
+        default=DISTINCTIVENESS,
         help="how much of a round's merit is having a visual signature of its "
         "own rather than being locatable, 0 to 1. See rank() for why 0.25 and "
         "not more; 0 ranks on locatability alone.",
@@ -1233,7 +1249,7 @@ def main() -> int:
         if args.schedule_from
         else dt.datetime.now(dt.timezone.utc).date() + dt.timedelta(days=2)
     )
-    days = schedule(rounds, first_date, args.horizon)
+    days = schedule(rounds, first_date, args.horizon, args.distinctiveness)
     batch = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
     # rounds.json is neither served nor committed -- it is what check.py reads,

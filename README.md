@@ -619,19 +619,24 @@ so it turns up in roughly one game in eight.
 Finishing writes the day to `localStorage`, so today's round can't be replayed
 for a better result. Practice mode draws at random and is unlimited.
 
-A date's five arrive from `/api/day` already ordered easy to hard by `median_km`
+A date's five arrive from `/api/day` already ordered best round first, by the
+same `rank()` blend of locatability and distinctiveness the pool was chosen with
 (see [How rounds are chosen](#how-rounds-are-chosen)) — the ramp is applied when
-the date is scheduled, so the page does not sort and `median_km` is never sent at
-all. The ramp is felt, not shown; nothing in the header rates the round you are
-looking at.
+the date is scheduled, so the page does not sort and neither score is ever sent
+at all. Position 1 is ranked rather than merely the most placeable because it is
+the round a player judges the game on while deciding whether to engage, and the
+two signals correlate loosely enough that ordering on `median_km` alone put a
+near-median-distinctiveness round there. The ramp is felt, not shown; nothing in
+the header rates the round you are looking at.
 
 `test_schedule.py` covers the scheduling, because it fails invisibly. The
-properties it pins: a date's five come out in ramp order, no round is ever
-scheduled twice, the schedule does not depend on the order the pool was written
-in, and — the one worth a test rather than a glance — every day spans the
-difficulty range instead of sitting in one part of it. Dealing rounds out in
-blocks of five would satisfy everything else and produce a month that gets
-steadily harder rather than a game that does.
+properties it pins: a date's five come out in ramp order, position 1 is the
+top-ranked round rather than the most locatable one, no round is ever scheduled
+twice, the schedule does not depend on the order the pool was written in, and —
+the one worth a test rather than a glance — every day spans the difficulty range
+instead of sitting in one part of it. Dealing rounds out in blocks of five would
+satisfy everything else and produce a month that gets steadily harder rather
+than a game that does.
 
 `test_daily.mjs` covers what is left in `daily.js`: the date arithmetic and the
 play window, where a DST boundary that skips or repeats a day number files a
