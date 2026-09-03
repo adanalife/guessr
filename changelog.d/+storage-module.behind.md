@@ -1,0 +1,1 @@
+The day in progress, your all-time map and the intro you already dismissed all live in one place now, with tests covering the private-window case where the browser refuses to remember anything at all.
