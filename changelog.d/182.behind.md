@@ -1,0 +1,1 @@
+The release PR's changelog is now collated on every push to main while its branch exists, not only on the runs where release-please itself touched the PR — the gap that could let a release merge with an unbuilt changelog and no checks.

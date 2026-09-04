@@ -266,6 +266,16 @@ tasks:
     cmds:
       - ./verify_days.sh adanalife-guessr-answers production
 
+  # How staging stays playable: copy production's upcoming schedule over, which
+  # the shared clips bucket makes a row copy rather than a generation. No-op
+  # when staging is not short, so it leaves a set under review alone. The same
+  # invocation the daily stage-schedule workflow runs.
+  rounds:stage:mirror:
+    desc: Mirror production's upcoming schedule onto staging (no-op when playable,
+      DRY_RUN=1 to print the script)
+    cmds:
+      - python3 mirror_stage.py {{if .DRY_RUN}}--dry-run{{end}}
+
   # How production stays scheduled: generate only what is missing to keep it
   # TOPUP_DAYS ahead, never inside TOPUP_LEAD days of an open date (that lead is
   # the reject window), never a clip production already holds. Exits without
@@ -419,6 +429,24 @@ tasks:
       vars: [VERSION]
     cmds:
       - uvx towncrier build --yes --config towncrier.toml --version {{trimPrefix "v" .VERSION}}
+
+  # Vendored third-party frontend assets (Leaflet, the et-book fonts). vendor.txt
+  # is the pin list; bump a version there and re-sync rather than editing a file
+  # under web/leaflet/ or web/et-book/ by hand.
+  vendor:sync:
+    desc: Re-download the vendored frontend assets at the versions pinned in vendor.txt
+    cmds:
+      - ./scripts/vendor.sh sync
+
+  vendor:check:
+    desc: Assert each vendored asset is still byte-identical to its pinned upstream release
+    cmds:
+      - ./scripts/vendor.sh check
+
+  vendor:latest:
+    desc: Report vendored assets with a newer release upstream
+    cmds:
+      - ./scripts/vendor.sh latest
 
   test:
     desc: Run the tests that need no corpus and no database to be running (daily

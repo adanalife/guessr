@@ -18,6 +18,12 @@
 #
 # Dates from today forward only. A past date has already been played and cannot
 # be fixed, so counting it would leave this permanently red and therefore unread.
+#
+# A date holding no rounds at all counts here too, not just a short one --
+# schedule_gaps.sql enumerates the horizon so an exhausted or gapped schedule
+# has rows to be counted as zero. Staging sat eleven days past its last
+# scheduled date without that (2026-09-02), green here the whole time, while
+# every PR's preview deploy failed its smoke test for serving no game today.
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -26,16 +32,28 @@ DB="${1:?which D1 database}"
 TIER="${2:-$DB}"
 PER_GAME=5 # ROUNDS_PER_GAME in check.py and web/index.html
 
-short=$(npx wrangler d1 execute "$DB" --remote --json \
-  --command="SELECT date, COUNT(*) AS n FROM round_days WHERE date >= date('now') GROUP BY date HAVING n < $PER_GAME ORDER BY date" |
-  jq -r '.[0].results[] | "  \(.date) has \(.n) of '"$PER_GAME"'"')
+# The query enumerates the whole horizon and counts it; the threshold is applied
+# here, so PER_GAME stays in one place rather than interpolated into the SQL.
+state=$(npx wrangler d1 execute "$DB" --remote --json \
+  --command="$(cat schedule_gaps.sql)")
+short=$(jq -r --argjson per "$PER_GAME" \
+  '.[0].results[] | select(.n < $per) | "  \(.date) has \(.n) of \($per)"' <<<"$state")
 
 if [ -n "$short" ]; then
+  last=$(npx wrangler d1 execute "$DB" --remote --json \
+    --command="SELECT MAX(date) AS last_day FROM round_days" |
+    jq -r '.[0].results[0].last_day // "never"')
+
   # ::error:: so a CI run surfaces it as an annotation; the exit is what stops a
   # cron from treating a short schedule as a good night's work.
   echo "::error::$TIER has dates scheduled with fewer than $PER_GAME rounds" >&2
   echo "$short" >&2
-  echo "fill them from the queue before the earliest one opens." >&2
+  echo "$TIER's last scheduled date is $last." >&2
+  # Which of the two it is decides the fix, and the counts above do not say:
+  # a short day is filled from the queue, an exhausted horizon needs a set
+  # generated over the missing dates.
+  echo "fill a short day from the queue before it opens; if the horizon has run" >&2
+  echo "out, generate a set whose schedule covers the dates listed above." >&2
   exit 1
 fi
 

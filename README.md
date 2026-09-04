@@ -90,7 +90,8 @@ answers). Push it last and the worst case is a date that is not scheduled yet,
 which nobody can see.
 
 **Two modes, one target each.** Bare, this builds a full fresh set for staging,
-whose schedule is disposable. With `--top-up` it writes production: read how far
+whose schedule is disposable — and disposable in the literal sense that the
+mirror above overwrites it once it lapses. With `--top-up` it writes production: read how far
 ahead the game is scheduled, generate only what is missing, never place a date
 inside the next three days, and exit having generated nothing at all on the weeks
 none of that is short.
@@ -274,6 +275,16 @@ There is deliberately no `rounds:prod:push`. Production is reached only through
 review window, never a clip the tier already holds — is exactly what a bare push
 of a fresh `rounds.sql` would not honour.
 
+Staging's schedule keeps itself filled, because it is what every preview deploy
+is smoke-tested against: a lapsed one turns the whole open PR queue red at once,
+for reasons in nobody's diff. The `stage-schedule` workflow mirrors
+production's upcoming schedule onto staging daily — a row copy rather than a
+generation, since one bucket holds the clips for every tier and only the rows
+are per-tier, so it needs no corpus and finishes in seconds. It exits having
+done nothing whenever staging is not short, which is what leaves a set under
+review in place. By hand: `task rounds:stage:mirror`, or `DRY_RUN=1` to read the
+script first.
+
 The databases are terraform, in `infra` alongside the Pages projects, and each
 tier has its own so a regeneration on one doesn't strand the other.
 
@@ -401,6 +412,12 @@ alternative — the streamer's own date, labelled in-progress — puts a board o
 screen that can reorder while it's up. The **monthly** board is a running total
 over the current month and needs no closing rule, because a sum has nothing to
 settle.
+
+Each board pages back through its own spans: `&date=YYYY-MM-DD` on the daily one
+names a closed date, `&month=YYYY-MM` on the monthly one names a month. Crossing
+them is refused — a single date against a monthly sum names no span it could
+cover. A span that has settled is cached for an hour where a live one gets the
+minute the overlay polls at.
 
 It's a read the stream pulls, not a write the game pushes. The cluster tripbot
 runs in has no inbound path, deliberately, and a leaderboard isn't a reason to
@@ -636,19 +653,24 @@ so it turns up in roughly one game in eight.
 Finishing writes the day to `localStorage`, so today's round can't be replayed
 for a better result. Practice mode draws at random and is unlimited.
 
-A date's five arrive from `/api/day` already ordered easy to hard by `median_km`
+A date's five arrive from `/api/day` already ordered best round first, by the
+same `rank()` blend of locatability and distinctiveness the pool was chosen with
 (see [How rounds are chosen](#how-rounds-are-chosen)) — the ramp is applied when
-the date is scheduled, so the page does not sort and `median_km` is never sent at
-all. The ramp is felt, not shown; nothing in the header rates the round you are
-looking at.
+the date is scheduled, so the page does not sort and neither score is ever sent
+at all. Position 1 is ranked rather than merely the most placeable because it is
+the round a player judges the game on while deciding whether to engage, and the
+two signals correlate loosely enough that ordering on `median_km` alone put a
+near-median-distinctiveness round there. The ramp is felt, not shown; nothing in
+the header rates the round you are looking at.
 
 `test_schedule.py` covers the scheduling, because it fails invisibly. The
-properties it pins: a date's five come out in ramp order, no round is ever
-scheduled twice, the schedule does not depend on the order the pool was written
-in, and — the one worth a test rather than a glance — every day spans the
-difficulty range instead of sitting in one part of it. Dealing rounds out in
-blocks of five would satisfy everything else and produce a month that gets
-steadily harder rather than a game that does.
+properties it pins: a date's five come out in ramp order, position 1 is the
+top-ranked round rather than the most locatable one, no round is ever scheduled
+twice, the schedule does not depend on the order the pool was written in, and —
+the one worth a test rather than a glance — every day spans the difficulty range
+instead of sitting in one part of it. Dealing rounds out in blocks of five would
+satisfy everything else and produce a month that gets steadily harder rather
+than a game that does.
 
 `test_daily.mjs` covers what is left in `daily.js`: the date arithmetic and the
 play window, where a DST boundary that skips or repeats a day number files a

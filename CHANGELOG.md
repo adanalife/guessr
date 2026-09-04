@@ -4,6 +4,89 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.10.0 — 2026-09-03
+
+### New
+
+- Staging's schedule now keeps itself filled: a daily workflow mirrors
+  production's upcoming schedule onto it, so a preview deploy is playable and a
+  lapsed staging schedule can no longer turn the whole open PR queue red. A row
+  copy rather than a generation — one bucket holds every tier's clips — so it
+  needs no corpus and finishes in seconds, and it does nothing at all when
+  staging is not short, leaving a set under review in place. ([#175](https://github.com/adanalife/guessr/pull/175))
+
+### Changed
+
+- Each day now opens on its most striking round rather than its easiest one. The five still get harder as you go — the first one just has more to look at. ([#180](https://github.com/adanalife/guessr/pull/180))
+
+### Fixed
+
+- Schedule depth now accounts for the dates holding no rounds at all, not just
+  the short ones. A horizon that had run out, or had a hole in it, read as
+  healthy — the check grouped `round_days`' own rows, so a date with none
+  produced no row to count, and the top-up's "nothing to generate" exit returned
+  before any check ran. ([#175](https://github.com/adanalife/guessr/pull/175))
+
+### Behind the scenes
+
+- Release notes now assemble correctly when a single update contributes more than one note of the same kind. ([#172](https://github.com/adanalife/guessr/pull/172))
+- The pull-request gates now name which gate failed, in the checks tab and in the run summary. ([#173](https://github.com/adanalife/guessr/pull/173))
+- A pre-push hook now blocks a push whose branch adds no changelog fragment, catching it locally instead of in CI. ([#174](https://github.com/adanalife/guessr/pull/174))
+- The folder that holds pending release notes now stays put between releases, so the tooling that writes them always has somewhere to go. ([#176](https://github.com/adanalife/guessr/pull/176))
+- Add a pre-commit hook (run in CI too) that fails on any private-notes `vault/<dir>/` path in the tree. ([#178](https://github.com/adanalife/guessr/pull/178))
+- The day in progress, your all-time map and the intro you already dismissed all live in one place now, with tests covering the private-window case where the browser refuses to remember anything at all. ([#179](https://github.com/adanalife/guessr/pull/179))
+
+## v1.9.0 — 2026-09-01
+
+### New
+
+- `/api/leaderboard?board=monthly` takes a `month=YYYY-MM`, so a month that has ended can be asked for by name instead of only while it is running. `/api/guesses` takes it on the same terms. ([#170](https://github.com/adanalife/guessr/pull/170))
+
+### Changed
+
+- The neighbour lookup behind a round's difficulty scores now matches on the original recording's clock instead of the airing clip's, so re-trimming a clip can no longer silently re-point it at different frames. ([#168](https://github.com/adanalife/guessr/pull/168))
+
+### Behind the scenes
+
+- Release notes now find their way back to the pull request that added them even when that pull request finishes merging before its number gets stamped on, instead of publishing unlinked. ([#171](https://github.com/adanalife/guessr/pull/171))
+
+## v1.8.0 — 2026-08-31
+
+### Changed
+
+- `/api/guesses` rows now carry `answer_lat`/`answer_lng` — where the round
+  actually was — alongside the guess pin, so a drilldown can show the miss rather
+  than only measure it. Withheld by the same open-date guard the pin and the clip
+  use: on a date still open the round's location is the answer key itself. ([#166](https://github.com/adanalife/guessr/pull/166))
+
+## v1.7.0 — 2026-08-30
+
+### New
+
+- `GET /api/guesses?board=daily|monthly&rank=N` — the plays behind one leaderboard row (round, distance, points, and the guess pin), keyed by rank so no player id is ever published. Pins are withheld for dates still open, so the monthly drilldown can't leak a strong player's guess on a round others haven't played yet. ([#162](https://github.com/adanalife/guessr/pull/162))
+
+### Changed
+
+- `/api/guesses` rows carry the round's `image` — both the R2 key and the path `/clips/` serves it under — so a caller can play back the footage a guess was made against. Withheld for dates still open, alongside the pin, so the monthly drilldown never names which clips today's game serves before anyone has been dealt them. ([#164](https://github.com/adanalife/guessr/pull/164))
+- `GET /api/leaderboard` and `GET /api/guesses` take an optional `date=YYYY-MM-DD` on the daily board, serving that date's standings and the plays behind them rather than only the newest closed day. A date that hasn't closed is refused rather than served, so an in-progress board still can't reach a screen; a closed date nobody played answers as an empty board. Dated responses cache for an hour, since a closed board can never change again. ([#165](https://github.com/adanalife/guessr/pull/165))
+
+### Behind the scenes
+
+- The deploy check's advice when a tier's database is missing a table now names the migrations the game actually ships and the command that applies them, instead of a file and a task that no longer exist. ([#132](https://github.com/adanalife/guessr/pull/132))
+
+## v1.6.0 — 2026-08-28
+
+### Behind the scenes
+
+- The weekly round top-up now scores from a 2,000-clip pool instead of 400, matching the pool the ranking weights were tuned against. More candidates improves how locatable and how distinctive the scheduled rounds are at the same time. Scoring takes about 20 minutes at the larger pool, well inside the job's two-hour allowance. ([#159](https://github.com/adanalife/guessr/pull/159))
+- The database now refuses to delete an answer a recorded play depends on — the row the recap and share screens read their truth from. The answer-key seed script upserts rather than replaces, so a regeneration never momentarily removes one. ([#161](https://github.com/adanalife/guessr/pull/161))
+
+## v1.5.0 — 2026-08-22
+
+### Changed
+
+- Rounds are now scored on a frame from the same instant they show. The corpus was re-analysed at a finer resolution, so the picture a round plays and the frame its difficulty is measured from line up far more closely than before. ([#156](https://github.com/adanalife/guessr/pull/156))
+
 ## v1.4.0 — 2026-08-21
 
 ### Fixed
