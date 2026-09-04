@@ -27,6 +27,10 @@ coordinate. They are two tables in the same database, so the endpoint that serve
 a game physically cannot leak the answer to it — a player learns where a clip was
 taken only by committing a guess and getting the score back.
 
+Once a day has finished playing everywhere, that stops being a secret worth
+keeping, and `GET /api/recap` hands a whole game back: one player's five pins
+against the five answers, on a link they can send to anyone.
+
 ## Play locally
 
 ```sh
@@ -217,8 +221,8 @@ map tiles rather than on the page.
 `functions/api/score.js` to `/api/score`, `functions/api/day.js` to `/api/day`,
 `functions/admin/day.js` to `/admin/day` and `functions/clips/[[path]].js` to
 everything under `/clips/`. The underscore-prefixed files — `_scoring.mjs`,
-`_json.mjs`, `_names.mjs` — are skipped by the router, so the handlers can
-import them.
+`_json.mjs`, `_names.mjs`, `_recap.mjs` — are skipped by the router, so the
+handlers can import them.
 
 `/api/day` is what a date's game *is*: five rounds by name, in the order they
 play. `/api/score` checks a posted round against the same rows before it will
@@ -450,6 +454,36 @@ one renders, the stream overlay included — while `NOTE` is read by nothing and
 served by nothing. So a note alone recognises somebody without announcing what
 you recognised them by, which is usually the one you want. Either argument left
 empty clears it.
+
+### Sharing a finished game
+
+The share string is deliberately spoiler-free: five coloured squares saying how a
+game went and nothing about where it was. A recap is the other half, for after —
+`GET /api/recap?date=<date>&r=<token>` returns one player's five pins, the five
+answers, and the distance between them, which the page draws as the end-of-game
+board that player saw.
+
+`POST /api/games` with `{player_id}` lists that player's finished days and hands
+them the token for each. It is the only record of their own history they have:
+the browser remembers the day it is in the middle of and nothing before it, and a
+device linked in later never saw the days before it. A POST for a read, because
+the player id belongs in a body — in a query string it would ride into access
+logs, `Referer` headers, and a shared laptop's history, and it is a credential.
+
+Two rules keep a link from being a way to read ahead:
+
+- **The date must be closed**, everywhere, not merely where the sender is.
+  Everything a recap returns is an answer key, so a link to a day still in play
+  would spoil it for whoever opens it. Until then the About panel shows the wait
+  instead of a link.
+- **The token is a hash of the id and the date**, six bytes of SHA-256 (see
+  `functions/_recap.mjs`). The player id can't go in a URL that exists to be
+  forwarded — `/api/link` hands over a whole history to whoever holds one — and
+  salting with the date means sharing one game isn't a key to every other one.
+
+A play recorded before `guess_lat`/`guess_lng` existed comes back with its score
+and no coordinates, and those rounds draw without a line. Showing a plausible pin
+would be worse than showing none.
 
 One thing this does *not* buy outright: the round sets published before scoring
 moved server-side carried their coordinates in `rounds.json`, and that file is in

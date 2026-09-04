@@ -44,6 +44,18 @@ export function dateForDay(day) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+// And back again, which is what a stored play needs to be labelled: `plays` is
+// keyed on the date, deliberately, so that a re-epoch or an off-by-one can never
+// silently re-map history -- but `Guessr #17` is what a player recognises their
+// own game by, and the boards and the recap both have a date and need the label.
+//
+// Both directions build local-midnight Dates and difference them, so the answer
+// does not depend on which timezone is asking.
+export function dayFromDate(date) {
+  const [y, m, d] = date.split('-').map(Number);
+  return dayNumber(new Date(y, m - 1, d));
+}
+
 // When a date is open to play. Everyone gets until their own midnight, so a date
 // runs from midnight in the earliest timezone on Earth (UTC+14, which is 10:00
 // UTC the day before) to midnight in the latest (UTC-12, 12:00 UTC the day
@@ -84,6 +96,12 @@ export function isOpen(date, now = new Date()) {
 export function lastClosedDate(now = new Date()) {
   return new Date(now.getTime() - 36 * 3600 * 1000).toISOString().slice(0, 10);
 }
+
+// Whether a date is done being played, anywhere on Earth. Not the negation of
+// isOpen(): a date next week is neither open nor closed, and a recap of it would
+// be a spoiler for a game nobody has been given yet. So this is the gate on
+// anything that reveals a whole day's answers rather than one player's own.
+export const isClosed = (date, now = new Date()) => date <= lastClosedDate(now);
 
 // The month a monthly board covers, as the YYYY-MM prefix its dates share.
 // Unlike the daily board this needs no closing rule -- it is a running total,
