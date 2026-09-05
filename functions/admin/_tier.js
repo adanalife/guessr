@@ -22,3 +22,22 @@ export async function tier(env, url) {
     return null;
   }
 }
+
+// The tiers this surface answers on at all. Production is one of them: its
+// schedule is what a wrong coordinate reaches players through, and its players
+// are the ones worth recognising, so a surface built for those has to work there
+// or it works everywhere except where it counts.
+//
+// Still an allowlist rather than nothing, because "which tier is this" has a way
+// of coming back unanswerable -- no version.json, a version.json that will not
+// parse, a tier nobody has taught this about -- and a deployment this code
+// cannot name is one whose Access application it cannot vouch for either.
+// Refusing costs a line here when a tier is added; answering costs whatever the
+// route behind it serves.
+const KNOWN_TIERS = new Set(['production', 'staging', 'preview', 'local']);
+
+// Here rather than in either route, and shared by both for the reason tier() is:
+// a second copy of the allowlist is a second thing to remember when a tier is
+// added, and the one that gets forgotten is whichever nobody is looking at.
+// Each route keeps its own refusal message, since what is unavailable differs.
+export const unknownTier = async (env, url) => !KNOWN_TIERS.has(await tier(env, url));
