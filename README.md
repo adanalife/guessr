@@ -216,8 +216,8 @@ map tiles rather than on the page.
 `functions/` holds the endpoints. It is not served: Pages routes
 `functions/api/score.js` to `/api/score`, `functions/api/day.js` to `/api/day`,
 `functions/admin/day.js` to `/admin/day`, `functions/admin/players.js` to
-`/admin/players` and `functions/clips/[[path]].js` to everything under
-`/clips/`. The underscore-prefixed files — `_scoring.mjs`, `_json.mjs`,
+`/admin/players`, `functions/admin/board-note.js` to `/admin/board-note` and
+`functions/clips/[[path]].js` to everything under `/clips/`. The underscore-prefixed files — `_scoring.mjs`, `_json.mjs`,
 `_names.mjs` — are skipped by the router, so the handlers can import them.
 
 `/api/day` is what a date's game *is*: five rounds by name, in the order they
@@ -458,6 +458,15 @@ recent first, and takes a note against any of them. It is the same lookup as
 copying a player id between two terminals. It writes `note` and only `note` —
 setting a published `NAME` stays the task above, deliberately, because that one
 is a decision rather than a jotting.
+
+`/admin/board-note` is the same note reached from a board row instead of a list —
+`?board=&rank=` with an optional `date` or `month`, resolved by the same
+`atRank()` the `/api/guesses` drilldown uses. It exists for callers holding no
+player id, which is every caller outside this repo: an id is a write credential
+here, so the console that renders these boards addresses a player the only way
+it can, as the row it is looking at. Being under `/admin/` it takes the same
+Access login as everything else there, which from outside a browser means a
+service token.
 
 One thing this does *not* buy outright: the round sets published before scoring
 moved server-side carried their coordinates in `rounds.json`, and that file is in
