@@ -59,20 +59,29 @@ export const guesses = span => `
    WHERE p.player_id = ?2 AND p.date ${span}
    ORDER BY p.date, rd.position`;
 
-export async function onRequestGet({ request, env }) {
-  const params = new URL(request.url).searchParams;
-  const board = params.get('board') || 'daily';
+// Which player a board row names, as `{ row, period, daily, cache }` -- or
+// `{ error, status }` for a request no board can answer.
+//
+// Split out because the admin note surface resolves a player exactly this way,
+// on purpose: the console holds no player ids either, so the only thing it can
+// say about a player is which row of which board they were. Two copies of "the
+// rank as the LIMIT" would be two answers to "who is #2", and the one that
+// drifted would put a private note against the wrong person.
+//
+// Exported for that route and for test_guesses.mjs; Pages only routes the
+// onRequest* exports.
+export async function atRank(env, board, params) {
   if (board !== 'daily' && board !== 'monthly') {
-    return json({ error: 'board must be daily or monthly' }, 400, CACHE);
+    return { error: 'board must be daily or monthly', status: 400 };
   }
   const rank = Number(params.get('rank'));
   if (!Number.isInteger(rank) || rank < 1 || rank > ROWS) {
-    return json({ error: `rank must be 1..${ROWS}` }, 400, CACHE);
+    return { error: `rank must be 1..${ROWS}`, status: 400 };
   }
 
   const daily = board === 'daily';
   const { period, cache, error } = span(board, params);
-  if (error) return json({ error }, 400, CACHE);
+  if (error) return { error, status: 400 };
 
   // The board query with the rank as its LIMIT: the row wanted is the last one,
   // and coming up short means the board has no such rank today -- an answer,
@@ -82,9 +91,19 @@ export async function onRequestGet({ request, env }) {
     .bind(period, rank)
     .all();
   if (standings.length < rank) {
-    return json({ error: 'no player at that rank' }, 404, cache);
+    return { error: 'no player at that rank', status: 404, cache };
   }
-  const row = standings[rank - 1];
+
+  return { row: standings[rank - 1], rank, period, daily, cache };
+}
+
+export async function onRequestGet({ request, env }) {
+  const params = new URL(request.url).searchParams;
+  const board = params.get('board') || 'daily';
+
+  const { row, rank, period, daily, cache, error, status } =
+    await atRank(env, board, params);
+  if (error) return json({ error }, status, cache ?? CACHE);
 
   const { results } = await env.ANSWERS
     .prepare(guesses(daily ? '= ?1' : "LIKE ?1 || '-%'"))
