@@ -215,10 +215,10 @@ map tiles rather than on the page.
 
 `functions/` holds the endpoints. It is not served: Pages routes
 `functions/api/score.js` to `/api/score`, `functions/api/day.js` to `/api/day`,
-`functions/admin/day.js` to `/admin/day` and `functions/clips/[[path]].js` to
-everything under `/clips/`. The underscore-prefixed files — `_scoring.mjs`,
-`_json.mjs`, `_names.mjs` — are skipped by the router, so the handlers can
-import them.
+`functions/admin/day.js` to `/admin/day`, `functions/admin/players.js` to
+`/admin/players` and `functions/clips/[[path]].js` to everything under
+`/clips/`. The underscore-prefixed files — `_scoring.mjs`, `_json.mjs`,
+`_names.mjs` — are skipped by the router, so the handlers can import them.
 
 `/api/day` is what a date's game *is*: five rounds by name, in the order they
 play. `/api/score` checks a posted round against the same rows before it will
@@ -450,6 +450,14 @@ one renders, the stream overlay included — while `NOTE` is read by nothing and
 served by nothing. So a note alone recognises somebody without announcing what
 you recognised them by, which is usually the one you want. Either argument left
 empty clears it.
+
+The note has a page of its own, since it is the half you reach for most and the
+half that needs no decision: `/admin/notes` lists everyone who has played, most
+recent first, and takes a note against any of them. It is the same lookup as
+`stats:prod` with the write attached, so recognising a regular no longer means
+copying a player id between two terminals. It writes `note` and only `note` —
+setting a published `NAME` stays the task above, deliberately, because that one
+is a decision rather than a jotting.
 
 One thing this does *not* buy outright: the round sets published before scoring
 moved server-side carried their coordinates in `rounds.json`, and that file is in

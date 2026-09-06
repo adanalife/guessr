@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Same terms as the day preview: deployed everywhere, reachable behind the
+     Access login and nowhere else, and kept out of search results.
+
+     `notes.html` rather than `players.html` because Pages serves a page at its
+     extensionless path -- so a page named for the table would answer at
+     /admin/players, which is the Function this one calls. -->
+<meta name="robots" content="noindex">
+<title>guessr — players</title>
+<script src="/theme.js"></script>
+<link rel="stylesheet" href="/base.css">
+<style>
+  /* A table and a filter box. Everything else this page needs is in base.css. */
+  body { margin: 0 auto; padding: 1rem; max-width: 60rem; }
+  h1 { font-size: 1.3rem; font-weight: 400; font-style: italic; }
+  .nav { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+  #meta { color: var(--color-muted); }
+  #filter { flex: 1; min-width: 12rem; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: .4rem .5rem; vertical-align: top;
+           border-bottom: 1px solid var(--color-border); }
+  th { font-weight: 400; color: var(--color-muted); font-size: .85rem; }
+  /* The note is the point of the page, so it gets the room. */
+  td.note { width: 45%; }
+  td.note input { width: 100%; }
+  .dim { color: var(--color-muted); font-size: .85rem; }
+  .id { font-family: ui-monospace, monospace; font-size: .75rem; }
+  /* Per row, so a save that failed says so beside the note it failed to save
+     rather than at the top of a list of five hundred. */
+  .status { font-size: .8rem; color: var(--color-muted); }
+  .status.warn { color: #b00; font-weight: bold; }
+  [data-theme='dark'] .status.warn { color: #ff6b6b; }
+  /* A published name is somebody else's business in a way a note is not, so the
+     rows carrying one are marked rather than left to look identical. */
+  .alias { font-size: .75rem; color: var(--color-muted); }
+</style>
+</head>
+<body>
+<h1>Players</h1>
+<p class="nav">
+  <a href="/admin/">&larr; day preview</a>
+  <input type="search" id="filter" placeholder="filter by name, note or id">
+  <span id="meta"></span>
+</p>
+<table>
+  <thead>
+    <tr><th>Player</th><th>Note (private)</th><th>Days</th><th>Points</th><th>Last played</th></tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<script type="module">
+// Put a name to the regulars, privately. The note is the half of a `players` row
+// no endpoint serves -- it exists so that recognising a player does not require
+// publishing what you recognised them by -- and this is where one gets written.
+//
+// The published half, the alias, is shown and not editable: it replaces that
+// player's name on every board and on the stream overlay the moment it is set,
+// which is a decision worth making deliberately rather than in a row of a table
+// full of other people. `task player:prod` is still how it is made.
+import { request } from '/request.js';
+
+const el = id => document.getElementById(id);
+
+// These are this project's own rows, but a handle is a string a browser chose
+// and a note is free text somebody typed -- so escape, rather than trusting the
+// provenance of a string forever.
+const esc = s => String(s).replace(/[&<>"]/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// `played_at` is UTC to the second, and what a reader wants from it is how long
+// ago rather than the timestamp. Anything older than a week is a date again --
+// "43 days ago" is arithmetic nobody asked for.
+const ago = ts => {
+  const days = (Date.now() - Date.parse(`${ts}Z`)) / 86400000;
+  if (days < 1 / 24) return 'just now';
+  if (days < 1) return `${Math.round(days * 24)}h ago`;
+  if (days < 7) return `${Math.round(days)}d ago`;
+  return ts.slice(0, 10);
+};
+
+function render(p) {
+  return `<tr data-player="${esc(p.player_id)}">
+    <td>
+      ${esc(p.name ?? 'anonymous')}
+      ${p.alias ? '<div class="alias">published as this name</div>' : ''}
+      <div class="id">${esc(p.player_id)}</div>
+    </td>
+    <td class="note">
+      <input type="text" maxlength="500" value="${esc(p.note ?? '')}"
+             placeholder="who they are — never served to anyone">
+      <span class="status"></span>
+    </td>
+    <td class="dim">${p.days}</td>
+    <td class="dim">${p.points.toLocaleString()}</td>
+    <td class="dim">${ago(p.last_played)}</td>
+  </tr>`;
+}
+
+let players = [];
+
+// Client-side, over rows already loaded: the whole list is one bounded response,
+// so a filter that went back to the endpoint would be a round trip to answer a
+// question the page can already answer between keystrokes.
+function draw() {
+  const q = el('filter').value.trim().toLowerCase();
+  const shown = q
+    ? players.filter(p => `${p.name ?? ''} ${p.note ?? ''} ${p.player_id}`
+      .toLowerCase().includes(q))
+    : players;
+  el('rows').innerHTML = shown.map(render).join('');
+  el('meta').textContent = q
+    ? `${shown.length} of ${players.length} players`
+    : `${players.length} players`;
+}
+
+async function load() {
+  el('meta').textContent = 'loading…';
+  let res, body;
+  try {
+    res = await request('/admin/players');
+    body = await res.json();
+  } catch {
+    el('meta').textContent = 'could not reach /admin/players';
+    return;
+  }
+  // The endpoint refuses on a tier it does not recognise, and says so. Passed
+  // through rather than flattened to "no players", which is a thing that could
+  // also be true.
+  if (!res.ok) {
+    el('meta').textContent = body.error || `could not load players (${res.status})`;
+    return;
+  }
+  players = body.players;
+  draw();
+}
+
+// Saved on `change`, which fires on blur and only when the value actually moved:
+// clicking through the table touches nothing, and there is no button per row to
+// leave unpressed. An emptied field clears the note, which is the same
+// instruction the endpoint takes -- so no separate way to delete one.
+async function save(row, note) {
+  const status = row.querySelector('.status');
+  const playerId = row.dataset.player;
+  status.className = 'status';
+  status.textContent = 'saving…';
+
+  let res, out;
+  try {
+    res = await request('/admin/players', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ player_id: playerId, note }),
+    });
+    out = await res.json();
+  } catch {
+    status.className = 'status warn';
+    status.textContent = 'could not reach /admin/players';
+    return;
+  }
+  if (!res.ok) {
+    status.className = 'status warn';
+    status.textContent = out.error || `save failed (${res.status})`;
+    return;
+  }
+
+  // The local copy moves with the stored one, so a filter redrawn after this
+  // does not put the old note back in the box.
+  const player = players.find(p => p.player_id === playerId);
+  if (player) player.note = out.note;
+  status.textContent = out.note ? 'saved' : 'cleared';
+}
+
+// Delegated, because the rows are rewritten on every filter keystroke and a
+// listener per input would be a listener per redraw.
+el('rows').addEventListener('change', e => {
+  if (e.target.matches('input[type=text]')) save(e.target.closest('tr'), e.target.value);
+});
+el('filter').addEventListener('input', draw);
+
+load();
+</script>
+</body>
+</html>

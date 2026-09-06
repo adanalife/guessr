@@ -19,29 +19,15 @@
 // coordinate or a dud clip gets caught. The alternative place is a real day.
 import { isOpen, playWindow } from '../../web/daily.js';
 import { DATE, json, readJson } from '../_json.mjs';
-import { tier } from './_tier.js';
+import { unknownTier } from './_tier.js';
 
-// The tiers this code knows about. Production is one of them: its schedule is
-// the one a wrong coordinate actually reaches players through, so the surface
-// built to catch that has to work there or it catches it everywhere except where
-// it counts.
-//
-// Still an allowlist rather than nothing, because "which tier is this" has a way
-// of coming back unanswerable -- no version.json, a version.json that will not
-// parse, a tier nobody has taught this about -- and a deployment this code cannot
-// name is one whose Access application it cannot vouch for either. Refusing costs
-// a line here when a tier is added; answering costs tomorrow's five and where
-// they are.
-const KNOWN_TIERS = new Set(['production', 'staging', 'preview', 'local']);
-
-// Shared by both methods, and shared deliberately: a second copy of the
-// allowlist is a second thing to remember when a tier is added, and the one that
-// gets forgotten is whichever is not being looked at. The write below is exactly
-// as gated as the read above it.
+// Shared by both methods, and shared deliberately: the write below is exactly
+// as gated as the read above it. The allowlist itself lives in _tier.js, beside
+// the question it answers.
 const refusal = async (env, url) =>
-  KNOWN_TIERS.has(await tier(env, url))
-    ? null
-    : json({ error: 'the day preview is not available on this tier' }, 403);
+  (await unknownTier(env, url))
+    ? json({ error: 'the day preview is not available on this tier' }, 403)
+    : null;
 
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
