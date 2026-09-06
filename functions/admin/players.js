@@ -15,6 +15,7 @@
 // task that writes it is still the way to make it.
 import { json, readJson } from '../_json.mjs';
 import { nameExpr } from '../_names.mjs';
+import { noteProblem, saveNote } from './_notes.mjs';
 import { unknownTier } from './_tier.js';
 
 const refusal = async (env, url) =>
@@ -68,11 +69,6 @@ export async function onRequestGet({ request, env }) {
   return json({ players: results }, 200, { 'cache-control': 'no-store' });
 }
 
-// A note is prose about a person, and the length is the only thing worth
-// refusing: a paste that ran away is not a note, and the column is read by
-// people rather than by anything that would trim it.
-const MAX_NOTE = 500;
-
 export async function onRequestPost({ request, env }) {
   const url = new URL(request.url);
   const refused = await refusal(env, url);
@@ -80,15 +76,12 @@ export async function onRequestPost({ request, env }) {
 
   const body = await readJson(request);
   const playerId = body?.player_id;
-  // Absent and empty are the same instruction -- clear it -- so the page can
-  // send an emptied field without a second shape for "delete".
   const note = body?.note ?? '';
-  if (typeof playerId !== 'string' || !playerId || typeof note !== 'string') {
+  if (typeof playerId !== 'string' || !playerId) {
     return json({ error: 'expected {player_id, note}' }, 400);
   }
-  if (note.length > MAX_NOTE) {
-    return json({ error: `a note is at most ${MAX_NOTE} characters` }, 400);
-  }
+  const problem = noteProblem(note);
+  if (problem) return json({ error: problem }, 400);
 
   // A player id that has never played is a mistyped or stale one, and writing it
   // would leave a row naming nobody -- invisible from here afterwards, since this
@@ -99,17 +92,6 @@ export async function onRequestPost({ request, env }) {
     .first();
   if (!played) return json({ error: 'no plays recorded for that player' }, 404);
 
-  // Only `note` is touched, and the conflict clause is why this is not the task's
-  // statement: that one writes both columns from its two arguments, so running it
-  // to set a note would take down a published alias with it.
-  await env.ANSWERS
-    .prepare(`INSERT INTO players (player_id, note) VALUES (?, NULLIF(?, ''))
-              ON CONFLICT (player_id) DO UPDATE SET
-                note = excluded.note,
-                updated_at = datetime('now')`)
-    .bind(playerId, note)
-    .run();
-
-  return json({ player_id: playerId, note: note || null }, 200,
+  return json({ player_id: playerId, note: await saveNote(env, playerId, note) }, 200,
     { 'cache-control': 'no-store' });
 }
