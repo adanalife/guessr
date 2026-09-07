@@ -4,6 +4,13 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.11.1 — 2026-09-07
+
+### Fixed
+
+- The schedule check now counts every still-open date instead of starting its horizon at UTC midnight. A date is playable until 12:00 UTC the day after it, so through the Americas evening the check was counting the schedule from tomorrow forward — a date people were still playing could be short, or missing entirely, with nothing reporting it. Its test read its dates off local midnight while the query read UTC, which also made `task test` fail on an unmodified `main` from 20:00 EDT until midnight. ([#186](https://github.com/adanalife/guessr/pull/186))
+- Documentation and comment pass: the README and two code comments described changes rather than the code as it stands ("no longer serves", "used to run", "Rounds no longer repeat"), which reads as a changelog to anyone arriving without the diff. Rewritten in present tense; the measurements and rationale they carried are kept. ([#187](https://github.com/adanalife/guessr/pull/187))
+
 ## v1.11.0 — 2026-09-06
 
 ### Behind the scenes
