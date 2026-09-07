@@ -15,8 +15,8 @@
 //
 // It is also easy to cause. A helper with no callers gets dropped -- correctly,
 // by the audit that found it -- and comes back as a name a later feature
-// imports because it used to be there. That is exactly how it happened:
-// dayFromDate was removed as caller-less in #138 and imported again here.
+// imports on the strength of having once existed: dayFromDate went that way,
+// dropped as caller-less in #138 and imported again here.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
