@@ -16,8 +16,11 @@
 # Every path that writes a schedule calls this, not just publish.sh: a bare
 # `task rounds:stage:push` is how the staging short day got there.
 #
-# Dates from today forward only. A past date has already been played and cannot
-# be fixed, so counting it would leave this permanently red and therefore unread.
+# Still-open dates forward only -- the horizon is seeded from the game's closing
+# rule (see schedule_gaps.sql), not from a midnight, because up to three dates
+# are open at once and a short one among them is exactly what wants reporting. A
+# closed date has been played and cannot be fixed, so counting it would leave
+# this permanently red and therefore unread.
 #
 # A date holding no rounds at all counts here too, not just a short one --
 # schedule_gaps.sql enumerates the horizon so an exhausted or gapped schedule
