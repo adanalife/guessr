@@ -1,0 +1,1 @@
+Documentation and comment pass: the README and two code comments described changes rather than the code as it stands ("no longer serves", "used to run", "Rounds no longer repeat"), which reads as a changelog to anyone arriving without the diff. Rewritten in present tense; the measurements and rationale they carried are kept.
