@@ -134,13 +134,23 @@ CREDIT = "A Dana Life"
 CREDIT_URL = "https://dana.lol"
 
 # How far from a candidate moment an embedding may sit and still be what the round
-# is scored on. Half of `frame_embeddings`' own 5 s sampling step, so the scored
-# frame stays inside the stretch of road the round plays. Not a tuning knob: it is
-# a property of that table's grid, and it moves when the grid does -- re-embedding
-# the corpus at 2 s would make 1.0 the equivalent bound. Measured against the
-# corpus, 90% of track moments have an embedding this close (mean 1.7 s), and the
-# gaps it excludes run to 32 s.
-EMBED_WINDOW_SEC = 2.5
+# is scored on. Half of `frame_embeddings`' 2 s sampling step, so the scored frame
+# stays inside the stretch of road the round plays. Not a tuning knob: it is a
+# property of that table's grid, and it moves when the grid does.
+#
+# The corpus does not spread evenly inside this bound, which is what makes 1.0 the
+# right number rather than merely the arithmetic one. Both the coords track and the
+# embedding grid step 2 s, and they are either phase-aligned or a whole step apart:
+# the distance from a track moment to its nearest embedding has p50 **0.00 s** and
+# p90 2.00 s, with almost nothing in between (mean 1.09 s, reaching 126 s in the
+# gaps). So a 1.0 bound keeps the half of the moments whose embedding is the very
+# same instant and drops the ones a full step away, while a 2.0 bound would readmit
+# that whole step -- and a round only plays SECONDS of footage, so a frame 2 s off
+# the cut describes road the player is never shown.
+#
+# What it costs is affordable: 66.9 usable moments per clip against 73.8 at the old
+# 2.5 s bound, which is still ~17x what `--per-clip 4` draws.
+EMBED_WINDOW_SEC = 1.0
 
 # How much of a clip's coordinate track has to hold up before the clip may supply
 # a round. Below this the coords stage's own reads disagreed with each other or
@@ -152,6 +162,12 @@ MIN_CONFIDENCE = 0.8
 # rounds, so a run that generates ~200 fills the horizon with reject headroom
 # left over in the queue.
 HORIZON_DAYS = 60
+
+# How much of a round's merit is having a visual signature of its own rather
+# than being locatable. Both rank() and schedule() take it, because a pool
+# chosen on one blend and dealt on another orders its positions by a rule
+# nothing selected for. See rank() for why 0.25 and not more.
+DISTINCTIVENESS = 0.25
 
 # What the two scores mean, why same-day frames are excluded, and why several
 # moments are scored per clip: README, "How rounds are chosen". The four things
@@ -175,11 +191,12 @@ HORIZON_DAYS = 60
 #   1,317 m between the answer pin and the road the player was shown, and blurred
 #   the neighbour distances that decide which rounds exist at all. Both are joined
 #   per moment below.
-# - The track is also what *enumerates* the moments. It samples every 2 s against
-#   `frame_embeddings`' 5 s, so asking the track what moments exist and fetching an
-#   embedding for each offers ~81 candidates per clip where asking the embeddings
-#   offered ~28. The two grids do not line up either way, so both directions are
-#   nearest-sample joins bounded to half the other side's step -- a moment with
+# - The track is also what *enumerates* the moments. Both it and
+#   `frame_embeddings` step 2 s, and asking the track what moments exist and
+#   fetching an embedding for each offers ~77 candidates per clip where asking the
+#   embeddings offered ~28. The two grids do not line up either way, so both
+#   directions are nearest-sample joins bounded to half the other side's step -- a
+#   moment with
 #   nothing near it drops out rather than being answered, or scored, from across a
 #   gap.
 SCORE_SQL = """
@@ -233,18 +250,25 @@ cand AS (
     -- and has to drop out.
     --
     -- The BETWEEN is not an optimisation. Embedding coverage has gaps -- the
-    -- nearest one averages 1.7 s away but reaches 32 s -- and without a bound the
-    -- round would be scored on a frame half a minute down the road, i.e. on a
-    -- different place than it shows. Half the embedding grid's own 5 s step keeps
-    -- the scored frame inside the stretch the round plays; 90% of track moments
+    -- nearest one averages 1.09 s away but reaches 126 s -- and without a bound the
+    -- round would be scored on a frame two minutes down the road, i.e. on a
+    -- different place than it shows. Half the embedding grid's own 2 s step keeps
+    -- the scored frame inside the stretch the round plays; 87% of track moments
     -- qualify.
+    --
+    -- Matched on `source_ts_sec`, the offset into the original recording, because
+    -- that is the one clock a re-cut cannot move. `ts_sec` is an offset into the
+    -- airing clip, so re-trimming any of the 122 trimmed clips would silently
+    -- re-point this join at different frames. Both tables are fully keyed to the
+    -- source clock, so today the two agree -- they differ by a per-clip constant
+    -- and the same moments come back -- and only this one survives a re-trim.
     CROSS JOIN LATERAL (
       SELECT fe.embedding
       FROM frame_embeddings fe
       WHERE fe.video_id = vc.video_id
-        AND fe.ts_sec BETWEEN vc.ts_sec - :embed_window
-                          AND vc.ts_sec + :embed_window
-      ORDER BY abs(fe.ts_sec - vc.ts_sec)
+        AND fe.source_ts_sec BETWEEN vc.source_ts_sec - :embed_window
+                                 AND vc.source_ts_sec + :embed_window
+      ORDER BY abs(fe.source_ts_sec - vc.source_ts_sec)
       LIMIT 1
     ) emb
     -- Where the van has got to by the time the round stops playing. LEFT, because
@@ -259,6 +283,14 @@ cand AS (
       ORDER BY abs(ts_sec - (vc.ts_sec + :clip_secs))
       LIMIT 1
     ) ahead ON true
+    -- `vc.ts_sec > 15` reads like a vestigial clip-relative filter next to a
+    -- source-keyed join, and it is not: it is what refuses moments the current
+    -- cut excludes. 33,532 track rows carry a `source_ts_sec` with a NULL
+    -- `ts_sec` -- road that exists in the original recording and never airs --
+    -- and NULL fails this comparison, which is the only thing keeping them out.
+    -- 224 of them sit within EMBED_WINDOW_SEC of an aired embedding on the source
+    -- clock, so relaxing this grades a player on footage they were never shown.
+    -- The cut stays clip-relative for the same reason (`-ss ts`).
     WHERE vc.video_id = p.id AND vc.source = 'ocr' AND vc.ts_sec > 15
     ORDER BY random()
     LIMIT :per_clip
@@ -287,7 +319,7 @@ CROSS JOIN LATERAL (
     -- subquery would evaluate a lateral per row the scan touches -- thousands --
     -- rather than :k times.
     FROM (
-      SELECT f2.video_id, f2.ts_sec, f2.embedding <=> c.embedding AS cos_d
+      SELECT f2.video_id, f2.source_ts_sec, f2.embedding <=> c.embedding AS cos_d
       FROM frame_embeddings f2
       JOIN videos vf ON vf.id = f2.video_id
       WHERE vf.lat <> 0
@@ -296,12 +328,24 @@ CROSS JOIN LATERAL (
       LIMIT :k
     ) n
     JOIN videos nv ON nv.id = n.video_id
+    -- On `source_ts_sec`, the same clock the scored join uses, so a re-cut of
+    -- the neighbour's clip cannot re-point this at a different moment. The two
+    -- clocks differ by a per-clip constant, so the same coordinates come back
+    -- today; only this one survives a re-trim.
+    --
+    -- `ts_sec IS NOT NULL` stays, and stays load-bearing for the same reason it
+    -- does in the scored join: it is what excludes the 33,532 track rows
+    -- describing road that exists in the original recording and never airs. A
+    -- neighbour is an embedded frame, so it is aired footage by construction and
+    -- the guard costs nothing here -- but dropping it would let an unaired row
+    -- win the ±1.5 s race and answer for a frame nobody was shown.
     LEFT JOIN LATERAL (
       SELECT lat, lng
       FROM video_coords
       WHERE video_id = n.video_id AND ts_sec IS NOT NULL
-        AND ts_sec BETWEEN n.ts_sec - 1.5 AND n.ts_sec + 1.5
-      ORDER BY abs(ts_sec - n.ts_sec)
+        AND source_ts_sec BETWEEN n.source_ts_sec - 1.5
+                              AND n.source_ts_sec + 1.5
+      ORDER BY abs(source_ts_sec - n.source_ts_sec)
       LIMIT 1
     ) nc ON true
   ) nn
@@ -744,11 +788,20 @@ def answers_sql(answers: list[dict]) -> str:
     one, so `schema:*:apply` is what a fresh database needs first and a
     definition never depends on whichever laptop last built a round set.
 
-    INSERT OR REPLACE rather than DELETE-then-INSERT: a regeneration replaces the
-    rows it shares and leaves the rest, so there is no window where the table is
-    empty and a push that dies halfway leaves every round still scorable. Old rows
-    for retired frames cost nothing -- the schedule is what decides which rounds
-    are playable.
+    An upsert rather than DELETE-then-INSERT: a regeneration replaces the rows it
+    shares and leaves the rest, so there is no window where the table is empty and
+    a push that dies halfway leaves every round still scorable. Old rows for
+    retired frames cost nothing -- the schedule is what decides which rounds are
+    playable.
+
+    ON CONFLICT rather than INSERT OR REPLACE, which reads like the same statement
+    and is not: SQLite implements REPLACE as a DELETE followed by an INSERT, and
+    `plays` holds a foreign key into this table. It survives today only because
+    the constraint carries no ON DELETE action and the check runs at end of
+    statement, by which point the row is back -- a coincidence of two independent
+    choices rather than a property. Give that FK an ON DELETE CASCADE and the
+    same statement silently deletes the plays instead, with no error (measured on
+    sqlite 3.53). ON CONFLICT updates in place and depends on neither.
     """
     values = ",\n".join(
         "  ('{}', {}, {}, '{}', '{}')".format(
@@ -761,8 +814,13 @@ def answers_sql(answers: list[dict]) -> str:
         for a in answers
     )
     return (
-        "INSERT OR REPLACE INTO answers (image, lat, lng, state, filmed) VALUES\n"
-        f"{values};\n"
+        "INSERT INTO answers (image, lat, lng, state, filmed) VALUES\n"
+        f"{values}\n"
+        "ON CONFLICT (image) DO UPDATE SET\n"
+        "  lat = excluded.lat,\n"
+        "  lng = excluded.lng,\n"
+        "  state = excluded.state,\n"
+        "  filmed = excluded.filmed;\n"
     )
 
 
@@ -820,20 +878,30 @@ def drop_burned(scored: list[dict], burned: set[str]) -> tuple[list[dict], int]:
     return kept, len(scored) - len(kept)
 
 
-def schedule(rounds: list[dict], first_date: dt.date, days: int) -> list[tuple]:
-    """Lay a pool out over consecutive dates, each day ramped easy to hard.
+def schedule(
+    rounds: list[dict], first_date: dt.date, days: int, weight: float
+) -> list[tuple]:
+    """Lay a pool out over consecutive dates, each day ramped best round first.
 
-    Sorted easy-first, then dealt round-robin across the days: day 0 takes rounds
-    0, D, 2D, 3D, 4D, so it gets one round from each fifth of the difficulty
-    range and its five come out already in ramp order. Dealing in blocks instead
-    would give the first date the five easiest rounds in the whole set and the
-    last date the five hardest -- a month that gets steadily harder, rather than
-    a game that does.
+    Dealt round-robin off rank()'s order across the days: day 0 takes rounds 0,
+    D, 2D, 3D, 4D, so it gets one round from each fifth of the merit range and
+    its five come out already in position order. Dealing in blocks instead would
+    give the first date the five best rounds in the whole set and the last date
+    the five worst -- a month that gets steadily worse, rather than a game that
+    ramps.
+
+    Off rank() rather than median_km alone, because position 1 is the round a
+    player sees while deciding whether to engage. Ordering the deal on
+    locatability makes the opener the most placeable round of the day and spends
+    none of the pool's distinctiveness on the one round everybody sees; the two
+    signals correlate loosely enough that it came out near the pool median.
+    `weight` is the same --distinctiveness the pool was ranked with, so a date's
+    positions read in the same order the pool was chosen in.
 
     Whatever will not fill a whole day is left out, and stays queued for the next
     run to schedule.
     """
-    ranked = sorted(rounds, key=lambda r: r["median_km"])
+    ranked = rank(rounds, weight)
     days = min(days, len(ranked) // ROUNDS_PER_GAME)
     if days < 1:
         return []
@@ -977,7 +1045,7 @@ def main() -> int:
     ap.add_argument(
         "--distinctiveness",
         type=float,
-        default=0.25,
+        default=DISTINCTIVENESS,
         help="how much of a round's merit is having a visual signature of its "
         "own rather than being locatable, 0 to 1. See rank() for why 0.25 and "
         "not more; 0 ranks on locatability alone.",
@@ -1181,7 +1249,7 @@ def main() -> int:
         if args.schedule_from
         else dt.datetime.now(dt.timezone.utc).date() + dt.timedelta(days=2)
     )
-    days = schedule(rounds, first_date, args.horizon)
+    days = schedule(rounds, first_date, args.horizon, args.distinctiveness)
     batch = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
     # rounds.json is neither served nor committed -- it is what check.py reads,

@@ -22,7 +22,13 @@ import argparse
 import datetime as dt
 from pathlib import Path
 
-from make_rounds import ROUNDS_PER_GAME, answers_sql, rounds_sql, schedule
+from make_rounds import (
+    DISTINCTIVENESS,
+    ROUNDS_PER_GAME,
+    answers_sql,
+    rounds_sql,
+    schedule,
+)
 
 HERE = Path(__file__).parent
 
@@ -68,7 +74,7 @@ def main() -> int:
 
     rounds, answers = build(args.days)
     first = dt.datetime.now(dt.timezone.utc).date() - dt.timedelta(days=2)
-    days = schedule(rounds, first, args.days)
+    days = schedule(rounds, first, args.days, DISTINCTIVENESS)
 
     (args.dest / "rounds.sql").write_text(rounds_sql(rounds, answers, "fixture", days))
     (args.dest / "answers.sql").write_text(answers_sql(answers))

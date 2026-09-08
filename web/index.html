@@ -421,21 +421,11 @@ import { aliasFrom, isAlias } from './alias.js';
 import { linkUrl, parseLink } from './link.js';
 import { request } from './request.js';
 import { bandFor, scoreLine, shareText } from './share.js';
+import {
+  loadHistory, markSeen, recordHistory, restoreTruths, saveDaily, savedDaily, seen,
+} from './storage.js';
 import { fitScale, fitView, panView, zoomAbout } from './zoom.js';
 
-// Records the day you last finished, so today's round can't be replayed for a
-// better share string. The daily draw itself lives in daily.js.
-const STORE_KEY = 'guessr-daily';
-// Every round ever played, oldest first, for the all-time map. Each entry is
-// [guessLat, guessLng, truthLat, truthLng, points, wasDaily] — an array rather
-// than an object because there are hundreds of them and the keys would be most
-// of the bytes.
-const HISTORY_KEY = 'guessr-history';
-// Oldest rounds fall off past this. It bounds three things at once: what
-// localStorage holds, how many Leaflet layers the all-time map creates (three
-// per round), and how legible the result is — past a few hundred lines the map
-// is a smear rather than a record.
-const MAX_HISTORY = 250;
 // What a scored round tells us about where it was, as opposed to how it went.
 // Kept apart because it is also what gets stored and replayed: a resumed or
 // finished day rebuilds its board from these, the frames coming from the
@@ -825,27 +815,11 @@ async function reveal() {
   else go.textContent = 'Next round';
 }
 
-// Saved after every reveal rather than only at the end, so a reload mid-game
-// resumes. Saving only the finished game let a player abandon a bad run, reload
-// into a fresh copy of the same five rounds, and replay them knowing the answers.
+// What a resumed day is rebuilt from. Written after every reveal rather than
+// only at the end, so a reload mid-game resumes where it left off.
 function saveProgress() {
-  try {
-    localStorage.setItem(STORE_KEY,
-      JSON.stringify({ day: gameDay, results, total, guesses,
-                       truths: game.slice(0, results.length).map(truthOf) }));
-  } catch { /* the day plays through; it just won't survive a reload */ }
-}
-
-// A save written before the answers moved server-side has no truths in it, and
-// they can't be recovered without re-scoring — those rounds simply sit out of
-// the board and the sheet caption. It self-corrects at the next daily.
-function restoreTruths(rounds, saved) {
-  (saved?.truths || []).forEach((t, i) => { if (rounds[i]) Object.assign(rounds[i], t); });
-}
-
-function savedDaily() {
-  try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); }
-  catch { return null; }
+  saveDaily({ day: gameDay, results, total, guesses,
+              truths: game.slice(0, results.length).map(truthOf) });
 }
 
 // Every use of the day number goes through here rather than calling dayNumber()
@@ -970,22 +944,6 @@ function showHistory() {
     ${swatch(DAILY_COLOUR)}<b>${daily} daily</b>,
     ${swatch(PRACTICE_COLOUR)}<b>${rounds.length - daily} practice</b>.
     Each line runs from your guess to the truth.`;
-}
-
-function loadHistory() {
-  try {
-    return JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
-  } catch {
-    return [];
-  }
-}
-
-function recordHistory(entry) {
-  const rounds = [...loadHistory(), entry].slice(-MAX_HISTORY);
-  // A full or disabled localStorage must not break the round in progress; the
-  // all-time map is the only thing that suffers.
-  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(rounds)); } catch { /* skip */ }
-  return rounds.length;
 }
 
 // The frame pane goes black when a game ends, which throws away half the
@@ -1406,15 +1364,6 @@ el('reset').addEventListener('click', () => {
 // which is where the stream and the bot live.
 const ABOUT_SEEN = 'guessr-about-seen', WELCOME_SEEN = 'guessr-welcome-seen';
 const welcome = el('welcome'), aboutDot = el('aboutdot');
-
-// localStorage throws in a Safari private window rather than returning null,
-// and neither of these is worth failing the page over.
-function seen(key) {
-  try { return !!localStorage.getItem(key); } catch { return true; }
-}
-function markSeen(key) {
-  try { localStorage.setItem(key, '1'); } catch { /* nothing to remember */ }
-}
 
 aboutDot.hidden = seen(ABOUT_SEEN);
 about.addEventListener('toggle', () => {

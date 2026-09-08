@@ -53,13 +53,33 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-      # On the standing-release-PR run (not the release-created run), collate
+      # Keyed off the branch existing, not `steps.release.outputs.pr`: that
+      # output is set only on runs where release-please itself changed the PR,
+      # and a push that leaves it empty skips the staging pass — so the PR
+      # merges with an unbuilt changelog and, because the app-token
+      # push is what fires its pull_request events, no CI at all
+      # (platform-gateway 1.27.1). curl rather than `gh`: the ARC runner image
+      # ships no gh CLI.
+      - name: Check for an open release PR branch
+        if: ${{ !steps.release.outputs.release_created }}
+        id: release-branch
+        run: |
+          code=$(curl -sS -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/branches/release-please--branches--main")
+          echo "Release branch lookup: HTTP $code"
+          echo "exists=$([ "$code" = 200 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # While a release PR is open (not on the release-created run), collate
       # the fragments onto the PR branch. Pushed with the app token so the push
       # fires the PR's pull_request events and the gates re-run against the
       # final release state. release-please recreates this branch from main on
       # every push, so the rebuild is idempotent.
       - name: Check out the release PR branch
-        if: ${{ steps.release.outputs.pr && !steps.release.outputs.release_created }}
+        if: ${{ steps.release-branch.outputs.exists == 'true' }}
         # zizmor: ignore[artipacked] the push at the end of this job is what
         # the persisted credential is for
         uses: actions/checkout@v7
@@ -68,8 +88,8 @@ jobs:
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
 
-      - uses: astral-sh/setup-uv@v9.0.0 # no floating major tag published
-        if: ${{ steps.release.outputs.pr && !steps.release.outputs.release_created }}
+      - uses: astral-sh/setup-uv@v10.0.1 # no floating major tag published
+        if: ${{ steps.release-branch.outputs.exists == 'true' }}
         with:
           # This job holds a write token and publishes a tag, so a poisoned
           # cache entry would be restored straight into the release path. The
@@ -77,7 +97,7 @@ jobs:
           enable-cache: false
 
       - name: Build the changelog on the release PR branch
-        if: ${{ steps.release.outputs.pr && !steps.release.outputs.release_created }}
+        if: ${{ steps.release-branch.outputs.exists == 'true' }}
         run: |
           set -euo pipefail
           # release-please bumped the manifest on this branch — that version is
@@ -85,6 +105,42 @@ jobs:
           # tag that gets cut.
           VERSION=$(jq -r '."."' .release-please-manifest.json)
           echo "Release version: $VERSION"
+
+          # A fragment still named "+<slug>.<type>.md" here missed its PR-time
+          # rename: changelog-number.yml checks out the head branch, and a merge
+          # that lands while that job is queued deletes the branch out from under
+          # it. The squash commit that put the fragment on main carries the PR
+          # number in its subject, so recover it from there — this is the last
+          # moment before towncrier turns fragments into permanent changelog
+          # lines, and it needs no branch to still exist.
+          for f in changelog.d/+*.md; do
+            [ -e "$f" ] || continue
+            subject="$(git log --diff-filter=A --format=%s -1 -- "$f")"
+            pr="$(printf '%s' "$subject" | sed -nE 's/.*\(#([0-9]+)\)$/\1/p')"
+            if [ -z "$pr" ]; then
+              echo "::warning title=Unnumbered changelog fragment::${f} has no PR number in the commit that added it (\"${subject}\") — its entry will publish without a link."
+              continue
+            fi
+            base="$(basename "$f" .md)"
+            type="${base##*.}"
+            # `towncrier create` de-duplicates its own output by appending a
+            # counter before .md, so a second +behind.behind.md arrives as
+            # +behind.behind.1.md and the last segment is that counter rather
+            # than the type. Read as the type it produces <PR>.1.md, a name
+            # towncrier rejects.
+            case "$type" in
+              *[!0-9]*) ;;                        # a real type, not a counter
+              *) stem="${base%.*}"; type="${stem##*.}" ;;
+            esac
+            target="changelog.d/${pr}.${type}.md"
+            n=0
+            while [ -e "$target" ]; do
+              n=$((n + 1))
+              target="changelog.d/${pr}.${type}.${n}.md"
+            done
+            echo "::notice title=Recovered changelog fragment::${f} -> ${target} (from #${pr})."
+            git mv "$f" "$target"
+          done
 
           # A release PR can legitimately carry no fragments (a fix: whose entry
           # was skip-changelog'd), which is no stanza rather than an error.

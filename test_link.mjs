@@ -16,7 +16,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { MOVE, SWEEP, onRequestPost } from './functions/api/link.js';
 import { linkUrl, parseLink } from './web/link.js';
-import { d1, post, schema } from './_d1.mjs';
+import { d1, post, schema, seedAnswers } from './_d1.mjs';
 
 const SCHEMA = schema();
 
@@ -25,6 +25,7 @@ const PHONE = 'phone-id', DESKTOP = 'desktop-id', STRANGER = 'stranger-id';
 function db(rows) {
   const d = new DatabaseSync(':memory:');
   d.exec(schema());
+  seedAnswers(d, rows.map(([, image]) => image));
   const insert = d.prepare(`INSERT INTO plays
     (date, player_id, image, km, points, handle) VALUES (?, ?, ?, ?, ?, ?)`);
   for (const [player, image, points] of rows) {
@@ -156,6 +157,7 @@ const owned = (d, player) => d.prepare(
 // and opening your own link on the browser that drew it is the obvious misuse.
 {
   const env = { ANSWERS: d1(SCHEMA) };
+  seedAnswers(env.ANSWERS.db, ['a.jpg', 'b.jpg', 'c.jpg']);
   const insert = env.ANSWERS.db.prepare(`INSERT INTO plays
     (date, player_id, image, km, points, handle) VALUES (?, ?, ?, ?, ?, ?)`);
   for (const image of ['a.jpg', 'b.jpg', 'c.jpg']) {
@@ -197,6 +199,7 @@ const owned = (d, player) => d.prepare(
 // plays instead of moving them.
 {
   const env = { ANSWERS: d1(SCHEMA) };
+  seedAnswers(env.ANSWERS.db, ['a.jpg', 'b.jpg']);
   const insert = env.ANSWERS.db.prepare(`INSERT INTO plays
     (date, player_id, image, km, points, handle) VALUES (?, ?, ?, ?, ?, ?)`);
   insert.run('2026-08-02', PHONE, 'a.jpg', 1.0, 100, 'Amber Basin');

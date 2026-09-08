@@ -1,0 +1,79 @@
+name: stage-schedule
+# Keep staging playable, so a preview deploy fails for reasons in its own diff.
+#
+# smoke.sh refuses a deployment that serves no game today, and every PR's
+# preview is smoke-tested against staging's D1 — so a lapsed staging schedule
+# turns the whole open queue red at once. On 2026-09-02 it did: staging was
+# eleven days past its last scheduled date and four unrelated PRs were red.
+#
+# Copies production's upcoming schedule rather than generating a set. The clips
+# bucket is shared (BUCKET in Taskfile.yml), so a mirror is a seconds-long
+# row copy needing none of what a generation needs — no corpus, no ffmpeg, no
+# scoring pass. That is why this can live here on a daily cron instead of
+# beside the weekly guessr-rounds CronJob in video-pipeline's cdk8s, which
+# exists precisely because a real generation needs the NFS mount and Postgres.
+#
+# Daily, not weekly. The cost is one horizon read on the days nothing is short,
+# and the cadence is what bounds how long a lapse can sit unnoticed — eleven
+# days is what it cost when nothing was watching at all.
+on:
+  schedule:
+    # 07:00 UTC. After the guessr-rounds top-up (Mondays 06:00 UTC, ~25 min at
+    # its CPU limit), so the Monday run mirrors a horizon that was just extended
+    # rather than the one it replaced.
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One at a time. A manual run fired while the cron is mid-copy would have both
+# rewriting the same upcoming schedule, and the loser's DELETE could land after
+# the winner's INSERT.
+concurrency:
+  group: stage-schedule
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: .tool-versions
+
+      # Exits having done nothing when staging is already playable through its
+      # horizon, which is what keeps it clear of a set under review: a
+      # `task rounds:publish` set is not short, so there is nothing to mirror
+      # and it is left alone.
+      # The only workflow here that needs D1 write out of CLOUDFLARE_API_TOKEN —
+      # every other use of that secret is `wrangler pages deploy`, which does
+      # not. So a token narrowed to Pages breaks this job and nothing else,
+      # which is not the sort of thing the failure would say on its own.
+      - name: Mirror production's schedule onto staging
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 mirror_stage.py
+
+      # Nothing else says a schedule cron went red, and this one is the reason
+      # the PR queue is not red — so its own failure has to be louder than an
+      # entry in a list nobody is watching at 07:00. continue-on-error keeps a
+      # dead webhook out of the job's status.
+      - name: Alert Discord on failure
+        if: failure()
+        continue-on-error: true
+        uses: Ilshidur/action-discord@0.4.0
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_ALERTS }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          # Points at the log rather than naming a cause: a failure here is
+          # either production having no schedule to copy or the copy not
+          # landing whole, and the run says which.
+          args: "guessr: staging's schedule mirror failed — preview deploys will go red until it lands. {{ RUN_URL }}"

@@ -7,6 +7,8 @@ date's five are chosen once, here, and written to `round_days`. The properties
 that mattered then still matter, they are just properties of this function:
 
 - a date's five come out in ramp order, because nothing downstream sorts them;
+- position 1 is the top-ranked round rather than the most locatable one, since
+  it is what a player judges the game on;
 - no round is ever scheduled twice, which is what stops a daily player meeting
   the same footage again;
 - a day is a spread of difficulties rather than a block of the pool.
@@ -26,7 +28,13 @@ import tempfile
 from datetime import date, timedelta
 from pathlib import Path
 
-from make_rounds import ROUNDS_PER_GAME, rounds_sql, schedule
+from make_rounds import (
+    DISTINCTIVENESS,
+    ROUNDS_PER_GAME,
+    rank,
+    rounds_sql,
+    schedule,
+)
 
 # Every migration in the order wrangler applies them, rather than one file
 # describing the shape: a migration that only works after another, or a table
@@ -37,12 +45,17 @@ SCHEMA = "\n".join(
 )
 START = date(2026, 9, 1)
 
+# The weight the pool these tests stand in for would have been ranked with.
+WEIGHT = DISTINCTIVENESS
+
 
 def pool(n: int) -> list[dict]:
     """A pool whose difficulty order is deliberately not its list order.
 
     (i * 37) % 250 scatters median_km, so a schedule that happens to preserve
-    insertion order comes out unramped and is caught.
+    insertion order comes out unramped and is caught. mean_cos is flat, so
+    rank() reduces to locatability and the ramp assertions below can read in
+    median_km; distinctiveness gets its own pool in first_round_is_top_ranked().
     """
     return [
         {
@@ -74,9 +87,39 @@ def by_date(days: list[tuple]) -> dict[str, list[dict]]:
     return out
 
 
+def first_round_is_top_ranked() -> None:
+    """The round dealt first is the pool's best on both signals, not its most
+    locatable.
+
+    Position 1 is what a player judges the game on while deciding whether to
+    engage, and ordering the deal on locatability alone puts a road nobody
+    remembers there -- the most placeable round of a day is routinely one of its
+    least distinctive.
+
+    Pinned with a pool whose two signals disagree at the top: median_km climbs
+    with i, so round 0 is the most locatable, but round 0 also has the pool's
+    lowest mean_cos while round 1 has its highest. Ranking on locatability alone
+    deals round 0 first; rank() deals round 1, which is what these two
+    assertions separate.
+    """
+    rounds = [
+        {
+            "image": f"clips/clip_{i:03d}-{(i + 1) * 1000:06d}.mp4",
+            "median_km": float(i),
+            "mean_cos": 0.02 if i == 0 else 0.02 + (50 - i) / 1000,
+        }
+        for i in range(50)
+    ]
+    days = schedule(rounds, START, 10, WEIGHT)
+    first = min(days, key=lambda x: (x[0], x[1]))
+    assert first[0] == START.isoformat() and first[1] == 1, first
+    assert first[2] == rank(rounds, WEIGHT)[0], first[2]
+    assert first[2] != min(rounds, key=lambda r: r["median_km"]), first[2]
+
+
 def main() -> None:
     rounds = pool(100)
-    days = schedule(rounds, START, 60)
+    days = schedule(rounds, START, 60, WEIGHT)
 
     # 100 rounds fills 20 days, not 60: a partial day is not scheduled at all,
     # because a game that is three rounds long is worse than one fewer day.
@@ -116,23 +159,23 @@ def main() -> None:
 
     # Order-independence: the schedule depends on which rounds exist and how hard
     # they are, never on the order make_rounds.py happened to emit them in.
-    assert by_date(schedule(list(reversed(rounds)), START, 60)) == games
+    assert by_date(schedule(list(reversed(rounds)), START, 60, WEIGHT)) == games
 
     # Deterministic. Two runs over the same pool must agree, or a re-push after a
     # failure writes a different game for a date already handed out.
-    assert by_date(schedule(rounds, START, 60)) == games
+    assert by_date(schedule(rounds, START, 60, WEIGHT)) == games
 
     # The horizon is a ceiling, not a target: a pool bigger than it leaves the
     # surplus queued rather than scheduling past it.
-    short = schedule(pool(100), START, 5)
+    short = schedule(pool(100), START, 5, WEIGHT)
     assert len({d for d, _, _ in short}) == 5
     assert len(short) == 25
 
     # Too few to fill a single day schedules nothing at all -- a four-round game
     # is not a game, and a partial one would be handed out as if it were whole.
-    assert schedule(pool(ROUNDS_PER_GAME - 1), START, 60) == []
-    assert schedule([], START, 60) == []
-    assert len(schedule(pool(ROUNDS_PER_GAME), START, 60)) == ROUNDS_PER_GAME
+    assert schedule(pool(ROUNDS_PER_GAME - 1), START, 60, WEIGHT) == []
+    assert schedule([], START, 60, WEIGHT) == []
+    assert len(schedule(pool(ROUNDS_PER_GAME), START, 60, WEIGHT)) == ROUNDS_PER_GAME
 
     # And the SQL, against the real DDL.
     with tempfile.TemporaryDirectory() as tmp:
@@ -155,7 +198,9 @@ def main() -> None:
         db2.executescript(SCHEMA)
         big = pool(60)
         db2.executescript(
-            rounds_sql(big, answers_for(big), "batch-2", schedule(big, START, 5))
+            rounds_sql(
+                big, answers_for(big), "batch-2", schedule(big, START, 5, WEIGHT)
+            )
         )
         assert dict(
             db2.execute("SELECT status, count(*) FROM rounds GROUP BY status")
@@ -201,7 +246,10 @@ def main() -> None:
             == "clips/o'brien-001000.mp4"
         )
 
+    first_round_is_top_ranked()
+
     print("ok: a day is five rounds, ramped, spanning the difficulty range")
+    print("ok: position 1 is the top-ranked round, not merely the most locatable")
     print("ok: the schedule is deterministic and never places a round twice")
     print("ok: the generated SQL loads, is re-runnable, and keeps a reject")
 

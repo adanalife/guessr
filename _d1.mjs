@@ -33,6 +33,21 @@ export function schema() {
     .join('\n');
 }
 
+// Seed the answer rows a set of plays needs.
+//
+// `plays.image` references `answers(image)` (migration 0004), so a fixture that
+// inserts plays straight into the table has to put their answers there first --
+// production cannot reach the insert without one either, since /api/score 404s
+// on a missing answer before it ever writes a play. The coordinates are
+// arbitrary: nothing that needs them takes this path.
+export function seedAnswers(db, images) {
+  const insert = db.prepare(
+    `INSERT INTO answers (image, lat, lng, state, filmed)
+     VALUES (?, 34.0, -118.0, 'CA', '2018-03-20')
+     ON CONFLICT (image) DO NOTHING`);
+  for (const image of new Set(images)) insert.run(image);
+}
+
 class Statement {
   constructor(db, sql, args = []) {
     this.db = db;

@@ -1,0 +1,36 @@
+# Third-party frontend assets vendored under web/, and the upstream release each
+# one was taken from. `task vendor:sync` re-downloads every file listed here,
+# `task vendor:check` asserts the copy on disk is still byte-identical to that
+# release, and `task vendor:latest` reports which pins have a newer release
+# waiting upstream.
+#
+# Bump by editing the version here and running `task vendor:sync` — never by
+# hand-editing a vendored file. These paths are excluded from pre-commit for the
+# same reason (see .pre-commit-config.yaml): a formatting hook that strips a
+# trailing newline or rewrites a line ending makes the copy no longer upstream's,
+# and the byte check can then never pass.
+#
+# `tag` is the npm dist-tag to watch for new releases; it is `latest` for both
+# packages here, but the column is per-asset because a package can publish its
+# next major under a different tag.
+#
+# The et-book fonts ship inside the tufte-css package — there is no et-book
+# release on npm — so their pin tracks tufte-css's version rather than a font
+# version of their own.
+#
+# web/et-book/LICENSE is deliberately absent: it is the typeface's own license
+# text from edwardtufte/et-book, which tufte-css does not redistribute and which
+# has no release to pin. It does not change.
+#
+# path                                      package    tag     version  url ({v} = version)
+leaflet/leaflet.js                          leaflet    latest  1.9.4    https://unpkg.com/leaflet@{v}/dist/leaflet.js
+leaflet/leaflet.css                         leaflet    latest  1.9.4    https://unpkg.com/leaflet@{v}/dist/leaflet.css
+leaflet/LICENSE                             leaflet    latest  1.9.4    https://unpkg.com/leaflet@{v}/LICENSE
+leaflet/images/layers.png                   leaflet    latest  1.9.4    https://unpkg.com/leaflet@{v}/dist/images/layers.png
+leaflet/images/layers-2x.png                leaflet    latest  1.9.4    https://unpkg.com/leaflet@{v}/dist/images/layers-2x.png
+leaflet/images/marker-icon.png              leaflet    latest  1.9.4    https://unpkg.com/leaflet@{v}/dist/images/marker-icon.png
+leaflet/images/marker-icon-2x.png           leaflet    latest  1.9.4    https://unpkg.com/leaflet@{v}/dist/images/marker-icon-2x.png
+leaflet/images/marker-shadow.png            leaflet    latest  1.9.4    https://unpkg.com/leaflet@{v}/dist/images/marker-shadow.png
+et-book/et-book-roman-line-figures.woff     tufte-css  latest  1.9.0    https://unpkg.com/tufte-css@{v}/et-book/et-book-roman-line-figures/et-book-roman-line-figures.woff
+et-book/et-book-bold-line-figures.woff      tufte-css  latest  1.9.0    https://unpkg.com/tufte-css@{v}/et-book/et-book-bold-line-figures/et-book-bold-line-figures.woff
+et-book/et-book-display-italic-old-style-figures.woff  tufte-css  latest  1.9.0  https://unpkg.com/tufte-css@{v}/et-book/et-book-display-italic-old-style-figures/et-book-display-italic-old-style-figures.woff

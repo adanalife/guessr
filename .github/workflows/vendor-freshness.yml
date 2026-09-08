@@ -1,0 +1,48 @@
+name: vendor-freshness
+
+# Guards the third-party frontend assets vendored under web/, and pinned in
+# vendor.txt: Leaflet and the et-book fonts.
+#
+# Two things happen here. `vendor.sh check` fails when a file on disk stops
+# matching the release it claims to be -- an in-place edit, or an upstream
+# re-publish under the same version. `vendor.sh latest` only reports, since a
+# new upstream release is news rather than breakage.
+#
+# The daily schedule is the point of this workflow. Nothing else notices a new
+# Leaflet: these assets have no manifest, so Dependabot has no ecosystem to read
+# them from -- a committed .js file is invisible to it. The byte check also runs
+# per-PR as a step of pr-gates.yml.
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '17 12 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  vendor-freshness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Assert vendored assets match their pinned releases
+        run: ./scripts/vendor.sh check
+
+      # Into the job summary as well as the log: a daily cron is read by
+      # opening the run, and a NEW line is the whole reason to open it.
+      - name: Report newer upstream releases
+        run: |
+          {
+            echo '```'
+            ./scripts/vendor.sh latest | tee /dev/stderr
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

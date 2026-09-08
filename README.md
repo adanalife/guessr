@@ -52,7 +52,7 @@ runs handlers against a stub of the D1 binding, so it proves logic and says
 nothing about routing, bindings, or how a real database answers, while `smoke.sh`
 needs something already deployed.
 
-`task serve` is a plain `http.server`, and it no longer serves a playable game:
+`task serve` is a plain `http.server`, and it does not serve a playable game:
 the rounds come from `/api/day` and the clips from a Function, neither of which a
 static server has. It is still the quickest way to work on anything that is not
 the game itself — the About panel, the changelog, layout above the fold.
@@ -86,7 +86,8 @@ answers). Push it last and the worst case is a date that is not scheduled yet,
 which nobody can see.
 
 **Two modes, one target each.** Bare, this builds a full fresh set for staging,
-whose schedule is disposable. With `--top-up` it writes production: read how far
+whose schedule is disposable — and disposable in the literal sense that the
+mirror above overwrites it once it lapses. With `--top-up` it writes production: read how far
 ahead the game is scheduled, generate only what is missing, never place a date
 inside the next three days, and exit having generated nothing at all on the weeks
 none of that is short.
@@ -105,10 +106,10 @@ No git, no deploy, no pull request. This used to open a PR to commit
 it could reach anyone — which meant a scheduled job would have needed a token with
 write access to a public repo's default branch. Rows in D1 need none of that.
 
-The trade, stated plainly rather than discovered later: `pr-gates` used to run
-`check.py` over the committed manifest, and there is no longer a PR for it to run
-on. `check.py` runs inside `publish.sh` before anything is pushed instead —
-earlier than the gate did, but on the generating machine's word alone — and
+The trade, stated plainly rather than discovered later: with round sets
+uncommitted, there is no PR for a gate to run `check.py` over a manifest on.
+`check.py` runs inside `publish.sh` before anything is pushed instead — earlier
+than a PR gate would, but on the generating machine's word alone — and
 `smoke.sh` measures a *deployed* clip's aspect ratio against every tier, which is
 the assertion that catches an uncropped HUD.
 
@@ -214,10 +215,10 @@ map tiles rather than on the page.
 
 `functions/` holds the endpoints. It is not served: Pages routes
 `functions/api/score.js` to `/api/score`, `functions/api/day.js` to `/api/day`,
-`functions/admin/day.js` to `/admin/day` and `functions/clips/[[path]].js` to
-everything under `/clips/`. The underscore-prefixed files — `_scoring.mjs`,
-`_json.mjs`, `_names.mjs` — are skipped by the router, so the handlers can
-import them.
+`functions/admin/day.js` to `/admin/day`, `functions/admin/players.js` to
+`/admin/players`, `functions/admin/board-note.js` to `/admin/board-note` and
+`functions/clips/[[path]].js` to everything under `/clips/`. The underscore-prefixed files — `_scoring.mjs`, `_json.mjs`,
+`_names.mjs` — are skipped by the router, so the handlers can import them.
 
 `/api/day` is what a date's game *is*: five rounds by name, in the order they
 play. `/api/score` checks a posted round against the same rows before it will
@@ -269,6 +270,16 @@ There is deliberately no `rounds:prod:push`. Production is reached only through
 `task rounds:topup`, whose contract — only what is missing, never inside the
 review window, never a clip the tier already holds — is exactly what a bare push
 of a fresh `rounds.sql` would not honour.
+
+Staging's schedule keeps itself filled, because it is what every preview deploy
+is smoke-tested against: a lapsed one turns the whole open PR queue red at once,
+for reasons in nobody's diff. The `stage-schedule` workflow mirrors
+production's upcoming schedule onto staging daily — a row copy rather than a
+generation, since one bucket holds the clips for every tier and only the rows
+are per-tier, so it needs no corpus and finishes in seconds. It exits having
+done nothing whenever staging is not short, which is what leaves a set under
+review in place. By hand: `task rounds:stage:mirror`, or `DRY_RUN=1` to read the
+script first.
 
 The databases are terraform, in `infra` alongside the Pages projects, and each
 tier has its own so a regeneration on one doesn't strand the other.
@@ -398,6 +409,12 @@ screen that can reorder while it's up. The **monthly** board is a running total
 over the current month and needs no closing rule, because a sum has nothing to
 settle.
 
+Each board pages back through its own spans: `&date=YYYY-MM-DD` on the daily one
+names a closed date, `&month=YYYY-MM` on the monthly one names a month. Crossing
+them is refused — a single date against a monthly sum names no span it could
+cover. A span that has settled is cached for an hour where a live one gets the
+minute the overlay polls at.
+
 It's a read the stream pulls, not a write the game pushes. The cluster tripbot
 runs in has no inbound path, deliberately, and a leaderboard isn't a reason to
 open one — so the game keeps scores where it already writes them and the bot
@@ -433,6 +450,23 @@ one renders, the stream overlay included — while `NOTE` is read by nothing and
 served by nothing. So a note alone recognises somebody without announcing what
 you recognised them by, which is usually the one you want. Either argument left
 empty clears it.
+
+The note has a page of its own, since it is the half you reach for most and the
+half that needs no decision: `/admin/notes` lists everyone who has played, most
+recent first, and takes a note against any of them. It is the same lookup as
+`stats:prod` with the write attached, so recognising a regular takes no copying
+of a player id between two terminals. It writes `note` and only `note` —
+setting a published `NAME` stays the task above, deliberately, because that one
+is a decision rather than a jotting.
+
+`/admin/board-note` is the same note reached from a board row instead of a list —
+`?board=&rank=` with an optional `date` or `month`, resolved by the same
+`atRank()` the `/api/guesses` drilldown uses. It exists for callers holding no
+player id, which is every caller outside this repo: an id is a write credential
+here, so the console that renders these boards addresses a player the only way
+it can, as the row it is looking at. Being under `/admin/` it takes the same
+Access login as everything else there, which from outside a browser means a
+service token.
 
 One thing this does *not* buy outright: the round sets published before scoring
 moved server-side carried their coordinates in `rounds.json`, and that file is in
@@ -602,19 +636,24 @@ so it turns up in roughly one game in eight.
 Finishing writes the day to `localStorage`, so today's round can't be replayed
 for a better result. Practice mode draws at random and is unlimited.
 
-A date's five arrive from `/api/day` already ordered easy to hard by `median_km`
+A date's five arrive from `/api/day` already ordered best round first, by the
+same `rank()` blend of locatability and distinctiveness the pool was chosen with
 (see [How rounds are chosen](#how-rounds-are-chosen)) — the ramp is applied when
-the date is scheduled, so the page does not sort and `median_km` is never sent at
-all. The ramp is felt, not shown; nothing in the header rates the round you are
-looking at.
+the date is scheduled, so the page does not sort and neither score is ever sent
+at all. Position 1 is ranked rather than merely the most placeable because it is
+the round a player judges the game on while deciding whether to engage, and the
+two signals correlate loosely enough that ordering on `median_km` alone put a
+near-median-distinctiveness round there. The ramp is felt, not shown; nothing in
+the header rates the round you are looking at.
 
 `test_schedule.py` covers the scheduling, because it fails invisibly. The
-properties it pins: a date's five come out in ramp order, no round is ever
-scheduled twice, the schedule does not depend on the order the pool was written
-in, and — the one worth a test rather than a glance — every day spans the
-difficulty range instead of sitting in one part of it. Dealing rounds out in
-blocks of five would satisfy everything else and produce a month that gets
-steadily harder rather than a game that does.
+properties it pins: a date's five come out in ramp order, position 1 is the
+top-ranked round rather than the most locatable one, no round is ever scheduled
+twice, the schedule does not depend on the order the pool was written in, and —
+the one worth a test rather than a glance — every day spans the difficulty range
+instead of sitting in one part of it. Dealing rounds out in blocks of five would
+satisfy everything else and produce a month that gets steadily harder rather
+than a game that does.
 
 `test_daily.mjs` covers what is left in `daily.js`: the date arithmetic and the
 play window, where a DST boundary that skips or repeats a day number files a
@@ -683,10 +722,10 @@ Rejecting a round is built (a button per round, replaced from the queue's tail);
 reordering a day is not. Looking is most of the value and it is what makes the
 rest worth having, so it went first.
 
-**Rounds no longer repeat.** A date's five are dealt from the pool once and
+**Rounds never repeat.** A date's five are dealt from the pool once and
 recorded, and `round_days_once` makes scheduling the same round twice impossible
-rather than merely unlikely. Under the reshuffling draw this replaced, a player
-who played all of the next 90 days met 233 of 300 rounds and saw a repeat about
+rather than merely unlikely. Measured against a reshuffling draw, a player who
+played all of the next 90 days met 233 of 300 rounds and saw a repeat about
 every other round.
 
 What that trades for is a finite corpus. Five a day is 1,825 rounds a year
