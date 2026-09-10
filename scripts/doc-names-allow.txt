@@ -1,0 +1,21 @@
+# Names the docs cite that are legitimately not in the repo, for
+# scripts/check-doc-names.py. One name per line; keep the reason beside it, so
+# an entry that stops being true is visible rather than inherited.
+
+# Generated round-set artifacts. Built by the publish pipeline and gitignored —
+# the docs describe them constantly and they are never committed.
+answers.sql
+answers.json
+rounds.json
+rounds.sql
+web/rounds.json
+web/version.json
+version.json
+
+# A naming template in the migrations section of the README, not a file.
+NNNN_snake_case_description.sql
+
+# Named in web/admin/notes.html to explain why the page is *not* called this:
+# Pages serves a page at its extensionless path, so players.html would answer at
+# /admin/players, which is the Function that page calls.
+players.html
