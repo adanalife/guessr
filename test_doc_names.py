@@ -18,8 +18,10 @@ spec.loader.exec_module(check)
 
 
 def test_task_pattern_needs_the_backticks():
-    assert check.TASK_REF.findall("run `task schema:stage:push` first") == [
-        "schema:stage:push"
+    # A real task name, because this file is scanned like every other: a made-up
+    # one here would be a finding, which is itself the gate working.
+    assert check.TASK_REF.findall("run `task schema:prod:apply` first") == [
+        "schema:prod:apply"
     ]
     # Prose is not a claim about the repo, so a bare mention must not match.
     assert check.TASK_REF.findall("this task above is a chore") == []
@@ -53,15 +55,7 @@ def test_every_allowlist_entry_is_still_absent():
 
     Otherwise the entry goes on suppressing whatever else cites that name.
     """
-    tracked = set(
-        subprocess.run(
-            ["git", "ls-files"],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.split()
-    )
+    tracked = set(check.tracked())
     for line in (ROOT / "scripts" / "doc-names-allow.txt").read_text().splitlines():
         entry = line.split("#", 1)[0].strip()
         if not entry:

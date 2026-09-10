@@ -39,10 +39,21 @@ BINARY = {".jpg", ".jpeg", ".png", ".ico", ".webp", ".mp4", ".gz", ".woff2", ".p
 
 
 def tracked() -> list[str]:
+    """Tracked files plus untracked ones git would add.
+
+    `git ls-files` alone hides a file that has been written but not staged,
+    which is the state a new reference is written in — the check would pass
+    locally and fail in CI on the same content. `--exclude-standard` keeps the
+    gitignored round-set artifacts out either way.
+    """
     out = subprocess.run(
-        ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
     )
-    return out.stdout.split()
+    return sorted(set(out.stdout.split()))
 
 
 def main() -> int:
@@ -79,9 +90,10 @@ def main() -> int:
                 ref = m.group(1)
                 if ref in allowed or ref in known_files:
                     continue
-                # A bare filename resolves against any directory: the docs write
-                # `check.py`, not `scripts/check.py`, and both are unambiguous
-                # here because no two tracked files share a basename.
+                # A bare filename resolves against any directory: the docs name
+                # a file without its directory constantly, and that is
+                # unambiguous here because no two tracked files share a
+                # basename.
                 if any(f.endswith("/" + ref) for f in known_files):
                     continue
                 findings.append(f"{rel}:{n}: no such file: `{ref}`")
