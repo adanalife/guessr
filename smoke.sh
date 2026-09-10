@@ -85,6 +85,35 @@ else
   echo "note: no local web/version.json, so nothing pins which build answers"
 fi
 
+# The page, which every assertion in this script was silent about until now. They
+# all read endpoints, and an endpoint answers perfectly while the page in front
+# of it is dead: the game lives in an inline module, so a named import the
+# deployed module does not export is a load-time SyntaxError and nothing in the
+# script runs -- markup and no game, on every browser at once. That is how a
+# blank game shipped past four green PR checks.
+#
+# deployed_imports.mjs fetches the served index.html and walks its module graph
+# out of this deployment. test_page.mjs asks the same of the working tree, which
+# is the refactor case; this is the one where the tree is fine and the tier
+# shipped a stale module beside a fresh page.
+#
+# Retried for the same reason the media check is: a module deployed a moment ago
+# can still be answered as the site's HTML by an edge that has not caught up, and
+# that is indistinguishable from a module which never shipped.
+imports_ok=""
+for attempt in 1 2 3 4 5; do
+  if out=$(node ./deployed_imports.mjs "$BASE" 2>&1); then imports_ok=1; break; fi
+  if [ "$attempt" -lt 5 ]; then sleep 3; fi
+done
+if [ -z "$imports_ok" ]; then
+  echo "::error::The deployed page's module imports do not resolve, so its script"
+  echo "::error::never runs and the game does not start -- the endpoints below say"
+  echo "::error::nothing about that. On 5 tries over ~15s:"
+  echo "$out" >&2
+  exit 1
+fi
+echo "$out"
+
 # And the round set, separately, because version.json moving does not mean the
 # game is playable. No part of a set is deployed, so the only useful question is
 # the one a player asks -- does this tier have a game for today?
