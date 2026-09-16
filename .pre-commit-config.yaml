@@ -78,6 +78,11 @@ repos:
         # the two gates disagree: a warning exits 0 here and 1 there, which is
         # how a real finding sat red in the sweep for three weeks looking flaky.
         args: [--error-on-warnings]
+        # The upstream hook's file list stops at js/ts/json/css. biome also
+        # lints the CSS inside an HTML <style> block, which is where this
+        # repo's stylesheet actually lives, so extend it — without html the
+        # gate would miss the one diagnostic that had the sweep red.
+        files: "\\.(jsx?|tsx?|c(js|ts)|m(js|ts)|jsonc?|css|html)$"
         additional_dependencies: ["@biomejs/biome@2.5.13"]
 
   # Conventional Commits — enforce `type(scope): summary` on commit messages so
