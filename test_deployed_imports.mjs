@@ -26,7 +26,7 @@ const MODULES = {
 // The site's HTML with a 200, which is what Pages answers for a path it holds
 // no file for -- the fixture's whole reason for existing.
 let page = PAGE('effectiveDay');
-let missing = new Set();
+const missing = new Set();
 
 const server = createServer((req, res) => {
   const path = req.url;
