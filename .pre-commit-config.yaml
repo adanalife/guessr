@@ -62,6 +62,24 @@ repos:
         args: [--fix]
       - id: ruff-format
 
+  # JavaScript: biome, the same linter the weekly super-linter sweep runs. Until
+  # this hook existed, ruff gated every Python file on every commit and nothing
+  # gated a .js or .mjs at all — the Pages functions and the game front-end were
+  # linted only by that weekly sweep, which reports to nobody when it goes red.
+  #
+  # lint only, never `biome check`: the format half wants to reformat
+  # release-please's own manifest and config JSON, which release-please then
+  # rewrites on its next run. super-linter.yml disables it for the same reason.
+  - repo: https://github.com/biomejs/pre-commit
+    rev: v0.6.1
+    hooks:
+      - id: biome-lint
+        # --error-on-warnings is what the weekly sweep runs with, and without it
+        # the two gates disagree: a warning exits 0 here and 1 there, which is
+        # how a real finding sat red in the sweep for three weeks looking flaky.
+        args: [--error-on-warnings]
+        additional_dependencies: ["@biomejs/biome@2.5.13"]
+
   # Conventional Commits — enforce `type(scope): summary` on commit messages so
   # history stays machine-parseable: it underpins release automation and gives
   # every contributor/agent the same commit grammar without re-explaining it.
