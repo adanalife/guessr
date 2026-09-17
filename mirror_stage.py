@@ -137,7 +137,7 @@ def rows_sql(
 def mirror_sql(rows: list[dict]) -> str:
     """The whole copy, as one script: pool, answers, schedule, statuses.
 
-    Ordered so it is applyable as written -- round_days.image references
+    Ordered so it can be applied as written -- round_days.image references
     rounds(image), so the pool has to land first.
     """
     if not rows:
