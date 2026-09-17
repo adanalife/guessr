@@ -459,6 +459,14 @@ of a player id between two terminals. It writes `note` and only `note` —
 setting a published `NAME` stays the task above, deliberately, because that one
 is a decision rather than a jotting.
 
+`/admin/scores` answers the other direction: a score has been shared with no
+name on it, and the only handle on it is the number. It lists one date's games
+highest-first with every pin beside the truth it was aiming at, and marks the
+ones matching a score typed into the box. A match is a shortlist rather than an
+answer — ties on a four-digit score are ordinary at this many players — which is
+why the guesses are there: two people who both scored 21,340 did not both drop a
+pin in the same wrong Portland.
+
 `/admin/board-note` is the same note reached from a board row instead of a list —
 `?board=&rank=` with an optional `date` or `month`, resolved by the same
 `atRank()` the `/api/guesses` drilldown uses. It exists for callers holding no
