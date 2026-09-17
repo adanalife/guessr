@@ -19,3 +19,7 @@ NNNN_snake_case_description.sql
 # Pages serves a page at its extensionless path, so players.html would answer at
 # /admin/players, which is the Function that page calls.
 players.html
+
+# Named in web/admin/scores.html for the same reason, one page over: plays.html
+# would answer at /admin/plays, which is the Function that page calls.
+plays.html
