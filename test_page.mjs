@@ -31,6 +31,7 @@ const PAGES = [
   { path: 'web/admin/index.html', imports: 2, ids: 5 },
   { path: 'web/admin/notes.html', imports: 1, ids: 3 },
   { path: 'web/admin/scores.html', imports: 2, ids: 4 },
+  { path: 'web/admin/openers.html', imports: 1, ids: 2 },
 ];
 
 // Only a page's own modules. Anything from a CDN or a vendored global is loaded
