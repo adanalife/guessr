@@ -18,7 +18,7 @@
 // A note is prose about a person, and the length is the only thing worth
 // refusing: a paste that ran away is not a note, and the column is read by
 // people rather than by anything that would trim it.
-export const MAX_NOTE = 500;
+const MAX_NOTE = 500;
 
 // What is wrong with a submitted note, or null when nothing is. Absent and empty
 // are the same instruction -- clear it -- so a page can send an emptied field

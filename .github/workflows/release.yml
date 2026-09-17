@@ -85,8 +85,9 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           VERSION_TAG: ${{ github.ref_name }}
         with:
-          # Link the tagged CHANGELOG.md, not a payload `compare` URL: releases
-          # dispatch via workflow_dispatch, whose event payload has no `compare`.
+          # Link the tagged CHANGELOG.md rather than a commit range. The notes
+          # are what a release is to anyone reading this channel; a compare URL
+          # is a list of subject lines addressed to whoever wrote them.
           #
           # One wording fleet-wide, so a release reads the same whichever repo
           # it came from. The notes are publishable as-is here: towncrier's
