@@ -124,4 +124,18 @@ for board in daily monthly; do
   check "the $board board reads" 200 "$(status "$BASE/api/leaderboard?board=$board")"
 done
 
+# A player's own games, which is the play just recorded read back the other way.
+# Today is still open, so the row comes back without a share link -- the gate and
+# the listing in one assertion.
+check "a player reads their own games" 200 \
+  "$(status -X POST "$BASE/api/games" -H 'content-type: application/json' \
+     -d '{"player_id":"a3f1c2d4-0000-4000-8000-000000000000"}')"
+jq -e --arg d "$today" '[.games[] | select(.date == $d and .token == null)] | length == 1' \
+  /tmp/int-body.json >/dev/null || fail "today's game was missing, or came with a share link"
+
+# And the recap refuses it, which is the same rule enforced at the other end --
+# the one that matters, since this is the endpoint a stranger holds a URL to.
+check "a recap of a day still in play is refused" 403 \
+  "$(status "$BASE/api/recap?date=$today&r=000000000000")"
+
 echo "ok: the game runs end to end against a real local D1"
