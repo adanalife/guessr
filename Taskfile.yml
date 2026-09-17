@@ -448,6 +448,11 @@ tasks:
     cmds:
       - ./scripts/vendor.sh latest
 
+  check:names:
+    desc: Assert every backticked `task <name>` and repo-relative path in the docs resolves
+    cmds:
+      - ./scripts/check-doc-names.py
+
   test:
     desc: Run the tests that need no corpus and no database to be running (daily
       draw, leaderboard aliases and ranking, frame zoom, scoring, request

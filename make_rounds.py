@@ -450,6 +450,72 @@ def psql_invocation(
     }
 
 
+SCORE_COLUMNS = 11
+"""Columns `SCORE_SQL` projects, and so the width `parse_scored` unpacks.
+
+Named once because the two are coupled by position: add, drop or reorder a
+column in the query's outer SELECT and the tuple below has to move with it.
+test_score_rows.py asserts the query still projects this many, because the
+mismatch is otherwise silent -- an unexpected width is skipped as a psql
+acknowledgement line, so a changed query returns an empty pool rather than an
+error, and the generator produces nothing while reporting nothing.
+"""
+
+
+def parse_scored(
+    out: str,
+    k: int,
+    max_radius_m: float = MAX_RADIUS_M,
+) -> list[dict]:
+    """The scored rows carried by psql's tab-separated `out`, best-first.
+
+    Split out of score_candidates so the filters below can be exercised without
+    a corpus: everything downstream of this parse is already tested against the
+    row shape, and this is where the row shape is decided.
+    """
+    rows = []
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) != SCORE_COLUMNS:  # skip the SET / setseed acknowledgements
+            continue
+        (
+            slug,
+            ts,
+            source_ts,
+            lat,
+            lng,
+            travel_m,
+            state,
+            filmed,
+            median_km,
+            n,
+            mean_cos,
+        ) = parts
+        if not median_km or int(n) < k:
+            continue  # too few neighbours survived the filter to trust the median
+        # A round whose circle would be wider than the ceiling is dropped rather
+        # than widened: see MAX_RADIUS_M. Floored the other way, because the
+        # coordinate is not exact even where the van was stopped.
+        radius_m = max(float(travel_m), MIN_RADIUS_M)
+        if radius_m > max_radius_m:
+            continue
+        rows.append(
+            {
+                "slug": slug,
+                "ts": float(ts),
+                "source_ts": float(source_ts),
+                "lat": float(lat),
+                "lng": float(lng),
+                "radius_m": round(radius_m, 1),
+                "state": state,
+                "filmed": filmed[:10],
+                "median_km": round(float(median_km), 1),
+                "mean_cos": round(float(mean_cos), 4),
+            }
+        )
+    return rows
+
+
 def score_candidates(
     namespace: str,
     pool: int,
@@ -489,47 +555,7 @@ def score_candidates(
             "DATABASE_HOST is set, which needs a psql client on PATH."
         )
 
-    rows = []
-    for line in out.splitlines():
-        parts = line.split("\t")
-        if len(parts) != 11:  # skip the SET / setseed acknowledgements
-            continue
-        (
-            slug,
-            ts,
-            source_ts,
-            lat,
-            lng,
-            travel_m,
-            state,
-            filmed,
-            median_km,
-            n,
-            mean_cos,
-        ) = parts
-        if not median_km or int(n) < k:
-            continue  # too few neighbours survived the filter to trust the median
-        # A round whose circle would be wider than the ceiling is dropped rather
-        # than widened: see MAX_RADIUS_M. Floored the other way, because the
-        # coordinate is not exact even where the van was stopped.
-        radius_m = max(float(travel_m), MIN_RADIUS_M)
-        if radius_m > max_radius_m:
-            continue
-        rows.append(
-            {
-                "slug": slug,
-                "ts": float(ts),
-                "source_ts": float(source_ts),
-                "lat": float(lat),
-                "lng": float(lng),
-                "radius_m": round(radius_m, 1),
-                "state": state,
-                "filmed": filmed[:10],
-                "median_km": round(float(median_km), 1),
-                "mean_cos": round(float(mean_cos), 4),
-            }
-        )
-    return rows
+    return parse_scored(out, k, max_radius_m)
 
 
 def available(scored: list[dict]) -> list[dict]:

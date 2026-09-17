@@ -56,7 +56,7 @@ runs handlers against a stub of the D1 binding, so it proves logic and says
 nothing about routing, bindings, or how a real database answers, while `smoke.sh`
 needs something already deployed.
 
-`task serve` is a plain `http.server`, and it no longer serves a playable game:
+`task serve` is a plain `http.server`, and it does not serve a playable game:
 the rounds come from `/api/day` and the clips from a Function, neither of which a
 static server has. It is still the quickest way to work on anything that is not
 the game itself — the About panel, the changelog, layout above the fold.
@@ -110,10 +110,10 @@ No git, no deploy, no pull request. This used to open a PR to commit
 it could reach anyone — which meant a scheduled job would have needed a token with
 write access to a public repo's default branch. Rows in D1 need none of that.
 
-The trade, stated plainly rather than discovered later: `pr-gates` used to run
-`check.py` over the committed manifest, and there is no longer a PR for it to run
-on. `check.py` runs inside `publish.sh` before anything is pushed instead —
-earlier than the gate did, but on the generating machine's word alone — and
+The trade, stated plainly rather than discovered later: with round sets
+uncommitted, there is no PR for a gate to run `check.py` over a manifest on.
+`check.py` runs inside `publish.sh` before anything is pushed instead — earlier
+than a PR gate would, but on the generating machine's word alone — and
 `smoke.sh` measures a *deployed* clip's aspect ratio against every tier, which is
 the assertion that catches an uncropped HUD.
 
@@ -219,10 +219,10 @@ map tiles rather than on the page.
 
 `functions/` holds the endpoints. It is not served: Pages routes
 `functions/api/score.js` to `/api/score`, `functions/api/day.js` to `/api/day`,
-`functions/admin/day.js` to `/admin/day` and `functions/clips/[[path]].js` to
-everything under `/clips/`. The underscore-prefixed files — `_scoring.mjs`,
-`_json.mjs`, `_names.mjs`, `_recap.mjs` — are skipped by the router, so the
-handlers can import them.
+`functions/admin/day.js` to `/admin/day`, `functions/admin/players.js` to
+`/admin/players`, `functions/admin/board-note.js` to `/admin/board-note` and
+`functions/clips/[[path]].js` to everything under `/clips/`. The underscore-prefixed files — `_scoring.mjs`, `_json.mjs`,
+`_names.mjs`, `_recap.mjs` — are skipped by the router, so the handlers can import them.
 
 `/api/day` is what a date's game *is*: five rounds by name, in the order they
 play. `/api/score` checks a posted round against the same rows before it will
@@ -454,6 +454,23 @@ one renders, the stream overlay included — while `NOTE` is read by nothing and
 served by nothing. So a note alone recognises somebody without announcing what
 you recognised them by, which is usually the one you want. Either argument left
 empty clears it.
+
+The note has a page of its own, since it is the half you reach for most and the
+half that needs no decision: `/admin/notes` lists everyone who has played, most
+recent first, and takes a note against any of them. It is the same lookup as
+`stats:prod` with the write attached, so recognising a regular takes no copying
+of a player id between two terminals. It writes `note` and only `note` —
+setting a published `NAME` stays the task above, deliberately, because that one
+is a decision rather than a jotting.
+
+`/admin/board-note` is the same note reached from a board row instead of a list —
+`?board=&rank=` with an optional `date` or `month`, resolved by the same
+`atRank()` the `/api/guesses` drilldown uses. It exists for callers holding no
+player id, which is every caller outside this repo: an id is a write credential
+here, so the console that renders these boards addresses a player the only way
+it can, as the row it is looking at. Being under `/admin/` it takes the same
+Access login as everything else there, which from outside a browser means a
+service token.
 
 ### Sharing a finished game
 
@@ -739,10 +756,10 @@ Rejecting a round is built (a button per round, replaced from the queue's tail);
 reordering a day is not. Looking is most of the value and it is what makes the
 rest worth having, so it went first.
 
-**Rounds no longer repeat.** A date's five are dealt from the pool once and
+**Rounds never repeat.** A date's five are dealt from the pool once and
 recorded, and `round_days_once` makes scheduling the same round twice impossible
-rather than merely unlikely. Under the reshuffling draw this replaced, a player
-who played all of the next 90 days met 233 of 300 rounds and saw a repeat about
+rather than merely unlikely. Measured against a reshuffling draw, a player who
+played all of the next 90 days met 233 of 300 rounds and saw a repeat about
 every other round.
 
 What that trades for is a finite corpus. Five a day is 1,825 rounds a year

@@ -4,6 +4,22 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.11.1 — 2026-09-07
+
+### Fixed
+
+- The schedule check now counts every still-open date instead of starting its horizon at UTC midnight. A date is playable until 12:00 UTC the day after it, so through the Americas evening the check was counting the schedule from tomorrow forward — a date people were still playing could be short, or missing entirely, with nothing reporting it. Its test read its dates off local midnight while the query read UTC, which also made `task test` fail on an unmodified `main` from 20:00 EDT until midnight. ([#186](https://github.com/adanalife/guessr/pull/186))
+- Documentation and comment pass: the README and two code comments described changes rather than the code as it stands ("no longer serves", "used to run", "Rounds no longer repeat"), which reads as a changelog to anyone arriving without the diff. Rewritten in present tense; the measurements and rationale they carried are kept. ([#187](https://github.com/adanalife/guessr/pull/187))
+
+## v1.11.0 — 2026-09-06
+
+### Behind the scenes
+
+- The map and the typeface the game borrows from elsewhere now record exactly which release they came from, and a daily check makes sure nobody has quietly changed them. ([#181](https://github.com/adanalife/guessr/pull/181))
+- The release PR's changelog is now collated on every push to main while its branch exists, not only on the runs where release-please itself touched the PR — the gap that could let a release merge with an unbuilt changelog and no checks. ([#182](https://github.com/adanalife/guessr/pull/182))
+- Whoever runs the game can now jot a private note against a player from the admin pages, rather than from a terminal — a reminder of who a regular is. Nothing about it is ever shown to anyone playing. ([#183](https://github.com/adanalife/guessr/pull/183))
+- A note about a player can now be written straight from a leaderboard row, so the same jotting is reachable from the stream console as well as from the game's own admin pages. ([#184](https://github.com/adanalife/guessr/pull/184))
+
 ## v1.10.0 — 2026-09-03
 
 ### New

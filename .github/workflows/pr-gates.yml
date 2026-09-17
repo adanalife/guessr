@@ -106,6 +106,16 @@ jobs:
       - name: Python tests
         run: for f in test_*.py; do echo "== $f"; python3 "$f" || exit 1; done
 
+      # A name in the docs is a claim about the repo, and a wrong one has shipped
+      # in the worst place available: an invented `schema:stage:push` task, named
+      # in the 500 body of /api/day, where a player reads it. This
+      # resolves every backticked `task <name>` against the Taskfile and every
+      # backticked repo-relative path against the tracked files. Names that are
+      # legitimately absent (gitignored round-set artifacts, a naming template)
+      # live in scripts/doc-names-allow.txt with their reason.
+      - name: Every name the docs cite resolves
+        run: ./scripts/check-doc-names.py
+
       # The migrations are hand-written DDL that nothing else parses until
       # someone runs `task schema:prod:apply`, where a typo is discovered against
       # the production database. sqlite3 is D1's own engine and ships on the

@@ -101,7 +101,7 @@ export async function onRequestGet() {
   // rate a single attempt is the difference between a board that usually shows
   // the stream and one that often does not. A second attempt is free on the path
   // that already worked, and it is a real attempt rather than the same cached
-  // failure read again, because errors are no longer cached.
+  // failure read again, because cacheTtlByStatus above caches no error.
   //
   // Not a third. The point is to survive one bad roll, and a player waiting on
   // the sixth cell of a contact sheet should not wait on a chain of timeouts.
