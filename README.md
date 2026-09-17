@@ -730,6 +730,24 @@ Rejecting a round is built (a button per round, replaced from the queue's tail);
 reordering a day is not. Looking is most of the value and it is what makes the
 rest worth having, so it went first.
 
+**Saying a day is fine is built too.** *Mark reviewed* writes the date to
+`day_reviews` (migration `0006`) through `POST /admin/review`, and `/admin/day`
+reports it back, so "reviewed out to here" is a different question from
+"scheduled out to here" — without it, a day nobody opened and a day looked at
+and found fine are the same rows. It comes off the same way it went on, and it
+is refused once a date has opened: that schedule is frozen, so a review of it
+could no longer have withheld anything.
+
+A review describes five particular rounds, so **rejecting out of a reviewed day
+clears the mark**, in the same transaction that does the swap — a day left
+reading as reviewed with a round nobody has seen in it is exactly the state the
+mark exists to rule out. The day given up to pay for a replacement loses its
+mark too, since it is no longer scheduled at all.
+
+It gates nothing. Generation keeps its three-day lead precisely so that review
+stays possible and never required, and a rule that refused to publish an
+unreviewed day would turn a missed evening into a date with no game.
+
 **Rounds never repeat.** A date's five are dealt from the pool once and
 recorded, and `round_days_once` makes scheduling the same round twice impossible
 rather than merely unlikely. Measured against a reshuffling draw, a player who

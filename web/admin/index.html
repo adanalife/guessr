@@ -58,6 +58,14 @@
 <div id="map"></div>
 <p id="legend" class="dim"></p>
 <p id="queue"></p>
+<!-- Below the price of a Reject and above the rounds, which is the order a
+     review happens in: read what a change costs, look at the five, then say
+     you looked. Hidden until a day is loaded, since there is nothing to review
+     before that. -->
+<p id="reviewline" hidden>
+  <button type="button" id="review" class="secondary"></button>
+  <span id="reviewed" class="dim"></span>
+</p>
 <ol id="rounds"></ol>
 
 <script src="/leaflet/leaflet.js"></script>
@@ -214,6 +222,7 @@ async function show(date) {
   // Cleared with them, so a date that comes back 404 does not leave the previous
   // day's numbers sitting above an empty list as if they described it.
   el('queue').textContent = '';
+  el('reviewline').hidden = true;
   el('meta').textContent = 'loading…';
 
   let res, body;
@@ -249,6 +258,54 @@ async function show(date) {
   el('meta').classList.toggle('live', body.open);
   el('rounds').innerHTML = body.rounds.map(r => render(r, date)).join('');
   drawMap(body.pool, body.rounds);
+  showReview(date, body.reviewed_at);
+}
+
+// The approve half. A day nobody has opened and a day looked at and found fine
+// are the same rows without this, so the mark is the only thing that can tell
+// the horizon "reviewed out to here" from "scheduled out to here".
+//
+// Gone entirely once a date has opened, for the reason the Reject button is:
+// its schedule is frozen, so a review of it could no longer have withheld
+// anything. What was recorded before it opened still shows, because that is
+// the fact -- somebody did look, while looking still mattered.
+function showReview(date, reviewedAt) {
+  el('reviewline').hidden = false;
+  el('review').hidden = !editable(date);
+  el('review').textContent = reviewedAt ? 'Un-review' : 'Mark reviewed';
+  el('review').dataset.reviewed = reviewedAt ? '1' : '';
+  el('reviewed').textContent = reviewedAt
+    ? `reviewed ${reviewedAt} UTC`
+    : 'not reviewed';
+}
+
+// Recording a review, and saying so where the result of every other action on
+// this page is said.
+//
+// No confirmation, unlike Reject: this writes one row nobody reads as a
+// decision, and taking it back is the same button again. Disabled for the
+// round trip so a double-press cannot race two writes at one date.
+async function onReview() {
+  const date = el('date').value;
+  const reviewed = !el('review').dataset.reviewed;
+  el('review').disabled = true;
+  try {
+    const res = await request('/admin/review', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ date, reviewed }),
+    });
+    const out = await res.json();
+    if (!res.ok) {
+      el('meta').textContent = out.error || `review failed (${res.status})`;
+      return;
+    }
+    showReview(date, out.reviewed_at);
+  } catch {
+    el('meta').textContent = 'could not reach /admin/review';
+  } finally {
+    el('review').disabled = false;
+  }
 }
 
 // Reject, and say what it cost. A rejection is paid for out of the schedule's
@@ -289,6 +346,7 @@ el('rounds').addEventListener('click', e => {
   if (btn) onReject(btn.dataset.image);
 });
 
+el('review').addEventListener('click', onReview);
 el('date').addEventListener('change', e => show(e.target.value));
 el('prev').addEventListener('click', () => show(shift(el('date').value, -1)));
 el('next').addEventListener('click', () => show(shift(el('date').value, 1)));
