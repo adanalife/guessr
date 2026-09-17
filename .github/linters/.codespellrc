@@ -1,4 +1,7 @@
 [codespell]
 # isPlay is a scoring flag (functions/_scoring.mjs and its callers); codespell
 # reads it as a misspelling of "display".
-ignore-words-list = isplay
+# unparseable: a legitimate spelling (test_storage.mjs's assertion messages);
+# codespell wants "unparsable". Four other repos in the fleet carry the same
+# entry — it is the one word the whole fleet shares.
+ignore-words-list = isplay,unparseable
