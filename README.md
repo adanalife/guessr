@@ -479,10 +479,15 @@ service token.
 One thing this does *not* buy outright: the round sets published before scoring
 moved server-side carried their coordinates in `rounds.json`, and that file is in
 this repo's git history. The current set is a later regeneration and most of it
-is clear of them, but 34 of its 300 rounds are cut from a clip that also appeared
+is clear of them, but some of its rounds are cut from a clip that also appeared
 in one of those sets — and those sets' coordinates were clip-level, so for those
 the answer is a couple of kilometres and a `git log` away. The endpoint is the
 mechanism; a set with no overlap at all is what would make it the guarantee.
+
+How many is a query rather than a number to keep here: the pool grows with every
+weekly top-up, so it is the live `rounds` table joined against the slugs in
+`git log -p -- web/rounds.json` — six commits, the last of them
+[`c7b7b58`](https://github.com/adanalife/guessr/commit/c7b7b58).
 
 A regeneration replaces every clip under `web/clips/` and rewrites the four files
 beside the repo — so **a generation that fails leaves the current one alone.**
@@ -864,10 +869,10 @@ clips:push` will not upload a set that fails it.
   round into a chosen slot is not.
 - **A round set with no source clip in common with the pre-server-side sets.**
   Those sets carried their coordinates in a committed manifest, which is in this
-  repo's history (see *The rows a round set is* above). 34 of the current 300
+  repo's history (see *The rows a round set is* above). Some of the current
   rounds are cut from a clip one of them used, and truth was clip-level — so
-  those 34 are worth only as much as the player's disinclination to run
-  `git log`. Fine for a beta; a regeneration closes it.
+  those are worth only as much as the player's disinclination to run `git log`.
+  Fine for a beta; a regeneration closes it.
 
 ## Licence
 
