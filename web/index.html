@@ -201,7 +201,18 @@
   #sheet .live .cap { position: static; margin-top: .4rem; background: none;
                       color: var(--color-text); line-height: 1.35;
                       font-size: .82rem; font-weight: 400; }
-  #mapwrap { min-height: 0; }
+  #mapwrap { min-height: 0; position: relative; }
+  /* Over the map rather than in the footer, because the footer line is the
+     round's -- it says where the answer was and what the guess scored, and
+     losing that to a tile problem trades one missing thing for another. Pointer
+     events off so it cannot eat the click that places a pin: a map with no
+     tiles is still a map that can be guessed on, which is the whole reason for
+     saying so rather than blocking. */
+  #tilewarn { position: absolute; z-index: 500; left: .5rem; right: .5rem; top: .5rem;
+              margin: 0; padding: .35rem .5rem; pointer-events: none;
+              background: var(--color-bg); color: var(--color-muted);
+              border: 1px solid var(--color-muted); border-radius: 3px;
+              font-size: .78rem; text-align: center; }
   #map { height: 100%; background: var(--color-bg); }
   /* While a round is being guessed the frame takes the whole pane and the map
      rides over its bottom-right corner. The frame is 1280px wide and squinting
@@ -394,7 +405,9 @@
   <!-- Leaflet writes `position: relative` inline on its own container, which
        beats any stylesheet rule, so the minimap is positioned by this wrapper
        rather than by #map itself. -->
-  <div id="mapwrap"><div id="map"></div></div>
+  <div id="mapwrap"><div id="map"></div>
+    <p id="tilewarn" hidden>The map is having trouble loading. You can still drop a pin
+      &mdash; the grid is the same.</p></div>
 </main>
 <footer>
   <button type="button" id="go" disabled>Drop a pin to guess</button>
@@ -513,9 +526,29 @@ async function scoreGuess(image, latlng, date) {
 }
 
 const map = L.map('map', { worldCopyJump: false });
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18, attribution: '&copy; OpenStreetMap'
 }).addTo(map);
+
+// Say so when the basemap is not coming. The tiles are fetched straight from
+// OSM's public servers with no key and no fallback, so the ways this happens
+// are all outside the game -- the player's connection, a captive portal, or
+// OSM declining to serve us -- and the symptom is identical to a map that is
+// simply grey here: a pin on an empty background, with nothing saying whether
+// waiting would help.
+//
+// Three failures rather than one, because a single tile 404s at the edge of the
+// world routinely and one bad fetch is not an outage. Any tile that does arrive
+// clears it, so a patchy connection recovers on its own.
+const TILE_FAILURES = 3;
+let tileErrors = 0;
+tiles.on('tileerror', () => {
+  if (++tileErrors >= TILE_FAILURES) el('tilewarn').hidden = false;
+});
+tiles.on('tileload', () => {
+  tileErrors = 0;
+  el('tilewarn').hidden = true;
+});
 
 // Every round opens on the whole playable area — the lower 48, the same box
 // check.py bounds the answers to. Fitted rather than a fixed zoom because the
