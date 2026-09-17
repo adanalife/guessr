@@ -4,6 +4,25 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.12.0 — 2026-09-17
+
+### New
+
+- The About panel offers one step back after a name reroll — the name you just replaced, until you draw another. ([#195](https://github.com/adanalife/guessr/pull/195))
+- `/admin/scores` turns a shared score back into a player: one date's games, highest first, with every guess beside the answer it was aiming at. ([#197](https://github.com/adanalife/guessr/pull/197))
+- The map says when its tiles are not loading, instead of showing an empty grey square. ([#202](https://github.com/adanalife/guessr/pull/202))
+- The day preview can mark a day reviewed, so an upcoming schedule shows what somebody has actually looked at. ([#205](https://github.com/adanalife/guessr/pull/205))
+
+### Behind the scenes
+
+- Every deploy now checks that the live page's code all loads before the site is called healthy, so a broken build can't quietly serve a page where nothing happens when you press play. ([#192](https://github.com/adanalife/guessr/pull/192))
+- A `pr-gates` step fails a PR that cites a task or a repo-relative path which does not exist — the class of bug that once put an invented task name in a 500 body players could read. ([#193](https://github.com/adanalife/guessr/pull/193))
+- JavaScript is now linted on every commit by biome, the same linter the weekly sweep runs — until now only Python was gated per-commit. ([#194](https://github.com/adanalife/guessr/pull/194))
+- Two constants stopped being exported from files nothing imports them from, and the release post says why it links the changelog. ([#198](https://github.com/adanalife/guessr/pull/198))
+- The weekly spell-check sweep stops flagging `unparseable`, a word the test suite spells correctly. ([#200](https://github.com/adanalife/guessr/pull/200))
+- The README states the pre-server-side coordinate leak as something to count rather than a fixed number the weekly top-ups had already made wrong. ([#203](https://github.com/adanalife/guessr/pull/203))
+- Release-please now runs serially, can be re-run by hand, and is recognized by branch prefix — two overlapping runs can no longer half-update the release PR, a stale release branch can be rebased off current main without waiting for a releasable commit, and the changelog gate exempts any release-please branch rather than only the single-package one. ([#204](https://github.com/adanalife/guessr/pull/204))
+
 ## v1.11.1 — 2026-09-07
 
 ### Fixed
