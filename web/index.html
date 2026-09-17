@@ -312,6 +312,10 @@
            field: keep drawing until one reads right. -->
       <p id="identity">Your leaderboard name is <b id="alias"></b><br>
         <button type="button" id="reroll" class="secondary" title="Draw another name">Generate new name</button>
+        <!-- Only ever the one name back: shown when a reroll has something to
+             undo, gone again the moment it is taken. -->
+        <button type="button" id="undo" class="secondary" hidden
+          title="Go back to the name before the last reroll">Undo</button>
         <!-- Playing on a phone and a desktop otherwise puts the same person on
              the board twice. The code carries the player id, so scanning it
              from the other device is the whole mechanism. -->
@@ -427,7 +431,8 @@ import { linkUrl, parseLink } from './link.js';
 import { request } from './request.js';
 import { bandFor, scoreLine, shareText } from './share.js';
 import {
-  loadHistory, markSeen, recordHistory, restoreTruths, saveDaily, savedDaily, seen,
+  loadHistory, markSeen, previousAlias, recordHistory, restoreTruths, saveDaily, savedDaily,
+  seen,
 } from './storage.js';
 import { fitScale, fitView, panView, zoomAbout } from './zoom.js';
 
@@ -1249,13 +1254,29 @@ const myAlias = alias();
 if (myAlias) showAlias(myAlias);
 else el('identity').hidden = true;
 
+// Offered only when there is a name to go back to.
+const showUndo = () => { el('undo').hidden = !previousAlias(); };
+showUndo();
+
 el('reroll').addEventListener('click', () => {
   // Drawn until it differs: with 2,401 to choose from, landing on the name you
   // just rejected is rare, but a button that visibly does nothing reads as
   // broken.
   let next = aliasFrom();
   while (next === el('alias').textContent) next = aliasFrom();
+  previousAlias(el('alias').textContent);
   showAlias(alias(next));
+  showUndo();
+});
+
+el('undo').addEventListener('click', () => {
+  const back = previousAlias();
+  if (!back) return;
+  // Forgotten as it is taken, so this is one step back rather than a history to
+  // walk. The next reroll fills it again.
+  previousAlias('');
+  showAlias(alias(back));
+  showUndo();
 });
 
 // Linking a second device, so that playing on a phone and a desktop places one
