@@ -38,6 +38,33 @@ jobs:
       - name: Stamp the build
         run: |
           printf '{"label":"main@%s","tier":"staging"}\n' "${GITHUB_SHA::7}" > web/version.json
+      # A deploy whose migrations are not applied is the outage this step
+      # exists to stop, and it is not hypothetical: #205 shipped a handler
+      # reading `day_reviews`, the table was never created on production, and
+      # every load of the day preview 500ed until somebody ran the apply by
+      # hand. The ledger knew the whole time -- this is the same read
+      # `task schema:stage:status` runs -- so the only thing missing was
+      # anything that failed on it.
+      #
+      # Before the deploy, not after: applying is a laptop command by design
+      # (the README says why migrations are never automated), so the useful
+      # shape is to leave the old build serving and re-run this job once the
+      # database has caught up. Afterwards would only narrate the breakage.
+      #
+      # Greps the wording because `d1 migrations list` exits 0 whether or not
+      # anything is pending. If wrangler ever rephrases it this goes red on a
+      # database that is fine, which is the direction worth being wrong in.
+      - name: Check the staging D1 has every migration
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          npx wrangler d1 migrations list adanalife-guessr-answers-staging --remote \
+            --config wrangler.d1.jsonc 2>&1 | tee /tmp/migrations.txt
+          grep -q 'No migrations to apply' /tmp/migrations.txt || {
+            echo "::error::the staging database is behind — run 'task schema:stage:apply', then re-run this job"
+            exit 1
+          }
       # No build step, and no media either: web/ is the site, and the round
       # clips are served from R2 by functions/clips/[[path]].js rather than
       # deployed alongside it. So what goes up is a few hundred KB of HTML and
