@@ -58,7 +58,7 @@
 // are what separates a shortlist into one person: two players who both scored
 // 21,340 did not both put a pin in the same wrong place.
 import { dateForDay, dayNumber } from '/daily.js';
-import { request } from '/request.js';
+import { failure, request } from '/request.js';
 
 const el = id => document.getElementById(id);
 
@@ -142,7 +142,7 @@ async function load() {
     res = await request(`/admin/plays?date=${encodeURIComponent(date)}`);
     body = await res.json();
   } catch {
-    el('meta').textContent = 'could not reach /admin/plays';
+    el('meta').textContent = failure('/admin/plays', res);
     return;
   }
   // The endpoint refuses on a tier it does not recognise, and says so. Passed

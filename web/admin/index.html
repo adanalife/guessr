@@ -84,7 +84,7 @@ import { playWindow } from '/daily.js';
 // The deadline, for the same reason the game imports it: an operator watching
 // `loading…` cannot tell a slow endpoint from one that will never answer, and a
 // reject that hangs leaves them not knowing whether it landed.
-import { request } from '/request.js';
+import { failure, request } from '/request.js';
 
 const el = id => document.getElementById(id);
 
@@ -230,7 +230,7 @@ async function show(date) {
     res = await request(`/admin/day?date=${date}`);
     body = await res.json();
   } catch {
-    el('meta').textContent = 'could not reach /admin/day';
+    el('meta').textContent = failure('/admin/day', res);
     return;
   }
   // The endpoint says which of the three it is -- wrong tier, unscheduled date,
@@ -289,8 +289,9 @@ async function onReview() {
   const date = el('date').value;
   const reviewed = !el('review').dataset.reviewed;
   el('review').disabled = true;
+  let res;
   try {
-    const res = await request('/admin/review', {
+    res = await request('/admin/review', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ date, reviewed }),
@@ -302,7 +303,7 @@ async function onReview() {
     }
     showReview(date, out.reviewed_at);
   } catch {
-    el('meta').textContent = 'could not reach /admin/review';
+    el('meta').textContent = failure('/admin/review', res);
   } finally {
     el('review').disabled = false;
   }
@@ -326,7 +327,7 @@ async function onReject(image) {
     });
     out = await res.json();
   } catch {
-    el('meta').textContent = 'could not reach /admin/day';
+    el('meta').textContent = failure('/admin/day', res);
     return;
   }
   if (!res.ok) {
