@@ -4,6 +4,16 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.12.1 — 2026-09-19
+
+### Fixed
+
+- The admin pages now name the status code when an endpoint answers badly, instead of reporting every failure as one it could not reach. ([#206](https://github.com/adanalife/guessr/pull/206))
+
+### Behind the scenes
+
+- A deploy is blocked when its database has migrations left to apply, rather than shipping code that queries a table which is not there yet. ([#206](https://github.com/adanalife/guessr/pull/206))
+
 ## v1.12.0 — 2026-09-17
 
 ### New
