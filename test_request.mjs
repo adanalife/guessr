@@ -15,7 +15,7 @@
 
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { TIMEOUT_MS, request, withDeadline } from './web/request.js';
+import { TIMEOUT_MS, failure, request, withDeadline } from './web/request.js';
 
 // Short enough that the suite doesn't wait out a real deadline, long enough not
 // to race a localhost round trip on a loaded machine.
@@ -127,4 +127,20 @@ function within(ms, promise) {
   }], 'the deadline replaced the request instead of bounding it');
   await echo.stop();
   console.log('ok: the method, headers and body a caller asked for survive the deadline');
+}
+
+// The two failures a caller has to tell apart, and the reason this is tested at
+// all: they were one message until an admin endpoint answered 500 from a
+// database missing a migration, and the page called that "could not reach" --
+// which reads as a network problem and sends the reader to check their login.
+{
+  assert.equal(
+    failure('/admin/day', { status: 500 }),
+    '/admin/day answered 500',
+    'a response that arrived must be reported by its status');
+  assert.equal(
+    failure('/admin/day', undefined),
+    'could not reach /admin/day',
+    'a request that never landed must not claim a status');
+  console.log('ok: an endpoint that answered badly reads differently from one that did not answer');
 }
