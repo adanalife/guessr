@@ -29,14 +29,26 @@ DAYS="${DAYS:-5}"
 
 fail() { echo "::error::$*" >&2; exit 1; }
 
-# Everything this touches is disposable: a fresh .wrangler state, and the two
-# generated files, which are gitignored and belong to whoever ran `task rounds`
-# last. Refuse to clobber a real set rather than silently replacing it.
-for f in rounds.sql answers.sql; do
-  if [ -s "$f" ] && ! grep -q "'fixture'" "$f" 2>/dev/null; then
-    fail "$f looks like a real round set. Move it aside before running this."
-  fi
-done
+# Everything this touches is disposable: a local D1 in a directory of its own,
+# and the two generated files, which are gitignored and belong to whoever ran
+# `task rounds` last. Refuse to clobber a real set rather than silently
+# replacing it.
+#
+# rounds.sql is the one that can say which it is -- the fixture writes its batch
+# as 'fixture' -- and answers.sql carries no batch at all. The two are always
+# written together, so answers.sql is a fixture exactly when rounds.sql is.
+if [ -s rounds.sql ] && ! grep -q "'fixture'" rounds.sql; then
+  fail "rounds.sql looks like a real round set. Move it aside before running this."
+fi
+if [ -s answers.sql ] && ! grep -qs "'fixture'" rounds.sql; then
+  fail "answers.sql looks like a real round set. Move it aside before running this."
+fi
+
+# Its own state directory rather than .wrangler/state, which is where `task dev`
+# keeps a database of the same name: sharing it would let one run's plays, or a
+# developer's, answer the next run's queries.
+STATE=$(mktemp -d)
+trap 'rm -rf "$STATE"' EXIT
 
 echo "== fixture"
 python3 fixture.py --days "$DAYS"
@@ -45,22 +57,23 @@ echo "== migrations"
 # The real path a deployed database takes, not a concatenation of the files: this
 # is the run that would catch a migration wrangler refuses even though sqlite3
 # parsed it.
-npx wrangler d1 migrations apply "$DB" --local --config wrangler.d1.jsonc </dev/null
+npx wrangler d1 migrations apply "$DB" --local --persist-to "$STATE" --config wrangler.d1.jsonc </dev/null
 
 echo "== seed"
-npx wrangler d1 execute "$DB" --local --config wrangler.d1.jsonc --file answers.sql --yes >/dev/null
-npx wrangler d1 execute "$DB" --local --config wrangler.d1.jsonc --file rounds.sql --yes >/dev/null
+npx wrangler d1 execute "$DB" --local --persist-to "$STATE" --config wrangler.d1.jsonc --file answers.sql --yes >/dev/null
+npx wrangler d1 execute "$DB" --local --persist-to "$STATE" --config wrangler.d1.jsonc --file rounds.sql --yes >/dev/null
 # One "where you guessed" still, beside the pin the guesses below drop.
-npx wrangler d1 execute "$DB" --local --config wrangler.d1.jsonc --yes \
-  --command="INSERT INTO reveals (image, lat, lng) VALUES ('2000_-5000.jpg', 40.01, -100.01) ON CONFLICT (image) DO NOTHING" >/dev/null
+npx wrangler d1 execute "$DB" --local --persist-to "$STATE" --config wrangler.d1.jsonc --yes \
+  --command="INSERT INTO reveals (image, lat, lng) VALUES ('2000_-5000.jpg', 40.01, -100.01)" >/dev/null
 
 echo "== server"
-npx wrangler pages dev web/ --port "$PORT" --d1 "ANSWERS=$DB" >/tmp/pages-dev.log 2>&1 &
+npx wrangler pages dev web/ --port "$PORT" --d1 "ANSWERS=$DB" --persist-to "$STATE" \
+  >/tmp/pages-dev.log 2>&1 &
 server=$!
 # Kill the process group: `npx` forks wrangler, which forks workerd, so killing
 # the pid this shell knows about leaves the port held and the next run fails to
 # bind for reasons that look nothing like the cause.
-trap 'kill -- -'"$server"' 2>/dev/null || kill '"$server"' 2>/dev/null || true' EXIT
+trap 'kill -- -'"$server"' 2>/dev/null || kill '"$server"' 2>/dev/null || true; rm -rf "$STATE"' EXIT
 
 for _ in $(seq 1 60); do
   curl -sf -o /dev/null "$BASE/version.json" 2>/dev/null && break
