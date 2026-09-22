@@ -471,10 +471,12 @@ tasks:
   # The tier between `test` and `smoke`: a real D1 and a real workerd, both
   # disposable. `test` proves handler logic against a stub of the binding;
   # `smoke` proves a deployed tier; this proves the two ends meet -- migrations
-  # apply, Pages routes, the binding is wired, the endpoints answer. It writes
-  # rounds.sql and answers.sql, and refuses to run if those hold a real set.
+  # apply, Pages routes, the bindings are wired, and every route answers the
+  # HTTP contract in contract.py. It writes rounds.sql and answers.sql, and
+  # refuses to run if those hold a real set.
   test:integration:
-    desc: Run the game end to end against a throwaway local D1 (no corpus needed)
+    desc: Assert every route's HTTP contract against a throwaway local D1 and R2
+      (no corpus needed)
     cmds:
       - ./integration.sh
 

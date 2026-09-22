@@ -46,11 +46,15 @@ end to end, including the record a daily play leaves behind.
 
 `task test:integration` is the same stack without a corpus: it fabricates a round
 set through the *real* SQL generators, applies the migrations to a throwaway
-local D1, starts `wrangler pages dev`, and asserts the endpoints answer. It runs
-in CI, and it is the tier that catches what the other two cannot — `task test`
-runs handlers against a stub of the D1 binding, so it proves logic and says
-nothing about routing, bindings, or how a real database answers, while `smoke.sh`
-needs something already deployed.
+local D1, seeds one clip into a throwaway local R2, starts `wrangler pages dev`,
+and runs `contract.py` against it: every route — the game's API, the clip
+endpoint and the admin surface, both locked down and under the `local` tier —
+held to its statuses, shapes and guards over plain HTTP. It runs in CI, and it
+is the tier that catches what the other two cannot — `task test` runs handlers
+against a stub of the D1 binding, so it proves logic and says nothing about
+routing, bindings, or how a real database answers, while `smoke.sh` needs
+something already deployed. Being HTTP only, the contract says nothing about
+what language the handlers are written in.
 
 `task serve` is a plain `http.server`, and it does not serve a playable game:
 the rounds come from `/api/day` and the clips from a Function, neither of which a
