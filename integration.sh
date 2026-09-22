@@ -14,10 +14,14 @@
 # `wrangler pages dev` -- the same runtime a deployment gets. No new dependency:
 # wrangler is already here.
 #
-# NOT covered, deliberately: the clip endpoint. It streams from an R2 binding,
-# and a local bucket seeded with a fixture mp4 would prove the handler runs
-# without proving the thing that keeps breaking, which is whether the *deployed*
-# project has the binding. smoke.sh owns that, against a real tier.
+# The assertions are contract.py's: every route, its statuses, its shapes and its
+# guards, over HTTP only, so they hold whatever language serves them. This file
+# only builds the world they run against and tears it down.
+#
+# The clip route runs against a local bucket seeded with one stand-in object.
+# That proves the handler -- content type, ranges, a bare 404 for a missing
+# object -- and nothing about the deployment, whose failure mode is a Pages
+# project without the binding at all. smoke.sh owns that, against a real tier.
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -25,11 +29,36 @@ cd "$(dirname "$0")"
 PORT="${PORT:-8788}"
 BASE="http://127.0.0.1:$PORT"
 DB="${DB:-guessr-answers-local}"
-DAYS="${DAYS:-5}"
+# Six, because the admin reject is paid for out of the furthest day, and it has to
+# lie beyond one that is never open yet (see contract.py).
+DAYS="${DAYS:-6}"
+BUCKET=guessr-clips-local
 
 fail() { echo "::error::$*" >&2; exit 1; }
 
-# Everything this touches is disposable: a fresh .wrangler state, and the two
+# Everything local lives here and dies with the run, so no run inherits another's
+# plays or a schedule an earlier reject rearranged, and `task dev`'s database is
+# never touched.
+STATE=$(mktemp -d)
+server=""
+stamped=""
+cleanup() {
+  # Kill the process group: `npx` forks wrangler, which forks workerd, so killing
+  # the pid this shell knows about leaves the port held and the next run fails to
+  # bind for reasons that look nothing like the cause.
+  if [ -n "$server" ]; then
+    kill -- -"$server" 2>/dev/null || kill "$server" 2>/dev/null || true
+  fi
+  # The tier stamp is this run's; a copy `task dev` left goes back where it was.
+  if [ -n "$stamped" ]; then
+    rm -f web/version.json
+    if [ -f "$STATE/version.json" ]; then mv "$STATE/version.json" web/version.json; fi
+  fi
+  rm -rf "$STATE"
+}
+trap cleanup EXIT
+
+# Everything this touches is disposable: a fresh wrangler state, and the two
 # generated files, which are gitignored and belong to whoever ran `task rounds`
 # last. Refuse to clobber a real set rather than silently replacing it.
 for f in rounds.sql answers.sql; do
@@ -45,19 +74,33 @@ echo "== migrations"
 # The real path a deployed database takes, not a concatenation of the files: this
 # is the run that would catch a migration wrangler refuses even though sqlite3
 # parsed it.
-npx wrangler d1 migrations apply "$DB" --local --config wrangler.d1.jsonc </dev/null
+npx wrangler d1 migrations apply "$DB" --local --persist-to "$STATE" --config wrangler.d1.jsonc </dev/null
 
 echo "== seed"
-npx wrangler d1 execute "$DB" --local --config wrangler.d1.jsonc --file answers.sql --yes >/dev/null
-npx wrangler d1 execute "$DB" --local --config wrangler.d1.jsonc --file rounds.sql --yes >/dev/null
+d1() { npx wrangler d1 execute "$DB" --local --persist-to "$STATE" --config wrangler.d1.jsonc "$@"; }
+d1 --file answers.sql --yes >/dev/null
+d1 --file rounds.sql --yes >/dev/null
+# A finished day with plays on it, which /api/score cannot make: it refuses a
+# closed date, which is the point of it.
+python3 contract.py --seed >"$STATE/plays.sql"
+d1 --file "$STATE/plays.sql" --yes >/dev/null
+
+# One object in the bucket: the opener of the furthest scheduled day, which is
+# the round contract.py fetches as a clip and the reject takes as a replacement.
+clip=$(d1 --json --command "SELECT image FROM round_days ORDER BY date DESC, position LIMIT 1" \
+  | jq -r '.[0].results[0].image')
+printf 'stand-in bytes, not a real mp4\n' >"$STATE/clip.mp4"
+npx wrangler r2 object put "$BUCKET/$clip" --local --persist-to "$STATE" \
+  --file "$STATE/clip.mp4" >/dev/null
 
 echo "== server"
-npx wrangler pages dev web/ --port "$PORT" --d1 "ANSWERS=$DB" >/tmp/pages-dev.log 2>&1 &
+# Started with no tier, so the first pass sees /admin/ the way an unstamped
+# deployment does.
+stamped=1
+if [ -f web/version.json ]; then mv web/version.json "$STATE/version.json"; fi
+npx wrangler pages dev web/ --port "$PORT" --persist-to "$STATE" \
+  --d1 "ANSWERS=$DB" --r2 "CLIPS=$BUCKET" >/tmp/pages-dev.log 2>&1 &
 server=$!
-# Kill the process group: `npx` forks wrangler, which forks workerd, so killing
-# the pid this shell knows about leaves the port held and the next run fails to
-# bind for reasons that look nothing like the cause.
-trap 'kill -- -'"$server"' 2>/dev/null || kill '"$server"' 2>/dev/null || true' EXIT
 
 for _ in $(seq 1 60); do
   curl -sf -o /dev/null "$BASE/version.json" 2>/dev/null && break
@@ -66,62 +109,15 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 
-check() { # name, expected, actual
-  [ "$2" = "$3" ] || fail "$1: expected $2, got $3"
-  echo "ok: $1 -> $3"
-}
+echo "== contract, no tier"
+python3 contract.py "$BASE" locked
 
-status() { curl -s -o /tmp/int-body.json -w '%{http_code}' "$@"; }
-
-today=$(date -u +%F)
-future=$(python3 -c "import datetime as d;print(d.date.today()+d.timedelta(days=400))")
-
-# The one that would have caught the failure this exists for: a database with no
-# schema answers 500 here, and every other check in the suite still passes.
-check "today's game is served" 200 "$(status "$BASE/api/day?date=$today")"
-rounds=$(jq -r '.rounds | length' /tmp/int-body.json)
-check "it is a full game" 5 "$rounds"
-
-# Ramp order, through the real query rather than the stub's.
-first=$(jq -r '.rounds[0].image' /tmp/int-body.json)
-jq -e '[.rounds[].image] | length == (. | unique | length)' /tmp/int-body.json >/dev/null \
-  || fail "a round was served twice in one game"
-
-# A round reaches the browser as a name and nothing else. Asserted against the
-# real serialisation, because this is the leak that ends the game.
-jq -e '[.rounds[] | keys] | flatten | unique == ["image"]' /tmp/int-body.json >/dev/null \
-  || fail "a served round carried more than its name: $(cat /tmp/int-body.json)"
-
-check "an unopened date is refused" 403 "$(status "$BASE/api/day?date=$future")"
-check "a malformed date is refused" 400 "$(status "$BASE/api/day?date=nope")"
-check "practice draws from closed days" 200 "$(status "$BASE/api/day?practice")"
-
-# Scoring, which is the other side of the same rows: the round just handed out
-# has to be one this accepts, and its answer has to be there to score against.
-score() { status -X POST "$BASE/api/score" -H 'content-type: application/json' -d "$1"; }
-
-check "a practice guess scores" 200 \
-  "$(score "{\"image\":\"$first\",\"lat\":40,\"lng\":-100}")"
-jq -e '.recorded == false' /tmp/int-body.json >/dev/null || fail "practice was recorded"
-
-check "a daily play records" 200 \
-  "$(score "{\"image\":\"$first\",\"lat\":40,\"lng\":-100,\"date\":\"$today\",\"player_id\":\"a3f1c2d4-0000-4000-8000-000000000000\"}")"
-jq -e '.recorded == true' /tmp/int-body.json >/dev/null || fail "a daily play was not recorded"
-
-# A round scheduled for a different date must not score against today, which is
-# the whole of what stops five known names buying an unlimited board position.
-other=$(curl -s "$BASE/api/day?date=$(python3 -c "import datetime as d;print(d.date.today()-d.timedelta(days=1))")" | jq -r '.rounds[0].image')
-if [ "$other" != "null" ] && [ "$other" != "$first" ]; then
-  check "another date's round is refused" 403 \
-    "$(score "{\"image\":\"$other\",\"lat\":40,\"lng\":-100,\"date\":\"$today\",\"player_id\":\"a3f1c2d4-0000-4000-8000-000000000000\"}")"
-fi
-
-check "an unknown round is refused" 404 \
-  "$(score '{"image":"clips/not-a-real-round.mp4","lat":40,"lng":-100}')"
-
-# The boards read, which is the check that a migration left `plays` intact.
-for board in daily monthly; do
-  check "the $board board reads" 200 "$(status "$BASE/api/leaderboard?board=$board")"
+echo "== contract, tier local"
+# What `task dev` stamps, and the one tier the admin gate waves through. Static
+# assets are served live, so the server picks it up without a restart.
+printf '{"label":"local","tier":"local"}\n' >web/version.json
+for _ in $(seq 1 30); do
+  [ "$(curl -s "$BASE/version.json" | jq -r '.tier?' 2>/dev/null)" = local ] && break
+  sleep 1
 done
-
-echo "ok: the game runs end to end against a real local D1"
+python3 contract.py "$BASE"
