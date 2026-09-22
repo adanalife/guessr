@@ -62,13 +62,55 @@ export async function onRequestPost({ request, env }) {
     filmed: answer.filmed,
   };
 
-  if (!play) return json({ ...scored, ...truth, recorded: false });
+  const reveal = await nearestReveal(env, guess);
+
+  if (!play) return json({ ...scored, ...truth, reveal, recorded: false });
 
   const { km: keptKm, points: keptPoints } = await record(env, play, guess, scored);
   // The truth goes back either way: a replay has already committed a guess for
   // this round once, so it is not learning anything it wasn't told the first
   // time -- and the page needs it to draw the map.
-  return json({ km: keptKm, points: keptPoints, ...truth, recorded: true });
+  return json({ km: keptKm, points: keptPoints, ...truth, reveal, recorded: true });
+}
+
+// How far from a pin the nearest still may be and still be "what your guess
+// looks like". Past this the pin is off every road the van drove, and a frame
+// 60 km away is a picture of somewhere else.
+export const REVEAL_KM = 25;
+const KM_PER_DEG = 111.2;
+
+// The corpus frame nearest the guess, or null when there is none within
+// REVEAL_KM. The pin rather than the answer, and after the answer lookup: a
+// still of where the player *guessed* tells them nothing about the round, and
+// the order keeps an unknown round a 404 rather than a wasted query.
+//
+// A latitude band on the index, a longitude window on what is left, then the
+// nearest by flat-earth distance -- which is exact enough to rank points 25 km
+// apart, with haversine on the one winner for the number the page shows.
+export async function nearestReveal(env, guess) {
+  const dLat = REVEAL_KM / KM_PER_DEG;
+  const cos = Math.max(Math.cos(guess.lat * Math.PI / 180), 0.01);
+  const dLng = dLat / cos;
+  // Any failure is no reveal rather than a failed guess: the still is decoration
+  // on a score that has already been earned, and a tier whose migrations are
+  // behind its deploy has no table to read at all.
+  let row;
+  try {
+    row = await env.ANSWERS
+      .prepare(`SELECT image, lat, lng FROM reveals
+                WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?
+                ORDER BY (lat - ?) * (lat - ?) + (lng - ?) * (lng - ?) * ?
+                LIMIT 1`)
+      .bind(guess.lat - dLat, guess.lat + dLat, guess.lng - dLng, guess.lng + dLng,
+        guess.lat, guess.lat, guess.lng, guess.lng, cos * cos)
+      .first();
+  } catch {
+    return null;
+  }
+  if (!row) return null;
+  const km = haversineKm(guess, row);
+  if (km > REVEAL_KM) return null;
+  return { image: `reveals/${row.image}`, lat: row.lat, lng: row.lng, km };
 }
 
 // Whether an image is one of the five that date plays. The property this has to

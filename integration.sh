@@ -50,6 +50,9 @@ npx wrangler d1 migrations apply "$DB" --local --config wrangler.d1.jsonc </dev/
 echo "== seed"
 npx wrangler d1 execute "$DB" --local --config wrangler.d1.jsonc --file answers.sql --yes >/dev/null
 npx wrangler d1 execute "$DB" --local --config wrangler.d1.jsonc --file rounds.sql --yes >/dev/null
+# One "where you guessed" still, beside the pin the guesses below drop.
+npx wrangler d1 execute "$DB" --local --config wrangler.d1.jsonc --yes \
+  --command="INSERT INTO reveals (image, lat, lng) VALUES ('2000_-5000.jpg', 40.01, -100.01) ON CONFLICT (image) DO NOTHING" >/dev/null
 
 echo "== server"
 npx wrangler pages dev web/ --port "$PORT" --d1 "ANSWERS=$DB" >/tmp/pages-dev.log 2>&1 &
@@ -103,6 +106,11 @@ score() { status -X POST "$BASE/api/score" -H 'content-type: application/json' -
 check "a practice guess scores" 200 \
   "$(score "{\"image\":\"$first\",\"lat\":40,\"lng\":-100}")"
 jq -e '.recorded == false' /tmp/int-body.json >/dev/null || fail "practice was recorded"
+# Through the real query planner rather than node:sqlite's -- the lookup binds
+# nine parameters into one ORDER BY, which is where the two could disagree.
+jq -e '.reveal.image == "reveals/2000_-5000.jpg"' /tmp/int-body.json >/dev/null \
+  || fail "a guess beside a still came back without it: $(cat /tmp/int-body.json)"
+echo "ok: a guess beside a still is shown it"
 
 check "a daily play records" 200 \
   "$(score "{\"image\":\"$first\",\"lat\":40,\"lng\":-100,\"date\":\"$today\",\"player_id\":\"a3f1c2d4-0000-4000-8000-000000000000\"}")"
