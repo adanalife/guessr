@@ -77,7 +77,11 @@ def main() -> int:
     days = schedule(rounds, first, args.days, DISTINCTIVENESS)
 
     (args.dest / "rounds.sql").write_text(rounds_sql(rounds, answers, "fixture", days))
-    (args.dest / "answers.sql").write_text(answers_sql(answers))
+    # The batch name only reaches rounds.sql, so answers.sql carries it as a
+    # comment: integration.sh's refuse-to-clobber guard greps both for it.
+    (args.dest / "answers.sql").write_text(
+        f"-- batch 'fixture'\n{answers_sql(answers)}"
+    )
     print(
         f"fixture: {len(rounds)} rounds over {args.days} days, "
         f"{first} to {max(d for d, _, _ in days)}"
