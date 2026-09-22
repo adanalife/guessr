@@ -34,7 +34,7 @@ for name, words in (("ADJECTIVES", rules.ADJECTIVES), ("NOUNS", rules.NOUNS)):
         f"{name} differs from web/alias.js"
     )
 daily_js = (WEB / "daily.js").read_text()
-for name in ("OPENS_UTC_HOUR", "CLOSES_UTC_HOUR"):
+for name in ("OPENS_UTC_HOUR", "CLOSES_UTC_HOUR", "ROUNDS_PER_GAME"):
     js = int(re.search(rf"const {name} = (\d+);", daily_js).group(1))
     assert js == getattr(rules, name), f"{name} differs from web/daily.js"
 
