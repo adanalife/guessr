@@ -1,0 +1,16 @@
+# The Python server under server/: served by Python Workers' `workers.asgi` on
+# Cloudflare (wrangler.api.jsonc) and by uvicorn anywhere else.
+#
+# The rest of the repo's Python is stdlib scripts run with a bare `python3`; only
+# the server and its tests need what is declared here.
+[project]
+name = "guessr"
+version = "0.0.0"
+# What Python Workers run.
+requires-python = ">=3.13"
+dependencies = ["starlette"]
+
+[dependency-groups]
+# workers-py is `pywrangler`, which vendors the runtime SDK into python_modules/
+# for a deploy; the `workers` module is not built into the runtime.
+dev = ["workers-py", "workers-runtime-sdk", "uvicorn"]
