@@ -1,20 +1,20 @@
 // The Python Worker serving server/app.py -- /api/*, /admin/* and /clips/* for
 // the staging tier. `task api:dev` runs it locally.
 //
-// Named wrangler.jsonc because pywrangler reads no other name. Wrangler
-// auto-loads it too, and that is harmless: `wrangler pages deploy` and `pages
-// dev` ignore a config with no pages_build_output_dir (with a warning), and a
-// `wrangler d1` command naming a database this file does not bind looks it up by
-// name, as it does with no config at all.
+// In api/ rather than at the repo root, and named wrangler.jsonc, for two tools
+// at once. pywrangler reads no other name, and only beside its pyproject.toml.
+// Wrangler auto-loads that name from the directory it runs in or any parent, and
+// `wrangler pages dev` at the root would then take this Worker's main and
+// bindings as its own -- so the name is safe only down here.
 //
-// The Worker ships .api-bundle/, which `task api:bundle` (scripts/api-bundle.sh)
-// stages from server/ and web/alias.json, rather than the repo root: wrangler uploads every .py under
-// the module root and its rules cannot narrow that, so a root base_dir would
-// ship every script in the repo and the whole .venv.
+// The Worker ships api/bundle/, which `task api:bundle` (scripts/api-bundle.sh)
+// stages from server/ and web/alias.json, rather than the repo: wrangler uploads
+// every .py under the module root and its rules cannot narrow that, so the repo
+// root would ship every script and the whole .venv.
 {
   "name": "adanalife-guessr-staging-api",
-  "main": ".api-bundle/server/worker.py",
-  "base_dir": ".api-bundle",
+  "main": "bundle/server/worker.py",
+  "base_dir": "bundle",
   // rules.py reads the wordlist the page draws aliases from at import.
   "rules": [{ "type": "Data", "globs": ["web/alias.json"], "fallthrough": true }],
   "compatibility_date": "2026-09-22",
@@ -23,7 +23,9 @@
     {
       "binding": "DB",
       "database_name": "adanalife-guessr-answers-staging",
-      "database_id": "a76a44d4-7c09-4b07-8ad3-625c63df5658"
+      "database_id": "a76a44d4-7c09-4b07-8ad3-625c63df5658",
+      // The repo's migrations, for `wrangler d1 migrations apply --local` here.
+      "migrations_dir": "../migrations"
     }
   ],
   // One bucket for every tier: a clip is the same bytes whichever tier serves

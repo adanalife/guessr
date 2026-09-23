@@ -6,7 +6,7 @@ comes back as bytes or a stream with its headers. The handlers' own cases live
 in the other test_server_*.py; this is only the layer between them and HTTP.
 
 Driven over raw ASGI rather than a test client, so it needs Starlette and
-nothing else: run it with `uv run python test_server_app.py`.
+nothing else: run it with `uv run --project api python test_server_app.py`.
 """
 
 import asyncio

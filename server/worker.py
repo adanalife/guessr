@@ -1,6 +1,6 @@
 """The Python Worker: server/app.py over the request's own bindings.
 
-wrangler.jsonc names this (staged into .api-bundle/) as `main`. The bindings arrive in the ASGI scope
+api/wrangler.jsonc names this (staged into api/bundle/) as `main`. The bindings arrive in the ASGI scope
 with every request, so `context` builds the D1 and R2 adapters from
 `request.scope["env"]` rather than at import -- a Python Worker's import runs
 once, at deploy, into the memory snapshot every isolate restores from.

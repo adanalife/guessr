@@ -78,24 +78,25 @@ jobs:
       # Node from .tool-versions rather than the runner's: pywrangler builds its
       # Pyodide environment with a node flag that Node 26 dropped.
       - name: No Python Worker to deploy
-        if: hashFiles('wrangler.jsonc') == ''
-        run: echo "::notice::no wrangler.jsonc, so only the Pages site deploys"
+        if: hashFiles('api/wrangler.jsonc') == ''
+        run: echo "::notice::no api/wrangler.jsonc, so only the Pages site deploys"
       - uses: actions/setup-node@v7
-        if: hashFiles('wrangler.jsonc') != ''
+        if: hashFiles('api/wrangler.jsonc') != ''
         with:
           node-version-file: .tool-versions
       - uses: astral-sh/setup-uv@v10.2.0 # no floating major tag published
-        if: hashFiles('wrangler.jsonc') != ''
+        if: hashFiles('api/wrangler.jsonc') != ''
       - name: Deploy the Python Worker (staging)
-        if: hashFiles('wrangler.jsonc') != ''
+        if: hashFiles('api/wrangler.jsonc') != ''
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         # pywrangler vendors the Python packages (its `sync`) before handing the
         # deploy to wrangler; the bundle is the server package it uploads.
         run: |
-          uv sync
           ./scripts/api-bundle.sh
+          cd api
+          uv sync
           uv run pywrangler deploy
 
       # No build step, and no media either: web/ is the site, and the round
