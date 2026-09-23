@@ -103,8 +103,12 @@ jobs:
       # which route scoring takes to Postgres. Sub-second, and stdlib apart from
       # the ffmpeg installed just above. Globbed for the same reason as the node
       # step above.
+      #
+      # Under uv for the one dependency the server tests need, Starlette, which
+      # api/pyproject.toml declares and api/uv.lock pins.
+      - uses: astral-sh/setup-uv@v10.0.1 # no floating major tag published
       - name: Python tests
-        run: for f in test_*.py; do echo "== $f"; python3 "$f" || exit 1; done
+        run: for f in test_*.py; do echo "== $f"; uv run --project api python "$f" || exit 1; done
 
       # A name in the docs is a claim about the repo, and a wrong one has shipped
       # in the worst place available: an invented `schema:stage:push` task, named
@@ -163,8 +167,6 @@ jobs:
       # the daily sweep in vendor-freshness.yml.
       - name: Assert vendored assets match their pinned releases
         run: ./scripts/vendor.sh check
-
-      - uses: astral-sh/setup-uv@v10.0.1 # no floating major tag published
 
       # Require every PR to add a towncrier changelog fragment under
       # changelog.d/ (see README "Changelog"). CHANGELOG.md is linked from the

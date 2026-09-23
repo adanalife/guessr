@@ -110,6 +110,25 @@ tasks:
       - printf '{"label":"local","tier":"local"}\n' > web/version.json
       - npx wrangler pages dev web/ --port {{.PORT}} --d1 ANSWERS={{.LOCAL_DB}}
 
+  # What the Python Worker ships, staged apart from the repo (the script says
+  # why). staging.yml runs the same script before its deploy.
+  api:bundle:
+    desc: Stage server/ and the alias wordlist into api/bundle/ for the Python Worker
+    cmds:
+      - ./scripts/api-bundle.sh
+
+  # The Python Worker under workerd, against a local D1 and R2 keyed like the
+  # staging ones (`npx wrangler d1 migrations apply adanalife-guessr-answers-staging
+  # --local` from api/ gives it tables). pywrangler vendors starlette and the
+  # Workers SDK into api/python_modules/ first. An edit to server/ needs a
+  # restart, since what runs is the staged copy.
+  api:dev:
+    desc: Run the Python Worker locally under pywrangler (args pass through to wrangler dev)
+    deps: [api:bundle]
+    dir: api
+    cmds:
+      - uv run pywrangler dev {{.CLI_ARGS}}
+
   answers:local:push:
     desc: Seed answers.sql into the local D1 that `dev` binds
     cmds:
@@ -475,7 +494,8 @@ tasks:
     # passes.
     cmds:
       - for f in test_*.mjs; do echo "== $f"; node "$f" || exit 1; done
-      - for f in test_*.py; do echo "== $f"; python3 "$f" || exit 1; done
+      # uv, for the one dependency the server tests need: Starlette.
+      - for f in test_*.py; do echo "== $f"; uv run --project api python "$f" || exit 1; done
 
   # The tier between `test` and `smoke`: a real D1 and a real workerd, both
   # disposable. `test` proves handler logic against a stub of the binding;

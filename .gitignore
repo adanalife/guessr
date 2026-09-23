@@ -56,3 +56,11 @@ app/Local.xcconfig
 .swiftpm/
 xcuserdata/
 DerivedData/
+
+# pywrangler, beside api/pyproject.toml: the packages it vendors for the Python
+# Worker, its Pyodide venv and the lock it resolves them into. And
+# `task api:bundle`'s staged copy of server/, which is what the Worker ships.
+api/python_modules/
+api/.venv-workers/
+api/pylock.toml
+api/bundle/
