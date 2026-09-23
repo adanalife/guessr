@@ -6,10 +6,11 @@ of it. The same cases test_link.mjs holds the JavaScript to.
 """
 
 import asyncio
+import datetime as dt
 import sqlite3
 
 from server.db import Sqlite
-from server.link import link
+from server.link import ALPHABET, LENGTH, claim, issue_code, link, new_code
 
 PHONE, DESKTOP, STRANGER = "phone-id", "desktop-id", "stranger-id"
 
@@ -93,6 +94,85 @@ async def test_batch_is_one_transaction() -> None:
     assert await owned(db, PHONE) == [("a.jpg", 100)], "the batch half-applied"
 
 
+async def codes(db) -> int:
+    return len(await db.fetchall("SELECT code FROM link_codes"))
+
+
+async def test_link_codes() -> None:
+    """The cases test_link_codes.mjs holds the JavaScript to."""
+    for _ in range(200):
+        code = new_code()
+        assert len(code) == LENGTH and set(code) <= set(ALPHABET), code
+    assert not set("01OI") & set(ALPHABET)
+
+    rows = [(PHONE, "a.jpg", 100), (PHONE, "b.jpg", 200), (DESKTOP, "b.jpg", 300)]
+    db = await plays(rows)
+    for bad in (
+        None,
+        {},
+        {"player_id": ""},
+        {"player_id": 42},
+        {"player_id": "x" * 65},
+    ):
+        assert (await issue_code(db, bad))[0] == 400, bad
+    for bad in (
+        None,
+        {},
+        {"code": "ABCDEFGH"},
+        {"from": PHONE},
+        {"code": "ABCDEFG", "from": PHONE},
+        {"code": "ABCDEFG0", "from": PHONE},
+        {"code": 42, "from": PHONE},
+        {"code": "ABCDEFGH", "from": ""},
+    ):
+        assert (await claim(db, bad))[0] == 400, bad
+
+    status, issued = await issue_code(db, {"player_id": DESKTOP})
+    assert status == 200
+    ttl = (
+        dt.datetime.fromisoformat(issued["expires_at"]) - dt.datetime.now(dt.UTC)
+    ).total_seconds()
+    assert 540 < ttl <= 601, ttl
+    typed = f"{issued['code'][:4].lower()} - {issued['code'][4:]}"
+    assert await claim(db, {"code": typed, "from": PHONE}) == (
+        200,
+        {"player_id": DESKTOP, "moved": 1},
+    )
+    assert await owned(db, PHONE) == []
+    assert await owned(db, DESKTOP) == [("a.jpg", 100), ("b.jpg", 300)]
+    assert (await claim(db, {"code": issued["code"], "from": "third-id"}))[0] == 404, (
+        "a code worked twice"
+    )
+    assert await codes(db) == 0
+
+    db = await plays(rows)
+    _, first = await issue_code(db, {"player_id": DESKTOP})
+    _, second = await issue_code(db, {"player_id": DESKTOP})
+    assert await codes(db) == 1, "a player holds more than one live code"
+    assert (await claim(db, {"code": first["code"], "from": PHONE}))[0] == 404
+    assert (await claim(db, {"code": second["code"], "from": PHONE}))[0] == 200
+
+    db = await plays(rows)
+    await db.execute(
+        "INSERT INTO link_codes VALUES ('ABCDEFGH', ?, '2020-01-01T00:00:00Z')", DESKTOP
+    )
+    assert await claim(db, {"code": "ABCDEFGH", "from": PHONE}) == (
+        404,
+        {"error": "unknown or expired code"},
+    )
+    assert len(await owned(db, PHONE)) == 2, "an expired code merged"
+    assert await codes(db) == 0, "the expired code was not swept"
+
+    db = await plays(rows)
+    _, issued = await issue_code(db, {"player_id": PHONE})
+    assert await claim(db, {"code": issued["code"], "from": PHONE}) == (
+        200,
+        {"player_id": PHONE, "moved": 0},
+    )
+    assert len(await owned(db, PHONE)) == 2, "a self-claim deleted its own plays"
+
+
 asyncio.run(test_link())
 asyncio.run(test_batch_is_one_transaction())
-print("ok: the Python /api/link matches the contract test_link.mjs holds")
+asyncio.run(test_link_codes())
+print("ok: the Python /api/link and link codes match the contract the .mjs tests hold")

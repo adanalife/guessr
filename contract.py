@@ -574,6 +574,35 @@ def link(desk):
     assert merged["name"] is None, merged
 
 
+def link_codes():
+    """After link(), so DESKTOP holds the merged history a code is issued for."""
+    error(post("a code with no player id is refused", 400, "/api/link/code", {}))
+    error(
+        post("a claim with no code is refused", 400, "/api/link/claim", {"from": PHONE})
+    )
+    error(
+        post(
+            "a claim of a code nobody issued is 404",
+            404,
+            "/api/link/claim",
+            {"code": "ABCDEFGH", "from": PHONE},
+        )
+    )
+    issued = post(
+        "a code is issued", 200, "/api/link/code", {"player_id": DESKTOP}
+    ).json
+    assert re.fullmatch(r"[A-HJ-NP-Z2-9]{8}", issued["code"]), issued
+    assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", issued["expires_at"]), (
+        issued
+    )
+    # The phone has nothing left after link(), so this is a join with nothing to
+    # fold in: the answer is who to be.
+    claim = {"code": issued["code"].lower(), "from": PHONE}
+    r = post("a code is claimed", 200, "/api/link/claim", claim)
+    assert r.json == {"player_id": DESKTOP, "moved": 0}, r.json
+    error(post("a code claims once", 404, "/api/link/claim", claim))
+
+
 # -- /admin/ under tier "local" ---------------------------------------------
 
 
@@ -869,6 +898,7 @@ def main() -> int:
     guesses()
     live()
     link(desk)
+    link_codes()
     last = admin_reads()
     notes()
     review()
