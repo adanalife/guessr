@@ -2,7 +2,8 @@
 phone and a desktop places once instead of twice.
 
 No account: the player id already is the credential. It is minted in the
-browser and never appears in a response, so holding both ids is proof of
+browser and appears in no response but a link-code claim (below), so holding
+both ids is proof of
 holding both browsers. The flip side is that anyone who learns an id can take
 that history -- the same exposure the id already carries, since it can post
 plays too.

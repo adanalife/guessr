@@ -362,8 +362,8 @@ copy is dropped rather than left behind.
 
 There is no account to log into, and adding one would be the whole apparatus (an
 email, a session, a way back in when it's lost) around a problem that is one row
-rewrite. The id already *is* the credential: minted in the browser, never
-returned by any endpoint, `/api/leaderboard` deliberately serving names and
+rewrite. The id already *is* the credential: minted in the browser, returned
+by no endpoint but a link-code claim (below), `/api/leaderboard` deliberately serving names and
 points and no ids. So holding both ids is proof of holding both browsers.
 
 The About panel's **Link a device** draws that URL as a QR code, and the browser
