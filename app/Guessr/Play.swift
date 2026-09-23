@@ -5,7 +5,7 @@ import SwiftUI
 
 /// Today's rounds: watch the clip, drop a pin, see how close it was.
 struct PlayView: View {
-    let player: Player
+    @Binding var player: Player
 
     @State private var day: GuessrDay?
     @State private var progress = DayProgress(date: "")
@@ -77,6 +77,12 @@ struct PlayView: View {
             .multilineTextAlignment(.center)
             button(day, image: image)
                 .buttonStyle(.borderedProminent)
+            // Only before the first guess: joining after it would leave the
+            // day's progress on this device belonging to the player it left.
+            if progress.played.isEmpty {
+                NavigationLink("Already playing on the web? Enter your code") { JoinView(player: $player) }
+                    .font(.footnote)
+            }
         }
         .padding()
         .navigationTitle("Round \(number) of \(day.rounds.count) · \(progress.total.formatted())")
@@ -126,6 +132,49 @@ struct PlayView: View {
             message = error.localizedDescription
         } catch {
             message = "Could not reach the scorer. Try that guess again."
+        }
+    }
+}
+
+/// Joins the player on another device by the code it shows under About → Link
+/// a device. This device's plays fold onto that player, and it plays as them
+/// from here on, keeping its own name.
+struct JoinView: View {
+    @Binding var player: Player
+    @Environment(\.dismiss) private var dismiss
+    @State private var code = ""
+    @State private var joining = false
+    @State private var message: String?
+
+    private let client = GuessrClient()
+
+    var body: some View {
+        Form {
+            Section {
+                TextField("Code", text: $code)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    .font(.title3.monospaced())
+                Button(joining ? "Joining…" : "Join") { Task { await join() } }
+                    .disabled(code.isEmpty || joining)
+            } footer: {
+                Text(message ?? "On the web, open About and tap Link a device to see a code. It lasts ten minutes.")
+            }
+        }
+        .navigationTitle("Enter your code")
+    }
+
+    private func join() async {
+        joining = true
+        defer { joining = false }
+        do {
+            let claim = try await client.claimLink(code: code, from: player)
+            player = Player(id: claim.playerId, alias: player.alias)
+            dismiss()
+        } catch let error as GuessrError where error.isFinal {
+            message = "That code is unknown or has expired. Show a new one on the web."
+        } catch {
+            message = "Could not reach the server. Try the code again."
         }
     }
 }

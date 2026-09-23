@@ -4,16 +4,20 @@ import SwiftUI
 @main
 struct GuessrApp: App {
     @State private var account = Account()
-    private let player = KeychainPlayerStore().current()
+    private let players = KeychainPlayerStore()
+    /// State rather than a constant because a link code swaps it for the player
+    /// the code joined; every change goes back to the Keychain.
+    @State private var player = KeychainPlayerStore().current()
 
     var body: some Scene {
         WindowGroup {
             TabView {
-                Tab("Play", systemImage: "mappin.and.ellipse") { NavigationStack { PlayView(player: player) } }
+                Tab("Play", systemImage: "mappin.and.ellipse") { NavigationStack { PlayView(player: $player) } }
                 Tab("Boards", systemImage: "list.number") { NavigationStack { TodayView() } }
                 Tab("Settings", systemImage: "gear") { NavigationStack { SettingsView() } }
             }
             .environment(account)
+            .onChange(of: player) { _, joined in players.save(joined) }
         }
     }
 }
