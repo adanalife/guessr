@@ -14,7 +14,11 @@ struct GuessrApp: App {
             TabView {
                 Tab("Play", systemImage: "mappin.and.ellipse") { NavigationStack { PlayView(player: $player) } }
                 Tab("Boards", systemImage: "list.number") { NavigationStack { TodayView() } }
-                Tab("Settings", systemImage: "gear") { NavigationStack { SettingsView() } }
+                // Settings holds only the Twitch login and what it unlocks, so a build
+                // without a Twitch client id has nothing to show there.
+                if account.auth.isConfigured {
+                    Tab("Settings", systemImage: "gear") { NavigationStack { SettingsView() } }
+                }
             }
             .environment(account)
             .onChange(of: player) { _, joined in players.save(joined) }
