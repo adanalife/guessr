@@ -40,6 +40,14 @@ targets:
         GuessrOwnerTwitchID: $(GUESSR_OWNER_TWITCH_ID)
         # Read by GuessrKit's Guessr.baseURL; set per configuration.
         GuessrAPIBase: $(GUESSR_API_BASE)
+        # The play screen stacks clip over map, so a phone holds it upright. An
+        # iPad window takes any shape, which iPad multitasking requires.
+        UISupportedInterfaceOrientations~iphone: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
     dependencies:
       - package: GuessrKit
       # - package: TempomatConsole
