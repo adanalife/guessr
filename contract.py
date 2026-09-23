@@ -240,12 +240,13 @@ def day():
 
 def score(images, first_images):
     img = images[0]
-    # Practice: scored, never recorded, and the truth comes back to draw.
+    # Practice: a finished day's round, scored, never recorded, and the truth
+    # comes back to draw.
     r = post(
         "a practice guess scores",
         200,
         "/api/score",
-        {"image": img, "lat": 40, "lng": -100},
+        {"image": first_images[0], "lat": 40, "lng": -100},
     )
     s = r.json
     assert s["recorded"] is False, s
@@ -254,6 +255,25 @@ def score(images, first_images):
     assert abs(s["km"] - km) < 0.01, (s, km)
     assert s["points"] == round(5000 * math.exp(-10 * s["km"] / 4500)), s
 
+    # Undated is not a way round the window: today's round, and one not yet open,
+    # would otherwise hand their answers to anyone who asks without a date.
+    error(
+        post(
+            "an undated guess at today's round is refused",
+            403,
+            "/api/score",
+            {"image": img, "lat": 40, "lng": -100},
+        )
+    )
+    ahead = get("an unopened day's rounds", 200, f"/admin/day?date={d(2)}").json
+    error(
+        post(
+            "an undated guess at an unopened day's round is refused",
+            403,
+            "/api/score",
+            {"image": ahead["rounds"][0]["image"], "lat": 40, "lng": -100},
+        )
+    )
     guess = {"image": img, "lat": 40, "lng": -100}
     for name, body in [
         ("an empty body", {}),

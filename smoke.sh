@@ -12,7 +12,7 @@
 # from an unapplied migration surfaces here as a 500 rather than on the stream.
 #
 # Read-only by construction: a practice guess (no date) is scored and never
-# recorded, and the two rejections return before the write path. So this leaves
+# recorded, and the rejections all return before the write path. So this leaves
 # nothing behind in the database it runs against, production included.
 set -euo pipefail
 
@@ -279,11 +279,20 @@ if [ "$((w * 9))" -le "$((h * 16))" ]; then
 fi
 echo "ok: round media is HUD-cropped -> ${dim}"
 
-# A practice guess: scored, never recorded. Fails if the answers table has never
-# heard of the round set that just deployed.
-out=$(post "{\"image\":\"$image\",\"lat\":40,\"lng\":-100}")
+# A practice guess: scored, never recorded, and only at a round practice deals --
+# one from a day that is over. Fails if the answers table has never heard of the
+# round set that just deployed.
+out=$(call "$BASE/api/day?practice")
+check "practice draws a game" 200 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
+drawn=$(head -1 <<<"$out" | jq -r '.rounds[0].image')
+out=$(post "{\"image\":\"$drawn\",\"lat\":40,\"lng\":-100}")
 check "practice guess scores" 200 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
 grep -q '"recorded":false' <<<"$out" || { echo "::error::practice guess was recorded"; exit 1; }
+
+# Today's round with no date: the answer would come back before any daily guess
+# was committed, so undated is refused for any round whose day is not over.
+out=$(post "{\"image\":\"$image\",\"lat\":40,\"lng\":-100}")
+check "an undated guess at today's round is refused" 403 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
 
 # A round nobody has answers for.
 out=$(post '{"image":"clips/not-a-real-round.mp4","lat":40,"lng":-100}')

@@ -217,9 +217,17 @@ async def handler() -> None:
         rows
     )
 
-    status, practice = await guess(loose)
+    # Practice scores only a round from a closed date, which is all
+    # /api/day?practice deals; anything else leaks an unplayed round's answer.
+    status, practice = await guess(theirs)
     assert status == 200 and practice["recorded"] is False, (
-        "practice was gated on the schedule"
+        "a closed day's round was refused as practice"
+    )
+    assert (await guess(mine))[0] == 403, (
+        "an undated guess read the answer to a round whose day is still open"
+    )
+    assert (await guess(loose))[0] == 403, (
+        "an undated guess read the answer to a round nothing has scheduled yet"
     )
 
 
