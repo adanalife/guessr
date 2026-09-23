@@ -4,6 +4,19 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.12.1 — 2026-09-23
+
+### Fixed
+
+- The admin pages now name the status code when an endpoint answers badly, instead of reporting every failure as one it could not reach. ([#206](https://github.com/adanalife/guessr/pull/206))
+- The weekly super-linter sweep is green again: its bundled biome is older than the version biome.json and the pre-commit hook pin, so it rejected the config outright. ([#209](https://github.com/adanalife/guessr/pull/209))
+
+### Behind the scenes
+
+- A deploy is blocked when its database has migrations left to apply, rather than shipping code that queries a table which is not there yet. ([#206](https://github.com/adanalife/guessr/pull/206))
+- The integration run holds every route to its HTTP contract, the admin surface and the clip endpoint included, against a throwaway local database and bucket, so the server side can be rewritten against a suite that does not care what language it is in. ([#211](https://github.com/adanalife/guessr/pull/211))
+- Applying a database migration now always ends by listing what is still unapplied, including when the apply dies partway, so a half-migrated database is visible the moment it happens rather than when something reads a missing column. ([#214](https://github.com/adanalife/guessr/pull/214))
+
 ## v1.12.0 — 2026-09-17
 
 ### New
