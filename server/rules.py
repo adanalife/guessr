@@ -19,6 +19,9 @@ ROUNDS_PER_GAME = 5
 # The date a round set is scheduled on, YYYY-MM-DD. ASCII digits only: Python's
 # \d also matches Arabic-Indic and every other script's digits.
 DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+# The month a monthly board covers, YYYY-MM. Unlike DATE this is the whole check:
+# every month it matches is one the calendar has.
+MONTH = re.compile(r"[0-9]{4}-(0[1-9]|1[0-2])")
 
 # The handle is a display label, never an identity: two players called "Jason"
 # are two rows keyed on different player_ids that happen to render the same
@@ -164,3 +167,9 @@ def last_closed_date(now: dt.datetime | None = None) -> str:
     return (
         ((now or dt.datetime.now(dt.UTC)) - dt.timedelta(hours=36)).date().isoformat()
     )
+
+
+def month_of(now: dt.datetime | None = None) -> str:
+    """The month a monthly board covers. A running total needs no closing rule,
+    so today's plays belong in it."""
+    return (now or dt.datetime.now(dt.UTC)).strftime("%Y-%m")
