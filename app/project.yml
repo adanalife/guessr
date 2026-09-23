@@ -44,6 +44,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: lol.dana.guessr
+        # Both overridden per archive by `task app:archive`: the version with the
+        # repo's release tag, the build number with the commit count.
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 1
         TARGETED_DEVICE_FAMILY: "1,2"
@@ -55,6 +57,15 @@ targets:
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+      # The archive signs for distribution directly. Automatic signing asks
+      # Apple for a development profile at archive time, which a team with no
+      # registered devices cannot be issued; manual App Store signing needs no
+      # device and no Xcode GUI. Debug keeps signing automatically.
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER: Guessr App Store
 schemes:
   Guessr:
     build:
