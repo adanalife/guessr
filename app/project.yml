@@ -35,6 +35,9 @@ targets:
       path: Guessr/Info.plist
       properties:
         CFBundleDisplayName: Guessr
+        # App Store Connect refuses an upload without this top-level key; the
+        # asset catalog compiler only writes it under CFBundlePrimaryIcon.
+        CFBundleIconName: AppIcon
         # Read at launch; both default to empty in Guessr.xcconfig.
         GuessrTwitchClientID: $(GUESSR_TWITCH_CLIENT_ID)
         GuessrOwnerTwitchID: $(GUESSR_OWNER_TWITCH_ID)
@@ -59,6 +62,9 @@ targets:
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 1
         TARGETED_DEVICE_FAMILY: "1,2"
+        # The game's mark from web/favicon.svg on the dark ground of its
+        # apple-touch-icon, one 1024 px image Xcode scales for every slot.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
         # Export DEVELOPMENT_TEAM=<id> before `xcodegen`, or pick the team in
         # Xcode (lost on the next regen).

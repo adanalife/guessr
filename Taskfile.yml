@@ -524,6 +524,11 @@ tasks:
 
   # Signs for distribution (the Release config in app/project.yml), so it needs
   # the "Apple Distribution" certificate in the login keychain.
+  app:icon:
+    desc: Re-render the app icon's light/dark/tinted variants from web/favicon.svg
+    cmds:
+      - ./scripts/make-app-icon.sh
+
   app:archive:
     desc: Archive a signed iPhone build (needs DEVELOPMENT_TEAM)
     dir: app
