@@ -6,7 +6,7 @@ import Foundation
     import FoundationNetworking
 #endif
 
-public struct Coordinate: Sendable, Equatable {
+public struct Coordinate: Sendable, Equatable, Codable {
     public var lat: Double
     public var lng: Double
 
@@ -172,6 +172,14 @@ public enum Guessr {
 public enum GuessrError: Error, LocalizedError, Equatable {
     case http(status: Int, message: String)
 
+    /// A 4xx: the request itself is refused, so sending it again gets the same
+    /// answer. Anything else is worth a retry.
+    public var isFinal: Bool {
+        switch self {
+        case .http(let status, _): (400..<500).contains(status)
+        }
+    }
+
     public var errorDescription: String? {
         switch self {
         case .http(_, let message): message
@@ -227,7 +235,11 @@ public struct GuessrClient: Sendable {
     }
 
     private func data(_ url: URL) async throws -> Data {
-        var req = URLRequest(url: url)
+        try await data(URLRequest(url: url))
+    }
+
+    func data(_ request: URLRequest) async throws -> Data {
+        var req = request
         req.setValue("application/json", forHTTPHeaderField: "Accept")
         let (data, response) = try await session.settledData(for: req)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
