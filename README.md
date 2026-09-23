@@ -591,6 +591,8 @@ Commits and PR titles follow [Conventional Commits](https://www.conventionalcomm
 PRs squash-merge, so the PR title becomes the subject in history and is what
 release-please reads to compute the next version.
 
+The native iOS app lives in [`app/`](app/README.md), with its own build notes.
+
 ### Changelog
 
 `CHANGELOG.md` is assembled by [towncrier](https://towncrier.readthedocs.io)

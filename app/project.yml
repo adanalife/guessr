@@ -1,0 +1,64 @@
+# xcodegen spec: `xcodegen` in this directory writes Guessr.xcodeproj from it
+# (gitignored), so targets are edited here, not in the Xcode GUI.
+name: Guessr
+options:
+  bundleIdPrefix: lol.dana
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+# Swift 6 language mode for every target. xcodegen's fallback for a target that
+# names no SWIFT_VERSION is Swift 5 mode, which turns data-race checking off.
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_APPROACHABLE_CONCURRENCY: YES
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+packages:
+  GuessrKit:
+    path: GuessrKit
+  # Private: the owner's console controls. A build without access to it (a
+  # fork, say) deletes this block and the matching dependency below, and the
+  # console tier compiles out.
+  # TempomatConsole:
+  #   url: https://github.com/adanalife/tempomat
+  #   branch: main
+targets:
+  Guessr:
+    type: application
+    supportedDestinations: [iOS]
+    sources:
+      - Guessr
+    configFiles:
+      Debug: Guessr.xcconfig
+      Release: Guessr.xcconfig
+    info:
+      path: Guessr/Info.plist
+      properties:
+        CFBundleDisplayName: Guessr
+        # Read at launch; both default to empty in Guessr.xcconfig.
+        GuessrTwitchClientID: $(GUESSR_TWITCH_CLIENT_ID)
+        GuessrOwnerTwitchID: $(GUESSR_OWNER_TWITCH_ID)
+    dependencies:
+      - package: GuessrKit
+      # - package: TempomatConsole
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: lol.dana.guessr
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        # Export DEVELOPMENT_TEAM=<id> before `xcodegen`, or pick the team in
+        # Xcode (lost on the next regen).
+        DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+schemes:
+  Guessr:
+    build:
+      targets:
+        Guessr: all
+    run:
+      config: Debug
