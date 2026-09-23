@@ -49,7 +49,8 @@ public struct Player: Sendable, Equatable, Codable {
 }
 
 /// The two lists a board name is drawn from. The server drops any handle not
-/// made of one word from each, and a test holds these to the web game's copy.
+/// made of one word from each. A copy of `web/alias.json`, which a SwiftPM target
+/// cannot reach as a resource; `aliasListsMatchTheWebGame` fails on any drift.
 public enum Alias {
     public static let adjectives = [
         "Amber", "Ancient", "Autumn", "Bright", "Bronze", "Calm", "Cedar", "Copper",

@@ -7,8 +7,8 @@ serve the same contract until the port is finished. Every one of these fails
 silently if it breaks: a wrong distance still returns plausible points, and a
 validator that lets a non-number through scores it as a perfect guess.
 
-Also holds the two copies of what the Python cannot import from the page -- the
-alias wordlists and the play-window hours -- identical to web/.
+Also holds the copy of what the Python cannot import from the page -- the
+play-window hours -- identical to web/.
 """
 
 import asyncio
@@ -25,14 +25,8 @@ WEB = Path(__file__).parent / "web"
 SF = {"lat": 37.7749, "lng": -122.4194}
 NYC = {"lat": 40.7128, "lng": -74.0060}
 
-# The copies agree with the page. A word only in the page's list is a name the
-# server drops; an hour off by one is a play the page offers and this refuses.
-alias_js = (WEB / "alias.js").read_text()
-for name, words in (("ADJECTIVES", rules.ADJECTIVES), ("NOUNS", rules.NOUNS)):
-    block = re.search(rf"export const {name} = \[(.*?)\];", alias_js, re.S).group(1)
-    assert set(re.findall(r"'(\w+)'", block)) == words, (
-        f"{name} differs from web/alias.js"
-    )
+# The hours agree with the page: an hour off by one is a play the page offers
+# and this refuses.
 daily_js = (WEB / "daily.js").read_text()
 for name in ("OPENS_UTC_HOUR", "CLOSES_UTC_HOUR", "ROUNDS_PER_GAME"):
     js = int(re.search(rf"const {name} = (\d+);", daily_js).group(1))
