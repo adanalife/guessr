@@ -90,3 +90,20 @@ async def caller(authorization: str | None, fetch, admins: Admins) -> Caller | N
     if any(str(c.get("broadcaster_id")) == admins.channel_id for c in channels):
         return Caller("mod", user_id, login)
     return None
+
+
+# Nothing an admin route answers is worth holding: a refusal is meant to change
+# with the next login, and an unopened day with the next regeneration.
+NO_STORE = {"cache-control": "no-store"}
+OWNER_ONLY = frozenset({"owner"})
+
+
+def refusal(who: Caller | None, tiers: frozenset[str] = OWNER_ONLY):
+    """The (status, body, headers) that turns a caller away, or None to proceed.
+    401 for nobody, 403 for an admin whose tier this route does not admit --
+    first in every handler, so a refusal says nothing about the request."""
+    if who is None:
+        return 401, {"error": "sign in with Twitch"}, NO_STORE
+    if who.tier not in tiers:
+        return 403, {"error": "not for your tier"}, NO_STORE
+    return None
