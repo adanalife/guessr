@@ -400,6 +400,34 @@ that history. That's the exposure the id already carried — knowing it lets you
 post plays as that player — and the mitigation is the same one, which is that it
 has no path out of the browser holding it.
 
+### Reporting a wrong answer
+
+A player who recognised the street is a better locator than anything in
+`make_rounds.py`, so the reveal carries a **Wrong spot?** button. `POST
+/api/report` with `{date, player_id, image}` forwards it to the Discord channel
+the rest of the fleet's reports land in, via the `DISCORD_WEBHOOK` Pages
+binding, and writes nothing else down.
+
+Three things make that safe to expose. The report is accepted only where `plays`
+already holds that player's row for that round, so nobody can drive the webhook
+with a round they never played, and five plays a day is the whole of what anyone
+can report. `plays.reported_at` (migration `0005`) is set in the same `UPDATE`
+that checks it, so a second press — or a loop — changes no rows and sends
+nothing. And the message opens with the tier from `web/version.json`, because
+both Pages projects post to the same channel and an untagged staging test is
+indistinguishable from a real report.
+
+It names the moment, not the clip: the message carries `slug` and
+`source_ts_sec`, since ground truth has been per-moment since
+[#81](https://github.com/adanalife/guessr/pull/81) and the row a correction is
+written against is keyed on that offset. Scoring is untouched — the score a
+report disputes stands, on the board and in the player's own history — and the
+button says so when it has sent.
+
+Staging has no `DISCORD_WEBHOOK` binding, so the endpoint answers 503 there
+until one is set; the claim is checked after that refusal, so a player's one
+report per round survives it.
+
 ### The boards
 
 `GET /api/leaderboard?board=daily|monthly` returns `{board, period, rows}`, rows
