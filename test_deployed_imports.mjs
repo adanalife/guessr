@@ -18,7 +18,8 @@ import { c } from './c.js';
 
 const MODULES = {
   '/daily.js': "export const effectiveDay = 1;\nexport const ROUNDS_PER_GAME = 5;\n",
-  '/a.js': 'export const a = 1;\n',
+  '/a.js': "import A from './a.json' with { type: 'json' };\nexport const a = A.a;\n",
+  '/a.json': '{"a": 1}\n',
   '/b.js': 'export const b = 1;\n',
   '/c.js': 'export const c = 1;\n',
 };
@@ -31,7 +32,9 @@ const missing = new Set();
 const server = createServer((req, res) => {
   const path = req.url;
   if (path !== '/' && MODULES[path] && !missing.has(path)) {
-    res.writeHead(200, { 'content-type': 'text/javascript' });
+    res.writeHead(200, {
+      'content-type': path.endsWith('.json') ? 'application/json' : 'text/javascript',
+    });
     res.end(MODULES[path]);
     return;
   }
@@ -55,6 +58,13 @@ r = await run();
 assert.notEqual(r.code, 0, 'a module answering the site HTML should fail');
 assert.match(r.out, /not JavaScript/, r.out);
 console.log('ok: a module the deployment does not carry fails on its content type');
+
+missing.clear();
+missing.add('/a.json');
+r = await run();
+assert.notEqual(r.code, 0, 'a JSON module answering the site HTML should fail');
+assert.match(r.out, /not JSON/, r.out);
+console.log('ok: a JSON module the deployment does not carry fails on its content type');
 
 missing.clear();
 page = PAGE('effectiveDay, dayFromDate');

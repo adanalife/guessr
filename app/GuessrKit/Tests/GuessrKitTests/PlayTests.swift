@@ -126,17 +126,14 @@ private let image = "clips/2018_1015_183219_002_opt-026000.mp4"
 }
 
 /// The server keeps only a handle drawn from the web game's lists, so a word
-/// here that isn't there would put a nameless row on the board.
+/// here that isn't there would put a nameless row on the board. Order is held
+/// too, so the copy stays a copy rather than a set that happens to match.
 @Test func aliasListsMatchTheWebGame() throws {
-    let js = try String(
+    let data = try Data(
         contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
-            .appending(path: "../../../../web/alias.js").standardizedFileURL,
-        encoding: .utf8)
-    for (name, words) in [("ADJECTIVES", Alias.adjectives), ("NOUNS", Alias.nouns)] {
-        let block = try #require(js.firstMatch(of: try Regex("export const \(name) = \\[([^\\]]*)\\];")))
-        let listed = block.output[1].substring.map { String($0) } ?? ""
-        let web = Set(listed.matches(of: /'(\w+)'/).map { String($0.output.1) })
-        #expect(web == Set(words), "\(name) differs from web/alias.js")
-    }
+            .appending(path: "../../../../web/alias.json").standardizedFileURL)
+    let web = try JSONDecoder().decode([String: [String]].self, from: data)
+    #expect(web["adjectives"] == Alias.adjectives, "adjectives differ from web/alias.json")
+    #expect(web["nouns"] == Alias.nouns, "nouns differ from web/alias.json")
 }

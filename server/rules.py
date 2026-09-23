@@ -1,13 +1,15 @@
 """The rules a guess is judged by: the scoring curve, what counts as a guess or a
 play, which names a player may wear, and when a date is open.
 
-Pure functions and constants, no I/O, so every rule here is testable without a
-database and without a server. The handlers in this package are the only callers.
+Pure functions and constants, with no I/O past reading the alias wordlist at
+import, so every rule here is testable without a database and without a server. The handlers in this package are the only callers.
 """
 
 import datetime as dt
+import json
 import math
 import re
+from pathlib import Path
 
 # GeoGuessr's curve: full marks near-exact, ~0 across the continent. 4500 km is
 # roughly the width of the playable area (the lower 48).
@@ -28,27 +30,15 @@ MONTH = re.compile(r"[0-9]{4}-(0[1-9]|1[0-2])")
 # string.
 MAX_HANDLE = 24
 
-# The two lists a player's alias is drawn from. The browser draws from the copy in
-# web/alias.js, which stays JavaScript because the page does; this copy is the
-# boundary /api/score enforces, and the test holds the two identical.
-#
-# ponytail: duplicated rather than shared, because a Python Worker bundles its
-# modules and not web/. Move both to one JSON file if a third reader appears.
-ADJECTIVES = frozenset(
-    "Amber Ancient Autumn Bright Bronze Calm Cedar Copper Crimson Distant Drifting "
-    "Dusty Eastern Emerald Endless Fading Foggy Frozen Gentle Gilded Golden Granite "
-    "Hazy Hidden Humming Idle Lonesome Lucky Marbled Midnight Northern Open Painted "
-    "Patient Quiet Rambling Restless Rolling Rusted Scenic Silent Silver Slanting "
-    "Southern Sunlit Twilight Wandering Western Winding".split()
+# The two lists a player's alias is drawn from, loaded from web/alias.json, the
+# file the page and the Pages Functions import too. This copy is the boundary
+# /api/score enforces. A Python Worker bundles only its own modules, so a deploy
+# of this package has to ship that file beside them.
+_WORDS = json.loads(
+    (Path(__file__).resolve().parent.parent / "web" / "alias.json").read_text()
 )
-NOUNS = frozenset(
-    "Arroyo Badlands Basin Bluff Boulder Butte Canyon Cascade Causeway Cedar Compass "
-    "Coulee Crossing Delta Diner Dunes Foothill Freeway Glacier Harbour Highway "
-    "Junction Lantern Lookout Meadow Mesa Milepost Odometer Overlook Overpass "
-    "Pinewood Plateau Prairie Ridgeline Roadside Sagebrush Sandstone Shoreline "
-    "Signpost Switchback Timberline Trailhead Turnout Underpass Valley Viaduct "
-    "Wayside Wildflower Windmill".split()
-)
+ADJECTIVES = frozenset(_WORDS["adjectives"])
+NOUNS = frozenset(_WORDS["nouns"])
 
 # When a date is open to play: from midnight in the earliest timezone on Earth
 # (UTC+14, 10:00 UTC the day before) to midnight in the latest (UTC-12, 12:00 UTC
