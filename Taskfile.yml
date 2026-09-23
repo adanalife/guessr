@@ -509,6 +509,15 @@ tasks:
     cmds:
       - ./integration.sh
 
+  # The same contract against the other runtime: the Python app under uvicorn,
+  # over a sqlite file and a clip directory, with Twitch stubbed at the fetch
+  # seam. Both passing is what keeps guessr portable off Cloudflare. Touches
+  # nothing in the repo; its world is a temp dir.
+  test:integration:py:
+    desc: Assert the same HTTP contract against the Python app under uvicorn
+    cmds:
+      - uv run --project api python integration_uvicorn.py
+
   smoke:
     desc: "Check a deployed tier is actually playable: task smoke -- <base-url>.
       Read-only, so it is safe against production — and the thing to run by hand
