@@ -27,10 +27,11 @@ struct PlayView: View {
     var body: some View {
         Group {
             if let day {
-                if revealed, let last = progress.played.last {
-                    round(day, image: last.image, number: progress.played.count, shown: last)
-                } else if let next = progress.next(in: day) {
-                    round(day, image: next.image, number: progress.played.count + 1, shown: nil)
+                // One call site for the round and its reveal, so the clip and map
+                // stay the same views across a guess rather than reloading.
+                let shown = revealed ? progress.played.last : nil
+                if let image = shown?.image ?? progress.next(in: day)?.image {
+                    round(day, image: image, number: progress.played.count + (shown == nil ? 1 : 0), shown: shown)
                 } else {
                     DayResultView(progress: progress)
                 }
@@ -46,7 +47,10 @@ struct PlayView: View {
 
     private func round(_ day: GuessrDay, image: String, number: Int, shown: PlayedRound?) -> some View {
         VStack(spacing: 12) {
+            // A fresh player per clip: a looper can't be rebuilt on a queue
+            // player still holding the last clip's items.
             ClipView(url: Guessr.baseURL.appending(path: image))
+                .id(image)
                 .aspectRatio(16 / 9, contentMode: .fit)
             MapReader { proxy in
                 Map(position: $camera) {
