@@ -463,6 +463,14 @@ of a player id between two terminals. It writes `note` and only `note` —
 setting a published `NAME` stays the task above, deliberately, because that one
 is a decision rather than a jotting.
 
+`/admin/openers` is every round the schedule still has ahead of it, ranked by
+distinctiveness rather than by the day it lands on, each tile playing under the
+pointer. `mean_cos` says a clip has no near-twins in the corpus; whether that
+reads as an *interesting* round is a judgement no number makes, so the ranking
+is only useful next to the footage. The question comes back every time the pool
+is regenerated. Position 1 is flagged — the opener is the round that decides
+whether somebody plays the other four.
+
 `/admin/scores` answers the other direction: a score has been shared with no
 name on it, and the only handle on it is the number. It lists one date's games
 highest-first with every pin beside the truth it was aiming at, and marks the
