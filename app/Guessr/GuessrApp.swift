@@ -4,11 +4,13 @@ import SwiftUI
 @main
 struct GuessrApp: App {
     @State private var account = Account()
+    private let player = KeychainPlayerStore().current()
 
     var body: some Scene {
         WindowGroup {
             TabView {
-                Tab("Today", systemImage: "car") { NavigationStack { TodayView() } }
+                Tab("Play", systemImage: "mappin.and.ellipse") { NavigationStack { PlayView(player: player) } }
+                Tab("Boards", systemImage: "list.number") { NavigationStack { TodayView() } }
                 Tab("Settings", systemImage: "gear") { NavigationStack { SettingsView() } }
             }
             .environment(account)
