@@ -1,0 +1,12 @@
+{"board":"monthly","period":"2026-09","rank":1,"name":"Patient Delta","rows":[
+  {"date":"2026-09-01","position":1,"km":90.30298974660693,"points":4091,
+   "image":"clips/2018_1015_183219_002_opt-026000.mp4",
+   "guess_lat":33.76234673732405,"guess_lng":-118.28482279787544,
+   "answer_lat":33.913757,"answer_lng":-117.324235},
+  {"date":"2026-09-06","position":2,"km":15.9,"points":4826,
+   "image":"clips/2018_0513_234013_004_b_opt-055000.mp4",
+   "guess_lat":43.865950879768,"guess_lng":-110.56162944752089,
+   "answer_lat":43.771167,"answer_lng":-110.710091},
+  {"date":"2026-09-07","position":1,"km":204.5,"points":3110,
+   "image":null,"guess_lat":null,"guess_lng":null,"answer_lat":null,"answer_lng":null}
+]}
