@@ -188,3 +188,29 @@ extension GuessrClient {
         return try Guessr.decoder.decode(GuessrScore.self, from: try await data(req))
     }
 }
+
+/// What claiming a link code answers: the player this device joins, and how
+/// many of its plays moved onto them.
+public struct LinkClaim: Sendable, Equatable, Codable {
+    public var playerId: String
+    public var moved: Int
+
+    public init(playerId: String, moved: Int) {
+        self.playerId = playerId
+        self.moved = moved
+    }
+}
+
+extension GuessrClient {
+    /// Joins the player who drew `code` on another device: `player`'s plays
+    /// fold onto theirs, and the answer is the id to play as from here on. A
+    /// code is single-use and lasts ten minutes; an unknown, used or expired one
+    /// is a 404.
+    public func claimLink(code: String, from player: Player) async throws -> LinkClaim {
+        var req = URLRequest(url: baseURL.appending(path: "api/link/claim"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(["code": code, "from": player.id])
+        return try Guessr.decoder.decode(LinkClaim.self, from: try await data(req))
+    }
+}

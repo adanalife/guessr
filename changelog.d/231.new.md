@@ -1,0 +1,1 @@
+The iPhone app can join the scores you already have on the web: tap **Already playing on the web? Enter your code** before your first guess, and type the code the web game shows under **Link a device**.

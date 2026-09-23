@@ -22,24 +22,48 @@ final class ScoringGuessr: URLProtocol, @unchecked Sendable {
 
     override func startLoading() {
         Self.lastMethod = request.httpMethod
-        // URLSession hands a protocol the body as a stream, not as httpBody.
-        var body = request.httpBody ?? Data()
-        if let stream = request.httpBodyStream {
-            stream.open()
-            var buffer = [UInt8](repeating: 0, count: 4096)
-            while stream.hasBytesAvailable {
-                let n = stream.read(&buffer, maxLength: buffer.count)
-                if n <= 0 { break }
-                body.append(buffer, count: n)
-            }
-            stream.close()
-        }
-        Self.lastBody = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
-        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: (try? fixture("score")) ?? Data())
-        client?.urlProtocolDidFinishLoading(self)
+        Self.lastBody = jsonBody(of: request)
+        answer(self, with: "score")
     }
+}
+
+/// Answers every request with the link-claim fixture and keeps the last request.
+final class ClaimingGuessr: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var lastBody: [String: Any] = [:]
+    nonisolated(unsafe) static var lastPath: String?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+
+    override func startLoading() {
+        Self.lastPath = request.url?.path
+        Self.lastBody = jsonBody(of: request)
+        answer(self, with: "link-claim")
+    }
+}
+
+/// URLSession hands a protocol the body as a stream, not as httpBody.
+private func jsonBody(of request: URLRequest) -> [String: Any] {
+    var body = request.httpBody ?? Data()
+    if let stream = request.httpBodyStream {
+        stream.open()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while stream.hasBytesAvailable {
+            let n = stream.read(&buffer, maxLength: buffer.count)
+            if n <= 0 { break }
+            body.append(buffer, count: n)
+        }
+        stream.close()
+    }
+    return (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
+}
+
+private func answer(_ proto: URLProtocol, with name: String) {
+    let response = HTTPURLResponse(url: proto.request.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!
+    proto.client?.urlProtocol(proto, didReceive: response, cacheStoragePolicy: .notAllowed)
+    proto.client?.urlProtocol(proto, didLoad: (try? fixture(name)) ?? Data())
+    proto.client?.urlProtocolDidFinishLoading(proto)
 }
 
 /// Refuses every play the way /api/score refuses one against a closed date.
@@ -97,6 +121,14 @@ private let image = "clips/2018_1015_183219_002_opt-026000.mp4"
         #expect(error.isFinal)
     }
     #expect(!GuessrError.http(status: 502, message: "").isFinal)
+}
+
+@Test func aClaimedCodeNamesThePlayerToJoin() async throws {
+    let claim = try await client(ClaimingGuessr.self).claimLink(code: "ABCD2345", from: player)
+    #expect(claim == LinkClaim(playerId: "5d2c8e1a-9b3f-4c7d-a6e0-1f2b3c4d5e6f", moved: 3))
+    #expect(ClaimingGuessr.lastPath == "/api/link/claim")
+    #expect(ClaimingGuessr.lastBody["code"] as? String == "ABCD2345")
+    #expect(ClaimingGuessr.lastBody["from"] as? String == player.id)
 }
 
 @Test func progressResumesItsOwnDateOnly() throws {
