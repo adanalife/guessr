@@ -4,7 +4,8 @@ guess.
 
 A guess that names a date is a daily play: checked against that date's window and
 schedule, then recorded once in `plays`. A guess with no date is a practice round,
-scored and never stored, because nothing is at stake.
+scored and never stored, and only against a round from a day that is over,
+because that is all practice ever deals.
 
 Framework-free: the handler takes the parsed JSON body (None when it failed to
 parse) and returns (status, body), so whatever serves HTTP is a thin shim.
@@ -38,6 +39,12 @@ async def score(db, body, now=None) -> tuple[int, dict]:
         # why this is a distinct 404 rather than a 500.
         return 404, {"error": "unknown round"}
 
+    # The response carries the answer, so an undated guess at a round some date has
+    # yet to finish would read its truth before any daily guess was committed.
+    # Practice only deals rounds from closed dates, so that is all it may score.
+    if not play and not await _practiceable(db, guess["image"], now):
+        return 403, {"error": "that round is not open to practice"}
+
     km = rules.haversine_km(guess, answer)
     scored = {"km": km, "points": rules.score_for(km)}
     if not play:
@@ -53,6 +60,17 @@ async def _in_draw(db, date: str, image: str) -> bool:
     schedule the page was handed."""
     row = await db.fetchone(
         "SELECT 1 FROM round_days WHERE date = ? AND image = ?", date, image
+    )
+    return row is not None
+
+
+async def _practiceable(db, image: str, now) -> bool:
+    """Whether an image is one practice could have dealt: scheduled on a date that
+    has closed. The same predicate as /api/day?practice."""
+    row = await db.fetchone(
+        "SELECT 1 FROM round_days WHERE image = ? AND date <= ?",
+        image,
+        rules.last_closed_date(now),
     )
     return row is not None
 
