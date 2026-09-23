@@ -4,6 +4,23 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.14.0 — 2026-09-23
+
+### Changed
+
+- The iOS app drops its Settings tab, which only held a Twitch sign-in that does nothing yet. Play and Boards are the whole app for now. ([#236](https://github.com/adanalife/guessr/pull/236))
+- The Link a device code no longer tells the player how long it lasts. ([#240](https://github.com/adanalife/guessr/pull/240))
+
+### Fixed
+
+- The iOS app ships an icon: the game's pin mark in tempomat's light/dark/tinted composition, rendered by `task app:icon`. App Store Connect refused the first upload for want of one. ([#234](https://github.com/adanalife/guessr/pull/234))
+
+### Behind the scenes
+
+- The test copy of the game can hand its scoring, leaderboards and clips to a new server, so it can be tried out there before anyone playing the real game meets it. ([#237](https://github.com/adanalife/guessr/pull/237))
+- The game's server has a Python version, which the staging copy of the game tries out before the real one does. ([#238](https://github.com/adanalife/guessr/pull/238))
+- Every change to the game is checked against both of the servers it can run on, so a difference between them is caught before it ships. ([#239](https://github.com/adanalife/guessr/pull/239))
+
 ## v1.13.0 — 2026-09-23
 
 ### New
