@@ -62,3 +62,5 @@ DerivedData/
 python_modules/
 .venv-workers/
 pylock.toml
+# `task api:bundle`: the staged copy of server/ the Worker ships.
+.api-bundle/

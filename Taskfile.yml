@@ -110,6 +110,24 @@ tasks:
       - printf '{"label":"local","tier":"local"}\n' > web/version.json
       - npx wrangler pages dev web/ --port {{.PORT}} --d1 ANSWERS={{.LOCAL_DB}}
 
+  # What the Python Worker ships, staged apart from the repo root (the script
+  # says why). staging.yml runs the same script before its deploy.
+  api:bundle:
+    desc: Stage server/ and the alias wordlist into .api-bundle/ for the Python Worker
+    cmds:
+      - ./scripts/api-bundle.sh
+
+  # The Python Worker under workerd, against a local D1 and R2 keyed like the
+  # staging ones (`npx wrangler d1 migrations apply adanalife-guessr-answers-staging
+  # --local` to give it tables). pywrangler vendors starlette and the Workers SDK
+  # into python_modules/ first. An edit to server/ needs a restart, since what
+  # runs is the staged copy.
+  api:dev:
+    desc: Run the Python Worker locally under pywrangler (args pass through to wrangler dev)
+    deps: [api:bundle]
+    cmds:
+      - uv run pywrangler dev {{.CLI_ARGS}}
+
   answers:local:push:
     desc: Seed answers.sql into the local D1 that `dev` binds
     cmds:
