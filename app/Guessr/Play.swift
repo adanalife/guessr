@@ -27,10 +27,11 @@ struct PlayView: View {
     var body: some View {
         Group {
             if let day {
-                if revealed, let last = progress.played.last {
-                    round(day, image: last.image, number: progress.played.count, shown: last)
-                } else if let next = progress.next(in: day) {
-                    round(day, image: next.image, number: progress.played.count + 1, shown: nil)
+                // One call site for the round and its reveal, so the clip and map
+                // stay the same views across a guess rather than reloading.
+                let shown = revealed ? progress.played.last : nil
+                if let image = shown?.image ?? progress.next(in: day)?.image {
+                    round(day, image: image, number: progress.played.count + (shown == nil ? 1 : 0), shown: shown)
                 } else {
                     DayResultView(progress: progress)
                 }
@@ -46,7 +47,10 @@ struct PlayView: View {
 
     private func round(_ day: GuessrDay, image: String, number: Int, shown: PlayedRound?) -> some View {
         VStack(spacing: 12) {
+            // A fresh player per clip: a looper can't be rebuilt on a queue
+            // player still holding the last clip's items.
             ClipView(url: Guessr.baseURL.appending(path: image))
+                .id(image)
                 .aspectRatio(16 / 9, contentMode: .fit)
             MapReader { proxy in
                 Map(position: $camera) {
@@ -112,7 +116,26 @@ struct PlayView: View {
             // The server says why — nothing scheduled, or a date not yet open.
             message = (error as? GuessrError)?.errorDescription ?? "Could not reach the rounds"
         }
+        #if DEBUG
+            await autoplay()
+        #endif
     }
+
+    #if DEBUG
+        /// `-autoplay 1` plays the rest of the day unattended, pausing on each
+        /// round and each reveal long enough to screenshot it.
+        private func autoplay() async {
+            guard UserDefaults.standard.bool(forKey: "autoplay"), let day else { return }
+            while let next = progress.next(in: day) {
+                try? await Task.sleep(for: .seconds(5))
+                pin = CLLocationCoordinate2D(latitude: 39.74, longitude: -104.99)
+                await guess(next.image)
+                guard revealed else { return }
+                try? await Task.sleep(for: .seconds(6))
+                (revealed, pin, message, camera) = (false, nil, nil, PlayView.lower48)
+            }
+        }
+    #endif
 
     private func guess(_ image: String) async {
         guard let pin else { return }

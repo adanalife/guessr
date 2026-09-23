@@ -114,7 +114,11 @@ public struct GuessrLeaderboard: Sendable, Equatable, Decodable {
 }
 
 public enum Guessr {
-    public static let baseURL = URL(string: "https://guessr.dana.lol")!
+    /// The server: the app's `GuessrAPIBase` Info.plist entry, or production
+    /// for a caller with no such entry (the package tests, say).
+    public static let baseURL =
+        (Bundle.main.object(forInfoDictionaryKey: "GuessrAPIBase") as? String).flatMap { URL(string: $0) }
+        ?? URL(string: "https://guessr.dana.lol")!
 
     /// The server's keys are snake_case.
     static let decoder: JSONDecoder = {
