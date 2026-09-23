@@ -106,7 +106,26 @@ struct PlayView: View {
             // The server says why — nothing scheduled, or a date not yet open.
             message = (error as? GuessrError)?.errorDescription ?? "Could not reach the rounds"
         }
+        #if DEBUG
+            await autoplay()
+        #endif
     }
+
+    #if DEBUG
+        /// `-autoplay 1` plays the rest of the day unattended, pausing on each
+        /// round and each reveal long enough to screenshot it.
+        private func autoplay() async {
+            guard UserDefaults.standard.bool(forKey: "autoplay"), let day else { return }
+            while let next = progress.next(in: day) {
+                try? await Task.sleep(for: .seconds(5))
+                pin = CLLocationCoordinate2D(latitude: 39.74, longitude: -104.99)
+                await guess(next.image)
+                guard revealed else { return }
+                try? await Task.sleep(for: .seconds(6))
+                (revealed, pin, message, camera) = (false, nil, nil, PlayView.lower48)
+            }
+        }
+    #endif
 
     private func guess(_ image: String) async {
         guard let pin else { return }
