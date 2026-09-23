@@ -141,15 +141,24 @@ tasks:
     cmds:
       - npx wrangler d1 migrations apply {{.LOCAL_DB}} --local --config wrangler.d1.jsonc
 
+  # An apply is not atomic across migrations: each one is recorded in the
+  # `d1_migrations` ledger as it lands, so a remote apply that dies partway (D1's
+  # `storage operation exceeded timeout ... [code: 7429]`, which has followed a
+  # `backup:prod` export by seconds) leaves the earlier ones applied and the rest
+  # not. Recovery is re-running the apply, which resumes from the ledger -- never
+  # `--force` it or hand-run the SQL. The deferred status runs whether the apply
+  # succeeded or not, so a half-applied tier is on screen either way.
   schema:stage:apply:
     desc: Apply pending migrations to the staging D1
     cmds:
+      - defer: {task: schema:stage:status}
       - task: _d1:migrate
         vars: {DB: adanalife-guessr-answers-staging, VERB: apply}
 
   schema:prod:apply:
     desc: Apply pending migrations to the production D1
     cmds:
+      - defer: {task: schema:prod:status}
       - task: _d1:migrate
         vars: {DB: adanalife-guessr-answers, VERB: apply}
 
