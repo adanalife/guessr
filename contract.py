@@ -3,6 +3,7 @@
 
     python3 contract.py <base-url>          # the whole contract, tier "local"
     python3 contract.py <base-url> locked   # /admin/ with no tier stamped
+    python3 contract.py <base-url> twitch   # /admin/ to a caller Twitch refuses
     python3 contract.py --seed              # the plays SQL the contract expects
 
 Black-box on purpose: it speaks HTTP and nothing else, so it says nothing about
@@ -10,6 +11,12 @@ what language the handlers are written in, and it holds whatever serves them to
 the same statuses, shapes and guards. integration.sh is the orchestrator -- it
 fabricates the round set, seeds a throwaway local D1 and R2, boots the server and
 runs this twice, once before stamping a tier and once after.
+integration_uvicorn.py does the same for the Python app under uvicorn.
+
+Every /admin/ request carries `Authorization: Bearer <OWNER_TOKEN>` unless it
+names its own. workerd's Access gate never reads it; the Python app's Twitch
+gate is what it is for, and integration_uvicorn.py stubs Twitch to answer that
+token as the owner.
 
 What it assumes about the database is exactly what integration.sh seeds, and all
 of it is keyed on dates relative to today (UTC) so no answer depends on the
@@ -73,6 +80,8 @@ def seed_sql() -> str:
 
 
 BASE = ""
+# The token integration_uvicorn.py's Twitch stub knows as the owner's.
+OWNER_TOKEN = "contract-owner-token"
 
 
 class Reply:
@@ -94,7 +103,12 @@ def call(method, path, body=None, headers=None, raw=None) -> Reply:
     req = urllib.request.Request(BASE + path, data=data, method=method)
     if data is not None:
         req.add_header("content-type", "application/json")
-    for k, v in (headers or {}).items():
+    headers = dict(headers or {})
+    if path.startswith("/admin") and not any(
+        k.lower() == "authorization" for k in headers
+    ):
+        headers["authorization"] = f"Bearer {OWNER_TOKEN}"
+    for k, v in headers.items():
         req.add_header(k, v)
     try:
         with urllib.request.urlopen(req, timeout=30) as res:
@@ -180,6 +194,23 @@ def locked():
                 headers=headers,
             )
             assert "no Access application" in error(r), r.raw
+            assert r.header("cache-control") == "no-store", r.header("cache-control")
+
+
+def twitch():
+    """The Python app's gate: with no token, or one Twitch does not vouch for,
+    every admin route -- page included -- is refused before it is routed."""
+    for method, path in ADMIN:
+        for how, token in (("", ""), (" to a stranger's token", "Bearer stranger")):
+            r = expect(
+                f"{method} {path} is refused{how}",
+                401,
+                method,
+                path,
+                {},
+                headers={"authorization": token},
+            )
+            assert error(r) == "sign in with Twitch", r.raw
             assert r.header("cache-control") == "no-store", r.header("cache-control")
 
 
@@ -882,7 +913,7 @@ def main() -> int:
     if sys.argv[1:] == ["--seed"]:
         sys.stdout.write(seed_sql())
         return 0
-    if len(sys.argv) not in (2, 3) or sys.argv[2:] not in ([], ["locked"]):
+    if len(sys.argv) not in (2, 3) or sys.argv[2:] not in ([], ["locked"], ["twitch"]):
         print(__doc__, file=sys.stderr)
         return 2
     BASE = sys.argv[1].rstrip("/")
@@ -890,6 +921,10 @@ def main() -> int:
     if sys.argv[2:] == ["locked"]:
         locked()
         print("ok: /admin/ is closed on a tier nobody stamped")
+        return 0
+    if sys.argv[2:] == ["twitch"]:
+        twitch()
+        print("ok: /admin/ refuses a caller Twitch does not vouch for")
         return 0
 
     images, first_images = day()
@@ -903,7 +938,7 @@ def main() -> int:
     notes()
     review()
     reject(last)
-    print("ok: every route answers its contract against a real local D1")
+    print("ok: every route answers its contract against a real database")
     return 0
 
 
