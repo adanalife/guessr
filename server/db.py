@@ -38,3 +38,11 @@ class Sqlite:
 
     async def fetchall(self, sql: str, *args) -> list[dict]:
         return [dict(row) for row in self.conn.execute(sql, args)]
+
+    async def batch(self, statements: list[tuple]) -> list[int]:
+        """Runs (sql, *args) writes in one transaction and returns each rowcount.
+        D1's batch is also one transaction, and a caller whose second statement
+        assumes the first ran depends on that."""
+        with self.conn:
+            self.conn.execute("BEGIN")
+            return [self.conn.execute(sql, args).rowcount for sql, *args in statements]
