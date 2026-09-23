@@ -6,9 +6,9 @@ Workers SDK wraps `env.DB` and converts D1's results itself: a row arrives as a
 as keys. So nothing here calls `.to_py()` -- that raises on an SDK-converted
 value -- and results are read by key, which a plain dict in a test also has.
 
-ponytail: None arguments are passed to `bind` as-is. Whether the SDK carries
-them to D1 as SQL NULL, not `undefined` (which D1 refuses), is checked by the
-first staging deploy's contract run; convert here if it does not.
+None arguments go to `bind` as-is: the SDK's wrapper converts every call
+argument with `python_to_rpc`, which maps None to JS null -- SQL NULL to D1 --
+never to `undefined`, which D1 refuses.
 """
 
 
