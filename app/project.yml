@@ -38,6 +38,8 @@ targets:
         # Read at launch; both default to empty in Guessr.xcconfig.
         GuessrTwitchClientID: $(GUESSR_TWITCH_CLIENT_ID)
         GuessrOwnerTwitchID: $(GUESSR_OWNER_TWITCH_ID)
+        # Read by GuessrKit's Guessr.baseURL; set per configuration.
+        GuessrAPIBase: $(GUESSR_API_BASE)
     dependencies:
       - package: GuessrKit
       # - package: TempomatConsole
