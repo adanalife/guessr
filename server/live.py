@@ -8,7 +8,7 @@ a datacenter (YouTube answers an unresolved app shell), and `search.list` costs
 100 quota units a call. The browser cannot read the feed itself -- no CORS
 headers -- which is why this endpoint exists.
 
-`fetch` is the outbound-HTTP seam: an async `(url) -> (status, text)` that raises
+`fetch` is the outbound-HTTP seam: an async `(url, headers=None) -> (status, text)` that raises
 when no response arrives. Whatever passes it owns edge caching of the upstream;
 on Cloudflare that is `cacheTtlByStatus` caching a 2xx for TTL and no error, so a
 retry is a real attempt rather than a cached failure. Returns (status, body,
