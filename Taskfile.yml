@@ -493,7 +493,8 @@ tasks:
     # passes.
     cmds:
       - for f in test_*.mjs; do echo "== $f"; node "$f" || exit 1; done
-      - for f in test_*.py; do echo "== $f"; python3 "$f" || exit 1; done
+      # uv, for the one dependency the server tests need: Starlette.
+      - for f in test_*.py; do echo "== $f"; uv run python "$f" || exit 1; done
 
   # The tier between `test` and `smoke`: a real D1 and a real workerd, both
   # disposable. `test` proves handler logic against a stub of the binding;
