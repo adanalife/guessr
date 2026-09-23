@@ -1,0 +1,12 @@
+// Build settings a release supplies and a public checkout leaves empty.
+//
+// GUESSR_TWITCH_CLIENT_ID: the Twitch application's client id (a Public
+// client; not a secret). Empty switches the Twitch login off.
+// GUESSR_OWNER_TWITCH_ID: the numeric Twitch user id of the owner. Empty means
+// nobody is the owner, so the console tier never shows.
+GUESSR_TWITCH_CLIENT_ID =
+GUESSR_OWNER_TWITCH_ID =
+
+// Real values go in Local.xcconfig beside this file (gitignored), or on the
+// xcodebuild command line.
+#include? "Local.xcconfig"

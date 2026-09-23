@@ -46,3 +46,13 @@ __pycache__/
 .ruff_cache/
 /burned.txt
 /avoid.txt
+
+# The iOS app: xcodegen output, SwiftPM and Xcode scratch, and the local build
+# settings (the owner id and Twitch client id) that app/Guessr.xcconfig includes.
+app/Guessr.xcodeproj/
+app/Guessr/Info.plist
+app/Local.xcconfig
+.build/
+.swiftpm/
+xcuserdata/
+DerivedData/
