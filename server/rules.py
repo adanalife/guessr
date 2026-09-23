@@ -13,10 +13,15 @@ import re
 # roughly the width of the playable area (the lower 48).
 MAP_SIZE_KM = 4500
 MAX_ROUND_SCORE = 5000
+# How many rounds a game is. Must agree with web/daily.js.
+ROUNDS_PER_GAME = 5
 
 # The date a round set is scheduled on, YYYY-MM-DD. ASCII digits only: Python's
 # \d also matches Arabic-Indic and every other script's digits.
 DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+# The month a monthly board covers, YYYY-MM. Unlike DATE this is the whole check:
+# every month it matches is one the calendar has.
+MONTH = re.compile(r"[0-9]{4}-(0[1-9]|1[0-2])")
 
 # The handle is a display label, never an identity: two players called "Jason"
 # are two rows keyed on different player_ids that happen to render the same
@@ -154,3 +159,17 @@ def play_window(date: str) -> tuple[dt.datetime, dt.datetime]:
 def is_open(date: str, now: dt.datetime | None = None) -> bool:
     opens, closes = play_window(date)
     return opens <= (now or dt.datetime.now(dt.UTC)) < closes
+
+
+def last_closed_date(now: dt.datetime | None = None) -> str:
+    """The most recent date whose board can no longer change. Date D closes at
+    D+1 12:00 UTC, so it is the UTC date 36 hours back."""
+    return (
+        ((now or dt.datetime.now(dt.UTC)) - dt.timedelta(hours=36)).date().isoformat()
+    )
+
+
+def month_of(now: dt.datetime | None = None) -> str:
+    """The month a monthly board covers. A running total needs no closing rule,
+    so today's plays belong in it."""
+    return (now or dt.datetime.now(dt.UTC)).strftime("%Y-%m")
