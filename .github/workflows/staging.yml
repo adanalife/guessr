@@ -3,10 +3,16 @@ name: staging
 #
 # Two Cloudflare Pages projects, declared in infra's
 # terraform/prod-1/cloudflare-pages-guessr.tf: main lands on the staging one,
-# and guessr.dana.lol only moves when a release tag ships (release.yml). The
-# game is static files with no backend, so staging costs a Pages project and
-# buys somewhere to look at a change — a regenerated round set especially —
-# before players see it.
+# and guessr.dana.lol only moves when a release tag ships (release.yml).
+# Staging buys somewhere to look at a change — a regenerated round set
+# especially — before players see it.
+#
+# Staging also runs the Python API. The site stays a Pages project, and its
+# root middleware (functions/_middleware.js) hands /api/, /admin/ and /clips/ to
+# the Worker through the project's `API` service binding. The Worker deploys
+# first, so the forwarder never points at a Worker running older code than the
+# Pages build in front of it. A failed Worker deploy stops the job, so the
+# Pages site never ships ahead of the API it calls.
 on:
   push:
     branches: [main]
@@ -65,6 +71,32 @@ jobs:
             echo "::error::the staging database is behind — run 'task schema:stage:apply', then re-run this job"
             exit 1
           }
+      # The Worker behind the `API` binding (see the top of this file). Skipped
+      # while the repo carries no Worker config, which leaves this job exactly
+      # the Pages deploy it has always been.
+      #
+      # Node from .tool-versions rather than the runner's: pywrangler builds its
+      # Pyodide environment with a node flag that Node 26 dropped.
+      - name: No Python Worker to deploy
+        if: hashFiles('wrangler.api.jsonc') == ''
+        run: echo "::notice::no wrangler.api.jsonc, so only the Pages site deploys"
+      - uses: actions/setup-node@v7
+        if: hashFiles('wrangler.api.jsonc') != ''
+        with:
+          node-version-file: .tool-versions
+      - uses: astral-sh/setup-uv@v10.2.0 # no floating major tag published
+        if: hashFiles('wrangler.api.jsonc') != ''
+      - name: Deploy the Python Worker (staging)
+        if: hashFiles('wrangler.api.jsonc') != ''
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        # pywrangler vendors the Python packages (its `sync`) before handing the
+        # deploy to wrangler.
+        run: |
+          uv sync
+          uv run pywrangler deploy --config wrangler.api.jsonc
+
       # No build step, and no media either: web/ is the site, and the round
       # clips are served from R2 by functions/clips/[[path]].js rather than
       # deployed alongside it. So what goes up is a few hundred KB of HTML and
