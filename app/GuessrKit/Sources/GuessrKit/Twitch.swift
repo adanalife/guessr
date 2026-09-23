@@ -57,39 +57,54 @@ public final class MemorySessionStore: SessionStore, @unchecked Sendable {
 }
 
 #if canImport(Security)
-    /// The Keychain, readable once the device has been unlocked since boot and
-    /// never restored onto a second device.
-    public struct KeychainSessionStore: SessionStore {
-        public var service: String
-
-        public init(service: String = "lol.dana.guessr.twitch") { self.service = service }
+    /// One generic-password Keychain item, readable once the device has been
+    /// unlocked since boot and never restored onto a second device.
+    struct KeychainItem: Sendable {
+        var service: String
+        var account: String
 
         private var query: [CFString: Any] {
-            [kSecClass: kSecClassGenericPassword, kSecAttrService: service, kSecAttrAccount: "session"]
+            [kSecClass: kSecClassGenericPassword, kSecAttrService: service, kSecAttrAccount: account]
         }
 
-        public func load() -> TwitchSession? {
+        func read() -> Data? {
             var q = query
             q[kSecReturnData] = true
             var item: CFTypeRef?
-            guard SecItemCopyMatching(q as CFDictionary, &item) == errSecSuccess, let data = item as? Data else {
-                return nil
-            }
-            return try? JSONDecoder().decode(TwitchSession.self, from: data)
+            guard SecItemCopyMatching(q as CFDictionary, &item) == errSecSuccess else { return nil }
+            return item as? Data
         }
 
-        /// Replaces whatever was saved. A failed write costs a login on the
-        /// next launch and nothing on this one, so it is not an error.
-        public func save(_ session: TwitchSession) {
-            guard let data = try? JSONEncoder().encode(session) else { return }
-            SecItemDelete(query as CFDictionary)
+        /// Replaces whatever was saved. A failed write is not an error: it costs
+        /// the value on the next launch and nothing on this one.
+        func write(_ data: Data) {
+            delete()
             var q = query
             q[kSecValueData] = data
             q[kSecAttrAccessible] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
             SecItemAdd(q as CFDictionary, nil)
         }
 
-        public func clear() { SecItemDelete(query as CFDictionary) }
+        func delete() { SecItemDelete(query as CFDictionary) }
+    }
+
+    /// The Twitch login, in the Keychain.
+    public struct KeychainSessionStore: SessionStore {
+        let item: KeychainItem
+
+        public init(service: String = "lol.dana.guessr.twitch") {
+            item = KeychainItem(service: service, account: "session")
+        }
+
+        public func load() -> TwitchSession? {
+            item.read().flatMap { try? JSONDecoder().decode(TwitchSession.self, from: $0) }
+        }
+
+        public func save(_ session: TwitchSession) {
+            if let data = try? JSONEncoder().encode(session) { item.write(data) }
+        }
+
+        public func clear() { item.delete() }
     }
 #endif
 
