@@ -29,7 +29,7 @@ final class StubTwitch: URLProtocol {
                 if Self.tokenPolls == 1 { return (400, #"{"status":400,"message":"authorization_pending"}"#) }
                 return (200, #"{"access_token":"acc","refresh_token":"ref","expires_in":14400,"token_type":"bearer"}"#)
             case "validate":
-                return (200, #"{"client_id":"app1","login":"Kate","user_id":"555","expires_in":14400}"#)
+                return (200, #"{"client_id":"app1","login":"Kate","user_id":"555","expires_in":14400,"scopes":["user:read:chat","user:write:chat"]}"#)
             default:
                 return (404, "{}")
             }
@@ -55,6 +55,8 @@ final class StubTwitch: URLProtocol {
     #expect(session.login == "kate")
     #expect(session.userID == "555")
     #expect(!session.expiresSoon)
+    #expect(session.scopes == ["user:read:chat", "user:write:chat"])
+    #expect(!session.canModerate)
 }
 
 @Test func anUnconfiguredBuildRefusesToStart() async {
@@ -67,4 +69,13 @@ final class StubTwitch: URLProtocol {
     #expect(!session.isOwner("556"))
     #expect(!session.isOwner(""))
     #expect(!TwitchSession(accessToken: "a", refreshToken: "r", expiresAt: .now, login: "", userID: "").isOwner(""))
+}
+
+@Test func canModerateNeedsBothModScopes() {
+    func session(_ scopes: [String]?) -> TwitchSession {
+        TwitchSession(accessToken: "a", refreshToken: "r", expiresAt: .now, login: "kate", userID: "555", scopes: scopes)
+    }
+    #expect(session(TwitchAuth.modScopes).canModerate)
+    #expect(!session(TwitchAuth.scopes + ["moderator:manage:chat_messages"]).canModerate)
+    #expect(!session(nil).canModerate)
 }
