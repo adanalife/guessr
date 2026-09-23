@@ -388,6 +388,18 @@ URL differs only in its fragment. The receiving browser asks first, naming the
 player it is about to become: a URL that silently rewrote who you are would be a
 URL anyone could send you.
 
+A device that cannot open that link — a Home Screen install keeps its own
+storage, and the iOS app has no browser to open it in — types a code instead.
+`POST /api/link/code {player_id}` stores an eight-letter code (no `0`/`O`/`1`/`I`)
+against the id for ten minutes and answers `{code, expires_at}`; the About panel
+shows it beside the QR code. `POST /api/link/claim {code, from}` takes the code
+(single-use: it is deleted as it is read), runs the same merge with `from` as
+the mover, and answers `{player_id, moved}` — the id the claiming device plays as
+from then on. This is the one place a player id leaves the server, and only to
+the device holding a code its owner just drew. The `link_codes` table holds
+nothing else, and a row is gone once claimed or once the next issue or claim
+sweeps it past its expiry.
+
 Encoding is `qrcode-generator` from unpkg, pinned alongside Leaflet. QR is
 Reed-Solomon over GF(256), block interleaving and mask scoring — a spec
 implementation rather than something to write, and one whose bugs are a code that

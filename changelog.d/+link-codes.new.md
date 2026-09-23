@@ -1,0 +1,1 @@
+Link a device by typing a code: **Link a device** in the About panel shows a short code beside the QR code, and a box for entering one drawn on your other device, so a Home Screen install can join the scores you have in the browser.
