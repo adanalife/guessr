@@ -148,6 +148,7 @@ struct PlayView: View {
             let score = try await client.score(image: image, guess: at, date: progress.date, player: player)
             progress.played.append(PlayedRound(image: image, guess: at, score: score))
             Saved.progress = progress
+            if progress.played.count == 1 { await Reminder.refreshBadge() }
             (revealed, message, camera) = (true, nil, .automatic)
         } catch let error as GuessrError where error.isFinal {
             // Refused, so retrying gets the same answer: say what the server said.
