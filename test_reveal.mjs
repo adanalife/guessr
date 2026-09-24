@@ -42,9 +42,14 @@ assert.equal(await nearestReveal(env, { lat: 40.2, lng: -99.74 }), null,
 
 // A tier whose deploy is ahead of its migrations has no reveals table. That has
 // to be no reveal, not a thrown query taking the score down with it.
-const bare = { ANSWERS: d1('CREATE TABLE answers (image TEXT PRIMARY KEY, lat REAL, lng REAL, state TEXT, filmed TEXT);') };
+// Practice scores only a round from a closed date, so each guess below is
+// scheduled on one.
+const closed = new Date(Date.now() - 5 * 86400000).toISOString().slice(0, 10);
+const bare = { ANSWERS: d1(`CREATE TABLE answers (image TEXT PRIMARY KEY, lat REAL, lng REAL, state TEXT, filmed TEXT);
+  CREATE TABLE round_days (date TEXT, position INTEGER, image TEXT);`) };
 assert.equal(await nearestReveal(bare, { lat: 40, lng: -100 }), null);
 bare.ANSWERS.db.prepare("INSERT INTO answers VALUES ('clips/a-000001.mp4', 40, -100, 'NE', '2018-06-01')").run();
+bare.ANSWERS.db.prepare("INSERT INTO round_days VALUES (?, 1, 'clips/a-000001.mp4')").run(closed);
 const scoredBare = await onRequestPost({
   request: post({ image: 'clips/a-000001.mp4', lat: 40, lng: -100 }), env: bare,
 });
@@ -53,6 +58,10 @@ assert.equal((await scoredBare.json()).reveal, null);
 
 // And through the handler, on a practice guess: the reveal rides beside the score.
 env.ANSWERS.db.prepare("INSERT INTO answers VALUES ('clips/b-000001.mp4', 44, -110, 'WY', '2018-07-01')").run();
+env.ANSWERS.db.prepare(
+  `INSERT INTO rounds (image, median_km, mean_cos, batch, slug, source_ts_sec, clip_ts_sec, radius_m)
+   VALUES ('clips/b-000001.mp4', 10, 0.07, 'test', 'slug', 20, 20, 60)`).run();
+env.ANSWERS.db.prepare("INSERT INTO round_days VALUES (?, 1, 'clips/b-000001.mp4')").run(closed);
 const res = await onRequestPost({
   request: post({ image: 'clips/b-000001.mp4', lat: 40.0, lng: -100.0 }), env,
 });
