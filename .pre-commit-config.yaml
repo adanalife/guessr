@@ -4,7 +4,7 @@
 # replacing the directory wholesale from the tarball should produce no
 # incidental diff. (The round-set media needs no entry -- web/clips/ is
 # gitignored, so it is never staged for a hook to see.)
-exclude: '^web/(et-book|leaflet)/'
+exclude: '^web/(et-book|leaflet|sentry)/'
 
 # Install the pre-commit (file-content) hooks, the commit-msg hook (the
 # Conventional Commits check below) and the pre-push hook (the changelog-fragment
