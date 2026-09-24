@@ -83,6 +83,9 @@ struct TwitchSignIn: View {
     @Environment(Account.self) private var account
     @State private var code: DeviceCode?
     @State private var error: String?
+    #if DEBUG
+        @State private var pressedForLaunchArgument = false
+    #endif
 
     var body: some View {
         if let code {
@@ -90,6 +93,17 @@ struct TwitchSignIn: View {
         } else {
             Button("Sign in with Twitch") { Task { await signIn() } }
                 .disabled(!account.auth.isConfigured)
+                #if DEBUG
+                    // `-signin 1` presses the button once on appear, so the
+                    // code screen can be screenshotted from the shell. A task
+                    // of its own, as the press is: the button leaves when the
+                    // code arrives, which would cancel `.task`'s.
+                    .onAppear {
+                        guard UserDefaults.standard.bool(forKey: "signin"), !pressedForLaunchArgument else { return }
+                        pressedForLaunchArgument = true
+                        Task { await signIn() }
+                    }
+                #endif
         }
         if let error {
             Text(error).foregroundStyle(.secondary)
