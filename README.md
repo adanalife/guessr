@@ -47,11 +47,15 @@ end to end, including the record a daily play leaves behind.
 
 `task test:integration` is the same stack without a corpus: it fabricates a round
 set through the *real* SQL generators, applies the migrations to a throwaway
-local D1, starts `wrangler pages dev`, and asserts the endpoints answer. It runs
-in CI, and it is the tier that catches what the other two cannot — `task test`
-runs handlers against a stub of the D1 binding, so it proves logic and says
-nothing about routing, bindings, or how a real database answers, while `smoke.sh`
-needs something already deployed.
+local D1, seeds one clip into a throwaway local R2, starts `wrangler pages dev`,
+and runs `contract.py` against it: every route — the game's API, the clip
+endpoint and the admin surface, both locked down and under the `local` tier —
+held to its statuses, shapes and guards over plain HTTP. It runs in CI, and it
+is the tier that catches what the other two cannot — `task test` runs handlers
+against a stub of the D1 binding, so it proves logic and says nothing about
+routing, bindings, or how a real database answers, while `smoke.sh` needs
+something already deployed. Being HTTP only, the contract says nothing about
+what language the handlers are written in.
 
 `task serve` is a plain `http.server`, and it does not serve a playable game:
 the rounds come from `/api/day` and the clips from a Function, neither of which a
@@ -359,8 +363,8 @@ copy is dropped rather than left behind.
 
 There is no account to log into, and adding one would be the whole apparatus (an
 email, a session, a way back in when it's lost) around a problem that is one row
-rewrite. The id already *is* the credential: minted in the browser, never
-returned by any endpoint, `/api/leaderboard` deliberately serving names and
+rewrite. The id already *is* the credential: minted in the browser, returned
+by no endpoint but a link-code claim (below), `/api/leaderboard` deliberately serving names and
 points and no ids. So holding both ids is proof of holding both browsers.
 
 The About panel's **Link a device** draws that URL as a QR code, and the browser
@@ -384,6 +388,18 @@ always a page load — a browser already showing the game reuses the tab, and th
 URL differs only in its fragment. The receiving browser asks first, naming the
 player it is about to become: a URL that silently rewrote who you are would be a
 URL anyone could send you.
+
+A device that cannot open that link — a Home Screen install keeps its own
+storage, and the iOS app has no browser to open it in — types a code instead.
+`POST /api/link/code {player_id}` stores an eight-letter code (no `0`/`O`/`1`/`I`)
+against the id for ten minutes and answers `{code, expires_at}`; the About panel
+shows it beside the QR code. `POST /api/link/claim {code, from}` takes the code
+(single-use: it is deleted as it is read), runs the same merge with `from` as
+the mover, and answers `{player_id, moved}` — the id the claiming device plays as
+from then on. This is the one place a player id leaves the server, and only to
+the device holding a code its owner just drew. The `link_codes` table holds
+nothing else, and a row is gone once claimed or once the next issue or claim
+sweeps it past its expiry.
 
 Encoding is `qrcode-generator` from unpkg, pinned alongside Leaflet. QR is
 Reed-Solomon over GF(256), block interleaving and mask scoring — a spec
@@ -587,6 +603,8 @@ pre-commit install   # wires up both the file hooks and the commit-msg check
 Commits and PR titles follow [Conventional Commits](https://www.conventionalcommits.org).
 PRs squash-merge, so the PR title becomes the subject in history and is what
 release-please reads to compute the next version.
+
+The native iOS app lives in [`app/`](app/README.md), with its own build notes.
 
 ### Changelog
 

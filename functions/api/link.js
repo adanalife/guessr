@@ -4,8 +4,9 @@
 // There is no account to log into, and adding one for this would be the whole
 // apparatus (an email, a session, a way back in when it is lost) to solve a
 // problem that is one row rewrite. The player id already *is* the credential:
-// it is minted in the browser, never leaves it, and never appears in a response
-// -- /api/leaderboard returns names and points and deliberately not ids. So
+// it is minted in the browser and appears in no response but a link-code claim
+// (link/claim.js), which hands it only to the device that typed a code its owner
+// drew -- /api/leaderboard returns names and points and deliberately not ids. So
 // holding both ids is proof enough of holding both browsers, and the page hands
 // the id to the other device in a URL fragment.
 //

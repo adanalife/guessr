@@ -17,26 +17,13 @@
 // Both lists are the road trip: weather, light, distance and pace on one side,
 // landscape and roadside on the other.
 
-export const ADJECTIVES = [
-  'Amber', 'Ancient', 'Autumn', 'Bright', 'Bronze', 'Calm', 'Cedar', 'Copper',
-  'Crimson', 'Distant', 'Drifting', 'Dusty', 'Eastern', 'Emerald', 'Endless',
-  'Fading', 'Foggy', 'Frozen', 'Gentle', 'Gilded', 'Golden', 'Granite', 'Hazy',
-  'Hidden', 'Humming', 'Idle', 'Lonesome', 'Lucky', 'Marbled', 'Midnight',
-  'Northern', 'Open', 'Painted', 'Patient', 'Quiet', 'Rambling', 'Restless',
-  'Rolling', 'Rusted', 'Scenic', 'Silent', 'Silver', 'Slanting', 'Southern',
-  'Sunlit', 'Twilight', 'Wandering', 'Western', 'Winding',
-];
+// The words themselves are in alias.json, which is the one copy: this module,
+// the Pages Functions that bundle it, and the Python server all load that file,
+// and the app's Swift copy is held to it by a test.
+import WORDS from './alias.json' with { type: 'json' };
 
-export const NOUNS = [
-  'Arroyo', 'Badlands', 'Basin', 'Bluff', 'Boulder', 'Butte', 'Canyon',
-  'Cascade', 'Causeway', 'Cedar', 'Compass', 'Coulee', 'Crossing', 'Delta',
-  'Diner', 'Dunes', 'Foothill', 'Freeway', 'Glacier', 'Harbour', 'Highway',
-  'Junction', 'Lantern', 'Lookout', 'Meadow', 'Mesa', 'Milepost', 'Odometer',
-  'Overlook', 'Overpass', 'Pinewood', 'Plateau', 'Prairie', 'Ridgeline',
-  'Roadside', 'Sagebrush', 'Sandstone', 'Shoreline', 'Signpost', 'Switchback',
-  'Timberline', 'Trailhead', 'Turnout', 'Underpass', 'Valley', 'Viaduct',
-  'Wayside', 'Wildflower', 'Windmill',
-];
+export const ADJECTIVES = WORDS.adjectives;
+export const NOUNS = WORDS.nouns;
 
 // 49 x 49 = 2,401 aliases. Collisions are cosmetic rather than a correctness
 // problem -- `player_id` is what tells two players apart, and the handle is a

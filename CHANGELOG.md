@@ -4,6 +4,68 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.14.0 — 2026-09-23
+
+### Changed
+
+- The iOS app drops its Settings tab, which only held a Twitch sign-in that does nothing yet. Play and Boards are the whole app for now. ([#236](https://github.com/adanalife/guessr/pull/236))
+- The Link a device code no longer tells the player how long it lasts. ([#240](https://github.com/adanalife/guessr/pull/240))
+
+### Fixed
+
+- The iOS app ships an icon: the game's pin mark in tempomat's light/dark/tinted composition, rendered by `task app:icon`. App Store Connect refused the first upload for want of one. ([#234](https://github.com/adanalife/guessr/pull/234))
+
+### Behind the scenes
+
+- The test copy of the game can hand its scoring, leaderboards and clips to a new server, so it can be tried out there before anyone playing the real game meets it. ([#237](https://github.com/adanalife/guessr/pull/237))
+- The game's server has a Python version, which the staging copy of the game tries out before the real one does. ([#238](https://github.com/adanalife/guessr/pull/238))
+- Every change to the game is checked against both of the servers it can run on, so a difference between them is caught before it ships. ([#239](https://github.com/adanalife/guessr/pull/239))
+
+## v1.13.0 — 2026-09-23
+
+### New
+
+- Link a device by typing a code: **Link a device** in the About panel shows a short code beside the QR code, and a box for entering one drawn on your other device, so a Home Screen install can join the scores you have in the browser. ([#230](https://github.com/adanalife/guessr/pull/230))
+- The iPhone app can join the scores you already have on the web: tap **Already playing on the web? Enter your code** before your first guess, and type the code the web game shows under **Link a device**. ([#231](https://github.com/adanalife/guessr/pull/231))
+
+### Changed
+
+- The alias wordlists live in one file, `web/alias.json`, which the page, the scoring endpoint and the Python server all load. The page now needs a browser that supports JSON module imports (Safari 17.2, Firefox 138, Chrome 123 or later). ([#229](https://github.com/adanalife/guessr/pull/229))
+
+### Fixed
+
+- A round's answer is only revealed once a guess has been made on it: practice plays only rounds from days that are over, so today's rounds can't be looked up ahead of playing them. ([#228](https://github.com/adanalife/guessr/pull/228))
+
+### Behind the scenes
+
+- The scorer has a Python twin, held to the same cases as the one that serves you today, as the first step of moving the game's server off JavaScript. ([#212](https://github.com/adanalife/guessr/pull/212))
+- The Python server gains the daily game and the device link, held to the same cases as the versions serving you today. ([#215](https://github.com/adanalife/guessr/pull/215))
+- The Python server gains both leaderboards and the drilldown behind a board row, held to the same cases as the versions serving you today. ([#216](https://github.com/adanalife/guessr/pull/216))
+- The Python server gains the live-stream resolver behind the end-of-game board, held to the same cases as the version serving you today. ([#217](https://github.com/adanalife/guessr/pull/217))
+- The Python server learns who may run guessr's admin: Dana, and the channel's moderators, recognized from the Twitch login they already use elsewhere. ([#218](https://github.com/adanalife/guessr/pull/218))
+- The Python server gains the day review — look at an upcoming day with its answers, throw a round out, mark it looked at — behind the Twitch sign-in. ([#219](https://github.com/adanalife/guessr/pull/219))
+- The Python server gains the admin player notes — the list of everyone who has played, one date's games player by player, and a note reached by board row — behind the Twitch sign-in. ([#221](https://github.com/adanalife/guessr/pull/221))
+- The Python server gains `/clips` — a round's footage out of the media store, with seeking, revalidation and the same cache rules — behind a store seam an adapter fills in. ([#222](https://github.com/adanalife/guessr/pull/222))
+- The Python server gains a D1 adapter for its database seam, so every ported handler can run on the Cloudflare Worker unchanged. ([#223](https://github.com/adanalife/guessr/pull/223))
+- The Python server gains the R2 half of its clip store, so `/clips` can serve footage from the bucket on the Cloudflare Worker. ([#224](https://github.com/adanalife/guessr/pull/224))
+- The beginnings of an iPhone app: today's rounds and the leaderboards, with sign-in through Twitch. ([#225](https://github.com/adanalife/guessr/pull/225))
+- The iPhone app can be built and sent to TestFlight for testing, and each build carries the same version number as the game release it came from. ([#226](https://github.com/adanalife/guessr/pull/226))
+- The iPhone app plays the day: watch each clip, drop a pin on the map, and see how close you got, on the same daily board as the web game. ([#227](https://github.com/adanalife/guessr/pull/227))
+- Development builds of the iPhone app play against the staging server, so trying the app out never records a play on the real daily board. ([#233](https://github.com/adanalife/guessr/pull/233))
+
+## v1.12.1 — 2026-09-23
+
+### Fixed
+
+- The admin pages now name the status code when an endpoint answers badly, instead of reporting every failure as one it could not reach. ([#206](https://github.com/adanalife/guessr/pull/206))
+- The weekly super-linter sweep is green again: its bundled biome is older than the version biome.json and the pre-commit hook pin, so it rejected the config outright. ([#209](https://github.com/adanalife/guessr/pull/209))
+
+### Behind the scenes
+
+- A deploy is blocked when its database has migrations left to apply, rather than shipping code that queries a table which is not there yet. ([#206](https://github.com/adanalife/guessr/pull/206))
+- The integration run holds every route to its HTTP contract, the admin surface and the clip endpoint included, against a throwaway local database and bucket, so the server side can be rewritten against a suite that does not care what language it is in. ([#211](https://github.com/adanalife/guessr/pull/211))
+- Applying a database migration now always ends by listing what is still unapplied, including when the apply dies partway, so a half-migrated database is visible the moment it happens rather than when something reads a missing column. ([#214](https://github.com/adanalife/guessr/pull/214))
+
 ## v1.12.0 — 2026-09-17
 
 ### New

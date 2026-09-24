@@ -140,6 +140,25 @@ tasks:
       - printf '{"label":"local","tier":"local"}\n' > web/version.json
       - npx wrangler pages dev web/ --port {{.PORT}} --d1 ANSWERS={{.LOCAL_DB}}
 
+  # What the Python Worker ships, staged apart from the repo (the script says
+  # why). staging.yml runs the same script before its deploy.
+  api:bundle:
+    desc: Stage server/ and the alias wordlist into api/bundle/ for the Python Worker
+    cmds:
+      - ./scripts/api-bundle.sh
+
+  # The Python Worker under workerd, against a local D1 and R2 keyed like the
+  # staging ones (`npx wrangler d1 migrations apply adanalife-guessr-answers-staging
+  # --local` from api/ gives it tables). pywrangler vendors starlette and the
+  # Workers SDK into api/python_modules/ first. An edit to server/ needs a
+  # restart, since what runs is the staged copy.
+  api:dev:
+    desc: Run the Python Worker locally under pywrangler (args pass through to wrangler dev)
+    deps: [api:bundle]
+    dir: api
+    cmds:
+      - uv run pywrangler dev {{.CLI_ARGS}}
+
   answers:local:push:
     desc: Seed answers.sql into the local D1 that `dev` binds
     cmds:
@@ -171,15 +190,24 @@ tasks:
     cmds:
       - npx wrangler d1 migrations apply {{.LOCAL_DB}} --local --config wrangler.d1.jsonc
 
+  # An apply is not atomic across migrations: each one is recorded in the
+  # `d1_migrations` ledger as it lands, so a remote apply that dies partway (D1's
+  # `storage operation exceeded timeout ... [code: 7429]`, which has followed a
+  # `backup:prod` export by seconds) leaves the earlier ones applied and the rest
+  # not. Recovery is re-running the apply, which resumes from the ledger -- never
+  # `--force` it or hand-run the SQL. The deferred status runs whether the apply
+  # succeeded or not, so a half-applied tier is on screen either way.
   schema:stage:apply:
     desc: Apply pending migrations to the staging D1
     cmds:
+      - defer: {task: schema:stage:status}
       - task: _d1:migrate
         vars: {DB: adanalife-guessr-answers-staging, VERB: apply}
 
   schema:prod:apply:
     desc: Apply pending migrations to the production D1
     cmds:
+      - defer: {task: schema:prod:status}
       - task: _d1:migrate
         vars: {DB: adanalife-guessr-answers, VERB: apply}
 
@@ -496,17 +524,29 @@ tasks:
     # passes.
     cmds:
       - for f in test_*.mjs; do echo "== $f"; node "$f" || exit 1; done
-      - for f in test_*.py; do echo "== $f"; python3 "$f" || exit 1; done
+      # uv, for the one dependency the server tests need: Starlette.
+      - for f in test_*.py; do echo "== $f"; uv run --project api python "$f" || exit 1; done
 
   # The tier between `test` and `smoke`: a real D1 and a real workerd, both
   # disposable. `test` proves handler logic against a stub of the binding;
   # `smoke` proves a deployed tier; this proves the two ends meet -- migrations
-  # apply, Pages routes, the binding is wired, the endpoints answer. It writes
-  # rounds.sql and answers.sql, and refuses to run if those hold a real set.
+  # apply, Pages routes, the bindings are wired, and every route answers the
+  # HTTP contract in contract.py. It writes rounds.sql and answers.sql, and
+  # refuses to run if those hold a real set.
   test:integration:
-    desc: Run the game end to end against a throwaway local D1 (no corpus needed)
+    desc: Assert every route's HTTP contract against a throwaway local D1 and R2
+      (no corpus needed)
     cmds:
       - ./integration.sh
+
+  # The same contract against the other runtime: the Python app under uvicorn,
+  # over a sqlite file and a clip directory, with Twitch stubbed at the fetch
+  # seam. Both passing is what keeps guessr portable off Cloudflare. Touches
+  # nothing in the repo; its world is a temp dir.
+  test:integration:py:
+    desc: Assert the same HTTP contract against the Python app under uvicorn
+    cmds:
+      - uv run --project api python integration_uvicorn.py
 
   smoke:
     desc: "Check a deployed tier is actually playable: task smoke -- <base-url>.
@@ -514,3 +554,156 @@ tasks:
       after an answers push"
     cmds:
       - ./smoke.sh {{.CLI_ARGS}}
+
+  # The iOS app (app/). The version is the repo's release tag: one version for
+  # the web game and the app, so a TestFlight build and a GitHub release mean
+  # the same thing. Signing reads DEVELOPMENT_TEAM and the App Store Connect
+  # API key (ASC_KEY_PATH, ASC_KEY_ID, ASC_ISSUER_ID) from the environment.
+  app:gen:
+    desc: Write app/Guessr.xcodeproj from app/project.yml (export DEVELOPMENT_TEAM=<id> for signing)
+    dir: app
+    cmds:
+      - xcodegen generate --spec project.yml
+
+  # SIM is the newest available iPhone simulator unless overridden
+  # (SIM='iPhone 17 Pro'). None listed means the iOS platform isn't
+  # downloaded: `xcodebuild -downloadPlatform iOS`.
+  app:build:
+    desc: Build the app for the simulator (needs Xcode)
+    dir: app
+    deps: [app:gen]
+    vars:
+      SIM:
+        sh: xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name|startswith("iPhone")) | .name] | last // empty'
+    preconditions:
+      - sh: test -n "{{.SIM}}"
+        msg: "No iPhone simulator available — run: xcodebuild -downloadPlatform iOS"
+    cmds:
+      - xcodebuild -scheme Guessr -destination 'platform=iOS Simulator,name={{.SIM}}' -derivedDataPath .build/DerivedData -quiet build
+
+  # Signs for distribution (the Release config in app/project.yml), so it needs
+  # the "Apple Distribution" certificate in the login keychain.
+  app:icon:
+    desc: Re-render the app icon's light/dark/tinted variants from web/favicon.svg
+    cmds:
+      - ./scripts/make-app-icon.sh
+
+  app:archive:
+    desc: Archive a signed iPhone build (needs DEVELOPMENT_TEAM)
+    dir: app
+    deps: [app:gen]
+    vars:
+      # The newest release tag. Off a tag this is the last release, so only
+      # app:release promises the build is that version.
+      TAG:
+        sh: git describe --tags --abbrev=0 --match 'v*'
+      # Monotonic and unique per commit, which is all App Store Connect asks
+      # of a build number — it refuses a version+build pair it has seen.
+      BUILD:
+        sh: git rev-list --count HEAD
+    preconditions:
+      - sh: test -n "$DEVELOPMENT_TEAM"
+        msg: "Set DEVELOPMENT_TEAM=<team id> first — see app/README.md's TestFlight section"
+    cmds:
+      - rm -rf .build/Guessr.xcarchive
+      # The API key is what lets a machine that has never opened the portal
+      # download the distribution profile the project names.
+      - |
+        xcodebuild -scheme Guessr -destination 'generic/platform=iOS' \
+          -archivePath .build/Guessr.xcarchive -allowProvisioningUpdates \
+          ${ASC_KEY_PATH:+-authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"} \
+          MARKETING_VERSION={{trimPrefix "v" .TAG}} CURRENT_PROJECT_VERSION={{.BUILD}} -quiet archive
+      - 'echo "archived {{trimPrefix "v" .TAG}} ({{.BUILD}}) to app/.build/Guessr.xcarchive"'
+
+  # Uploads whatever app:archive last produced rather than archiving itself: an
+  # upload can fail for reasons the build has no part in (no App Store Connect
+  # app record, an expired session, the network), and a retry should cost
+  # seconds, not a fresh signed archive.
+  app:upload:
+    desc: Upload the last iPhone archive to App Store Connect for TestFlight
+    dir: app
+    preconditions:
+      - sh: test -d .build/Guessr.xcarchive
+        msg: "No archive at app/.build/Guessr.xcarchive — run: task app:archive"
+    cmds:
+      # Written per run rather than committed, so the team id stays out of the
+      # repo and the plist can never drift from DEVELOPMENT_TEAM.
+      - |
+        cat > .build/ExportOptions.plist <<PLIST
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+          <key>method</key><string>app-store-connect</string>
+          <key>destination</key><string>upload</string>
+          <key>teamID</key><string>$DEVELOPMENT_TEAM</string>
+          <key>signingStyle</key><string>automatic</string>
+          <key>uploadSymbols</key><true/>
+          <key>manageAppVersionAndBuildNumber</key><false/>
+        </dict>
+        </plist>
+        PLIST
+      # /usr/bin first so the IPA step's rsync is the system one: Xcode runs
+      # `rsync -8aPhhE`, where -E means --extended-attributes only to Apple's
+      # rsync, and a Homebrew rsync earlier on PATH rejects it — the export
+      # then dies on a bare "Copy failed".
+      - |
+        PATH=/usr/bin:$PATH xcodebuild -exportArchive \
+          -archivePath .build/Guessr.xcarchive \
+          -exportPath .build/export \
+          -exportOptionsPlist .build/ExportOptions.plist \
+          -allowProvisioningUpdates \
+          ${ASC_KEY_PATH:+-authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"}
+      - 'echo "uploaded — the build appears in TestFlight once Apple finishes processing (usually 5-15 min)"'
+
+  # The two above, behind the rule that keeps TestFlight's versions honest. The
+  # build number is the commit count, so archiving off an untagged commit ships
+  # a second "1.12.1" that isn't 1.12.1, and TestFlight lists the two side by
+  # side with nothing to tell them apart. Building only at a tag is what makes
+  # the version in TestFlight mean the same thing as the version on GitHub.
+  app:release:
+    desc: Cut a TestFlight build from the release tag at HEAD (archive + upload, then wait for Apple)
+    preconditions:
+      - sh: git describe --exact-match --match 'v*' --tags HEAD >/dev/null 2>&1
+        msg: >-
+          HEAD is not a release tag. The app's version is the repo's
+          release-please tag, so build from one (fetch the tags, then check out
+          vX.Y.Z). For a deliberate off-tag build, run app:archive and
+          app:upload.
+      # The archive is built from the working tree, not from the tag object, so
+      # a dirty tree at a tag uploads something that is not what the tag names.
+      - sh: test -z "$(git status --porcelain)"
+        msg: "Working tree is dirty — the archive would not be the tagged commit"
+    cmds:
+      - task: app:archive
+      - task: app:upload
+      # Apple takes 5-15 minutes to process an upload; this ends the release
+      # with the verdict instead of a reminder to come back and check.
+      - ./scripts/asc-builds.py --wait
+
+  app:verify:
+    desc: Ask App Store Connect whether the newest release tag has an installable build (-- --wait polls until it does)
+    cmds:
+      - ./scripts/asc-builds.py {{.CLI_ARGS}}
+
+  # "Did 1.12.1 go out?" has three answers — the GitHub release, the production
+  # deploy and the TestFlight build — so the honest answer reads all three.
+  release:status:
+    desc: 'Where the newest release tag got to: GitHub release, production deploy, TestFlight build'
+    silent: true
+    cmds:
+      - |
+        set -u
+        git fetch -q --tags origin
+        tag=$(git describe --tags --abbrev=0 origin/main)
+        printf 'tag         %s (%s)\n' "$tag" "$(git rev-parse --short "$tag")"
+        printf 'release     %s\n' "$(gh release view "$tag" \
+          --json isDraft,publishedAt \
+          --jq 'if .isDraft then "draft — not published" else "published " + .publishedAt end' 2>&1)"
+        printf 'deploy      %s\n' "$(gh run list -w release.yml -b "$tag" \
+          --json status,conclusion \
+          --jq 'if length == 0 then "no release run for this tag" else .[0].conclusion // .[0].status end' 2>&1)"
+        printf 'testflight\n'
+      # Its own command so its exit code is the task's: non-zero means the tag
+      # has no installable build.
+      - ./scripts/asc-builds.py

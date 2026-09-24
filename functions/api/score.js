@@ -9,13 +9,13 @@
 // is a 404 with a distinct message rather than a 500.
 // A guess that names a date is a daily play: checked against that date's
 // schedule, then recorded once in `plays`. A guess with no date is
-// a practice round -- scored, never stored, never checked, because nothing is at
-// stake.
+// a practice round -- scored, never stored, and only against a round from a day
+// that is over, because that is all practice ever deals.
 import { haversineKm, isPlay, parseGuess, parsePlay, scoreFor } from '../_scoring.mjs';
 // Only the play window. The draw is a table, but both sides still have to agree
 // on when a date is open, and that is a rule about clocks rather than data -- so
 // it stays code, and stays shared.
-import { isOpen } from '../../web/daily.js';
+import { isOpen, lastClosedDate } from '../../web/daily.js';
 import { json, readJson } from '../_json.mjs';
 
 export async function onRequestPost({ request, env }) {
@@ -52,6 +52,15 @@ export async function onRequestPost({ request, env }) {
     .bind(guess.image)
     .first();
   if (!answer) return json({ error: 'unknown round' }, 404);
+
+  // The response carries the answer, so an undated guess at a round some date
+  // has yet to finish -- today's, or one still to come -- would read that
+  // round's truth before a single daily guess had been committed. Practice only
+  // deals rounds from closed dates (/api/day?practice), so that is all it may
+  // score.
+  if (!play && !(await practiceable(env, guess.image))) {
+    return json({ error: 'that round is not open to practice' }, 403);
+  }
 
   const km = haversineKm(guess, answer);
   const scored = { km, points: scoreFor(km) };
@@ -124,6 +133,18 @@ async function inDraw(env, date, image) {
   const row = await env.ANSWERS
     .prepare('SELECT 1 FROM round_days WHERE date = ? AND image = ?')
     .bind(date, image)
+    .first();
+  return row !== null;
+}
+
+// Whether an image is one practice could have dealt: scheduled on a date that
+// has closed. The same predicate as /api/day?practice, so a round is scoreable
+// undated exactly when it is drawable undated. round_days_once makes it a
+// one-row index lookup.
+async function practiceable(env, image) {
+  const row = await env.ANSWERS
+    .prepare('SELECT 1 FROM round_days WHERE image = ? AND date <= ?')
+    .bind(image, lastClosedDate())
     .first();
   return row !== null;
 }

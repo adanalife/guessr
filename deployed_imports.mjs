@@ -30,11 +30,15 @@ if (!BASE) {
 // and has no bindings to resolve. Absolute as well as relative, since a module a
 // directory down imports from the site root.
 const IMPORT = /import\s*\{([^}]+)\}\s*from\s*'(\.?\/[^']+)'/g;
+// A JSON module has no named bindings to check, but it still has to be on disk
+// before the module importing it will load.
+const JSON_IMPORT = /import\s+\w+\s+from\s*'(\.?\/[^']+\.json)'\s*with\s*\{\s*type:\s*'json'\s*\}/g;
 
 // A path with no file behind it answers 200 with the site's own HTML on Pages,
 // so status is silent on whether a module is there and the content type is the
 // only thing that says so. This is the assertion that catches a dead import.
 const JS = /^(application|text)\/(javascript|ecmascript)/;
+const JSON_TYPE = /^application\/json/;
 
 const dir = await mkdtemp(join(tmpdir(), 'guessr-modules-'));
 
@@ -56,8 +60,9 @@ while (queue.length) {
   const ctype = res.headers.get('content-type') ?? '';
 
   if (path !== '/') {
-    assert.ok(JS.test(ctype),
-      `${url} is served as '${ctype}' (HTTP ${res.status}), not JavaScript -- ` +
+    const json = path.endsWith('.json');
+    assert.ok((json ? JSON_TYPE : JS).test(ctype),
+      `${url} is served as '${ctype}' (HTTP ${res.status}), not ${json ? 'JSON' : 'JavaScript'} -- ` +
       `Pages answers a path it holds no file for with the site's HTML and a 200, ` +
       `so this is a module ${from} imports that this deployment does not carry.`);
     await mkdir(join(dir, dirname(path)), { recursive: true });
@@ -72,6 +77,9 @@ while (queue.length) {
     queue.push({ path: target, from: path });
     // Checked after the whole graph is on disk, so a nested import resolves.
     bindings.push({ page: path, target, names, spec });
+  }
+  for (const [, spec] of body.matchAll(JSON_IMPORT)) {
+    queue.push({ path: new URL(spec, url).pathname, from: path });
   }
 }
 

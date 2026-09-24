@@ -51,3 +51,21 @@ __pycache__/
 .ruff_cache/
 /burned.txt
 /avoid.txt
+
+# The iOS app: xcodegen output, SwiftPM and Xcode scratch, and the local build
+# settings (the owner id and Twitch client id) that app/Guessr.xcconfig includes.
+app/Guessr.xcodeproj/
+app/Guessr/Info.plist
+app/Local.xcconfig
+.build/
+.swiftpm/
+xcuserdata/
+DerivedData/
+
+# pywrangler, beside api/pyproject.toml: the packages it vendors for the Python
+# Worker, its Pyodide venv and the lock it resolves them into. And
+# `task api:bundle`'s staged copy of server/, which is what the Worker ships.
+api/python_modules/
+api/.venv-workers/
+api/pylock.toml
+api/bundle/
