@@ -643,6 +643,11 @@ def admin_reads():
         "content-type"
     )
     error(get("a preview with no date is refused", 400, "/admin/day"))
+    heat = get("every guess reads as heat", 200, "/admin/guesses")
+    assert heat.header("cache-control") == "no-store", heat.header("cache-control")
+    pairs = heat.json["guesses"]
+    assert pairs and all(len(g) == 2 for g in pairs), heat.json
+    assert [40.0, -100.0] in pairs, "the seeded pins are missing from the heat"
     error(
         get(
             "a preview of an unscheduled date is 404", 404, "/admin/day?date=2099-01-01"

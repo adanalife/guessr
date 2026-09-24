@@ -84,6 +84,7 @@ ROUTES = [
         lambda r: admin_players.note_player(r.db, r.who, r.body),
     ),
     ("/admin/plays", "GET", lambda r: admin_players.plays(r.db, r.who, r.params)),
+    ("/admin/guesses", "GET", lambda r: admin_players.guess_heat(r.db, r.who)),
     (
         "/admin/board-note",
         "GET",
