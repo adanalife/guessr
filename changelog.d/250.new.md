@@ -1,0 +1,1 @@
+The web game reports browser errors to Sentry from production and staging, including a game script that fails to load at all, so a broken page on a player's browser arrives with its stack trace instead of going unnoticed. Previews and local runs send nothing.

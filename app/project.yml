@@ -16,6 +16,10 @@ settings:
 packages:
   GuessrKit:
     path: GuessrKit
+  # Crash reports, hangs, request spans and logs — see Guessr/Telemetry.swift.
+  Sentry:
+    url: https://github.com/getsentry/sentry-cocoa
+    from: 9.29.0
   # Private: the owner's console controls. A build without access to it (a
   # fork, say) deletes this block and the matching dependency below, and the
   # console tier compiles out.
@@ -55,6 +59,11 @@ targets:
           - UIInterfaceOrientationLandscapeRight
     dependencies:
       - package: GuessrKit
+      # Sentry-Dynamic rather than the static `Sentry`: only the dynamic
+      # xcframework ships dSYMs, so the SDK's own frames symbolicate
+      # (getsentry/sentry-cocoa#4068).
+      - package: Sentry
+        product: Sentry-Dynamic
       # - package: TempomatConsole
     settings:
       base:

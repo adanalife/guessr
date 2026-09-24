@@ -54,6 +54,10 @@ final class StubHelix: URLProtocol {
         case "/helix/chat/badges":
             reply =
                 #"{"data":[{"set_id":"subscriber","versions":[{"id":"12","image_url_1x":"https://c/sub1","image_url_2x":"https://c/sub2","image_url_4x":"https://c/sub4"}]}]}"#
+        case "/helix/chat/emotes":
+            reply = #"{"data":[{"id":"emotesv2_1","name":"danaVan","images":{"url_1x":"https://c/e1"},"tier":"1000","emote_type":"subscriptions"}],"template":"https://static-cdn.jtvnw.net/emoticons/v2/{{id}}/{{format}}/{{theme_mode}}/{{scale}}"}"#
+        case "/helix/chat/emotes/global":
+            reply = #"{"data":[{"id":"25","name":"Kappa","images":{"url_1x":"https://g/e25"},"emote_type":"globals"}]}"#
         case "/helix/chat/messages":
             reply = #"{"data":[{"message_id":"","is_sent":false,"drop_reason":{"code":"msg_duplicate","message":"duplicate message"}}]}"#
         default:
@@ -164,4 +168,18 @@ private func chat(userID: String = "2914196", capacity: Int = 300) -> TwitchChat
 
 @MainActor @Test func aDroppedSendIsAnError() async {
     await #expect(throws: TwitchChatError.dropped("duplicate message")) { try await chat().send("hi") }
+}
+
+@MainActor @Test func emotesListTheChannelsThenTheGlobals() async throws {
+    #expect(try await chat().emotes() == [ChatEmote(id: "emotesv2_1", name: "danaVan"), ChatEmote(id: "25", name: "Kappa")])
+}
+
+@Test func theComposerKnowsWhichMentionIsBeingTyped() {
+    #expect(mentionInProgress("hey @ka") == "ka")
+    #expect(mentionInProgress("@") == "")
+    #expect(mentionInProgress("hey @kate ") == nil)
+    #expect(mentionInProgress("hey kate") == nil)
+    #expect(completingLastWord("hey @ka", with: "@Kate") == "hey @Kate ")
+    #expect(completingLastWord("", with: "@Kate") == "@Kate ")
+    #expect(completingLastWord("a b", with: "c") == "a c ")
 }

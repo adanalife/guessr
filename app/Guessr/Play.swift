@@ -148,6 +148,7 @@ struct PlayView: View {
             let score = try await client.score(image: image, guess: at, date: progress.date, player: player)
             progress.played.append(PlayedRound(image: image, guess: at, score: score))
             Saved.progress = progress
+            if progress.played.count == 1 { await Reminder.refreshBadge() }
             (revealed, message, camera) = (true, nil, .automatic)
         } catch let error as GuessrError where error.isFinal {
             // Refused, so retrying gets the same answer: say what the server said.
@@ -228,6 +229,9 @@ struct DayResultView: View {
                 LabeledContent(
                     "Total",
                     value: "\(progress.total.formatted()) / \((progress.played.count * 5000).formatted())")
+                if let text = progress.shareText() {
+                    ShareLink(item: text) { Label("Share", systemImage: "square.and.arrow.up") }
+                }
                 Text("Come back tomorrow for five more.").foregroundStyle(.secondary)
             }
             NavigationLink("Leaderboards") { TodayView() }

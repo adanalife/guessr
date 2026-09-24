@@ -534,6 +534,13 @@ tasks:
     dir: app
     cmds:
       - xcodegen generate --spec project.yml
+      # The generated project is gitignored, so its resolved package versions
+      # can't be committed in place. The checked-in app/Package.resolved is the
+      # source of truth; seeding it here keeps every checkout on the same
+      # revisions. To move a pin, edit project.yml, build, then copy it back:
+      #   cp Guessr.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved Package.resolved
+      - mkdir -p Guessr.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+      - cp Package.resolved Guessr.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
   # SIM is the newest available iPhone simulator unless overridden
   # (SIM='iPhone 17 Pro'). None listed means the iOS platform isn't

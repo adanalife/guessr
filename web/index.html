@@ -35,6 +35,12 @@
 <meta property="og:image:alt" content="A dashcam view of a San Francisco intersection lined with Victorian houses, titled Guessr">
 <meta name="twitter:card" content="summary_large_image">
 
+<!-- Error reporting, first of all so it is running before anything it would
+     need to report on. Vendored like Leaflet below; sentry-init.js says why it
+     is a classic script and which hosts send. -->
+<script src="sentry/bundle.min.js"></script>
+<script src="sentry-init.js"></script>
+
 <!-- Blocking and before the stylesheet, so the page never flashes the wrong
      palette. Shared with /admin/, which reads the same saved choice. -->
 <script src="theme.js"></script>

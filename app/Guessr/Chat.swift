@@ -58,6 +58,9 @@ struct ChatLog: View {
     /// Whether the composer holds the keyboard. The log sits behind the
     /// keyboard while it does, so there has to be a way to give it back.
     @FocusState private var composing: Bool
+    /// The channel's emotes and Twitch's, for the picker; empty until read.
+    @State private var emotes: [ChatEmote] = []
+    @State private var pickingEmote = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -69,7 +72,9 @@ struct ChatLog: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal)
             }
+            if let stub = mentionInProgress(text) { mentions(matching: stub) }
             composer
+            if pickingEmote { emotePicker }
         }
         .toolbar {
             // A short log has nothing to drag, so the drag-to-dismiss needs a
@@ -79,11 +84,62 @@ struct ChatLog: View {
             }
         }
         // Keyed on the chat, which arrives after the first appearance.
-        .task(id: account.chat.map(ObjectIdentifier.init)) { await loadBadgeArt() }
+        .task(id: account.chat.map(ObjectIdentifier.init)) { await loadArt() }
     }
 
-    private func loadBadgeArt() async {
-        if let chat = account.chat { await BadgeArt.shared.load(from: chat) }
+    private func loadArt() async {
+        guard let chat = account.chat else { return }
+        await BadgeArt.shared.load(from: chat)
+        if emotes.isEmpty { emotes = (try? await chat.emotes()) ?? [] }
+    }
+
+    /// Who has spoken, newest first, once each.
+    private var chatters: [ChatLine] {
+        var seen: Set<String> = []
+        return lines.reversed().filter { seen.insert($0.login).inserted }
+    }
+
+    /// The chatters whose name starts with what has been typed after the `@`;
+    /// a tap finishes the word.
+    private func mentions(matching stub: String) -> some View {
+        let needle = stub.lowercased()
+        let hits = chatters.filter {
+            $0.login.hasPrefix(needle) || $0.displayName.lowercased().hasPrefix(needle)
+        }.prefix(8)
+        return ScrollView(.horizontal) {
+            HStack {
+                ForEach(hits) { line in
+                    Button("@\(line.displayName)") { text = completingLastWord(text, with: "@\(line.displayName)") }
+                        .buttonStyle(.bordered)
+                        .font(.caption)
+                }
+            }
+            .padding(.horizontal)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    /// The emotes as a grid of their art; a tap types the name.
+    private var emotePicker: some View {
+        ScrollView {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 36))], spacing: 8) {
+                ForEach(emotes) { emote in
+                    Button {
+                        let head = text.isEmpty || text.hasSuffix(" ") ? text : text + " "
+                        text = head + emote.name + " "
+                    } label: {
+                        AsyncImage(url: emoteURL(emote.id)) { $0.resizable().scaledToFit() } placeholder: {
+                            Text(emote.name).font(.caption2).lineLimit(1).minimumScaleFactor(0.5)
+                        }
+                        .frame(width: 32, height: 32)
+                    }
+                    .accessibilityLabel(emote.name)
+                }
+            }
+            .padding()
+        }
+        .frame(height: 180)
+        .background(.thinMaterial)
     }
 
     private var log: some View {
@@ -139,6 +195,9 @@ struct ChatLog: View {
 
     private var composer: some View {
         HStack {
+            Button { pickingEmote.toggle() } label: { Image(systemName: pickingEmote ? "keyboard" : "face.smiling") }
+                .accessibilityLabel(pickingEmote ? "Hide emotes" : "Emotes")
+                .disabled(emotes.isEmpty)
             TextField("Say something as \(account.session?.login ?? "you")", text: $text)
                 .textFieldStyle(.roundedBorder)
                 .focused($composing)
@@ -154,6 +213,7 @@ struct ChatLog: View {
         let msg = text.trimmingCharacters(in: .whitespaces)
         guard !msg.isEmpty, let chat = account.chat else { return }
         text = ""
+        pickingEmote = false
         Task {
             await account.refreshIfNeeded()
             do {
@@ -257,12 +317,15 @@ struct ChatLineView: View {
     }
 }
 
-/// Twitch's emote art for the id a fragment carries. The 2.0 asset drawn at 2x
-/// lands at about a line of text, and the dark variant suits the chat log.
+/// Twitch's emote art for an id. The 2.0 asset drawn at 2x lands at about a
+/// line of text, and the dark variant suits the chat log.
+private func emoteURL(_ id: String) -> URL? {
+    URL(string: "https://static-cdn.jtvnw.net/emoticons/v2/\(id)/default/dark/2.0")
+}
+
 // ponytail: URLSession's cache is the only cache.
 private func emoteImage(_ id: String) async -> Image? {
-    guard let url = URL(string: "https://static-cdn.jtvnw.net/emoticons/v2/\(id)/default/dark/2.0")
-    else { return nil }
+    guard let url = emoteURL(id) else { return nil }
     return await remoteImage(url, scale: 2)
 }
 

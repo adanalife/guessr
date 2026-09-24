@@ -14,6 +14,11 @@
 # packages here, but the column is per-asset because a package can publish its
 # next major under a different tag.
 #
+# @sentry/browser's npm package carries no browser bundle, only the ESM and CJS
+# builds a bundler consumes, so its script comes from Sentry's own versioned CDN.
+# The package column still names npm, which is where `latest` looks for a newer
+# release; the CDN publishes each one under the same version.
+#
 # The et-book fonts ship inside the tufte-css package — there is no et-book
 # release on npm — so their pin tracks tufte-css's version rather than a font
 # version of their own.
@@ -34,3 +39,6 @@ leaflet/images/marker-shadow.png            leaflet    latest  1.9.4    https://
 et-book/et-book-roman-line-figures.woff     tufte-css  latest  1.9.0    https://unpkg.com/tufte-css@{v}/et-book/et-book-roman-line-figures/et-book-roman-line-figures.woff
 et-book/et-book-bold-line-figures.woff      tufte-css  latest  1.9.0    https://unpkg.com/tufte-css@{v}/et-book/et-book-bold-line-figures/et-book-bold-line-figures.woff
 et-book/et-book-display-italic-old-style-figures.woff  tufte-css  latest  1.9.0  https://unpkg.com/tufte-css@{v}/et-book/et-book-display-italic-old-style-figures/et-book-display-italic-old-style-figures.woff
+sentry/bundle.min.js                        @sentry/browser  latest  11.0.0  https://browser.sentry-cdn.com/{v}/bundle.min.js
+sentry/bundle.min.js.map                    @sentry/browser  latest  11.0.0  https://browser.sentry-cdn.com/{v}/bundle.min.js.map
+sentry/LICENSE                              @sentry/browser  latest  11.0.0  https://unpkg.com/@sentry/browser@{v}/LICENSE
