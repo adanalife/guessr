@@ -13,6 +13,12 @@ GUESSR_OWNER_TWITCH_ID =
 GUESSR_API_BASE = https:/$()/guessr.dana.lol
 GUESSR_API_BASE[config=Debug] = https:/$()/stage.guessr.dana.lol
 
+// GUESSR_TWITCH_CHANNEL: the Twitch channel the Chat tab reads and writes.
+// Debug builds chat in the staging channel, so a simulator session never
+// speaks in the public one.
+GUESSR_TWITCH_CHANNEL = adanalife_
+GUESSR_TWITCH_CHANNEL[config=Debug] = adanalife_staging
+
 // Real values go in Local.xcconfig beside this file (gitignored), or on the
 // xcodebuild command line.
 #include? "Local.xcconfig"

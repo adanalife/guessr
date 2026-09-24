@@ -33,11 +33,14 @@ final class Account {
     let auth: TwitchAuth
     /// Supplied by the build; empty makes nobody the owner.
     let ownerID: String
+    /// The Twitch channel the Chat tab talks in, supplied per configuration.
+    let channel: String
     private let store: any SessionStore
 
     init(bundle: Bundle = .main, store: any SessionStore = KeychainSessionStore()) {
         auth = TwitchAuth(clientID: bundle.object(forInfoDictionaryKey: "GuessrTwitchClientID") as? String ?? "")
         ownerID = bundle.object(forInfoDictionaryKey: "GuessrOwnerTwitchID") as? String ?? ""
+        channel = bundle.object(forInfoDictionaryKey: "GuessrTwitchChannel") as? String ?? ""
         self.store = store
         session = store.load()
     }
