@@ -73,6 +73,36 @@ tasks:
     cmds:
       - ./clips.sh push
 
+  # The stills behind "here's where you guessed": one per ~2 km cell the corpus
+  # drove through. Separate from a round set because nothing about them changes
+  # when the rounds do -- they only move when the corpus does, so this runs once
+  # and again after a footage ingest, not weekly. Resumable: a still already in
+  # web/reveals/ is not cut again. Same needs as `rounds`.
+  reveals:
+    desc: Cut the "where you guessed" stills into web/reveals/ and write reveals.sql
+      (needs the corpus + the tripbot DB; LIMIT=N to try a few)
+    cmds:
+      - python3 reveals.py {{if .LIMIT}}--limit {{.LIMIT}}{{end}} {{.CLI_ARGS}}
+
+  # Media before rows, always: a row naming a still that is not in the bucket is
+  # a broken image in a popup, and a still nothing names is invisible.
+  reveals:push:
+    desc: Upload web/reveals/ to R2 (before reveals:*:rows)
+    cmds:
+      - PREFIX=reveals CONTENT_TYPE=image/jpeg ./clips.sh push web/reveals/*.jpg
+
+  reveals:stage:rows:
+    desc: Seed reveals.sql into the staging D1 (after reveals:push)
+    cmds:
+      - task: _d1:push
+        vars: {DB: adanalife-guessr-answers-staging, FILE: reveals.sql}
+
+  reveals:prod:rows:
+    desc: Seed reveals.sql into the production D1 (after reveals:push and schema:prod:apply)
+    cmds:
+      - task: _d1:push
+        vars: {DB: adanalife-guessr-answers, FILE: reveals.sql}
+
   # Not part of any deploy -- the endpoint reads the bucket directly. This is for
   # a machine with no corpus that wants a local copy of the scheduled set, and for
   # checking by hand that a push landed. It asks the staging D1 what is scheduled,

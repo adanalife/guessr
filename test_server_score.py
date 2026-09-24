@@ -19,7 +19,7 @@ from pathlib import Path
 
 from server import rules
 from server.db import Sqlite
-from server.score import score
+from server.score import nearest_reveal, score
 
 WEB = Path(__file__).parent / "web"
 SF = {"lat": 37.7749, "lng": -122.4194}
@@ -223,7 +223,41 @@ async def handler() -> None:
     assert (await guess(loose))[0] == 403, (
         "an undated guess read the answer to a round nothing has scheduled yet"
     )
+    assert practice["reveal"] is None, "a reveal was offered with no stills at all"
+
+
+async def reveals() -> None:
+    """The same cases test_reveal.mjs holds the JavaScript lookup to."""
+    db = Sqlite().migrate()
+    for image, lat, lng in (
+        ("2000_-5000.jpg", 40.00, -100.00),
+        ("2000_-4999.jpg", 40.01, -99.98),
+        # ~22 km east at 48N: inside the cap, outside a window that forgot to
+        # widen longitude by 1/cos(lat).
+        ("2400_-5985.jpg", 48.0, -119.7),
+    ):
+        await db.execute(
+            "INSERT INTO reveals (image, lat, lng) VALUES (?, ?, ?)", image, lat, lng
+        )
+    near = await nearest_reveal(db, {"lat": 40.009, "lng": -99.981})
+    assert near["image"] == "reveals/2000_-4999.jpg" and near["km"] < 0.2, near
+    north = await nearest_reveal(db, {"lat": 48.0, "lng": -120.0})
+    assert north and north["image"] == "reveals/2400_-5985.jpg", north
+    # Past the cap, and off the corner of the square window: nothing.
+    for pin in (
+        {"lat": 40.0, "lng": -99.6},
+        {"lat": 25, "lng": -80},
+        {"lat": 40.2, "lng": -99.74},
+    ):
+        assert await nearest_reveal(db, pin) is None, pin
+
+    # A tier whose deploy is ahead of its migrations has no reveals table: no
+    # reveal, not a thrown query taking the score down with it.
+    bare = Sqlite()
+    bare.conn.execute("CREATE TABLE answers (image TEXT, lat REAL, lng REAL)")
+    assert await nearest_reveal(bare, {"lat": 40, "lng": -100}) is None
 
 
 asyncio.run(handler())
+asyncio.run(reveals())
 print("ok: the Python scorer matches the contract test_score.mjs holds")

@@ -28,7 +28,8 @@ hour it runs at:
   never open yet. That is what the admin writes need, and why the run schedules
   at least six days: the reject takes the furthest day as its replacement.
 - `--seed` puts three players' games on FIRST, which is the only way a closed
-  date gets plays -- /api/score refuses one, by design.
+  date gets plays -- /api/score refuses one, by design -- and one reveal still
+  beside the pin every practice guess here drops.
 - The first round of the furthest date has an object in the local bucket, so
   the clip route has something to serve and the reject has a replacement with
   media behind it.
@@ -53,6 +54,12 @@ FIRST = TODAY - dt.timedelta(days=2)
 LAST_CLOSED = (NOW - dt.timedelta(hours=36)).date()
 MONTH = NOW.strftime("%Y-%m")
 
+# One "where you guessed" still, a kilometre from the pin the practice guess drops.
+REVEAL = "reveals/2000_-5000.jpg"
+REVEAL_SQL = (
+    "INSERT INTO reveals (image, lat, lng) VALUES ('2000_-5000.jpg', 40.01, -100.01);\n"
+)
+
 # The seeded board on FIRST. Points are per round, and the two nameless players
 # are what the collision numbering is asserted against.
 SEEDED = [
@@ -66,7 +73,8 @@ DESKTOP = "a3f1c2d4-0000-4000-8000-00000000000b"
 
 
 def seed_sql() -> str:
-    """Every round FIRST plays, answered by each SEEDED player."""
+    """Every round FIRST plays, answered by each SEEDED player, and the one still
+    beside the practice pin."""
     rows = ", ".join(
         f"('{pid}', {km}, {points}, {'NULL' if handle is None else repr(handle)})"
         for pid, km, points, handle in SEEDED
@@ -75,7 +83,7 @@ def seed_sql() -> str:
         "INSERT INTO plays (date, player_id, image, km, points, handle, guess_lat, guess_lng)\n"
         "SELECT d.date, p.column1, d.image, p.column2, p.column3, p.column4, 40.0, -100.0\n"
         f"  FROM round_days d, (VALUES {rows}) p\n"
-        f" WHERE d.date = '{FIRST}';\n"
+        f" WHERE d.date = '{FIRST}';\n" + REVEAL_SQL
     )
 
 
@@ -285,6 +293,9 @@ def score(images, first_images):
     km = haversine_km((40, -100), (s["lat"], s["lng"]))
     assert abs(s["km"] - km) < 0.01, (s, km)
     assert s["points"] == round(5000 * math.exp(-10 * s["km"] / 4500)), s
+    # The seeded still beside the pin, through the real query planner rather than
+    # node:sqlite's: the lookup binds nine parameters into one ORDER BY.
+    assert (s.get("reveal") or {}).get("image") == REVEAL, s
 
     # Undated is not a way round the window: today's round, and one not yet open,
     # would otherwise hand their answers to anyone who asks without a date.
