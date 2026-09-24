@@ -57,6 +57,9 @@ Set them in `Local.xcconfig` beside it (gitignored), or pass them to
 `xcodebuild` as `NAME=value`. The owner id is the numeric Twitch user id,
 never the login, which can be renamed.
 
+`GUESSR_TWITCH_CHANNEL` is set in the tree: the Chat tab talks in `adanalife_`
+in a Release build and in `adanalife_staging` in a Debug one.
+
 ## The console tier
 
 The app can also link `TempomatConsole`, a private package that adds the

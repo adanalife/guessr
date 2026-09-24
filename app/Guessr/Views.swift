@@ -55,8 +55,6 @@ struct TodayView: View {
 
 struct SettingsView: View {
     @Environment(Account.self) private var account
-    @State private var code: DeviceCode?
-    @State private var error: String?
 
     var body: some View {
         Form {
@@ -64,18 +62,8 @@ struct SettingsView: View {
                 if let session = account.session {
                     LabeledContent("Signed in as", value: session.login)
                     Button("Sign out", role: .destructive) { account.signOut() }
-                } else if let code {
-                    LabeledContent("Code", value: code.userCode)
-                    if let url = URL(string: code.verificationUri) {
-                        Link("Enter it at Twitch", destination: url)
-                    }
-                    ProgressView()
                 } else {
-                    Button("Sign in with Twitch") { Task { await signIn() } }
-                        .disabled(!account.auth.isConfigured)
-                }
-                if let error {
-                    Text(error).foregroundStyle(.secondary)
+                    TwitchSignIn()
                 }
             }
             #if canImport(TempomatConsole)
@@ -86,6 +74,40 @@ struct SettingsView: View {
         }
         .navigationTitle("Settings")
         .task { await account.refreshIfNeeded() }
+    }
+}
+
+/// The Twitch device-code sign-in as form rows: a button, then the code to
+/// enter at Twitch until the login lands.
+struct TwitchSignIn: View {
+    @Environment(Account.self) private var account
+    @State private var code: DeviceCode?
+    @State private var error: String?
+    #if DEBUG
+        @State private var pressedForLaunchArgument = false
+    #endif
+
+    var body: some View {
+        if let code {
+            DeviceCodeRows(code: code)
+        } else {
+            Button("Sign in with Twitch") { Task { await signIn() } }
+                .disabled(!account.auth.isConfigured)
+                #if DEBUG
+                    // `-signin 1` presses the button once on appear, so the
+                    // code screen can be screenshotted from the shell. A task
+                    // of its own, as the press is: the button leaves when the
+                    // code arrives, which would cancel `.task`'s.
+                    .onAppear {
+                        guard UserDefaults.standard.bool(forKey: "signin"), !pressedForLaunchArgument else { return }
+                        pressedForLaunchArgument = true
+                        Task { await signIn() }
+                    }
+                #endif
+        }
+        if let error {
+            Text(error).foregroundStyle(.secondary)
+        }
     }
 
     private func signIn() async {
@@ -98,5 +120,19 @@ struct SettingsView: View {
             self.error = error.localizedDescription
         }
         code = nil
+    }
+}
+
+/// A device code waiting on the human: the code, where to enter it, and a
+/// spinner for the wait.
+struct DeviceCodeRows: View {
+    let code: DeviceCode
+
+    var body: some View {
+        LabeledContent("Code", value: code.userCode)
+        if let url = URL(string: code.verificationUri) {
+            Link("Enter it at Twitch", destination: url)
+        }
+        ProgressView()
     }
 }
