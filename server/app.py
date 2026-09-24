@@ -29,7 +29,7 @@ from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
 from server import admin_day, admin_players, clips, day, guesses, leaderboard, link
-from server import live, score
+from server import live, recap, score
 from server.admin_auth import caller, refusal
 
 
@@ -66,6 +66,8 @@ ROUTES = [
     ("/api/live", "GET", lambda r: live.live(r.fetch)),
     ("/api/score", "POST", lambda r: score.score(r.db, r.body)),
     ("/api/link", "POST", lambda r: link.link(r.db, r.body)),
+    ("/api/games", "POST", lambda r: recap.games(r.db, r.body)),
+    ("/api/recap", "GET", lambda r: recap.recap(r.db, r.params)),
     ("/api/link/code", "POST", lambda r: link.issue_code(r.db, r.body)),
     ("/api/link/claim", "POST", lambda r: link.claim(r.db, r.body)),
     ("/admin/day", "GET", lambda r: admin_day.preview(r.db, r.who, r.params)),

@@ -117,6 +117,46 @@ def call(method, path, body=None, headers=None, raw=None) -> Reply:
         return Reply(e.code, e.headers, e.read())
 
 
+def recaps():
+    # A player's own games: today's is still open, so it comes back without a
+    # share link, and the recap refuses it -- the same rule at both ends.
+    games = post(
+        "a player reads their own games", 200, "/api/games", {"player_id": PHONE}
+    )
+    assert games.header("cache-control") == "no-store", games.header("cache-control")
+    mine = {g["date"]: g for g in games.json["games"]}
+    assert mine[str(TODAY)]["token"] is None, mine
+    err = error(
+        get(
+            "a recap of a day still in play is refused",
+            403,
+            f"/api/recap?date={TODAY}&r=000000000000",
+        )
+    )
+    assert "still being played" in err, err
+
+    # A closed day's link, followed: the seeded player's game on FIRST, in the
+    # order it was played, carrying no player id.
+    top = post(
+        "a seeded player's games", 200, "/api/games", {"player_id": SEEDED[0][0]}
+    )
+    link = {g["date"]: g for g in top.json["games"]}[str(FIRST)]["token"]
+    assert link and len(link) == 12, top.json
+    shown = get("a closed day's recap", 200, f"/api/recap?date={FIRST}&r={link}")
+    body = shown.json
+    assert body["name"] == SEEDED[0][3] and len(body["rounds"]) == 5, body
+    assert body["total"] == 5 * SEEDED[0][2], body
+    assert SEEDED[0][0] not in shown.raw.decode(), "a recap carried the player id"
+    error(
+        get(
+            "a link that matches nobody is refused",
+            404,
+            f"/api/recap?date={FIRST}&r=000000000000",
+        )
+    )
+    error(get("a recap with no date is refused", 400, "/api/recap"))
+
+
 def expect(name, status, method, path, body=None, **kw):
     """One request, its status asserted; JSON routes must answer JSON."""
     r = call(method, path, body, **kw)
@@ -929,6 +969,7 @@ def main() -> int:
 
     images, first_images = day()
     desk = score(images, first_images)
+    recaps()
     leaderboard()
     guesses()
     live()
