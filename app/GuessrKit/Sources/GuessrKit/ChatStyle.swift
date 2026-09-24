@@ -135,6 +135,50 @@ extension TwitchChat {
     }
 }
 
+/// An emote a composer can offer: Twitch's id, which names its art, and the
+/// word that summons it.
+public struct ChatEmote: Sendable, Hashable, Identifiable, Decodable {
+    public let id: String
+    public let name: String
+    public init(id: String, name: String) {
+        self.id = id
+        self.name = name
+    }
+}
+
+extension TwitchChat {
+    /// The channel's own emotes, then Twitch's global set. Read once and hold.
+    // ponytail: every emote the channel has, whether or not this viewer may
+    // use one (a sub emote sent by a non-sub goes out as its name). The exact
+    // usable set is GET chat/emotes/user, behind the user:read:emotes scope.
+    public func emotes() async throws -> [ChatEmote] {
+        struct Page: Decodable { var data: [ChatEmote] }
+        let broadcaster = try await resolveBroadcaster()
+        let channel = try await helix("GET", "chat/emotes", query: ["broadcaster_id": broadcaster])
+        let global = try await helix("GET", "chat/emotes/global")
+        return try Guessr.decoder.decode(Page.self, from: channel).data
+            + Guessr.decoder.decode(Page.self, from: global).data
+    }
+}
+
+/// The `@name` a composer is in the middle of typing — its last word, when
+/// that starts with `@` — as the part after the `@`. Nil otherwise, and after a
+/// trailing space, which ends the word.
+public func mentionInProgress(_ text: String) -> String? {
+    guard let word = text.split(separator: " ", omittingEmptySubsequences: false).last, word.hasPrefix("@")
+    else { return nil }
+    return String(word.dropFirst())
+}
+
+/// `text` with the word being typed swapped for `word`, and a space after it
+/// so the next word starts fresh.
+public func completingLastWord(_ text: String, with word: String) -> String {
+    var words = text.split(separator: " ", omittingEmptySubsequences: false)
+    if words.isEmpty { return word + " " }
+    words[words.count - 1] = Substring(word)
+    return words.joined(separator: " ") + " "
+}
+
 /// SHA-1 of `message`, as its 20 digest bytes. Hand-rolled because the
 /// package carries no dependencies and CryptoKit is Apple-only; only
 /// `usernameColorHex` needs it, and only for the last byte.
