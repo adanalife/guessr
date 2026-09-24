@@ -27,9 +27,10 @@ import { dirname } from 'node:path';
 // The floors are per page and exist so that a regex which stopped matching fails
 // here rather than passing over an empty list.
 const PAGES = [
-  { path: 'web/index.html', imports: 4, ids: 20 },
+  { path: 'web/index.html', imports: 4, ids: 21 },
   { path: 'web/admin/index.html', imports: 2, ids: 5 },
   { path: 'web/admin/notes.html', imports: 1, ids: 3 },
+  { path: 'web/admin/scores.html', imports: 2, ids: 4 },
 ];
 
 // Only a page's own modules. Anything from a CDN or a vendored global is loaded

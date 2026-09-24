@@ -14,7 +14,8 @@
 
 import assert from 'node:assert/strict';
 import {
-  MAX_HISTORY, loadHistory, markSeen, recordHistory, restoreTruths, saveDaily, savedDaily, seen,
+  MAX_HISTORY, loadHistory, markSeen, previousAlias, recordHistory, restoreTruths, saveDaily,
+  savedDaily, seen,
 } from './web/storage.js';
 
 // A working store, in memory. Not a Map: the real one stringifies whatever it
@@ -26,6 +27,7 @@ const fakeStore = () => {
     held,
     getItem: k => (held.has(k) ? held.get(k) : null),
     setItem: (k, v) => held.set(k, String(v)),
+    removeItem: k => held.delete(k),
   };
 };
 
@@ -33,6 +35,7 @@ const fakeStore = () => {
 const refusing = {
   getItem() { throw new DOMException('The operation is insecure.', 'SecurityError'); },
   setItem() { throw new DOMException('The quota has been exceeded.', 'QuotaExceededError'); },
+  removeItem() { throw new DOMException('The operation is insecure.', 'SecurityError'); },
 };
 
 // A store that is there but full -- reads fine, refuses every write. Distinct
@@ -48,6 +51,10 @@ const full = () => {
 // has to land on the fallback its caller was written against.
 assert.equal(savedDaily(refusing), null, 'savedDaily must read as no game in progress');
 assert.deepEqual(loadHistory(refusing), [], 'loadHistory must read as no history');
+assert.equal(previousAlias(undefined, refusing), null,
+  'previousAlias must read as nothing to go back to');
+assert.equal(previousAlias('Foggy Mesa', refusing), null,
+  'a refused write must not escape as a throw');
 assert.doesNotThrow(() => saveDaily({ day: 1 }, refusing), 'saveDaily must not break the round');
 assert.doesNotThrow(() => markSeen('guessr-about-seen', refusing), 'markSeen must not throw');
 // seen() falls back to *true*, not false: a browser that cannot remember a
@@ -169,6 +176,26 @@ assert.equal(recordHistory([1, 2, 3, 4, 5, true], refusing), 1,
   assert.deepEqual(loadHistory(store), entries, 'the history is not what was recorded');
 }
 
+// Taking a reroll back, and the "only one" that makes it a single step rather
+// than a history. The button is drawn off this read, so the value matters in
+// both directions: a name to offer, and nothing once it is taken.
+{
+  const store = fakeStore();
+  assert.equal(previousAlias(undefined, store), null, 'a fresh browser has nothing to undo');
+
+  assert.equal(previousAlias('Foggy Mesa', store), 'Foggy Mesa', 'the replaced name is kept');
+  // A second reroll overwrites rather than stacking: one step back, never two.
+  assert.equal(previousAlias('Amber Butte', store), 'Amber Butte', 'the older name is gone');
+
+  assert.equal(previousAlias('', store), null, 'taking it back forgets it');
+  assert.equal(previousAlias(undefined, store), null, 'and it stays forgotten');
+}
+
+// A store that reads but refuses writes still has to answer, or the undo button
+// shows with nothing behind it.
+assert.equal(previousAlias('Silver Wayside', full()), null,
+  'a name that could not be stored must not be offered back');
+
 // The keys are a contract with the browsers already holding them: renaming one
 // silently orphans every player's history, and the reset button clears by the
 // `guessr-` prefix rather than by a list.
@@ -177,8 +204,10 @@ assert.equal(recordHistory([1, 2, 3, 4, 5, true], refusing), 1,
   saveDaily({ day: 1 }, store);
   recordHistory([0, 0, 0, 0, 0, true], store);
   markSeen('guessr-about-seen', store);
+  previousAlias('Foggy Mesa', store);
   const keys = [...store.held.keys()];
-  assert.deepEqual(keys.sort(), ['guessr-about-seen', 'guessr-daily', 'guessr-history']);
+  assert.deepEqual(keys.sort(),
+    ['guessr-about-seen', 'guessr-alias-prev', 'guessr-daily', 'guessr-history']);
   assert.ok(keys.every(k => k.startsWith('guessr-')),
     'a key outside the guessr- prefix survives the reset button');
 }
@@ -186,3 +215,4 @@ assert.equal(recordHistory([1, 2, 3, 4, 5, true], refusing), 1,
 console.log('ok: every stored read and write degrades rather than throwing when storage refuses');
 console.log('ok: a saved day round-trips, and unparseable state reads as none');
 console.log(`ok: the history trims to ${MAX_HISTORY}, newest kept, in order`);
+console.log('ok: a reroll can be taken back exactly once');

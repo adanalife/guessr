@@ -1,0 +1,38 @@
+// The Python Worker serving server/app.py -- /api/*, /admin/* and /clips/* for
+// the staging tier. `task api:dev` runs it locally.
+//
+// In api/ rather than at the repo root, and named wrangler.jsonc, for two tools
+// at once. pywrangler reads no other name, and only beside its pyproject.toml.
+// Wrangler auto-loads that name from the directory it runs in or any parent, and
+// `wrangler pages dev` at the root would then take this Worker's main and
+// bindings as its own -- so the name is safe only down here.
+//
+// The Worker ships api/bundle/, which `task api:bundle` (scripts/api-bundle.sh)
+// stages from server/ and web/alias.json, rather than the repo: wrangler uploads
+// every .py under the module root and its rules cannot narrow that, so the repo
+// root would ship every script and the whole .venv.
+{
+  "name": "adanalife-guessr-staging-api",
+  "main": "bundle/server/worker.py",
+  "base_dir": "bundle",
+  // rules.py reads the wordlist the page draws aliases from at import.
+  "rules": [{ "type": "Data", "globs": ["web/alias.json"], "fallthrough": true }],
+  "compatibility_date": "2026-09-22",
+  "compatibility_flags": ["python_workers"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "adanalife-guessr-answers-staging",
+      "database_id": "a76a44d4-7c09-4b07-8ad3-625c63df5658",
+      // The repo's migrations, for `wrangler d1 migrations apply --local` here.
+      "migrations_dir": "../migrations"
+    }
+  ],
+  // One bucket for every tier: a clip is the same bytes whichever tier serves
+  // it (see BUCKET in Taskfile.yml).
+  "r2_buckets": [{ "binding": "CLIPS", "bucket_name": "adanalife-guessr-clips" }]
+  // Who administers is three secrets, none declared here: Dana's Twitch user id
+  // (TWITCH_OWNER_ID), the adanalife_ broadcaster id (TWITCH_CHANNEL_ID), and the
+  // tempomat/console client ids, comma-separated (TWITCH_CLIENT_IDS). None lives
+  // in this repo; `wrangler secret put <NAME>` sets each. Unset admits nobody.
+}

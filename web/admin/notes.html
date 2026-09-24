@@ -43,6 +43,7 @@
 <h1>Players</h1>
 <p class="nav">
   <a href="/admin/">&larr; day preview</a>
+  <a href="/admin/scores">score lookup</a>
   <input type="search" id="filter" placeholder="filter by name, note or id">
   <span id="meta"></span>
 </p>
@@ -62,7 +63,7 @@
 // player's name on every board and on the stream overlay the moment it is set,
 // which is a decision worth making deliberately rather than in a row of a table
 // full of other people. `task player:prod` is still how it is made.
-import { request } from '/request.js';
+import { failure, request } from '/request.js';
 
 const el = id => document.getElementById(id);
 
@@ -125,7 +126,7 @@ async function load() {
     res = await request('/admin/players');
     body = await res.json();
   } catch {
-    el('meta').textContent = 'could not reach /admin/players';
+    el('meta').textContent = failure('/admin/players', res);
     return;
   }
   // The endpoint refuses on a tier it does not recognise, and says so. Passed
@@ -159,7 +160,7 @@ async function save(row, note) {
     out = await res.json();
   } catch {
     status.className = 'status warn';
-    status.textContent = 'could not reach /admin/players';
+    status.textContent = failure('/admin/players', res);
     return;
   }
   if (!res.ok) {

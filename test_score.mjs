@@ -208,15 +208,20 @@ assert.ok(parsePlay({ ...play, date: '2028-02-29' }), 'rejected a real leap day'
   assert.equal((await guess(LOOSE, today)).status, 403,
     'a round nothing scheduled was accepted as a play');
 
-  // A practice guess carries no date and is never checked against a schedule --
-  // nothing is at stake, and refusing it would break the one mode that always
-  // works when the daily cannot.
-  const practice = await onRequestPost({
-    request: post({ image: LOOSE, lat: 40, lng: -100 }),
+  // A practice guess carries no date, and scores only a round from a date that
+  // has closed -- what /api/day?practice deals. Anything else hands back the
+  // answer to a round somebody has yet to play, with no guess committed first.
+  const undated = image => onRequestPost({
+    request: post({ image, lat: 40, lng: -100 }),
     env,
   });
-  assert.equal(practice.status, 200, 'practice was gated on the schedule');
+  const practice = await undated(THEIRS);
+  assert.equal(practice.status, 200, "a closed day's round was refused as practice");
   assert.equal((await practice.json()).recorded, false);
+  assert.equal((await undated(MINE)).status, 403,
+    "an undated guess read the answer to a round whose day is still open");
+  assert.equal((await undated(LOOSE)).status, 403,
+    'an undated guess read the answer to a round nothing has scheduled yet');
 
   // The pin lands beside the score it earned. km is a radius and a map needs a
   // point, so a guess whose coordinates were dropped here is one that can never
@@ -233,3 +238,4 @@ console.log('ok: scoring curve and guess validation');
 console.log('ok: a play is keyed on an opaque id, with the handle as a label only');
 console.log('ok: only a name the wordlist could have made is kept');
 console.log("ok: a play is scored only against the rounds its own date schedules");
+console.log('ok: practice scores only a round from a day that is over');

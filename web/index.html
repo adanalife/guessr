@@ -114,6 +114,8 @@
   #qr svg { display: block; width: 100%; height: 100%; }
   #qr rect { fill: var(--color-panel); }
   #qr path { fill: var(--color-text); }
+  #linkcode { letter-spacing: .12em; }
+  #claimcode { font: inherit; width: 7em; text-transform: uppercase; }
   #identity { color: var(--color-muted); }
   #identity b { color: var(--color-text); margin-right: .4rem; }
   #about .dot { display: inline-block; width: .45rem; height: .45rem;
@@ -212,7 +214,18 @@
   #sheet .live .cap { position: static; margin-top: .4rem; background: none;
                       color: var(--color-text); line-height: 1.35;
                       font-size: .82rem; font-weight: 400; }
-  #mapwrap { min-height: 0; }
+  #mapwrap { min-height: 0; position: relative; }
+  /* Over the map rather than in the footer, because the footer line is the
+     round's -- it says where the answer was and what the guess scored, and
+     losing that to a tile problem trades one missing thing for another. Pointer
+     events off so it cannot eat the click that places a pin: a map with no
+     tiles is still a map that can be guessed on, which is the whole reason for
+     saying so rather than blocking. */
+  #tilewarn { position: absolute; z-index: 500; left: .5rem; right: .5rem; top: .5rem;
+              margin: 0; padding: .35rem .5rem; pointer-events: none;
+              background: var(--color-bg); color: var(--color-muted);
+              border: 1px solid var(--color-muted); border-radius: 3px;
+              font-size: .78rem; text-align: center; }
   #map { height: 100%; background: var(--color-bg); }
   /* While a round is being guessed the frame takes the whole pane and the map
      rides over its bottom-right corner. The frame is 1280px wide and squinting
@@ -324,6 +337,10 @@
            field: keep drawing until one reads right. -->
       <p id="identity">Your leaderboard name is <b id="alias"></b><br>
         <button type="button" id="reroll" class="secondary" title="Draw another name">Generate new name</button>
+        <!-- Only ever the one name back: shown when a reroll has something to
+             undo, gone again the moment it is taken. -->
+        <button type="button" id="undo" class="secondary" hidden
+          title="Go back to the name before the last reroll">Undo</button>
         <!-- Playing on a phone and a desktop otherwise puts the same person on
              the board twice. The code carries the player id, so scanning it
              from the other device is the whole mechanism. -->
@@ -333,9 +350,21 @@
            picture: a screen reader announces a link, and a phone that has the
            panel open can follow it directly. Following it on the device that
            drew it is a no-op — it is already that player. -->
-      <!-- biome-ignore lint/a11y/useValidAnchor: href is the player link, set when the code is drawn -->
-      <!-- biome-ignore lint/a11y/useAnchorContent: the code and its label are set at the same moment -->
-      <p id="qrwrap" hidden><a id="qrlink"><span id="qr"></span></a></p>
+      <div id="qrwrap" hidden>
+        <!-- biome-ignore lint/a11y/useValidAnchor: href is the player link, set when the code is drawn -->
+        <!-- biome-ignore lint/a11y/useAnchorContent: the code and its label are set at the same moment -->
+        <p><a id="qrlink"><span id="qr"></span></a></p>
+        <!-- The same link for a device that cannot scan its way in: a Home
+             Screen install keeps its own storage and the app has no browser to
+             open a link in, so both take a code typed by hand instead. -->
+        <p id="codeline" hidden>Or enter <b id="linkcode"></b> on the other
+          device.</p>
+        <!-- And the receiving half, for a code drawn somewhere else. -->
+        <form id="claim"><label>Have a code from another device?
+          <input id="claimcode" autocomplete="off" autocapitalize="characters"
+            spellcheck="false" maxlength="12" required></label>
+          <button type="submit" class="secondary">Join</button></form>
+      </div>
       <!-- Every daily this player has finished, which is a record the browser
            itself does not keep: it remembers the day it is in the middle of and
            nothing before that. Filled from /api/games the first time the panel
@@ -412,7 +441,9 @@
   <!-- Leaflet writes `position: relative` inline on its own container, which
        beats any stylesheet rule, so the minimap is positioned by this wrapper
        rather than by #map itself. -->
-  <div id="mapwrap"><div id="map"></div></div>
+  <div id="mapwrap"><div id="map"></div>
+    <p id="tilewarn" hidden>The map is having trouble loading. You can still drop a pin
+      &mdash; the grid is the same.</p></div>
 </main>
 <footer>
   <button type="button" id="go" disabled>Drop a pin to guess</button>
@@ -450,7 +481,8 @@ import { linkUrl, parseLink } from './link.js';
 import { request } from './request.js';
 import { bandFor, MAX_ROUND_SCORE, scoreLine, shareText } from './share.js';
 import {
-  loadHistory, markSeen, recordHistory, restoreTruths, saveDaily, savedDaily, seen,
+  loadHistory, markSeen, previousAlias, recordHistory, restoreTruths, saveDaily, savedDaily,
+  seen,
 } from './storage.js';
 import { fitScale, fitView, panView, zoomAbout } from './zoom.js';
 
@@ -531,9 +563,29 @@ async function scoreGuess(image, latlng, date) {
 }
 
 const map = L.map('map', { worldCopyJump: false });
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18, attribution: '&copy; OpenStreetMap'
 }).addTo(map);
+
+// Say so when the basemap is not coming. The tiles are fetched straight from
+// OSM's public servers with no key and no fallback, so the ways this happens
+// are all outside the game -- the player's connection, a captive portal, or
+// OSM declining to serve us -- and the symptom is identical to a map that is
+// simply grey here: a pin on an empty background, with nothing saying whether
+// waiting would help.
+//
+// Three failures rather than one, because a single tile 404s at the edge of the
+// world routinely and one bad fetch is not an outage. Any tile that does arrive
+// clears it, so a patchy connection recovers on its own.
+const TILE_FAILURES = 3;
+let tileErrors = 0;
+tiles.on('tileerror', () => {
+  if (++tileErrors >= TILE_FAILURES) el('tilewarn').hidden = false;
+});
+tiles.on('tileload', () => {
+  tileErrors = 0;
+  el('tilewarn').hidden = true;
+});
 
 // Every round opens on the whole playable area — the lower 48, the same box
 // check.py bounds the answers to. Fitted rather than a fixed zoom because the
@@ -1282,18 +1334,34 @@ const myAlias = alias();
 if (myAlias) showAlias(myAlias);
 else el('identity').hidden = true;
 
+// Offered only when there is a name to go back to.
+const showUndo = () => { el('undo').hidden = !previousAlias(); };
+showUndo();
+
 el('reroll').addEventListener('click', () => {
   // Drawn until it differs: with 2,401 to choose from, landing on the name you
   // just rejected is rare, but a button that visibly does nothing reads as
   // broken.
   let next = aliasFrom();
   while (next === el('alias').textContent) next = aliasFrom();
+  previousAlias(el('alias').textContent);
   showAlias(alias(next));
+  showUndo();
+});
+
+el('undo').addEventListener('click', () => {
+  const back = previousAlias();
+  if (!back) return;
+  // Forgotten as it is taken, so this is one step back rather than a history to
+  // walk. The next reroll fills it again.
+  previousAlias('');
+  showAlias(alias(back));
+  showUndo();
 });
 
 // Linking a second device, so that playing on a phone and a desktop places one
 // player rather than two. The player id is the only credential the game has --
-// minted in the browser, never returned by any endpoint -- so carrying it to the
+// minted in the browser, returned only by a link-code claim -- so carrying it to the
 // other browser IS the link, and there is no account here to hold the two
 // together instead.
 //
@@ -1324,6 +1392,55 @@ el('link').addEventListener('click', () => {
   const qrlink = el('qrlink');
   qrlink.href = url;
   qrlink.setAttribute('aria-label', 'Link a device to play as one player');
+  showCode();
+});
+
+// A fresh code on every open, since each lasts ten minutes and asking again
+// replaces the last. The QR above works without it, so a failure here only
+// leaves the line hidden.
+async function showCode() {
+  el('codeline').hidden = true;
+  try {
+    const res = await request('api/link/code', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ player_id: playerId() }),
+    });
+    if (!res.ok) return;
+    el('linkcode').textContent = (await res.json()).code;
+    el('codeline').hidden = false;
+  } catch { /* the QR still links */ }
+}
+
+// Typing in a code drawn on another device: this browser's plays fold onto that
+// player, and it plays as them from here on. Confirmed for the same reason a
+// scanned link is -- a code is something anyone can read out to you -- and the
+// id is adopted only once the merge has answered, as in adoptLink() below.
+el('claim').addEventListener('submit', async event => {
+  event.preventDefault();
+  // No id means no localStorage, which could not hold the adopted one either.
+  const from = playerId();
+  if (!from) return;
+  if (!window.confirm("Add this browser's scores to the player on your other device?"
+    + ' Both devices will play as one player from now on.')) return;
+  let res;
+  try {
+    res = await request('api/link/claim', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code: el('claimcode').value, from }),
+    });
+  } catch { res = null; }
+  if (!res?.ok) {
+    window.alert(res && res.status < 500
+      ? 'That code is unknown or has expired. Draw a new one on the other device.'
+      : 'Could not link the devices just now. Try the code again.');
+    return;
+  }
+  localStorage.setItem(PLAYER_KEY, (await res.json()).player_id);
+  // Reloaded for the reason adoptLink() gives: everything on screen was drawn
+  // for a player who no longer plays here.
+  location.reload();
 });
 
 // Your own games, and the links to them. Both live in the About panel rather

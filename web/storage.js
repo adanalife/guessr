@@ -77,3 +77,29 @@ export function seen(key, store) {
 export function markSeen(key, store) {
   try { (store || localStorage).setItem(key, '1'); } catch { /* nothing to remember */ }
 }
+
+// The name the last reroll replaced, so one can be taken back.
+//
+// Only the immediately previous name: a second reroll overwrites it and taking
+// one back clears it, so a player can always step back exactly one and never
+// further. That is the whole enforcement, and it needs no other — the only
+// credential the game has is a browser-held player id, so a rule about how many
+// times somebody may reroll could be walked around by clearing storage. Keeping
+// one name is a kindness rather than a quota.
+//
+// Pass `''` to forget it. Reading a store that refuses says there is nothing to
+// go back to, which is also true: it never kept the name in the first place.
+const PREV_ALIAS_KEY = 'guessr-alias-prev';
+
+export function previousAlias(next, store) {
+  try {
+    const s = store || localStorage;
+    if (next !== undefined) {
+      if (next) s.setItem(PREV_ALIAS_KEY, next);
+      else s.removeItem(PREV_ALIAS_KEY);
+    }
+    return s.getItem(PREV_ALIAS_KEY);
+  } catch {
+    return null;
+  }
+}
