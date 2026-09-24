@@ -18,7 +18,7 @@ function optionsFor(hostname) {
   let options;
   runInNewContext(source, {
     location: { hostname },
-    Sentry: { init: o => { options = o; } },
+    Sentry: { init: o => { options = o; }, replayIntegration: () => 'replay' },
   });
   return options;
 }
@@ -39,6 +39,11 @@ for (const [hostname, environment, enabled] of cases) {
   assert.equal(o.environment, environment, hostname);
   assert.equal(o.enabled, enabled, hostname);
   assert.equal(o.sendDefaultPii, false, hostname);
+  // Replay on error only: a full-session rate would spend the fleet's quota
+  // on sessions that never errored.
+  assert.deepEqual([...o.integrations], ['replay'], hostname);
+  assert.equal(o.replaysSessionSampleRate, 0, hostname);
+  assert.equal(o.replaysOnErrorSampleRate, 1.0, hostname);
   assert.match(o.dsn, /^https:\/\/[0-9a-f]+@o\d+\.ingest\.us\.sentry\.io\/\d+$/, hostname);
 }
 
