@@ -229,6 +229,9 @@ struct DayResultView: View {
                 LabeledContent(
                     "Total",
                     value: "\(progress.total.formatted()) / \((progress.played.count * 5000).formatted())")
+                if let text = progress.shareText() {
+                    ShareLink(item: text) { Label("Share", systemImage: "square.and.arrow.up") }
+                }
                 Text("Come back tomorrow for five more.").foregroundStyle(.secondary)
             }
             NavigationLink("Leaderboards") { TodayView() }
