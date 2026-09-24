@@ -9,6 +9,7 @@ struct GuessrApp: App {
     /// the code joined; every change goes back to the Keychain.
     @State private var player = KeychainPlayerStore().current()
     @State private var tab = GuessrApp.firstTab
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -17,15 +18,19 @@ struct GuessrApp: App {
                     NavigationStack { PlayView(player: $player) }
                 }
                 Tab("Boards", systemImage: "list.number", value: "Boards") { NavigationStack { TodayView() } }
-                // Chat and Settings both hang off the Twitch login, so a build
-                // without a Twitch client id has nothing to show in either.
+                // Chat hangs off the Twitch login, so a build without a Twitch
+                // client id has nothing to show there. Settings always has the
+                // reminder, and hides only its Twitch section in such a build.
                 if account.auth.isConfigured {
                     Tab("Chat", systemImage: "bubble.left.and.bubble.right", value: "Chat") { ChatTab() }
-                    Tab("Settings", systemImage: "gear", value: "Settings") { NavigationStack { SettingsView() } }
                 }
+                Tab("Settings", systemImage: "gear", value: "Settings") { NavigationStack { SettingsView() } }
             }
             .environment(account)
             .onChange(of: player) { _, joined in players.save(joined) }
+            .onChange(of: scenePhase, initial: true) { _, phase in
+                if phase == .active { Task { await Reminder.refreshBadge() } }
+            }
         }
     }
 

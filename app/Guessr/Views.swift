@@ -58,12 +58,15 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Twitch") {
-                if let session = account.session {
-                    LabeledContent("Signed in as", value: session.login)
-                    Button("Sign out", role: .destructive) { account.signOut() }
-                } else {
-                    TwitchSignIn()
+            ReminderSection()
+            if account.auth.isConfigured {
+                Section("Twitch") {
+                    if let session = account.session {
+                        LabeledContent("Signed in as", value: session.login)
+                        Button("Sign out", role: .destructive) { account.signOut() }
+                    } else {
+                        TwitchSignIn()
+                    }
                 }
             }
             #if canImport(TempomatConsole)
