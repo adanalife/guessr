@@ -4,6 +4,22 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.15.0 — 2026-09-24
+
+### New
+
+- The app's Twitch kit can read a channel's chat live, send to it, and delete messages or time out and ban for a moderator, all on the viewer's own Twitch login. Lines keep the chatter's own Twitch colour and badges. ([#241](https://github.com/adanalife/guessr/pull/241))
+- The iOS app has a Chat tab over the channel's Twitch chat: sign in with Twitch to read it live, with emotes, badges and each chatter's own colour, and to talk in it. A channel moderator also gets Delete, Time out and Ban on a line, after a second Twitch login that grants those powers. ([#243](https://github.com/adanalife/guessr/pull/243))
+- The app's chat composer finishes an @mention from the people who have spoken, and a smiley button opens the channel's emotes and Twitch's to tap into the message. ([#246](https://github.com/adanalife/guessr/pull/246))
+- The iPhone app can remind you to play each day at a time you pick, and badges its icon until you've made today's first guess. ([#247](https://github.com/adanalife/guessr/pull/247))
+- The app can share a finished day — the same four lines the web game pastes, squares and all — through the iOS share sheet. ([#248](https://github.com/adanalife/guessr/pull/248))
+- The iOS app reports crashes and hangs to Sentry, each with the stack the main thread was parked in and the screen that was showing, so a freeze on a player's phone arrives diagnosable. ([#249](https://github.com/adanalife/guessr/pull/249))
+- The web game reports browser errors to Sentry from production and staging, including a game script that fails to load at all, so a broken page on a player's browser arrives with its stack trace instead of going unnoticed. Previews and local runs send nothing. ([#250](https://github.com/adanalife/guessr/pull/250))
+
+### Fixed
+
+- The post-deploy smoke test waits out the few seconds between a deployment's static files going live and its Functions going live, rather than failing on the previous build's answer. ([#244](https://github.com/adanalife/guessr/pull/244))
+
 ## v1.14.0 — 2026-09-23
 
 ### Changed
