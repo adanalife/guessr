@@ -84,7 +84,7 @@ jobs:
         if: hashFiles('api/wrangler.jsonc') != ''
         with:
           node-version-file: .tool-versions
-      - uses: astral-sh/setup-uv@v10.2.0 # no floating major tag published
+      - uses: astral-sh/setup-uv@v10.1.0 # no floating major tag published
         if: hashFiles('api/wrangler.jsonc') != ''
       - name: Deploy the Python Worker (staging)
         if: hashFiles('api/wrangler.jsonc') != ''
