@@ -1,0 +1,21 @@
+# The Python server under server/: served by Python Workers' `workers.asgi` on
+# Cloudflare (wrangler.jsonc beside this file) and by uvicorn anywhere else.
+#
+# Here rather than at the repo root because pywrangler wants its pyproject.toml
+# and wrangler.jsonc side by side, and the root cannot hold that wrangler.jsonc
+# (see its header). The rest of the repo's Python is stdlib scripts run with a
+# bare `python3`; the tests that need Starlette run `uv run --project api`.
+#
+# Only `dependencies` ship in the Worker -- pywrangler vendors those into
+# python_modules/ -- so a dependency the Worker does not import belongs in dev.
+[project]
+name = "guessr"
+version = "0.0.0"
+# What Python Workers run.
+requires-python = ">=3.13"
+dependencies = ["starlette"]
+
+[dependency-groups]
+# workers-py is `pywrangler`, which vendors the runtime SDK into python_modules/
+# for a deploy; the `workers` module is not built into the runtime.
+dev = ["workers-py", "workers-runtime-sdk", "uvicorn"]

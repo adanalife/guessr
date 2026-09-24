@@ -57,6 +57,13 @@ jobs:
           # which release-please then rewrites on its next run. Disabled across
           # the release-please repos in the fleet for the same reason.
           VALIDATE_BIOME_FORMAT: false
+          # Biome lint runs in pre-commit instead, pinned to the same version as
+          # biome.json's `$schema`. super-linter bundles its own biome (2.5.0 in
+          # v8.7.0, the newest release), which refuses a config whose schema is
+          # newer than itself and reports a false `suppressions/unused` on the
+          # multi-line ignore in web/index.html. Two gates over the same 61 files
+          # at two versions can only disagree; the pinned one wins.
+          VALIDATE_BIOME_LINT: false
           # Copy-paste detection is noise on a codebase this small.
           VALIDATE_JSCPD: false
           # Prettier: the repo has no Prettier config and no Prettier hook, so

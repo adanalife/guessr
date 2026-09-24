@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Same terms as the day preview and the player list: deployed everywhere,
+     reachable behind the Access login and nowhere else, and kept out of search
+     results.
+
+     `scores.html` rather than `plays.html` for the reason notes.html is not
+     players.html -- Pages serves a page at its extensionless path, so a page
+     named for the table would answer at /admin/plays, which is the Function
+     this one calls. -->
+<meta name="robots" content="noindex">
+<title>guessr — score lookup</title>
+<script src="/theme.js"></script>
+<link rel="stylesheet" href="/base.css">
+<style>
+  /* A date, a score box and a list of games. Everything else is in base.css. */
+  body { margin: 0 auto; padding: 1rem; max-width: 60rem; }
+  h1 { font-size: 1.3rem; font-weight: 400; font-style: italic; }
+  .nav { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+  #meta { color: var(--color-muted); }
+  .game { border-bottom: 1px solid var(--color-border); padding: .6rem 0; }
+  .who { display: flex; gap: .5rem; align-items: baseline; flex-wrap: wrap; }
+  .total { font-size: 1.1rem; font-weight: bold; }
+  /* The match is what the page exists to surface, so it is marked rather than
+     left to be found by reading down a list of identical rows. */
+  .game.hit { background: var(--color-selection); }
+  .dim { color: var(--color-muted); font-size: .85rem; }
+  .id { font-family: ui-monospace, monospace; font-size: .75rem; }
+  .note { font-size: .85rem; font-style: italic; }
+  table { width: 100%; border-collapse: collapse; margin-top: .3rem; }
+  th, td { text-align: left; padding: .2rem .5rem; font-size: .85rem; }
+  th { font-weight: 400; color: var(--color-muted); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<h1>Score lookup</h1>
+<p class="nav">
+  <a href="/admin/">&larr; day preview</a>
+  <a href="/admin/notes">players</a>
+  <input type="date" id="date">
+  <input type="search" id="score" inputmode="numeric" placeholder="score from the screenshot">
+  <span id="meta"></span>
+</p>
+<div id="games"></div>
+
+<script type="module">
+// Put a name to a shared score. Somebody posts their end-of-game board with no
+// handle on it; the number is the only thing to go on, and this is the screen
+// that turns it back into a player.
+//
+// The score alone is not an answer -- two people scoring the same on one date is
+// ordinary at this many players -- so the match is highlighted rather than
+// selected, and every game is drawn with its five guesses underneath. The pins
+// are what separates a shortlist into one person: two players who both scored
+// 21,340 did not both put a pin in the same wrong place.
+import { dateForDay, dayNumber } from '/daily.js';
+import { failure, request } from '/request.js';
+
+const el = id => document.getElementById(id);
+
+// These are this project's own rows, but a handle is a string a browser chose
+// and a note is free text somebody typed -- so escape, rather than trusting the
+// provenance of a string forever.
+const esc = s => String(s).replace(/[&<>"]/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// Kilometres at the precision the distance was actually earned at: under 10 km
+// the decimal is the difference between "the right street" and "the right town",
+// and past that it is noise on a number nobody reads twice.
+const km = v => (v < 10 ? `${v.toFixed(1)} km` : `${Math.round(v)} km`);
+
+// Where the pin went, as a link rather than another map on the page. The day
+// preview already draws this date's rounds; what is missing from it is one
+// player's pins, and one link per round is the whole of that without mounting a
+// second Leaflet.
+//
+// Plays recorded before migration 0003 have no coordinates and never will, so
+// the cell says so rather than linking to the middle of the ocean.
+const pin = (lat, lng) => (lat === null || lng === null)
+  ? '<span class="dim">not kept</span>'
+  : `<a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=11/${lat}/${lng}"
+        target="_blank" rel="noreferrer">${lat.toFixed(3)}, ${lng.toFixed(3)}</a>`;
+
+const round = r => `<tr>
+  <td class="dim">${r.position ?? '—'}</td>
+  <td>${esc(r.state)}</td>
+  <td class="num">${km(r.km)}</td>
+  <td class="num">${r.points.toLocaleString()}</td>
+  <td>${pin(r.guess_lat, r.guess_lng)}</td>
+</tr>`;
+
+const game = (p, hit) => `<div class="game${hit ? ' hit' : ''}">
+  <div class="who">
+    <span class="total">${p.total.toLocaleString()}</span>
+    <span>${esc(p.name ?? 'anonymous')}</span>
+    ${p.alias ? '<span class="dim">published as this name</span>' : ''}
+    <span class="id">${esc(p.player_id)}</span>
+  </div>
+  ${p.note ? `<div class="note">${esc(p.note)}</div>` : ''}
+  <table>
+    <thead><tr><th>#</th><th>Answer</th><th>Off by</th><th>Points</th><th>Guessed</th></tr></thead>
+    <tbody>${p.rounds.map(round).join('')}</tbody>
+  </table>
+</div>`;
+
+let games = [];
+
+// Client-side over rows already loaded, the same bargain notes.html makes: one
+// date is one bounded response, so matching a score against it is a question the
+// page can already answer between keystrokes.
+//
+// Every game is drawn whatever the box says, with the matches marked. A filter
+// that hid the rest would answer "nobody scored that" identically to "you typed
+// it wrong", and a score read off a screenshot is a thing people mistype.
+function draw() {
+  const want = Number(el('score').value.replace(/[^\d]/g, ''));
+  const hits = want ? games.filter(p => p.total === want).length : 0;
+  el('games').innerHTML = games.map(p => game(p, want > 0 && p.total === want)).join('');
+  if (!games.length) {
+    el('meta').textContent = 'nobody played that date';
+  } else if (!want) {
+    el('meta').textContent = `${games.length} games`;
+  } else {
+    el('meta').textContent = hits
+      ? `${hits} of ${games.length} games scored ${want.toLocaleString()}`
+      : `no game scored ${want.toLocaleString()} — ${games.length} on this date`;
+  }
+}
+
+async function load() {
+  const date = el('date').value;
+  if (!date) return;
+  el('meta').textContent = 'loading…';
+  el('games').innerHTML = '';
+  games = [];
+  let res, body;
+  try {
+    res = await request(`/admin/plays?date=${encodeURIComponent(date)}`);
+    body = await res.json();
+  } catch {
+    el('meta').textContent = failure('/admin/plays', res);
+    return;
+  }
+  // The endpoint refuses on a tier it does not recognise, and says so. Passed
+  // through rather than flattened to "no games", which is a thing that could
+  // also be true.
+  if (!res.ok) {
+    el('meta').textContent = body.error || `could not load games (${res.status})`;
+    return;
+  }
+  games = body.players;
+  draw();
+}
+
+el('date').addEventListener('change', load);
+el('score').addEventListener('input', draw);
+
+// Today, because a score gets shared the day it is scored. The pair from
+// daily.js rather than a local `new Date()`: the day a play is filed under is
+// whatever dayNumber() says it is, and a second answer to that here would put
+// the wrong date in the box either side of midnight.
+el('date').value = dateForDay(dayNumber());
+load();
+</script>
+</body>
+</html>

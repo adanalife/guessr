@@ -79,6 +79,14 @@ export async function onRequestGet({ request, env }) {
                 FROM round_days`)
     .first();
 
+  // Whether anybody has looked at this day, written by /admin/review. Null is
+  // the honest answer for every day scheduled before that route existed, and
+  // reads the same as a day nobody has opened -- which is what it is.
+  const review = await env.ANSWERS
+    .prepare('SELECT reviewed_at FROM day_reviews WHERE date = ?')
+    .bind(date)
+    .first();
+
   // Every round that has an answer, so the page can draw the pool the day came
   // out of. The whole set rather than a summary because it is hundreds of rows
   // of three columns, and because the thing worth seeing is the shape -- one
@@ -99,6 +107,7 @@ export async function onRequestGet({ request, env }) {
     open: isOpen(date),
     scheduled_through: through?.date ?? null,
     queued: through?.queued ?? 0,
+    reviewed_at: review?.reviewed_at ?? null,
     rounds: results,
     pool,
   }, 200, { 'cache-control': 'no-store' });
@@ -211,6 +220,17 @@ export async function onRequestPost({ request, env }) {
   // image -- in place there is never a moment where both rounds hold the slot.
   await env.ANSWERS.batch([
     ...writes,
+    // The review described the five rounds that were here, and one of them is
+    // being swapped out for a round nobody has looked at -- so it stops being
+    // true in the same transaction that stops it being accurate. In the batch
+    // rather than after it, because a review surviving a half-applied swap is
+    // the case that would go unnoticed.
+    env.ANSWERS.prepare('DELETE FROM day_reviews WHERE date = ?').bind(date),
+    // The day given up for a replacement is unscheduled entirely, so its own
+    // review has nothing left to describe either.
+    ...(unscheduled
+      ? [env.ANSWERS.prepare('DELETE FROM day_reviews WHERE date = ?').bind(unscheduled)]
+      : []),
     env.ANSWERS.prepare("UPDATE rounds SET status = 'rejected' WHERE image = ?").bind(image),
     env.ANSWERS
       .prepare('UPDATE round_days SET image = ? WHERE date = ? AND position = ?')

@@ -23,7 +23,7 @@ export const CACHE = { 'cache-control': 'public, max-age=60' };
 
 // A board asked for by date is a board that closed, and a closed board can
 // never change again -- so it is worth an hour where a live one gets a minute.
-export const DATED_CACHE = { 'cache-control': 'public, max-age=3600' };
+const DATED_CACHE = { 'cache-control': 'public, max-age=3600' };
 
 // Which span a request asks for, as `{ period, cache }` -- or `{ error }` for
 // one no board can serve. Shared with guesses.js so a drilldown resolves its

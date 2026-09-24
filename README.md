@@ -46,11 +46,15 @@ end to end, including the record a daily play leaves behind.
 
 `task test:integration` is the same stack without a corpus: it fabricates a round
 set through the *real* SQL generators, applies the migrations to a throwaway
-local D1, starts `wrangler pages dev`, and asserts the endpoints answer. It runs
-in CI, and it is the tier that catches what the other two cannot — `task test`
-runs handlers against a stub of the D1 binding, so it proves logic and says
-nothing about routing, bindings, or how a real database answers, while `smoke.sh`
-needs something already deployed.
+local D1, seeds one clip into a throwaway local R2, starts `wrangler pages dev`,
+and runs `contract.py` against it: every route — the game's API, the clip
+endpoint and the admin surface, both locked down and under the `local` tier —
+held to its statuses, shapes and guards over plain HTTP. It runs in CI, and it
+is the tier that catches what the other two cannot — `task test` runs handlers
+against a stub of the D1 binding, so it proves logic and says nothing about
+routing, bindings, or how a real database answers, while `smoke.sh` needs
+something already deployed. Being HTTP only, the contract says nothing about
+what language the handlers are written in.
 
 `task serve` is a plain `http.server`, and it does not serve a playable game:
 the rounds come from `/api/day` and the clips from a Function, neither of which a
@@ -358,8 +362,8 @@ copy is dropped rather than left behind.
 
 There is no account to log into, and adding one would be the whole apparatus (an
 email, a session, a way back in when it's lost) around a problem that is one row
-rewrite. The id already *is* the credential: minted in the browser, never
-returned by any endpoint, `/api/leaderboard` deliberately serving names and
+rewrite. The id already *is* the credential: minted in the browser, returned
+by no endpoint but a link-code claim (below), `/api/leaderboard` deliberately serving names and
 points and no ids. So holding both ids is proof of holding both browsers.
 
 The About panel's **Link a device** draws that URL as a QR code, and the browser
@@ -383,6 +387,18 @@ always a page load — a browser already showing the game reuses the tab, and th
 URL differs only in its fragment. The receiving browser asks first, naming the
 player it is about to become: a URL that silently rewrote who you are would be a
 URL anyone could send you.
+
+A device that cannot open that link — a Home Screen install keeps its own
+storage, and the iOS app has no browser to open it in — types a code instead.
+`POST /api/link/code {player_id}` stores an eight-letter code (no `0`/`O`/`1`/`I`)
+against the id for ten minutes and answers `{code, expires_at}`; the About panel
+shows it beside the QR code. `POST /api/link/claim {code, from}` takes the code
+(single-use: it is deleted as it is read), runs the same merge with `from` as
+the mover, and answers `{player_id, moved}` — the id the claiming device plays as
+from then on. This is the one place a player id leaves the server, and only to
+the device holding a code its owner just drew. The `link_codes` table holds
+nothing else, and a row is gone once claimed or once the next issue or claim
+sweeps it past its expiry.
 
 Encoding is `qrcode-generator` from unpkg, pinned alongside Leaflet. QR is
 Reed-Solomon over GF(256), block interleaving and mask scoring — a spec
@@ -459,6 +475,14 @@ of a player id between two terminals. It writes `note` and only `note` —
 setting a published `NAME` stays the task above, deliberately, because that one
 is a decision rather than a jotting.
 
+`/admin/scores` answers the other direction: a score has been shared with no
+name on it, and the only handle on it is the number. It lists one date's games
+highest-first with every pin beside the truth it was aiming at, and marks the
+ones matching a score typed into the box. A match is a shortlist rather than an
+answer — ties on a four-digit score are ordinary at this many players — which is
+why the guesses are there: two people who both scored 21,340 did not both drop a
+pin in the same wrong Portland.
+
 `/admin/board-note` is the same note reached from a board row instead of a list —
 `?board=&rank=` with an optional `date` or `month`, resolved by the same
 `atRank()` the `/api/guesses` drilldown uses. It exists for callers holding no
@@ -471,10 +495,15 @@ service token.
 One thing this does *not* buy outright: the round sets published before scoring
 moved server-side carried their coordinates in `rounds.json`, and that file is in
 this repo's git history. The current set is a later regeneration and most of it
-is clear of them, but 34 of its 300 rounds are cut from a clip that also appeared
+is clear of them, but some of its rounds are cut from a clip that also appeared
 in one of those sets — and those sets' coordinates were clip-level, so for those
 the answer is a couple of kilometres and a `git log` away. The endpoint is the
 mechanism; a set with no overlap at all is what would make it the guarantee.
+
+How many is a query rather than a number to keep here: the pool grows with every
+weekly top-up, so it is the live `rounds` table joined against the slugs in
+`git log -p -- web/rounds.json` — six commits, the last of them
+[`c7b7b58`](https://github.com/adanalife/guessr/commit/c7b7b58).
 
 A regeneration replaces every clip under `web/clips/` and rewrites the four files
 beside the repo — so **a generation that fails leaves the current one alone.**
@@ -573,6 +602,8 @@ pre-commit install   # wires up both the file hooks and the commit-msg check
 Commits and PR titles follow [Conventional Commits](https://www.conventionalcommits.org).
 PRs squash-merge, so the PR title becomes the subject in history and is what
 release-please reads to compute the next version.
+
+The native iOS app lives in [`app/`](app/README.md), with its own build notes.
 
 ### Changelog
 
@@ -722,6 +753,24 @@ Rejecting a round is built (a button per round, replaced from the queue's tail);
 reordering a day is not. Looking is most of the value and it is what makes the
 rest worth having, so it went first.
 
+**Saying a day is fine is built too.** *Mark reviewed* writes the date to
+`day_reviews` (migration `0006`) through `POST /admin/review`, and `/admin/day`
+reports it back, so "reviewed out to here" is a different question from
+"scheduled out to here" — without it, a day nobody opened and a day looked at
+and found fine are the same rows. It comes off the same way it went on, and it
+is refused once a date has opened: that schedule is frozen, so a review of it
+could no longer have withheld anything.
+
+A review describes five particular rounds, so **rejecting out of a reviewed day
+clears the mark**, in the same transaction that does the swap — a day left
+reading as reviewed with a round nobody has seen in it is exactly the state the
+mark exists to rule out. The day given up to pay for a replacement loses its
+mark too, since it is no longer scheduled at all.
+
+It gates nothing. Generation keeps its three-day lead precisely so that review
+stays possible and never required, and a rule that refused to publish an
+unreviewed day would turn a missed evening into a date with no game.
+
 **Rounds never repeat.** A date's five are dealt from the pool once and
 recorded, and `round_days_once` makes scheduling the same round twice impossible
 rather than merely unlikely. Measured against a reshuffling draw, a player who
@@ -838,10 +887,10 @@ clips:push` will not upload a set that fails it.
   round into a chosen slot is not.
 - **A round set with no source clip in common with the pre-server-side sets.**
   Those sets carried their coordinates in a committed manifest, which is in this
-  repo's history (see *The rows a round set is* above). 34 of the current 300
+  repo's history (see *The rows a round set is* above). Some of the current
   rounds are cut from a clip one of them used, and truth was clip-level — so
-  those 34 are worth only as much as the player's disinclination to run
-  `git log`. Fine for a beta; a regeneration closes it.
+  those are worth only as much as the player's disinclination to run `git log`.
+  Fine for a beta; a regeneration closes it.
 
 ## Licence
 

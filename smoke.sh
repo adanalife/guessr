@@ -12,7 +12,7 @@
 # from an unapplied migration surfaces here as a 500 rather than on the stream.
 #
 # Read-only by construction: a practice guess (no date) is scored and never
-# recorded, and the two rejections return before the write path. So this leaves
+# recorded, and the rejections all return before the write path. So this leaves
 # nothing behind in the database it runs against, production included.
 set -euo pipefail
 
@@ -279,11 +279,20 @@ if [ "$((w * 9))" -le "$((h * 16))" ]; then
 fi
 echo "ok: round media is HUD-cropped -> ${dim}"
 
-# A practice guess: scored, never recorded. Fails if the answers table has never
-# heard of the round set that just deployed.
-out=$(post "{\"image\":\"$image\",\"lat\":40,\"lng\":-100}")
+# A practice guess: scored, never recorded, and only at a round practice deals --
+# one from a day that is over. Fails if the answers table has never heard of the
+# round set that just deployed.
+out=$(call "$BASE/api/day?practice")
+check "practice draws a game" 200 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
+drawn=$(head -1 <<<"$out" | jq -r '.rounds[0].image')
+out=$(post "{\"image\":\"$drawn\",\"lat\":40,\"lng\":-100}")
 check "practice guess scores" 200 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
 grep -q '"recorded":false' <<<"$out" || { echo "::error::practice guess was recorded"; exit 1; }
+
+# Today's round with no date: the answer would come back before any daily guess
+# was committed, so undated is refused for any round whose day is not over.
+out=$(post "{\"image\":\"$image\",\"lat\":40,\"lng\":-100}")
+check "an undated guess at today's round is refused" 403 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
 
 # A round nobody has answers for.
 out=$(post '{"image":"clips/not-a-real-round.mp4","lat":40,"lng":-100}')
@@ -300,22 +309,30 @@ out=$(call "$BASE/api/day?date=2099-01-01")
 check "an unopened date is refused" 403 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
 
 # And the admin surface, which is the same date served the opposite way --
-# answers attached, window ignored. This script carries no Access token, so it is
-# exactly the anonymous visitor the login exists to turn away, and both the page
-# and the endpoint under it have to say no. Whichever tier this is: the surface is
-# reachable through the Access-fronted pages.dev hostname and nowhere else, and a
-# custom domain answering anything but a refusal is the leak.
+# answers attached, window ignored. This script carries no credential of any
+# kind, so it is exactly the anonymous visitor the login exists to turn away, and
+# both the page and the endpoint under it have to say no.
 #
-# Three answers count as a refusal, and each one names a different tier state.
+# Two gates can stand here, depending on which runtime answers /admin/. The JS
+# Functions sit behind Cloudflare Access: reachable through the Access-fronted
+# pages.dev hostname and nowhere else, with functions/admin/_middleware.js
+# checking the Access JWT. The Python Worker, which answers when the project
+# carries an `API` service binding, checks a Twitch bearer token instead and
+# answers on any hostname. Either way, a hostname answering anything but a
+# refusal is the leak.
+#
+# Four answers count as a refusal, and each one names a different state.
 # 302 is Access itself, standing in front of the deployment and turning the
 # visitor toward its login before Pages is ever asked -- the resting state on a
 # hostname the Access application fronts. Only a redirect into the team's login
 # counts: any other destination means the surface answered with something, and
-# that something is the leak. 403 is the middleware refusing a request that
-# reached it without a token -- the custom domains, which Access cannot front.
-# 503 is the middleware finding no Access application to check a login against,
-# which is the state every tier sits in until the values are typed onto its
-# Pages project. That is a refusal, so the surface is not leaking -- but on a
+# that something is the leak. 401 is the Worker refusing a request that carries
+# no bearer token. 403 is the Functions middleware refusing a request that
+# reached it without an Access token -- the custom domains, which Access cannot
+# front -- or the Worker refusing a signed-in caller of the wrong tier.
+# 503 is the Functions middleware finding no Access application to check a login
+# against, which is the state every tier sits in until the values are typed onto
+# its Pages project. That is a refusal, so the surface is not leaking -- but on a
 # tier with an operator behind it, it is also the page not working for the
 # operator, so which tier this is decides whether it passes.
 #
@@ -335,7 +352,7 @@ for path in "/admin/" "/admin/day?date=2099-01-01"; do
   out=$(call "$BASE$path")
   status=$(tail -1 <<<"$out")
   case "$status" in
-    403) echo "ok: $path refuses an unauthenticated request -> 403" ;;
+    401|403) echo "ok: $path refuses an unauthenticated request -> $status" ;;
     # Tolerated only where no Access application is meant to exist. A preview
     # alias is deployed to a project whose bindings nobody sets per branch, so
     # holding it to a login would turn every PR red; staging and production are
@@ -382,7 +399,7 @@ done
 # them, so the middleware is what answers, and it distinguishes the two: 403 is
 # it refusing an anonymous request with a configuration it can check a login
 # against, 503 is it unable to run the check at all and naming the value that is
-# wrong.
+# wrong. Where the Python Worker answers instead, its refusal is a 401.
 #
 # Keyed off the hostname being smoked, because only these two have a custom
 # domain to probe -- a preview is a per-branch alias on the staging project and
@@ -398,7 +415,7 @@ if [ -n "$custom" ]; then
     out=$(call "$custom$path")
     status=$(tail -1 <<<"$out")
     case "$status" in
-      403|302) echo "ok: $custom$path refuses an unauthenticated request -> $status" ;;
+      401|403|302) echo "ok: $custom$path refuses an unauthenticated request -> $status" ;;
       503) echo "::error::$custom$path answered 503, so the middleware could not run"
            echo "::error::the login check at all -- and this is the only hostname that"
            echo "::error::would say so, since Access answers the pages.dev one first."

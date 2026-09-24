@@ -1,0 +1,69 @@
+# Builds the iOS app and tests its package.
+#
+# The app optionally links a private package (the owner's console controls).
+# A run that can read it builds with it; a run that can't (a PR from a fork,
+# which gets no secrets) deletes it from app/project.yml first, and the app
+# builds without the console tier. `pull_request_target` would hand a fork's
+# code the secrets, so it is deliberately not used.
+name: app
+
+on:
+  pull_request:
+    paths: ['app/**', '.github/workflows/app.yml']
+  push:
+    branches: [main]
+    paths: ['app/**', '.github/workflows/app.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # Hosted macOS runners are free for public repos, and the app needs Xcode.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Mint a read token for the private package
+        id: app-token
+        # Dependabot's runs get no Actions secrets either.
+        if: ${{ !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' }}
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.AUTOMATION_APP_ID }}
+          private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
+          owner: adanalife
+          repositories: tempomat
+          permission-contents: read
+
+      - name: Let git fetch the private package
+        if: ${{ steps.app-token.outputs.token != '' }}
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: git config --global url."https://x-access-token:${TOKEN}@github.com/adanalife/tempomat".insteadOf "https://github.com/adanalife/tempomat"
+
+      - name: Build without the private package
+        if: ${{ steps.app-token.outputs.token == '' }}
+        run: yq -i 'del(.packages.TempomatConsole) | del(.targets.Guessr.dependencies[] | select(.package == "TempomatConsole"))' app/project.yml
+
+      - run: brew install xcodegen
+
+      - name: Generate the project
+        working-directory: app
+        run: xcodegen
+
+      - name: Build
+        working-directory: app
+        # -scmProvider system: resolve packages with git, so the credential
+        # rewrite above applies.
+        run: xcodebuild -scmProvider system -scheme Guessr -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+
+      - name: Test the package
+        working-directory: app/GuessrKit
+        run: swift test
