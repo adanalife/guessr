@@ -11,6 +11,8 @@ struct GuessrApp: App {
     @State private var tab = GuessrApp.firstTab
     @Environment(\.scenePhase) private var scenePhase
 
+    init() { Telemetry.start() }
+
     var body: some Scene {
         WindowGroup {
             TabView(selection: $tab) {
