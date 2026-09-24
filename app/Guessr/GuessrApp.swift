@@ -10,6 +10,8 @@ struct GuessrApp: App {
     @State private var player = KeychainPlayerStore().current()
     @State private var tab = GuessrApp.firstTab
 
+    init() { Telemetry.start() }
+
     var body: some Scene {
         WindowGroup {
             TabView(selection: $tab) {
