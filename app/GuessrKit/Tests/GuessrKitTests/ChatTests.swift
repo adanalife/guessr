@@ -98,6 +98,25 @@ private func chat(userID: String = "2914196", capacity: Int = 300) -> TwitchChat
     #expect(line.timestamp == Date(timeIntervalSince1970: 1_790_175_411.634))
 }
 
+@MainActor @Test func aNotificationFrameIsALineWithAKind() throws {
+    let chat = chat()
+    chat.handle(try fixture("chat-notification"))
+    let line = try #require(chat.lines.first)
+    #expect(line.kind == "resub")
+    #expect(line.notice == "Kate subscribed at Tier 1. They've subscribed for 12 months!")
+    #expect(line.text == "a year of van")
+    #expect(line.badges == ["subscriber": "12"])
+    // A raid says nothing of its own: the line is the notice alone.
+    chat.handle(
+        event(
+            "channel.chat.notification",
+            #""message_id":"r1","chatter_user_id":"77","chatter_user_login":"roadwatcher","notice_type":"raid","system_message":"5 raiders from roadwatcher have joined!","message":{"text":"","fragments":[]}"#
+        ))
+    let raid = try #require(chat.lines.last)
+    #expect(raid.kind == "raid" && raid.text.isEmpty && raid.fragments.isEmpty)
+    #expect(chat.lines.first?.kind == "resub")
+}
+
 @MainActor @Test func deleteAndClearTakeLinesOut() {
     let chat = chat()
     for (id, user) in [("m1", "1"), ("m2", "2"), ("m3", "1"), ("m4", "3")] { chat.handle(message(id, from: user)) }
