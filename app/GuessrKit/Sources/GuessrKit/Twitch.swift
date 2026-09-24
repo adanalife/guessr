@@ -17,14 +17,25 @@ public struct TwitchSession: Codable, Sendable, Equatable {
     /// Twitch's numeric user id. The key for anything that decides who someone
     /// is: a login can be renamed and, once released, taken by someone else.
     public var userID: String
+    /// What the token was granted, as Twitch's validate endpoint reports it.
+    /// Nil on a session saved before this was recorded, which reads as
+    /// holding nothing extra.
+    public var scopes: [String]?
 
-    public init(accessToken: String, refreshToken: String, expiresAt: Date, login: String, userID: String) {
+    public init(
+        accessToken: String, refreshToken: String, expiresAt: Date, login: String, userID: String,
+        scopes: [String]? = nil
+    ) {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
         self.expiresAt = expiresAt
         self.login = login
         self.userID = userID
+        self.scopes = scopes
     }
+
+    /// Whether this token can delete messages and ban on Twitch's say-so.
+    public var canModerate: Bool { Set(TwitchAuth.modScopes).isSubset(of: scopes ?? []) }
 
     /// Within ten minutes of expiry — refresh before a request lands on a dead token.
     public var expiresSoon: Bool { expiresAt.timeIntervalSinceNow < 600 }
@@ -136,10 +147,14 @@ public enum TwitchAuthError: Error, LocalizedError, Equatable {
 /// without a secret and still refresh. The app shows a code, the human types it
 /// at twitch.tv/activate, the app polls until Twitch hands over tokens.
 public struct TwitchAuth: Sendable {
-    /// Chat as yourself, and let a server see which channels you moderate —
+    /// Read and write chat as yourself, and see which channels you moderate —
     /// that read, on your own token, is how a channel mod is recognized without
     /// anyone keeping a list.
-    public static let scopes = ["user:write:chat", "user:read:moderated_channels"]
+    public static let scopes = ["user:read:chat", "user:write:chat", "user:read:moderated_channels"]
+    /// The same, plus deleting messages and banning — asked for only once the
+    /// login turns out to moderate the channel, so a viewer's consent screen
+    /// never lists powers they don't have.
+    public static let modScopes = scopes + ["moderator:manage:chat_messages", "moderator:manage:banned_users"]
 
     /// The Twitch application's client id, registered as a Public client. Not a
     /// secret; empty leaves login switched off.
@@ -160,10 +175,10 @@ public struct TwitchAuth: Sendable {
     public var isConfigured: Bool { !clientID.isEmpty }
 
     /// Asks Twitch for a code to show the human.
-    public func start() async throws -> DeviceCode {
+    public func start(scopes: [String] = TwitchAuth.scopes) async throws -> DeviceCode {
         guard isConfigured else { throw TwitchAuthError.notConfigured }
         let (data, response) = try await post(
-            "device", ["client_id": clientID, "scopes": Self.scopes.joined(separator: " ")])
+            "device", ["client_id": clientID, "scopes": scopes.joined(separator: " ")])
         guard status(response) == 200 else { throw TwitchAuthError.refused(message(data)) }
         return try Guessr.decoder.decode(DeviceCode.self, from: data)
     }
@@ -175,7 +190,7 @@ public struct TwitchAuth: Sendable {
     /// twitch.tv/activate, and iOS cancels in-flight requests when it suspends
     /// an app. Transport failures are retried to the code's own deadline; only
     /// Twitch's own answer, or a cancelled `Task`, ends the login early.
-    public func poll(_ code: DeviceCode) async throws -> TwitchSession {
+    public func poll(_ code: DeviceCode, scopes: [String] = TwitchAuth.scopes) async throws -> TwitchSession {
         let deadline = Date.now.addingTimeInterval(TimeInterval(code.expiresIn))
         while Date.now < deadline {
             try await Task.sleep(for: .seconds(max(code.interval, 1)))
@@ -188,7 +203,7 @@ public struct TwitchAuth: Sendable {
                         "client_id": clientID,
                         "device_code": code.deviceCode,
                         "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-                        "scopes": Self.scopes.joined(separator: " "),
+                        "scopes": scopes.joined(separator: " "),
                     ])
             } catch is URLError {
                 continue
@@ -211,6 +226,7 @@ public struct TwitchAuth: Sendable {
         var fresh = try await session(from: data)
         if fresh.login.isEmpty { fresh.login = old.login }
         if fresh.userID.isEmpty { fresh.userID = old.userID }
+        if fresh.scopes == nil { fresh.scopes = old.scopes }
         return fresh
     }
 
@@ -223,6 +239,7 @@ public struct TwitchAuth: Sendable {
     private struct Validation: Decodable {
         var login: String?
         var userId: String?
+        var scopes: [String]?
     }
 
     private func session(from data: Data) async throws -> TwitchSession {
@@ -236,7 +253,8 @@ public struct TwitchAuth: Sendable {
             refreshToken: token.refreshToken,
             expiresAt: .now.addingTimeInterval(TimeInterval(token.expiresIn)),
             login: (who?.login ?? "").lowercased(),
-            userID: who?.userId ?? ""
+            userID: who?.userId ?? "",
+            scopes: who?.scopes
         )
     }
 
