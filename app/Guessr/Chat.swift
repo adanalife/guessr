@@ -241,10 +241,21 @@ struct ChatLineView: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                ForEach(line.badgeTags) { BadgeMark(tag: $0) }
-                Text("\(username): \(words)")
-                    .font(.subheadline)
+            VStack(alignment: .leading, spacing: 2) {
+                // A sub, gift, raid or announcement: Twitch's sentence about
+                // it, then anything the chatter said as an ordinary line.
+                if let kind = line.kind, let notice = line.notice {
+                    Label(notice, systemImage: kindSymbol(kind))
+                        .font(.caption.italic())
+                        .foregroundStyle(.secondary)
+                }
+                if line.kind == nil || !line.text.isEmpty {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        ForEach(line.badgeTags) { BadgeMark(tag: $0) }
+                        Text("\(username): \(words)")
+                            .font(.subheadline)
+                    }
+                }
             }
             .task(id: line.id) { await loadEmotes() }
             Spacer(minLength: 4)
@@ -314,6 +325,18 @@ struct ChatLineView: View {
         for case .emote(let id, _) in line.fragments where emotes[id] == nil {
             if let art = await emoteImage(id) { emotes[id] = art }
         }
+    }
+}
+
+/// The glyph for a notice's `notice_type`; a shared-chat variant reads as its
+/// plain kind.
+private func kindSymbol(_ kind: String) -> String {
+    switch kind.replacingOccurrences(of: "shared_chat_", with: "") {
+    case "sub", "resub", "prime_paid_upgrade": "star.fill"
+    case "sub_gift", "community_sub_gift", "gift_paid_upgrade", "pay_it_forward": "gift.fill"
+    case "raid", "unraid": "person.2.fill"
+    case "announcement": "megaphone.fill"
+    default: "sparkles"
     }
 }
 
@@ -421,6 +444,13 @@ private func shortAge(_ then: Date, now: Date = .now) -> String {
                     color: "#1E90FF",
                     fragments: [.text("looks like Utah "), .emote(id: "25", text: "Kappa")],
                     timestamp: now.addingTimeInterval(-5)),
+                ChatLine(
+                    id: "5", userId: "13", login: "kate", displayName: "Kate", text: "a year of van", color: "#00FF7F",
+                    badges: ["subscriber": "12"], timestamp: now.addingTimeInterval(-3), kind: "resub",
+                    notice: "Kate subscribed at Tier 1. They've subscribed for 12 months!"),
+                ChatLine(
+                    id: "6", userId: "14", login: "vanfan", displayName: "vanfan", text: "", fragments: [],
+                    timestamp: now.addingTimeInterval(-1), kind: "raid", notice: "5 raiders from vanfan have joined!"),
             ],
             mayModerate: true
         )
