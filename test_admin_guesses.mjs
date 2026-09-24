@@ -15,6 +15,10 @@ import { d1, schema } from './_d1.mjs';
 import { onRequestGet } from './functions/admin/guesses.js';
 
 const answers = d1(schema());
+// Every play names a round with an answer on record.
+answers.db.prepare(
+  "INSERT INTO answers (image, lat, lng, state, filmed) VALUES ('clips/a-000001.mp4', 40, -100, 'NE', '2018-06-01')",
+).run();
 const insert = answers.db.prepare(
   `INSERT INTO plays (date, player_id, image, km, points, handle, guess_lat, guess_lng)
    VALUES (?, ?, 'clips/a-000001.mp4', 12.3, 4000, NULL, ?, ?)`,
