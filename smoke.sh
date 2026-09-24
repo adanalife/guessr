@@ -166,6 +166,30 @@ check() { # name, expected status, actual status, body
   echo "ok: $1 -> $3"
 }
 
+# name, expected status, then the request: a command that prints call()'s shape.
+# Leaves the last answer in $out for the caller to read further.
+#
+# Retried on a wrong status, which the other waits in this script never do, because
+# of what the version pin cannot see. version.json is a static asset and the
+# handlers are Functions, and one deployment's two halves become visible a few
+# seconds apart: a staging smoke once matched the marker and then got a 200 from
+# the previous build's /api/score, where the same code answered 403 on the next
+# deploy 47 s later. Six tries 5 s apart outlast that cutover, and a behavior
+# that is really wrong still goes red, just ~25 s later, with each retry logged.
+expect() {
+  local name=$1 want=$2 attempt
+  shift 2
+  for attempt in 1 2 3 4 5 6; do
+    out=$("$@")
+    [ "$(tail -1 <<<"$out")" = "$want" ] && break
+    if [ "$attempt" -lt 6 ]; then
+      echo "retry: $name got HTTP $(tail -1 <<<"$out"), not $want -- waiting 5s for the Functions to catch up"
+      sleep 5
+    fi
+  done
+  check "$name" "$want" "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
+}
+
 post() { call -X POST "$BASE/api/score" \
   -H 'content-type: application/json' -d "$1"; }
 
@@ -282,31 +306,25 @@ echo "ok: round media is HUD-cropped -> ${dim}"
 # A practice guess: scored, never recorded, and only at a round practice deals --
 # one from a day that is over. Fails if the answers table has never heard of the
 # round set that just deployed.
-out=$(call "$BASE/api/day?practice")
-check "practice draws a game" 200 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
+expect "practice draws a game" 200 call "$BASE/api/day?practice"
 drawn=$(head -1 <<<"$out" | jq -r '.rounds[0].image')
-out=$(post "{\"image\":\"$drawn\",\"lat\":40,\"lng\":-100}")
-check "practice guess scores" 200 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
+expect "practice guess scores" 200 post "{\"image\":\"$drawn\",\"lat\":40,\"lng\":-100}"
 grep -q '"recorded":false' <<<"$out" || { echo "::error::practice guess was recorded"; exit 1; }
 
 # Today's round with no date: the answer would come back before any daily guess
 # was committed, so undated is refused for any round whose day is not over.
-out=$(post "{\"image\":\"$image\",\"lat\":40,\"lng\":-100}")
-check "an undated guess at today's round is refused" 403 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
+expect "an undated guess at today's round is refused" 403 post "{\"image\":\"$image\",\"lat\":40,\"lng\":-100}"
 
 # A round nobody has answers for.
-out=$(post '{"image":"clips/not-a-real-round.mp4","lat":40,"lng":-100}')
-check "unknown round is refused" 404 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
+expect "unknown round is refused" 404 post '{"image":"clips/not-a-real-round.mp4","lat":40,"lng":-100}'
 
 # A date far enough out that no clock skew makes it open, so the window check is
 # what refuses it.
-out=$(post "{\"image\":\"$image\",\"lat\":40,\"lng\":-100,\"date\":\"2099-01-01\",\"player_id\":\"ci-smoke\"}")
-check "a closed date is refused" 403 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
+expect "a closed date is refused" 403 post "{\"image\":\"$image\",\"lat\":40,\"lng\":-100,\"date\":\"2099-01-01\",\"player_id\":\"ci-smoke\"}"
 
 # The one property /api/day adds. The server is the only thing that knows next
 # month's rounds, so refusing to say is the whole of the protection.
-out=$(call "$BASE/api/day?date=2099-01-01")
-check "an unopened date is refused" 403 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
+expect "an unopened date is refused" 403 call "$BASE/api/day?date=2099-01-01"
 
 # And the admin surface, which is the same date served the opposite way --
 # answers attached, window ignored. This script carries no credential of any
