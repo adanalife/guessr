@@ -9,8 +9,13 @@
 // every visitor whatever the page does with it; all it permits is sending
 // events to this one project.
 //
-// Errors only -- no tracing, no replay. The quota is shared with the rest of
-// the fleet, and a stack trace is what a bug report here needs.
+// No tracing: a stack trace is what a bug report here needs. Replay runs in
+// buffer mode only -- the SDK keeps the last minute of the page in memory and
+// uploads it only when an error is sent, so a bug report comes with what the
+// player did to reach it, and a session that never errors costs no quota. The
+// replay quota is shared with the rest of the fleet. The SDK's defaults mask
+// every piece of text and block every image and video before anything leaves
+// the browser.
 
 // The deploy environment, read off the host that served this copy. Production
 // and staging report; a *.pages.dev preview or a local `task dev` stays silent,
@@ -29,5 +34,8 @@ function sentryEnvironment(hostname) {
     environment: environment,
     enabled: environment !== 'development',
     sendDefaultPii: false,
+    integrations: [Sentry.replayIntegration()],
+    replaysSessionSampleRate: 0,
+    replaysOnErrorSampleRate: 1.0,
   });
 })();

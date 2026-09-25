@@ -2,7 +2,8 @@ import GuessrKit
 import Sentry
 
 /// Sentry for the app: crashes, hangs, a span per request (URLSession is
-/// auto-instrumented) and structured logs. The DSN is public by nature — it
+/// auto-instrumented), structured logs and a replay of the moments before an
+/// error. The DSN is public by nature — it
 /// ships in every binary — so it lives here rather than in a secret.
 enum Telemetry {
     static let dsn = "https://d4a48302e13b01a9e98a6fb639cf3598@o325224.ingest.us.sentry.io/4512139659575296"
@@ -24,6 +25,13 @@ enum Telemetry {
             }
             // Which screen was on show when it went wrong.
             options.attachViewHierarchy = true
+            // And what the player did to get there: replay buffers the
+            // recent screen in memory and uploads it only with an error or
+            // crash, so a session that never errors costs none of the
+            // fleet's shared replay quota. The SDK masks all text and images
+            // by default.
+            options.sessionReplay.sessionSampleRate = 0
+            options.sessionReplay.onErrorSampleRate = 1.0
             // Simulator runs are development against stage, and the free tier
             // is shared with the whole fleet.
             #if targetEnvironment(simulator)

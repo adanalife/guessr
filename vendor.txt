@@ -39,6 +39,6 @@ leaflet/images/marker-shadow.png            leaflet    latest  1.9.4    https://
 et-book/et-book-roman-line-figures.woff     tufte-css  latest  1.9.0    https://unpkg.com/tufte-css@{v}/et-book/et-book-roman-line-figures/et-book-roman-line-figures.woff
 et-book/et-book-bold-line-figures.woff      tufte-css  latest  1.9.0    https://unpkg.com/tufte-css@{v}/et-book/et-book-bold-line-figures/et-book-bold-line-figures.woff
 et-book/et-book-display-italic-old-style-figures.woff  tufte-css  latest  1.9.0  https://unpkg.com/tufte-css@{v}/et-book/et-book-display-italic-old-style-figures/et-book-display-italic-old-style-figures.woff
-sentry/bundle.min.js                        @sentry/browser  latest  11.0.0  https://browser.sentry-cdn.com/{v}/bundle.min.js
-sentry/bundle.min.js.map                    @sentry/browser  latest  11.0.0  https://browser.sentry-cdn.com/{v}/bundle.min.js.map
+sentry/bundle.replay.min.js                 @sentry/browser  latest  11.0.0  https://browser.sentry-cdn.com/{v}/bundle.replay.min.js
+sentry/bundle.replay.min.js.map             @sentry/browser  latest  11.0.0  https://browser.sentry-cdn.com/{v}/bundle.replay.min.js.map
 sentry/LICENSE                              @sentry/browser  latest  11.0.0  https://unpkg.com/@sentry/browser@{v}/LICENSE
