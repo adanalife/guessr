@@ -1,0 +1,64 @@
+{
+  "metadata": {
+    "message_id": "befa7b53-d79d-478f-86b9-120f112b044e",
+    "message_type": "notification",
+    "message_timestamp": "2026-09-23T15:02:10.117582034Z",
+    "subscription_type": "channel.chat.notification",
+    "subscription_version": "1"
+  },
+  "payload": {
+    "subscription": {
+      "id": "f1c2a387-161a-49f9-a165-0f21d7a4e1c4",
+      "status": "enabled",
+      "type": "channel.chat.notification",
+      "version": "1",
+      "condition": { "broadcaster_user_id": "1971641", "user_id": "2914196" },
+      "transport": { "method": "websocket", "session_id": "AQoQILE98gtqShGmLD7AM6yJThAB" },
+      "created_at": "2026-09-23T14:55:03.197959123Z",
+      "cost": 0
+    },
+    "event": {
+      "broadcaster_user_id": "1971641",
+      "broadcaster_user_login": "adanalife_",
+      "broadcaster_user_name": "ADanaLife_",
+      "chatter_user_id": "4145994",
+      "chatter_user_login": "kate",
+      "chatter_user_name": "Kate",
+      "chatter_is_anonymous": false,
+      "color": "#00FF7F",
+      "badges": [
+        { "set_id": "subscriber", "id": "12", "info": "12" }
+      ],
+      "system_message": "Kate subscribed at Tier 1. They've subscribed for 12 months!",
+      "message_id": "3a4f0a2b-7c1e-4d5a-9b8f-2e6c1d0f9a7b",
+      "message": {
+        "text": "a year of van",
+        "fragments": [{ "type": "text", "text": "a year of van", "cheermote": null, "emote": null, "mention": null }]
+      },
+      "notice_type": "resub",
+      "sub": null,
+      "resub": {
+        "cumulative_months": 12,
+        "duration_months": 1,
+        "streak_months": 12,
+        "sub_tier": "1000",
+        "is_prime": false,
+        "is_gift": false,
+        "gifter_is_anonymous": null,
+        "gifter_user_id": null,
+        "gifter_user_name": null,
+        "gifter_user_login": null
+      },
+      "sub_gift": null,
+      "community_sub_gift": null,
+      "gift_paid_upgrade": null,
+      "prime_paid_upgrade": null,
+      "raid": null,
+      "unraid": null,
+      "pay_it_forward": null,
+      "announcement": null,
+      "bits_badge_tier": null,
+      "charity_donation": null
+    }
+  }
+}

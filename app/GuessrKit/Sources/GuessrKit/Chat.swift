@@ -38,10 +38,16 @@ public struct ChatLine: Sendable, Equatable, Identifiable {
     public var badges: [String: String]
     public var fragments: [ChatFragment]
     public var timestamp: Date
+    /// For a sub, gift, raid or announcement: Twitch's `notice_type`, and
+    /// the sentence it wrote about it. `text` is then whatever the chatter
+    /// added, often nothing.
+    public var kind: String?
+    public var notice: String?
 
     public init(
         id: String, userId: String, login: String, displayName: String, text: String, color: String = "",
-        badges: [String: String] = [:], fragments: [ChatFragment]? = nil, timestamp: Date = .now
+        badges: [String: String] = [:], fragments: [ChatFragment]? = nil, timestamp: Date = .now,
+        kind: String? = nil, notice: String? = nil
     ) {
         self.id = id
         self.userId = userId
@@ -52,6 +58,8 @@ public struct ChatLine: Sendable, Equatable, Identifiable {
         self.badges = badges
         self.fragments = fragments ?? [.text(text)]
         self.timestamp = timestamp
+        self.kind = kind
+        self.notice = notice
     }
 
     public var isBroadcaster: Bool { badges["broadcaster"] != nil }
@@ -249,7 +257,7 @@ public final class TwitchChat {
         case "notification":
             guard let event = payload?.event else { return nil }
             switch frame.metadata.subscriptionType {
-            case "channel.chat.message":
+            case "channel.chat.message", "channel.chat.notification":
                 if let line = event.line(at: parseTimestamp(frame.metadata.messageTimestamp)) { append(line) }
             case "channel.chat.message_delete":
                 lines.removeAll { $0.id == event.messageId }
@@ -273,7 +281,10 @@ public final class TwitchChat {
 
     private func subscribeAll(_ sessionID: String) async throws {
         let broadcaster = try await resolveBroadcaster()
-        for type in ["channel.chat.message", "channel.chat.message_delete", "channel.chat.clear_user_messages"] {
+        for type in [
+            "channel.chat.message", "channel.chat.notification", "channel.chat.message_delete",
+            "channel.chat.clear_user_messages",
+        ] {
             _ = try await helix(
                 "POST", "eventsub/subscriptions",
                 body: [
@@ -455,6 +466,8 @@ struct Frame: Decodable {
         var color: String?
         var badges: [Badge]?
         var targetUserId: String?
+        var noticeType: String?
+        var systemMessage: String?
 
         func line(at timestamp: Date) -> ChatLine? {
             guard let messageId, let chatterUserId, let message else { return nil }
@@ -477,7 +490,9 @@ struct Frame: Decodable {
                 color: color ?? "",
                 badges: Dictionary((badges ?? []).map { ($0.setId, $0.id) }, uniquingKeysWith: { a, _ in a }),
                 fragments: fragments,
-                timestamp: timestamp
+                timestamp: timestamp,
+                kind: noticeType,
+                notice: systemMessage
             )
         }
     }
