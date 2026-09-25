@@ -56,7 +56,7 @@ jobs:
 
       - name: Generate the project
         working-directory: app
-        # Seeds the committed pins, as `task app:gen` does.
+        # Seeds the committed pins, as `task ios:gen` does.
         run: |
           xcodegen
           mkdir -p Guessr.xcodeproj/project.xcworkspace/xcshareddata/swiftpm

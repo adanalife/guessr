@@ -529,7 +529,7 @@ tasks:
   # the web game and the app, so a TestFlight build and a GitHub release mean
   # the same thing. Signing reads DEVELOPMENT_TEAM and the App Store Connect
   # API key (ASC_KEY_PATH, ASC_KEY_ID, ASC_ISSUER_ID) from the environment.
-  app:gen:
+  ios:gen:
     desc: Write app/Guessr.xcodeproj from app/project.yml (export DEVELOPMENT_TEAM=<id> for signing)
     dir: app
     cmds:
@@ -545,10 +545,10 @@ tasks:
   # SIM is the newest available iPhone simulator unless overridden
   # (SIM='iPhone 17 Pro'). None listed means the iOS platform isn't
   # downloaded: `xcodebuild -downloadPlatform iOS`.
-  app:build:
+  ios:build:
     desc: Build the app for the simulator (needs Xcode)
     dir: app
-    deps: [app:gen]
+    deps: [ios:gen]
     vars:
       SIM:
         sh: xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name|startswith("iPhone")) | .name] | last // empty'
@@ -560,18 +560,18 @@ tasks:
 
   # Signs for distribution (the Release config in app/project.yml), so it needs
   # the "Apple Distribution" certificate in the login keychain.
-  app:icon:
+  ios:icon:
     desc: Re-render the app icon's light/dark/tinted variants from web/favicon.svg
     cmds:
       - ./scripts/make-app-icon.sh
 
-  app:archive:
+  ios:archive:
     desc: Archive a signed iPhone build (needs DEVELOPMENT_TEAM)
     dir: app
-    deps: [app:gen]
+    deps: [ios:gen]
     vars:
       # The newest release tag. Off a tag this is the last release, so only
-      # app:release promises the build is that version.
+      # ios:release promises the build is that version.
       TAG:
         sh: git describe --tags --abbrev=0 --match 'v*'
       # Monotonic and unique per commit, which is all App Store Connect asks
@@ -592,16 +592,16 @@ tasks:
           MARKETING_VERSION={{trimPrefix "v" .TAG}} CURRENT_PROJECT_VERSION={{.BUILD}} -quiet archive
       - 'echo "archived {{trimPrefix "v" .TAG}} ({{.BUILD}}) to app/.build/Guessr.xcarchive"'
 
-  # Uploads whatever app:archive last produced rather than archiving itself: an
+  # Uploads whatever ios:archive last produced rather than archiving itself: an
   # upload can fail for reasons the build has no part in (no App Store Connect
   # app record, an expired session, the network), and a retry should cost
   # seconds, not a fresh signed archive.
-  app:upload:
+  ios:upload:
     desc: Upload the last iPhone archive to App Store Connect for TestFlight
     dir: app
     preconditions:
       - sh: test -d .build/Guessr.xcarchive
-        msg: "No archive at app/.build/Guessr.xcarchive — run: task app:archive"
+        msg: "No archive at app/.build/Guessr.xcarchive — run: task ios:archive"
     cmds:
       # Written per run rather than committed, so the team id stays out of the
       # repo and the plist can never drift from DEVELOPMENT_TEAM.
@@ -638,30 +638,37 @@ tasks:
   # a second "1.12.1" that isn't 1.12.1, and TestFlight lists the two side by
   # side with nothing to tell them apart. Building only at a tag is what makes
   # the version in TestFlight mean the same thing as the version on GitHub.
-  app:release:
+  ios:release:
     desc: Cut a TestFlight build from the release tag at HEAD (archive + upload, then wait for Apple)
     preconditions:
       - sh: git describe --exact-match --match 'v*' --tags HEAD >/dev/null 2>&1
         msg: >-
           HEAD is not a release tag. The app's version is the repo's
           release-please tag, so build from one (fetch the tags, then check out
-          vX.Y.Z). For a deliberate off-tag build, run app:archive and
-          app:upload.
+          vX.Y.Z). For a deliberate off-tag build, run ios:archive and
+          ios:upload.
       # The archive is built from the working tree, not from the tag object, so
       # a dirty tree at a tag uploads something that is not what the tag names.
       - sh: test -z "$(git status --porcelain)"
         msg: "Working tree is dirty — the archive would not be the tagged commit"
     cmds:
-      - task: app:archive
-      - task: app:upload
+      - task: ios:archive
+      - task: ios:upload
       # Apple takes 5-15 minutes to process an upload; this ends the release
       # with the verdict instead of a reminder to come back and check.
       - ./scripts/asc-builds.py --wait
 
-  app:verify:
+  ios:verify:
     desc: Ask App Store Connect whether the newest release tag has an installable build (-- --wait polls until it does)
     cmds:
       - ./scripts/asc-builds.py {{.CLI_ARGS}}
+
+  # The same name as tempomat's, which fans out to iPhone, Apple TV and Mac;
+  # the app here is one iPhone-and-iPad build, so it is ios:release.
+  release:all:
+    desc: Cut TestFlight builds for every platform from the release tag at HEAD
+    cmds:
+      - task: ios:release
 
   # "Did 1.12.1 go out?" has three answers — the GitHub release, the production
   # deploy and the TestFlight build — so the honest answer reads all three.

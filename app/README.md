@@ -14,19 +14,19 @@ open Guessr.xcodeproj
 ```
 
 Run the `Guessr` scheme on a simulator. For a device, export
-`DEVELOPMENT_TEAM=<team id>` before `xcodegen`. `task app:build` does the
+`DEVELOPMENT_TEAM=<team id>` before `xcodegen`. `task ios:build` does the
 simulator build from the repo root.
 
 ## TestFlight
 
 The app's version is the repo's release tag: the `vX.Y.Z` release-please cuts
 for the web game is the version TestFlight shows, and the build number is the
-commit count. `task app:release` builds only from a clean checkout of a tag,
+commit count. `task ios:release` builds only from a clean checkout of a tag,
 then archives, uploads and waits for Apple to finish processing:
 
 ```sh
 git fetch --tags && git checkout vX.Y.Z
-task app:release
+task ios:release
 ```
 
 It reads four variables from the environment:
@@ -40,8 +40,8 @@ It reads four variables from the environment:
 
 Signing needs the team's *Apple Distribution* certificate in the keychain and an
 App Store profile for `lol.dana.guessr` named `Guessr App Store`.
-`task app:archive` and `task app:upload` are the two halves, for a deliberate
-off-tag build or a retried upload; `task app:verify` asks App Store Connect
+`task ios:archive` and `task ios:upload` are the two halves, for a deliberate
+off-tag build or a retried upload; `task ios:verify` asks App Store Connect
 whether the newest tag has an installable build.
 
 ## Build settings
