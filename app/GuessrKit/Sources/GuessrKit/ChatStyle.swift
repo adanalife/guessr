@@ -86,6 +86,12 @@ public struct BadgeTag: Sendable, Hashable, Identifiable {
     public let version: String
     public let label: String
     public var id: String { "\(name)/\(version)" }
+
+    public init(name: String, version: String, label: String) {
+        self.name = name
+        self.version = version
+        self.label = label
+    }
 }
 
 /// Badge art: set id → version id → size key (`url_1x`, `url_2x`, `url_4x`)
