@@ -159,9 +159,31 @@ private func chat(userID: String = "2914196", capacity: Int = 300) -> TwitchChat
     #expect(bot.colorHex == nil)
 }
 
-@Test func sha1MatchesAKnownDigest() {
-    let hex = sha1(Array("abc".utf8)).map { String(format: "%02x", $0) }.joined()
-    #expect(hex == "a9993e364706816aba3e25717850c26c9cd0d89d")
+/// The web console's own answers for these names, from its `username_color`.
+/// Pinned rather than derived, so a change to either side's palette or hash
+/// fails here.
+@Test func usernameColoursMatchTheConsole() {
+    #expect(usernameColorHex("kate") == "#9ee493")
+    #expect(usernameColorHex("mel", platform: "twitch") == "#7fb0ff")
+    #expect(usernameColorHex("gus", platform: "youtube") == "#ff7eb3")
+    // A platform with no palette of its own, or none named, takes the shared one.
+    #expect(usernameColorHex("kate", platform: "kick") == "#ff7eb3")
+    #expect(usernameColorHex("kate", platform: nil) == "#ff7eb3")
+    // Hashed lowercased, so a display-cased name is the same colour.
+    #expect(usernameColorHex("Kate") == "#9ee493")
+    #expect(usernameColorHex("kate", isBroadcaster: true) == "#ffc857")
+    #expect(usernameColorHex("nightbot") == nil)
+}
+
+/// The RFC 3174 vectors, one long enough to spill into a second block —
+/// `usernameColorHex` only hashes short logins, so nothing else would catch a
+/// padding bug.
+@Test func sha1MatchesTheKnownVectors() {
+    func hex(_ s: String) -> String { sha1(Array(s.utf8)).map { String(format: "%02x", $0) }.joined() }
+    #expect(hex("abc") == "a9993e364706816aba3e25717850c26c9cd0d89d")
+    #expect(
+        hex("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq")
+            == "84983e441c3bd26ebaae4aa1f95129e5e54670f1")
 }
 
 @Test func badgeTagsLabelSubMonthsAndMods() {

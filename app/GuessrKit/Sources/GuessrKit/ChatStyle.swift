@@ -4,9 +4,21 @@ import Foundation
 // badge labels, and Twitch's badge art. A viewer with no Twitch colour is the
 // same colour here as in the browser.
 
-/// Username palette: a login is hashed, stably, to one of these.
-private let palette = [
-    "#b694ff", "#9b7bff", "#7fd1ff", "#5ad1c4", "#f2a3ff", "#7fb0ff", "#8ad4ff", "#9ee493",
+/// Per-platform username palettes: a login is hashed, stably, to one of its
+/// platform's slots. They lean different ways, so a twitch name and a youtube
+/// name that hash to the same slot still read apart.
+private let userPalettes = [
+    "twitch": [
+        "#b694ff", "#9b7bff", "#7fd1ff", "#5ad1c4", "#f2a3ff", "#7fb0ff", "#8ad4ff", "#9ee493",
+    ],
+    "youtube": [
+        "#ff9e80", "#ff8a65", "#ffb74d", "#ffd54f", "#ff7eb3", "#ffab91", "#f48fb1", "#ffcc80",
+    ],
+]
+
+/// The palette for a platform with none of its own, or no platform at all.
+private let defaultPalette = [
+    "#7fd1ff", "#5ad1c4", "#b694ff", "#f2a3ff", "#9ee493", "#ffd54f", "#ff9e80", "#ff7eb3",
 ]
 
 /// The channel owner gets one distinct, never-hashed colour — a warm gold,
@@ -24,10 +36,13 @@ private let builtinBots: Set<String> = [
 /// Stable colour for a username as `#rrggbb`, or nil for a bot, which reads
 /// muted. The broadcaster takes the gold; everyone else takes a palette slot
 /// keyed by a SHA-1 of the lowercased login — the web console's derivation.
-public func usernameColorHex(_ username: String, isBroadcaster: Bool = false) -> String? {
+public func usernameColorHex(_ username: String, platform: String? = "twitch", isBroadcaster: Bool = false)
+    -> String?
+{
     let login = username.lowercased()
     if isBroadcaster { return broadcasterColor }
     if builtinBots.contains(login) { return nil }
+    let palette = platform.flatMap { userPalettes[$0] } ?? defaultPalette
     // The palette is a power of two long, so the digest's last byte decides
     // the slot — the same answer as hashing the whole digest as one integer.
     let last = Int(sha1(Array(login.utf8)).last ?? 0)
