@@ -4,6 +4,19 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.16.0 — 2026-09-25
+
+### New
+
+- The app's Chat tab now shows subs, resubs, gifted subs, raids and announcements as they happen, each with Twitch's own line about it and whatever the chatter added. ([#245](https://github.com/adanalife/guessr/pull/245))
+- A crash or error reported from the iOS app now carries a Session Replay of the moments before it, with all text and images masked. Sessions that never error send nothing. ([#251](https://github.com/adanalife/guessr/pull/251))
+- A browser error reported from the web game now carries a Session Replay of the minute leading up to it, with every piece of text masked and every image blocked, so a bug report shows what the player did to reach it. Sessions that never error send nothing. ([#251](https://github.com/adanalife/guessr/pull/251))
+
+### Behind the scenes
+
+- Our other apps share the iPhone app's Twitch sign-in code instead of keeping their own copies. ([#253](https://github.com/adanalife/guessr/pull/253))
+- Chat names are coloured the same way across our apps, whichever platform a message came from. ([#254](https://github.com/adanalife/guessr/pull/254))
+
 ## v1.15.0 — 2026-09-24
 
 ### New
