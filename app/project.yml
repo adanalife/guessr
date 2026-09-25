@@ -68,7 +68,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: lol.dana.guessr
-        # Both overridden per archive by `task app:archive`: the version with the
+        # Both overridden per archive by `task ios:archive`: the version with the
         # repo's release tag, the build number with the commit count.
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 1
