@@ -602,6 +602,11 @@ tasks:
     preconditions:
       - sh: test -d .build/Guessr.xcarchive
         msg: "No archive at app/.build/Guessr.xcarchive — run: task ios:archive"
+      # Read off the archive, not the xcconfig: an empty client id builds fine
+      # and ships an app with the Twitch login and the Chat tab hidden, which is
+      # right for a fork and never for an upload to this app's TestFlight.
+      - sh: test -n "$(plutil -extract GuessrTwitchClientID raw .build/Guessr.xcarchive/Products/Applications/Guessr.app/Info.plist 2>/dev/null)"
+        msg: "The archive has no GUESSR_TWITCH_CLIENT_ID, so its Twitch login is off — set it in app/Local.xcconfig (see app/README.md) and re-archive"
     cmds:
       # Written per run rather than committed, so the team id stays out of the
       # repo and the plist can never drift from DEVELOPMENT_TEAM.
