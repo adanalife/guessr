@@ -2,10 +2,21 @@
 beside the API, and outbound HTTP over urllib -- what uvicorn serves on a
 machine with no Workers runtime, and what integration_uvicorn.py holds to the
 same contract as workerd.
+
+Run it as `task api:serve`, configured from the environment:
+
+- GUESSR_DB: the sqlite file (default answers.db). A new one is created with
+  every migration applied; an existing one is used as it stands.
+- GUESSR_CLIPS: the directory clips are served from, keyed like the bucket
+  (default clips/).
+- TWITCH_OWNER_ID, TWITCH_CHANNEL_ID, TWITCH_CLIENT_IDS: who administers, as
+  on the Worker. One left unset admits nobody.
+- HOST / PORT: where uvicorn listens (default 127.0.0.1:8789).
 """
 
 import asyncio
 import hashlib
+import os
 import re
 import urllib.error
 import urllib.request
@@ -13,6 +24,7 @@ from pathlib import Path
 
 from starlette.staticfiles import StaticFiles
 
+from server.admin_auth import admins
 from server.app import make_app
 from server.clips import Clip, Range
 
@@ -82,3 +94,35 @@ def build(db, clips_root, admins, fetch=fetch):
     app = make_app(lambda request: (db, clips.get_clip, admins), fetch)
     app.mount("/", StaticFiles(directory=WEB, html=True))
     return app
+
+
+def open_db(path: str):
+    """The sqlite file, migrated only when this call creates it: the
+    migrations are plain DDL, so replaying them over a live file fails."""
+    from server.db import Sqlite
+
+    new = not Path(path).exists()
+    db = Sqlite(path)
+    return db.migrate() if new else db
+
+
+def main() -> None:
+    import types
+
+    import uvicorn
+
+    env = os.environ
+    app = build(
+        open_db(env.get("GUESSR_DB", "answers.db")),
+        env.get("GUESSR_CLIPS", "clips"),
+        admins(types.SimpleNamespace(**env)),
+    )
+    # One worker, one thread: the sqlite connection belongs to the thread that
+    # opened it, which is the one uvicorn's loop runs on.
+    uvicorn.run(
+        app, host=env.get("HOST", "127.0.0.1"), port=int(env.get("PORT", "8789"))
+    )
+
+
+if __name__ == "__main__":
+    main()
