@@ -1,0 +1,1 @@
+Xcode builds share one copy of the resolved packages per machine (`~/Library/Caches/adanalife/SourcePackages/guessr`) instead of extracting the 2.9 GB sentry-cocoa xcframework into every worktree, and a fresh worktree builds without network.
