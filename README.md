@@ -611,14 +611,14 @@ The native iOS app lives in [`app/`](app/README.md), with its own build notes.
 from one fragment per PR, so every PR adds one:
 
 ```sh
-task changelog:add TYPE=new     # writes changelog.d/+new.new.md — open it and write the line
+task changelog:add TYPE=new     # writes changelog.d/+<branch>-<hex>.new.md — open it and write the line
 task changelog:preview          # what the next release will say
 ```
 
 Types are `new`, `changed`, `fixed`, `behind` (behind the scenes) and `summary`
 (a lead paragraph for the release, when one is warranted). You don't need the PR
-number: `changelog-number.yml` renames the `+` placeholder to `<PR#>.<type>.md`
-on push, which is what puts a PR link on each entry. A PR that genuinely
+number: the release renames the `+` placeholder to `<PR#>.<type>.md` from the
+squash commit that added it, which is what puts a PR link on each entry. A PR that genuinely
 warrants no entry — a dependabot bump, a round-set regeneration, a revert —
 carries the `skip-changelog` label instead, and `gates` fails without one.
 
