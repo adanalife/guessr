@@ -11,7 +11,8 @@ import tempfile
 from pathlib import Path
 
 from server.clips import Range
-from server.local import Files, resolve_range
+from server.admin_auth import Admins, admins
+from server.local import Files, open_db, resolve_range
 
 assert resolve_range("bytes=0-3", 10) == Range(offset=0, length=4)
 assert resolve_range("bytes=4-", 10) == Range(offset=4)
@@ -45,4 +46,20 @@ async def main() -> None:
 
 
 asyncio.run(main())
+
+# open_db migrates only a file it creates: the migrations are plain DDL, so a
+# second start over the same file must leave it alone rather than fail.
+with tempfile.TemporaryDirectory() as tmp:
+    path = str(Path(tmp) / "answers.db")
+    open_db(path).conn.execute(
+        "INSERT INTO answers VALUES ('a.mp4', 1, 2, 'Utah', '2018-06-03')"
+    )
+    assert open_db(path).conn.execute("SELECT COUNT(*) FROM answers").fetchone()[0] == 1
+
+# The admin ids come off any attribute bag: the Worker's env or os.environ.
+env = type("Env", (), {"TWITCH_OWNER_ID": " 1 ", "TWITCH_CLIENT_IDS": "a, b,"})
+assert admins(env) == Admins(
+    owner_id="1", channel_id="", client_ids=frozenset({"a", "b"})
+)
+
 print("ok: test_server_local")

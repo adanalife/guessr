@@ -15,24 +15,10 @@ from dataclasses import replace
 from workers import asgi, fetch as js_fetch
 
 from server import live
-from server.admin_auth import Admins
+from server.admin_auth import admins
 from server.app import make_app
 from server.d1 import D1
 from server.r2 import R2
-
-
-def admins(env) -> Admins:
-    def var(name):
-        # A secret never set reads as absent, and absent is no admin.
-        return str(getattr(env, name, None) or "").strip()
-
-    return Admins(
-        owner_id=var("TWITCH_OWNER_ID"),
-        channel_id=var("TWITCH_CHANNEL_ID"),
-        client_ids=frozenset(
-            c.strip() for c in var("TWITCH_CLIENT_IDS").split(",") if c.strip()
-        ),
-    )
 
 
 async def _chunks(stream):

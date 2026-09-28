@@ -38,6 +38,24 @@ class Admins:
     client_ids: frozenset[str]
 
 
+def admins(env) -> Admins:
+    """Admins from TWITCH_OWNER_ID, TWITCH_CHANNEL_ID and TWITCH_CLIENT_IDS
+    (comma-separated), read as attributes of `env`: the Worker's bindings, or
+    the process environment off Cloudflare."""
+
+    def var(name):
+        # A secret never set reads as absent, and absent is no admin.
+        return str(getattr(env, name, None) or "").strip()
+
+    return Admins(
+        owner_id=var("TWITCH_OWNER_ID"),
+        channel_id=var("TWITCH_CHANNEL_ID"),
+        client_ids=frozenset(
+            c.strip() for c in var("TWITCH_CLIENT_IDS").split(",") if c.strip()
+        ),
+    )
+
+
 @dataclass(frozen=True)
 class Caller:
     tier: str  # "owner" or "mod"
