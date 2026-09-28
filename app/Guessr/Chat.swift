@@ -1,6 +1,5 @@
 import GuessrKit
 import SwiftUI
-import Translation
 
 /// The channel's Twitch chat: the sign-in until there is a login, then the log
 /// and the composer.
@@ -89,7 +88,7 @@ struct ChatLog: View {
 
     private func loadArt() async {
         guard let chat = account.chat else { return }
-        await BadgeArt.shared.load(from: chat)
+        await BadgeArt.shared.load { try await chat.badgeArt() }
         if emotes.isEmpty { emotes = (try? await chat.emotes()) ?? [] }
     }
 
@@ -231,11 +230,6 @@ struct ChatLineView: View {
     var line: ChatLine
     var mayModerate: Bool
     @Binding var error: String?
-    /// Whether the system translation sheet is up for this line.
-    @State private var translating = false
-    /// Whether the ban confirmation is up — the one moderation verb that
-    /// doesn't undo itself.
-    @State private var banning = false
     /// Emote art that has arrived, by the id Twitch named it with.
     @State private var emotes: [String: Image] = [:]
 
@@ -263,32 +257,13 @@ struct ChatLineView: View {
                 .font(.caption.monospaced())
                 .foregroundStyle(.tertiary)
         }
-        // Viewers chat in several languages. The system sheet translates on
-        // device, picking the source language itself, and asks to download a
-        // language pack the first time it meets one.
-        // ponytail: the sheet is the ceiling — a TranslationSession rendering
-        // every line inline is the upgrade if reading one at a time palls.
-        .contextMenu {
-            if !line.text.isEmpty { Button("Translate", systemImage: "translate") { translating = true } }
-            if mayModerate { moderation }
-        }
-        .confirmationDialog(
-            "Ban \(line.displayName) from the channel?", isPresented: $banning, titleVisibility: .visible
-        ) {
-            Button("Ban", role: .destructive) { moderate { try await $0.ban(userId: line.userId, seconds: 0) } }
-        }
-        .translationPresentation(isPresented: $translating, text: line.text)
-    }
-
-    /// Delete first: it answers what was said rather than who said it.
-    @ViewBuilder private var moderation: some View {
-        Button("Delete message", systemImage: "trash", role: .destructive) {
-            moderate { try await $0.delete(messageId: line.id) }
-        }
-        Button("Time out 10 minutes", systemImage: "clock.badge.xmark") {
-            moderate { try await $0.ban(userId: line.userId, seconds: 600) }
-        }
-        Button("Ban", systemImage: "nosign", role: .destructive) { banning = true }
+        .modifier(
+            ChatLineMenu(
+                translatable: line.text.isEmpty ? nil : line.text,
+                name: line.displayName,
+                delete: mayModerate ? { moderate { try await $0.delete(messageId: line.id) } } : nil,
+                ban: mayModerate
+                    ? { seconds in moderate { try await $0.ban(userId: line.userId, seconds: seconds) } } : nil))
     }
 
     /// Runs a moderation verb on a fresh token. Twitch checks the mod's
@@ -305,7 +280,7 @@ struct ChatLineView: View {
         }
     }
 
-    /// The sender's name in their Twitch colour, or the palette's for one who
+    /// The sender's name in their Twitch color, or the palette's for one who
     /// never picked. A bot reads muted.
     private var username: Text {
         Text(line.displayName).bold().foregroundStyle(line.colorHex.map(hexColor) ?? .secondary)
@@ -338,77 +313,6 @@ private func kindSymbol(_ kind: String) -> String {
     case "announcement": "megaphone.fill"
     default: "sparkles"
     }
-}
-
-/// Twitch's emote art for an id. The 2.0 asset drawn at 2x lands at about a
-/// line of text, and the dark variant suits the chat log.
-private func emoteURL(_ id: String) -> URL? {
-    URL(string: "https://static-cdn.jtvnw.net/emoticons/v2/\(id)/default/dark/2.0")
-}
-
-// ponytail: URLSession's cache is the only cache.
-private func emoteImage(_ id: String) async -> Image? {
-    guard let url = emoteURL(id) else { return nil }
-    return await remoteImage(url, scale: 2)
-}
-
-/// Art off the network at a known scale — the log's emotes and its badges are
-/// both CDN assets drawn inline at about a line of text.
-func remoteImage(_ url: URL, scale: CGFloat) async -> Image? {
-    guard let (data, _) = try? await URLSession.shared.data(from: url),
-        let art = UIImage(data: data, scale: scale)
-    else { return nil }
-    return Image(uiImage: art)
-}
-
-/// A badge as its own art when Twitch publishes some for it, and as a text
-/// chip while the art is arriving or when there is none.
-private struct BadgeMark: View {
-    var tag: BadgeTag
-
-    var body: some View {
-        if let icon = BadgeArt.shared.icon(tag) {
-            icon.accessibilityLabel(tag.label)
-        } else {
-            Chip(tag.label, badgeColor(tag.label))
-        }
-    }
-}
-
-/// Badge chips borrow the roles' usual colours; a badge this app has no opinion
-/// about gets the neutral chip.
-private func badgeColor(_ chip: String) -> Color {
-    if chip == "mod" { return .green }
-    if chip.hasPrefix("sub") { return .purple }
-    return .secondary
-}
-
-/// A word in a colour.
-private struct Chip: View {
-    var text: String
-    var color: Color
-    init(_ text: String, _ color: Color) {
-        self.text = text
-        self.color = color
-    }
-    var body: some View {
-        Text(text)
-            .font(.caption2.bold())
-            .padding(.horizontal, 5).padding(.vertical, 1)
-            .background(color.opacity(0.2), in: Capsule())
-            .foregroundStyle(color)
-    }
-}
-
-/// A `#rrggbb` string as a `Color`.
-private func hexColor(_ hex: String) -> Color {
-    let v = UInt64(hex.dropFirst(), radix: 16) ?? 0
-    return Color(
-        .sRGB,
-        red: Double((v >> 16) & 0xff) / 255,
-        green: Double((v >> 8) & 0xff) / 255,
-        blue: Double(v & 0xff) / 255
-    )
 }
 
 /// How long ago, in its coarsest unit — `12s`, `45m`, `2h`, `3d`.
