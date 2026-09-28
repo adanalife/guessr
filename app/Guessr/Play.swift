@@ -122,12 +122,6 @@ struct PlayView: View {
             .multilineTextAlignment(.center)
             button(day, image: image)
                 .buttonStyle(.borderedProminent)
-            // Only before the first guess: joining after it would leave the
-            // day's progress on this device belonging to the player it left.
-            if progress.played.isEmpty {
-                NavigationLink("Already playing on the web? Enter your code") { JoinView(player: $player) }
-                    .font(.footnote)
-            }
         }
     }
 
@@ -244,6 +238,7 @@ struct JoinView: View {
 
 /// The finished day: every round, the total, and the way to the boards.
 struct DayResultView: View {
+    @Environment(Account.self) private var account
     let progress: DayProgress
 
     var body: some View {
@@ -273,7 +268,9 @@ struct DayResultView: View {
                 }
                 Text("Come back tomorrow for five more.").foregroundStyle(.secondary)
             }
-            NavigationLink("Leaderboards") { TodayView() }
+            if account.seesBoards {
+                NavigationLink("Leaderboards") { TodayView() }
+            }
         }
         .paper()
     }
