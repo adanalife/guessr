@@ -4,6 +4,27 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.17.0 — 2026-09-28
+
+### New
+
+- "Hey Siri, guess Texas in Guessr" sends `!guess Texas` to the stream's Twitch chat as you, with the app closed. Also "guess that this is …" and "guess we're in …". Needs a Twitch sign-in in Guessr first. ([#262](https://github.com/adanalife/guessr/pull/262))
+- The channel owner can view the iPhone app as a mod or a viewer from the bottom of **Settings**, to check what each one sees. ([#265](https://github.com/adanalife/guessr/pull/265))
+
+### Changed
+
+- On an iPad the day's clip fills the whole screen, with the map tucked in the corner until you guess — then it opens up to show how close you were. ([#264](https://github.com/adanalife/guessr/pull/264))
+- The iPhone and iPad app wears the website's colors: the same warm paper page, ink text and blue links, in light mode and dark. ([#264](https://github.com/adanalife/guessr/pull/264))
+- The iPhone app's **Boards** tab is only shown to the channel's moderators and its owner. ([#265](https://github.com/adanalife/guessr/pull/265))
+- The iPhone app's **Already playing on the web? Enter your code** link moved from the game screen to **Settings**. ([#265](https://github.com/adanalife/guessr/pull/265))
+
+### Behind the scenes
+
+- `task api:serve` runs the whole site off Cloudflare in one uvicorn process, from a sqlite file and a clip directory named in the environment. ([#259](https://github.com/adanalife/guessr/pull/259))
+- GuessrKit carries the chat log's SwiftUI leaves — badge art and chips, emote art, the line colors and the translate/moderate menu — so another app drawing Twitch chat can use the same ones. ([#261](https://github.com/adanalife/guessr/pull/261))
+- Xcode builds share one copy of the resolved packages per machine (`~/Library/Caches/adanalife/SourcePackages/guessr`) instead of extracting the 2.9 GB sentry-cocoa xcframework into every worktree, and a fresh worktree builds without network. ([#263](https://github.com/adanalife/guessr/pull/263))
+- Changelog fragments are numbered at release instead of on the PR, so a PR no longer runs its checks twice — once for the push and again for CI's rename commit — and merging early can't strand an unnumbered entry. `task changelog:add` suffixes every placeholder so two open PRs can't pick the same name. ([#266](https://github.com/adanalife/guessr/pull/266))
+
 ## v1.16.0 — 2026-09-25
 
 ### New
