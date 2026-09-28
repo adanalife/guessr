@@ -32,6 +32,17 @@ struct GuessrApp: App {
                     NavigationStack { SettingsView(player: $player) }
                 }
             }
+            // An inset rather than an overlay: viewing as someone else is easy to forget,
+            // and a banner sitting on top of the screen would be easy to miss.
+            .safeAreaInset(edge: .top) {
+                if let tier = account.viewingAs {
+                    Text("Viewing as \(tier)")
+                        .font(.caption.bold())
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .background(.yellow.opacity(0.3))
+                }
+            }
             .foregroundStyle(Color.ink)
             .environment(account)
             .onChange(of: player) { _, joined in players.save(joined) }
@@ -81,10 +92,26 @@ final class Account {
         session = store.load()
     }
 
-    var isOwner: Bool { session?.isOwner(ownerID) ?? false }
+    /// Whether the signed-in login is the owner the build names, whatever
+    /// the owner is viewing the app as.
+    var isRealOwner: Bool { session?.isOwner(ownerID) ?? false }
 
-    /// Whether we moderate the channel.
-    var isMod: Bool { moderates }
+    /// The tier the owner is viewing the app as — `mod`, `viewer`, or nil for
+    /// themselves. Saved, so it survives a relaunch mid-look. It only ever
+    /// subtracts: the server and Twitch still hear the owner.
+    var previewTier: String? = UserDefaults.standard.string(forKey: "previewTier") {
+        didSet { UserDefaults.standard.set(previewTier, forKey: "previewTier") }
+    }
+
+    /// The tier being viewed as, for the owner only, so a login that isn't
+    /// the owner never inherits one left on the device.
+    var viewingAs: String? { isRealOwner ? previewTier : nil }
+
+    /// What every screen asks before it offers the owner something.
+    var isOwner: Bool { isRealOwner && viewingAs == nil }
+
+    /// Whether we moderate the channel — really, or for the length of a look.
+    var isMod: Bool { viewingAs.map { $0 == "mod" } ?? moderates }
 
     /// The boards are for the channel's staff; a player sees their own day.
     var seesBoards: Bool { isOwner || isMod }

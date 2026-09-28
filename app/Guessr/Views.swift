@@ -97,6 +97,24 @@ struct SettingsView: View {
                     ConsoleTierSection(token: token)
                 }
             #endif
+            if account.isRealOwner {
+                Section {
+                    Picker(
+                        "View as",
+                        selection: Binding(
+                            get: { account.previewTier ?? "me" },
+                            set: { account.previewTier = $0 == "me" ? nil : $0 }
+                        )
+                    ) {
+                        Text("Me").tag("me")
+                        Text("Mod").tag("mod")
+                        Text("Viewer").tag("viewer")
+                    }
+                    .pickerStyle(.segmented)
+                } footer: {
+                    Text("Shows the app the way a mod or a viewer sees it. Anything you press still runs as you.")
+                }
+            }
         }
         .paper()
         .navigationTitle("Settings")
