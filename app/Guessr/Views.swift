@@ -69,10 +69,19 @@ struct TodayView: View {
 
 struct SettingsView: View {
     @Environment(Account.self) private var account
+    @Binding var player: Player
+    @State private var playedToday = false
 
     var body: some View {
         Form {
             ReminderSection()
+            // Only before the first guess: joining after it would leave the
+            // day's progress on this device belonging to the player it left.
+            if !playedToday {
+                Section {
+                    NavigationLink("Already playing on the web? Enter your code") { JoinView(player: $player) }
+                }
+            }
             if account.auth.isConfigured {
                 Section("Twitch") {
                     if let session = account.session {
@@ -91,6 +100,8 @@ struct SettingsView: View {
         }
         .paper()
         .navigationTitle("Settings")
+        // Read on every visit rather than once: the Play tab saves as it goes.
+        .onAppear { playedToday = !DayProgress.resume(Saved.progress, on: GuessrClient.today()).played.isEmpty }
         .task { await account.refreshIfNeeded() }
     }
 }

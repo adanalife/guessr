@@ -26,7 +26,9 @@ struct GuessrApp: App {
                 if account.auth.isConfigured {
                     Tab("Chat", systemImage: "bubble.left.and.bubble.right", value: "Chat") { ChatTab() }
                 }
-                Tab("Settings", systemImage: "gear", value: "Settings") { NavigationStack { SettingsView() } }
+                Tab("Settings", systemImage: "gear", value: "Settings") {
+                    NavigationStack { SettingsView(player: $player) }
+                }
             }
             .foregroundStyle(Color.ink)
             .environment(account)

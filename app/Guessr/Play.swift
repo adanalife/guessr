@@ -122,12 +122,6 @@ struct PlayView: View {
             .multilineTextAlignment(.center)
             button(day, image: image)
                 .buttonStyle(.borderedProminent)
-            // Only before the first guess: joining after it would leave the
-            // day's progress on this device belonging to the player it left.
-            if progress.played.isEmpty {
-                NavigationLink("Already playing on the web? Enter your code") { JoinView(player: $player) }
-                    .font(.footnote)
-            }
         }
     }
 
