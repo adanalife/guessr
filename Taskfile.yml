@@ -28,6 +28,14 @@ vars:
   # because a regenerated set diverges the moment one tier has it and the other
   # doesn't.
   BUCKET: 'adanalife-guessr-clips'
+
+  # Where xcodebuild keeps the resolved packages (clones and binary artifacts):
+  # one copy per machine rather than one per worktree. Build products stay
+  # per-worktree under .build/DerivedData; only the packages are shared. The
+  # largest is sentry-cocoa's 2.9 GB xcframework, so a per-worktree copy fills
+  # a disk, and a worktree that has never built finds the packages already
+  # present, so its first build needs no network (the tool sandbox has none).
+  SPM_CLONES: '$HOME/Library/Caches/adanalife/SourcePackages/guessr'
   # The local D1 wrangler keeps under .wrangler/, migrated then seeded from the
   # two generated files. Not the deployed databases — those are targeted by name.
   LOCAL_DB: 'guessr-answers-local'
@@ -563,7 +571,7 @@ tasks:
       - sh: test -n "{{.SIM}}"
         msg: "No iPhone simulator available — run: xcodebuild -downloadPlatform iOS"
     cmds:
-      - xcodebuild -scheme Guessr -destination 'platform=iOS Simulator,name={{.SIM}}' -derivedDataPath .build/DerivedData -quiet build
+      - xcodebuild -scheme Guessr -destination 'platform=iOS Simulator,name={{.SIM}}' -derivedDataPath .build/DerivedData -clonedSourcePackagesDirPath {{.SPM_CLONES}} -quiet build
 
   # Signs for distribution (the Release config in app/project.yml), so it needs
   # the "Apple Distribution" certificate in the login keychain.
@@ -594,7 +602,7 @@ tasks:
       # download the distribution profile the project names.
       - |
         xcodebuild -scheme Guessr -destination 'generic/platform=iOS' \
-          -archivePath .build/Guessr.xcarchive -allowProvisioningUpdates \
+          -archivePath .build/Guessr.xcarchive -clonedSourcePackagesDirPath {{.SPM_CLONES}} -allowProvisioningUpdates \
           ${ASC_KEY_PATH:+-authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"} \
           MARKETING_VERSION={{trimPrefix "v" .TAG}} CURRENT_PROJECT_VERSION={{.BUILD}} -quiet archive
       - 'echo "archived {{trimPrefix "v" .TAG}} ({{.BUILD}}) to app/.build/Guessr.xcarchive"'
