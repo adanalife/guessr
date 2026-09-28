@@ -93,12 +93,20 @@ final class Account {
     }
 
     /// Whether the signed-in login is the owner the build names, whatever
-    /// the owner is viewing the app as.
-    var isRealOwner: Bool { session?.isOwner(ownerID) ?? false }
+    /// the owner is viewing the app as. A Debug build takes `-owner 1` from the
+    /// launch arguments, so the owner's screens can be screenshotted from the
+    /// shell without a Twitch login.
+    var isRealOwner: Bool {
+        #if DEBUG
+            if UserDefaults.standard.bool(forKey: "owner") { return true }
+        #endif
+        return session?.isOwner(ownerID) ?? false
+    }
 
     /// The tier the owner is viewing the app as — `mod`, `viewer`, or nil for
     /// themselves. Saved, so it survives a relaunch mid-look. It only ever
-    /// subtracts: the server and Twitch still hear the owner.
+    /// subtracts: the server and Twitch still hear the owner. Being a
+    /// default, `-previewTier mod` on the launch arguments sets it too.
     var previewTier: String? = UserDefaults.standard.string(forKey: "previewTier") {
         didSet { UserDefaults.standard.set(previewTier, forKey: "previewTier") }
     }
