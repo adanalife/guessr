@@ -28,6 +28,7 @@ struct GuessrApp: App {
                 }
                 Tab("Settings", systemImage: "gear", value: "Settings") { NavigationStack { SettingsView() } }
             }
+            .foregroundStyle(Color.ink)
             .environment(account)
             .onChange(of: player) { _, joined in players.save(joined) }
             .onChange(of: scenePhase, initial: true) { _, phase in

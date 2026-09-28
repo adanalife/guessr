@@ -41,6 +41,7 @@ struct PlayView: View {
                 ProgressView()
             }
         }
+        .paper()
         .navigationTitle("Guessr")
         .task { await load() }
     }
@@ -185,6 +186,7 @@ struct JoinView: View {
                 Text(message ?? "On the web, open About and tap Link a device to see a code. It lasts ten minutes.")
             }
         }
+        .paper()
         .navigationTitle("Enter your code")
     }
 
@@ -236,6 +238,7 @@ struct DayResultView: View {
             }
             NavigationLink("Leaderboards") { TodayView() }
         }
+        .paper()
     }
 }
 
