@@ -36,6 +36,7 @@ struct ChatTab: View {
                     }
                 }
             }
+            .paper()
             .navigationTitle("Chat")
         }
     }

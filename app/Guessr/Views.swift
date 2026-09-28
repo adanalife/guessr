@@ -4,6 +4,19 @@
 import GuessrKit
 import SwiftUI
 
+extension Color {
+    /// The web game's page and text colors, light and dark, from the asset catalog.
+    static let paper = Color("Paper")
+    static let ink = Color("Ink")
+}
+
+extension View {
+    /// The web game's page color behind a screen, lists and forms included.
+    func paper() -> some View {
+        scrollContentBackground(.hidden).background(Color.paper)
+    }
+}
+
 /// Today's rounds and the boards, read from the public API.
 struct TodayView: View {
     @State private var day: GuessrDay?
@@ -37,6 +50,7 @@ struct TodayView: View {
                 Text(error).foregroundStyle(.secondary)
             }
         }
+        .paper()
         .navigationTitle("Guessr")
         .task(id: boardName) { await load() }
         .refreshable { await load() }
@@ -75,6 +89,7 @@ struct SettingsView: View {
                 }
             #endif
         }
+        .paper()
         .navigationTitle("Settings")
         .task { await account.refreshIfNeeded() }
     }

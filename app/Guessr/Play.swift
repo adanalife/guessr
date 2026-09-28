@@ -1,4 +1,4 @@
-import AVKit
+import AVFoundation
 import GuessrKit
 import MapKit
 import SwiftUI
@@ -15,6 +15,7 @@ struct PlayView: View {
     @State private var scoring = false
     @State private var message: String?
     @State private var camera = PlayView.lower48
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     private let client = GuessrClient()
 
@@ -41,31 +42,71 @@ struct PlayView: View {
                 ProgressView()
             }
         }
+        .paper()
         .navigationTitle("Guessr")
         .task { await load() }
     }
 
     private func round(_ day: GuessrDay, image: String, number: Int, shown: PlayedRound?) -> some View {
-        VStack(spacing: 12) {
-            // A fresh player per clip: a looper can't be rebuilt on a queue
-            // player still holding the last clip's items.
-            ClipView(url: Guessr.baseURL.appending(path: image))
-                .id(image)
-                .aspectRatio(16 / 9, contentMode: .fit)
-            MapReader { proxy in
-                Map(position: $camera) {
-                    if let pin { Marker("Your guess", coordinate: pin) }
-                    if let shown {
-                        Marker(shown.score.state, coordinate: shown.score.answer.location).tint(.green)
-                        MapPolyline(coordinates: [shown.guess.location, shown.score.answer.location])
-                            .stroke(.green, style: StrokeStyle(lineWidth: 2, dash: [5, 6]))
+        // A fresh player per clip: a looper can't be rebuilt on a queue
+        // player still holding the last clip's items.
+        let clip = ClipView(url: Guessr.baseURL.appending(path: image), fills: sizeClass == .regular).id(image)
+        return Group {
+            if sizeClass == .regular {
+                // The web's wide layout: the clip is the whole screen, since
+                // squinting at it is the game, and the map rides over its corner
+                // until the reveal makes the map the thing worth reading.
+                GeometryReader { screen in
+                    ZStack(alignment: .bottomTrailing) {
+                        clip.ignoresSafeArea()
+                        VStack(alignment: .trailing, spacing: 12) {
+                            map(shown)
+                                .frame(
+                                    width: revealed ? min(screen.size.width * 0.6, 736) : 352,
+                                    height: revealed ? screen.size.height * 0.6 : 240
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .shadow(color: .black.opacity(0.4), radius: 12, y: 8)
+                            controls(day, image: image, shown: shown)
+                                .padding()
+                                .frame(maxWidth: 420)
+                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                        }
+                        .padding()
                     }
                 }
-                .onTapGesture { point in
-                    guard !revealed, !scoring, let at = proxy.convert(point, from: .local) else { return }
-                    pin = at
+            } else {
+                VStack(spacing: 12) {
+                    clip.aspectRatio(16 / 9, contentMode: .fit)
+                    map(shown)
+                    controls(day, image: image, shown: shown)
+                }
+                .padding()
+            }
+        }
+        .navigationTitle("Round \(number) of \(day.rounds.count) · \(progress.total.formatted())")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func map(_ shown: PlayedRound?) -> some View {
+        MapReader { proxy in
+            Map(position: $camera) {
+                if let pin { Marker("Your guess", coordinate: pin) }
+                if let shown {
+                    Marker(shown.score.state, coordinate: shown.score.answer.location).tint(.green)
+                    MapPolyline(coordinates: [shown.guess.location, shown.score.answer.location])
+                        .stroke(.green, style: StrokeStyle(lineWidth: 2, dash: [5, 6]))
                 }
             }
+            .onTapGesture { point in
+                guard !revealed, !scoring, let at = proxy.convert(point, from: .local) else { return }
+                pin = at
+            }
+        }
+    }
+
+    private func controls(_ day: GuessrDay, image: String, shown: PlayedRound?) -> some View {
+        VStack(spacing: 12) {
             Group {
                 if let shown {
                     Text(
@@ -88,9 +129,6 @@ struct PlayView: View {
                     .font(.footnote)
             }
         }
-        .padding()
-        .navigationTitle("Round \(number) of \(day.rounds.count) · \(progress.total.formatted())")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     @ViewBuilder
@@ -185,6 +223,7 @@ struct JoinView: View {
                 Text(message ?? "On the web, open About and tap Link a device to see a code. It lasts ten minutes.")
             }
         }
+        .paper()
         .navigationTitle("Enter your code")
     }
 
@@ -236,24 +275,49 @@ struct DayResultView: View {
             }
             NavigationLink("Leaderboards") { TodayView() }
         }
+        .paper()
     }
 }
 
 /// A clip on a muted loop. No controls: a scrubber is a way to hunt for a frame
-/// the round didn't mean to show.
+/// the round didn't mean to show. `fills` crops it to cover its frame rather
+/// than letterboxing inside it.
 struct ClipView: View {
     let url: URL
+    var fills = false
     @State private var player = AVQueuePlayer()
     @State private var looper: AVPlayerLooper?
 
     var body: some View {
-        VideoPlayer(player: player)
+        PlayerLayer(player: player, gravity: fills ? .resizeAspectFill : .resizeAspect)
             .allowsHitTesting(false)
             .task(id: url) {
                 player.isMuted = true
                 looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
                 player.play()
             }
+    }
+}
+
+/// A bare player layer: `VideoPlayer` has no say over how the picture fits.
+private struct PlayerLayer: UIViewRepresentable {
+    let player: AVPlayer
+    let gravity: AVLayerVideoGravity
+
+    final class View: UIView {
+        override static var layerClass: AnyClass { AVPlayerLayer.self }
+        var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+    }
+
+    func makeUIView(context: Context) -> View {
+        let view = View()
+        view.backgroundColor = .black
+        view.playerLayer.player = player
+        return view
+    }
+
+    func updateUIView(_ view: View, context: Context) {
+        view.playerLayer.videoGravity = gravity
     }
 }
 
