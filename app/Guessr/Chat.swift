@@ -24,7 +24,7 @@ struct ChatTab: View {
                         }
                         ChatLog(
                             lines: account.chat?.lines ?? [],
-                            mayModerate: account.moderates && session.canModerate)
+                            mayModerate: account.isMod && session.canModerate)
                     }
                     .task(id: session.userID) { await account.openChat() }
                 } else {

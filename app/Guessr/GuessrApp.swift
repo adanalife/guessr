@@ -19,7 +19,9 @@ struct GuessrApp: App {
                 Tab("Play", systemImage: "mappin.and.ellipse", value: "Play") {
                     NavigationStack { PlayView(player: $player) }
                 }
-                Tab("Boards", systemImage: "list.number", value: "Boards") { NavigationStack { TodayView() } }
+                if account.seesBoards {
+                    Tab("Boards", systemImage: "list.number", value: "Boards") { NavigationStack { TodayView() } }
+                }
                 // Chat hangs off the Twitch login, so a build without a Twitch
                 // client id has nothing to show there. Settings always has the
                 // reminder, and hides only its Twitch section in such a build.
@@ -33,6 +35,7 @@ struct GuessrApp: App {
             .foregroundStyle(Color.ink)
             .environment(account)
             .onChange(of: player) { _, joined in players.save(joined) }
+            .task(id: account.session?.userID) { await account.checkModerates() }
             .onChange(of: scenePhase, initial: true) { _, phase in
                 if phase == .active { Task { await Reminder.refreshBadge() } }
             }
@@ -80,6 +83,12 @@ final class Account {
 
     var isOwner: Bool { session?.isOwner(ownerID) ?? false }
 
+    /// Whether we moderate the channel.
+    var isMod: Bool { moderates }
+
+    /// The boards are for the channel's staff; a player sees their own day.
+    var seesBoards: Bool { isOwner || isMod }
+
     func signIn(_ code: DeviceCode, scopes: [String] = TwitchAuth.scopes) async throws {
         adopt(try await auth.poll(code, scopes: scopes))
     }
@@ -89,6 +98,7 @@ final class Account {
     /// the login changes.
     private func adopt(_ fresh: TwitchSession) {
         store.save(fresh)
+        if fresh.userID != session?.userID { moderates = false }
         session = fresh
         chat?.session = fresh
     }
@@ -114,6 +124,17 @@ final class Account {
         (modLogin, modCode, askedForModScopes) = (nil, nil, false)
     }
 
+    /// Asks Twitch whether the signed-in login moderates the channel, without
+    /// joining its chat, so the gates that hang off it hold before Chat opens.
+    func checkModerates() async {
+        await refreshIfNeeded()
+        guard let session, !channel.isEmpty, !moderates else { return }
+        let asker = chat ?? TwitchChat(channel: channel, clientID: auth.clientID, session: session)
+        let answer = await asker.moderates()
+        // The login may have changed while Twitch answered.
+        if self.session?.userID == session.userID { moderates = answer }
+    }
+
     /// Connects the signed-in login to the channel's chat, or keeps the
     /// connection it already has, then asks whether it moderates there.
     /// The package never refreshes a token, so this is where it happens.
@@ -124,7 +145,7 @@ final class Account {
             chat?.stop()
             let fresh = TwitchChat(channel: channel, clientID: auth.clientID, session: session)
             fresh.start()
-            (chat, moderates) = (fresh, false)
+            chat = fresh
         }
         // A failed lookup reads as no, so it is asked again on the next visit.
         if !moderates, let chat { moderates = await chat.moderates() }
