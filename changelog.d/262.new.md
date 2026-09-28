@@ -1,0 +1,1 @@
+"Hey Siri, guess Texas in Guessr" sends `!guess Texas` to the stream's Twitch chat as you, with the app closed. Also "guess that this is …" and "guess we're in …". Needs a Twitch sign-in in Guessr first.
