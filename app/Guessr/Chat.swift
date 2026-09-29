@@ -42,6 +42,9 @@ struct ChatLog: View {
     @State private var hasNew = false
     /// The last send or moderation Twitch refused, until the next one.
     @State private var error: String?
+    /// The last timeout or ban this mod made, offered back as an undo — a
+    /// long-press menu on a phone is easy to mis-tap.
+    @State private var banned: Banned?
     /// Whether the composer holds the keyboard. The log sits behind the
     /// keyboard while it does, so there has to be a way to give it back.
     @FocusState private var composing: Bool
@@ -52,6 +55,7 @@ struct ChatLog: View {
     var body: some View {
         VStack(spacing: 0) {
             log
+            if let banned { undoBar(banned) }
             if let status = error ?? connectionStatus {
                 Text(status)
                     .font(.caption)
@@ -139,7 +143,7 @@ struct ChatLog: View {
     private var log: some View {
         ScrollViewReader { proxy in
             List(lines) { line in
-                ChatLineView(line: line, mayModerate: mayModerate, error: $error)
+                ChatLineView(line: line, mayModerate: mayModerate, error: $error, banned: $banned)
                     .listRowSeparator(.hidden)
             }
             .listStyle(.plain)
@@ -173,6 +177,33 @@ struct ChatLog: View {
                     .buttonStyle(.plain)
                     .padding(.bottom, 4)
                 }
+            }
+        }
+    }
+
+    private func undoBar(_ ban: Banned) -> some View {
+        HStack {
+            Text(ban.summary)
+            Spacer()
+            Button("Undo") { unban(ban) }
+            Button("Dismiss", systemImage: "xmark") { banned = nil }
+                .labelStyle(.iconOnly)
+        }
+        .font(.caption)
+        .padding(.horizontal)
+        .padding(.vertical, 4)
+    }
+
+    private func unban(_ ban: Banned) {
+        guard let chat = account.chat else { return }
+        banned = nil
+        Task {
+            await account.refreshIfNeeded()
+            do {
+                try await chat.unban(userId: ban.userId)
+                error = nil
+            } catch {
+                self.error = error.localizedDescription
             }
         }
     }
@@ -225,6 +256,7 @@ struct ChatLineView: View {
     var line: ChatLine
     var mayModerate: Bool
     @Binding var error: String?
+    @Binding var banned: Banned?
     /// Emote art that has arrived, by the id Twitch named it with.
     @State private var emotes: [String: Image] = [:]
 
@@ -258,7 +290,12 @@ struct ChatLineView: View {
                 name: line.displayName,
                 delete: mayModerate ? { moderate { try await $0.delete(messageId: line.id) } } : nil,
                 ban: mayModerate
-                    ? { seconds in moderate { try await $0.ban(userId: line.userId, seconds: seconds) } } : nil))
+                    ? { seconds in
+                        moderate {
+                            try await $0.ban(userId: line.userId, seconds: seconds)
+                            banned = Banned(userId: line.userId, name: line.displayName, seconds: seconds)
+                        }
+                    } : nil))
     }
 
     /// Runs a moderation verb on a fresh token. Twitch checks the mod's
@@ -269,6 +306,7 @@ struct ChatLineView: View {
             await account.refreshIfNeeded()
             do {
                 try await verb(chat)
+                error = nil
             } catch {
                 self.error = error.localizedDescription
             }
@@ -295,6 +333,19 @@ struct ChatLineView: View {
         for case .emote(let id, _) in line.fragments where emotes[id] == nil {
             if let art = await emoteImage(id) { emotes[id] = art }
         }
+    }
+}
+
+/// A timeout or ban, as the undo bar names it.
+struct Banned {
+    var userId: String
+    var name: String
+    /// 0 for a ban.
+    var seconds: Int
+
+    var summary: String {
+        guard seconds > 0 else { return "Banned \(name)" }
+        return "Timed out \(name) for \(timeoutLength(seconds))"
     }
 }
 
