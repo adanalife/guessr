@@ -62,6 +62,20 @@ extension ChatLine {
         return usernameColorHex(login, isBroadcaster: isBroadcaster)
     }
 
+    /// Whether the line names `login` — as `@login` or bare, in any case —
+    /// and someone else sent it. What a reader's own highlight keys on.
+    public func mentions(_ login: String) -> Bool {
+        let me = login.lowercased()
+        guard !me.isEmpty, self.login.lowercased() != me else { return false }
+        return text.lowercased().split { !($0.isLetter || $0.isNumber || $0 == "_") }.contains { $0 == me }
+    }
+
+    /// A chatter's first message in the channel.
+    public var isFirstMessage: Bool { messageType == "user_intro" }
+
+    /// A message the chatter spent channel points to highlight.
+    public var isPointsHighlight: Bool { messageType == "channel_points_highlighted" }
+
     /// The sender's badges as chips — `mod`, `sub 12`, `founder` — sorted by
     /// set id, with the version kept so the art table can be keyed by it.
     /// Only the subscriber version is worth showing: it counts months.

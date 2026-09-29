@@ -96,6 +96,19 @@ private func chat(userID: String = "2914196", capacity: Int = 300) -> TwitchChat
     #expect(line.fragments == [.text("hello van "), .emote(id: "25", text: "Kappa"), .text(" where are we")])
     #expect(line.fragments.map(\.text).joined() == line.text)
     #expect(line.timestamp == Date(timeIntervalSince1970: 1_790_175_411.634))
+    #expect(line.messageType == "text" && !line.isFirstMessage && !line.isPointsHighlight)
+}
+
+@Test func aLineMentionsALoginAsAWholeWordFromSomeoneElse() {
+    func line(_ text: String, from login: String = "roadwatcher") -> ChatLine {
+        ChatLine(id: "1", userId: "1", login: login, displayName: login, text: text)
+    }
+    #expect(line("hey @Kate where are we").mentions("kate"))
+    #expect(line("kate: morning").mentions("kate"))
+    #expect(!line("katerina says hi").mentions("kate"))
+    #expect(!line("hi @kate", from: "kate").mentions("kate"))
+    #expect(!line("hi").mentions(""))
+    #expect(ChatLine(id: "1", userId: "1", login: "a", displayName: "a", text: "hi", messageType: "user_intro").isFirstMessage)
 }
 
 @MainActor @Test func aNotificationFrameIsALineWithAKind() throws {
