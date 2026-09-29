@@ -82,7 +82,6 @@ final class Account {
     /// The second login's code, while a mod is asked for the moderation scopes.
     private(set) var modCode: DeviceCode?
     private var modLogin: Task<Void, Never>?
-    private var askedForModScopes = false
 
     init(bundle: Bundle = .main, store: any SessionStore = KeychainSessionStore()) {
         auth = TwitchAuth(clientID: bundle.object(forInfoDictionaryKey: "GuessrTwitchClientID") as? String ?? "")
@@ -156,7 +155,7 @@ final class Account {
         chat = nil
         moderates = false
         modLogin?.cancel()
-        (modLogin, modCode, askedForModScopes) = (nil, nil, false)
+        (modLogin, modCode) = (nil, nil)
     }
 
     /// Asks Twitch whether the signed-in login moderates the channel, without
@@ -184,20 +183,19 @@ final class Account {
         }
         // A failed lookup reads as no, so it is asked again on the next visit.
         if !moderates, let chat { moderates = await chat.moderates() }
-        if moderates { upgradeToModeratorIfNeeded() }
     }
 
-    /// The first time a login turns out to moderate the channel without the
-    /// scopes to act on it, asks Twitch again with them on top; the chat
-    /// carries on under the current token meanwhile. Once per launch, so a code
-    /// left to expire isn't pushed again on every visit. A task of its own, so
-    /// leaving the tab doesn't abandon the login.
-    // ponytail: once per launch; a "don't ask again" setting if a mod ever
-    // declines on purpose. A failed second login leaves the mod verbs hidden
-    // with no word why.
-    private func upgradeToModeratorIfNeeded() {
-        guard auth.isConfigured, !askedForModScopes, let session, !session.canModerate else { return }
-        askedForModScopes = true
+    /// Whether the login moderates the channel without the scopes to act on
+    /// it, so Settings offers the second login.
+    var needsModLogin: Bool {
+        auth.isConfigured && moderates && session.map { !$0.canModerate } ?? false
+    }
+
+    /// Asks Twitch again with the moderation scopes on top; the chat carries
+    /// on under the current token meanwhile. A task of its own, so leaving
+    /// Settings doesn't abandon the login.
+    func startModLogin() {
+        modLogin?.cancel()
         modLogin = Task {
             defer { modCode = nil }
             guard let code = try? await auth.start(scopes: TwitchAuth.modScopes) else { return }

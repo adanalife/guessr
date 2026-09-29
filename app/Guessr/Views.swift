@@ -86,6 +86,15 @@ struct SettingsView: View {
                 Section("Twitch") {
                     if let session = account.session {
                         LabeledContent("Signed in as", value: session.login)
+                        // A mod's second login, for the scopes that delete,
+                        // time out and ban.
+                        if account.needsModLogin {
+                            if let code = account.modCode {
+                                DeviceCodeRows(code: code)
+                            } else {
+                                Button("Log in again to moderate chat") { account.startModLogin() }
+                            }
+                        }
                         Button("Sign out", role: .destructive) { account.signOut() }
                     } else {
                         TwitchSignIn()
@@ -170,15 +179,16 @@ struct TwitchSignIn: View {
     }
 }
 
-/// A device code waiting on the human: the code, where to enter it, and a
-/// spinner for the wait.
+/// A device code waiting on the human: the code, the button to Twitch's page
+/// for it, and a spinner for the wait.
 struct DeviceCodeRows: View {
     let code: DeviceCode
 
     var body: some View {
         LabeledContent("Code", value: code.userCode)
         if let url = URL(string: code.verificationUri) {
-            Link("Enter it at Twitch", destination: url)
+            Link(destination: url) { Label("Go to Twitch", systemImage: "arrow.up.forward.app") }
+                .buttonStyle(.borderedProminent)
         }
         ProgressView()
     }
