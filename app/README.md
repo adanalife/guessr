@@ -41,7 +41,9 @@ It reads four variables from the environment:
 Signing needs the team's *Apple Distribution* certificate in the keychain and an
 App Store profile for `lol.dana.guessr` named `Guessr App Store`.
 `task ios:archive` and `task ios:upload` are the two halves, for a deliberate
-off-tag build or a retried upload; `task ios:verify` asks App Store Connect
+off-tag build or a retried upload; `task ios:validate`, which the release runs
+between them, puts the last archive through the App Store export checks
+without uploading it; `task ios:verify` asks App Store Connect
 whether the newest tag has an installable build.
 
 ## Build settings
