@@ -3,9 +3,11 @@ import GuessrKit
 import MapKit
 import SwiftUI
 
-/// Today's rounds: watch the clip, drop a pin, see how close it was.
+/// Today's rounds: watch the clip, drop a pin, see how close it was. With
+/// `practice`, five from finished dates instead, scored and never recorded.
 struct PlayView: View {
     @Binding var player: Player
+    var practice = false
 
     @State private var day: GuessrDay?
     @State private var progress = DayProgress(date: "")
@@ -15,6 +17,8 @@ struct PlayView: View {
     @State private var scoring = false
     @State private var message: String?
     @State private var camera = PlayView.lower48
+    /// Bumped for another practice draw.
+    @State private var draw = 0
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     private let client = GuessrClient()
@@ -33,8 +37,10 @@ struct PlayView: View {
                 let shown = revealed ? progress.played.last : nil
                 if let image = shown?.image ?? progress.next(in: day)?.image {
                     round(day, image: image, number: progress.played.count + (shown == nil ? 1 : 0), shown: shown)
+                } else if practice {
+                    practiceDone
                 } else {
-                    DayResultView(progress: progress)
+                    DayResultView(progress: progress, player: player)
                 }
             } else if let message {
                 ContentUnavailableView(message, systemImage: "car")
@@ -43,8 +49,20 @@ struct PlayView: View {
             }
         }
         .paper()
-        .navigationTitle("Guessr")
-        .task { await load() }
+        .navigationTitle(practice ? "Practice" : "Guessr")
+        .task(id: draw) { await load() }
+    }
+
+    private var practiceDone: some View {
+        ContentUnavailableView {
+            Label(
+                "\(progress.total.formatted()) / \((progress.played.count * Share.maxRoundScore).formatted())",
+                systemImage: "car")
+        } description: {
+            Text("Practice doesn't count toward the boards.")
+        } actions: {
+            Button("Five more") { draw += 1 }.buttonStyle(.borderedProminent)
+        }
     }
 
     private func round(_ day: GuessrDay, image: String, number: Int, shown: PlayedRound?) -> some View {
@@ -84,7 +102,7 @@ struct PlayView: View {
                 .padding()
             }
         }
-        .navigationTitle("Round \(number) of \(day.rounds.count) · \(progress.total.formatted())")
+        .navigationTitle("\(practice ? "Practice" : "Round") \(number) of \(day.rounds.count) · \(progress.total.formatted())")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -140,10 +158,13 @@ struct PlayView: View {
     }
 
     private func load() async {
-        let date = GuessrClient.today()
-        progress = DayProgress.resume(Saved.progress, on: date)
+        if practice {
+            (day, progress, message) = (nil, DayProgress(date: ""), nil)
+        } else {
+            progress = DayProgress.resume(Saved.progress, on: GuessrClient.today())
+        }
         do {
-            day = try await client.day(date)
+            day = try await practice ? client.practiceDay() : client.day(progress.date)
         } catch {
             // The server says why — nothing scheduled, or a date not yet open.
             message = (error as? GuessrError)?.errorDescription ?? "Could not reach the rounds"
@@ -177,10 +198,13 @@ struct PlayView: View {
         do {
             // A round this player already guessed comes back with the score on
             // record, so a lost save cannot buy a better one.
-            let score = try await client.score(image: image, guess: at, date: progress.date, player: player)
+            let score = try await client.score(
+                image: image, guess: at, date: practice ? nil : progress.date, player: player)
             progress.played.append(PlayedRound(image: image, guess: at, score: score))
-            Saved.progress = progress
-            if progress.played.count == 1 { await Reminder.refreshBadge() }
+            if !practice {
+                Saved.progress = progress
+                if progress.played.count == 1 { await Reminder.refreshBadge() }
+            }
             (revealed, message, camera) = (true, nil, .automatic)
         } catch let error as GuessrError where error.isFinal {
             // Refused, so retrying gets the same answer: say what the server said.
@@ -239,6 +263,7 @@ struct JoinView: View {
 /// The finished day: every round, the total, and the text to share it.
 struct DayResultView: View {
     let progress: DayProgress
+    let player: Player
     @State private var copied = false
     /// The round whose clip is playing again, by image: a map pin's selection
     /// tag and a row's tap both set it.
@@ -285,6 +310,11 @@ struct DayResultView: View {
                 // `GuessrClient.today()` turns over; a relative Text keeps counting.
                 Text("Come back in \(Text(Self.nextDaily, style: .relative)) for five more.")
                     .foregroundStyle(.secondary)
+            }
+            Section {
+                NavigationLink("Practice rounds") { PlayView(player: .constant(player), practice: true) }
+            } footer: {
+                Text("Five rounds from days that are over, as many times as you like. They don't count.")
             }
         }
         .paper()
