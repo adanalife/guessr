@@ -21,6 +21,21 @@
   "rules": [{ "type": "Data", "globs": ["web/alias.json"], "fallthrough": true }],
   "compatibility_date": "2026-09-22",
   "compatibility_flags": ["python_workers"],
+  // Every request's log and trace, kept in Workers Logs, with Issues grouping
+  // the exceptions. Without it, an invocation that dies over the CPU or memory
+  // limit, or throws past the ASGI app (a client sees a bare 1101), leaves
+  // nothing but a count in the analytics. Sampled at 1 because the whole game
+  // is a few thousand requests a day, far under the logging allowance. Query
+  // strings stay: they carry only dates and board names, and a player's id
+  // travels in POST bodies, which are never logged. Inherited by
+  // env.production.
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": { "enabled": true, "invocation_logs": true },
+    "traces": { "enabled": true, "head_sampling_rate": 1 },
+    "issues": { "enabled": true }
+  },
   "d1_databases": [
     {
       "binding": "DB",
