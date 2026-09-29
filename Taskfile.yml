@@ -622,7 +622,26 @@ tasks:
   # seconds, not a fresh signed archive.
   ios:upload:
     desc: Upload the last iPhone archive to App Store Connect for TestFlight
+    cmds:
+      - task: ios:export
+        vars: { DESTINATION: upload }
+      - 'echo "uploaded — the build appears in TestFlight once Apple finishes processing (usually 5-15 min)"'
+
+  # The same export with the IPA kept on disk instead of sent: it signs and
+  # checks the archive the way App Store Connect would (a missing icon, a
+  # missing CFBundleIconName), so a refusal costs a minute here rather than an
+  # upload round trip. Leaves the IPA in app/.build/export.
+  ios:validate:
+    desc: Run the App Store export checks on the last iPhone archive without uploading
+    cmds:
+      - task: ios:export
+        vars: { DESTINATION: export }
+
+  ios:export:
+    internal: true
     dir: app
+    requires:
+      vars: [DESTINATION]
     preconditions:
       - sh: test -d .build/Guessr.xcarchive
         msg: "No archive at app/.build/Guessr.xcarchive — run: task ios:archive"
@@ -641,7 +660,7 @@ tasks:
         <plist version="1.0">
         <dict>
           <key>method</key><string>app-store-connect</string>
-          <key>destination</key><string>upload</string>
+          <key>destination</key><string>{{.DESTINATION}}</string>
           <key>teamID</key><string>$DEVELOPMENT_TEAM</string>
           <key>signingStyle</key><string>automatic</string>
           <key>uploadSymbols</key><true/>
@@ -660,7 +679,6 @@ tasks:
           -exportOptionsPlist .build/ExportOptions.plist \
           -allowProvisioningUpdates \
           ${ASC_KEY_PATH:+-authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"}
-      - 'echo "uploaded — the build appears in TestFlight once Apple finishes processing (usually 5-15 min)"'
 
   # The two above, behind the rule that keeps TestFlight's versions honest. The
   # build number is the commit count, so archiving off an untagged commit ships
@@ -668,7 +686,7 @@ tasks:
   # side with nothing to tell them apart. Building only at a tag is what makes
   # the version in TestFlight mean the same thing as the version on GitHub.
   ios:release:
-    desc: Cut a TestFlight build from the release tag at HEAD (archive + upload, then wait for Apple)
+    desc: Cut a TestFlight build from the release tag at HEAD (archive, validate, upload, then wait for Apple)
     preconditions:
       - sh: git describe --exact-match --match 'v*' --tags HEAD >/dev/null 2>&1
         msg: >-
@@ -682,6 +700,7 @@ tasks:
         msg: "Working tree is dirty — the archive would not be the tagged commit"
     cmds:
       - task: ios:archive
+      - task: ios:validate
       - task: ios:upload
       # Apple takes 5-15 minutes to process an upload; this ends the release
       # with the verdict instead of a reminder to come back and check.
