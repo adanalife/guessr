@@ -23,6 +23,18 @@ public enum ChatFragment: Sendable, Equatable {
     }
 }
 
+/// The message a reply answers, as Twitch quotes it on the reply.
+public struct ChatReply: Sendable, Equatable {
+    public var parentId: String
+    public var login: String
+    public var displayName: String
+    public var text: String
+
+    public init(parentId: String, login: String, displayName: String, text: String) {
+        (self.parentId, self.login, self.displayName, self.text) = (parentId, login, displayName, text)
+    }
+}
+
 /// One chat message, in Twitch's own shape.
 public struct ChatLine: Sendable, Equatable, Identifiable {
     /// Twitch's `message_id` — what a delete names.
@@ -51,11 +63,13 @@ public struct ChatLine: Sendable, Equatable, Identifiable {
     /// stays in the ring so a mod can see what was removed; a viewer's log
     /// leaves it out.
     public var deleted = false
+    /// What this line answers, for a reply.
+    public var reply: ChatReply?
 
     public init(
         id: String, userId: String, login: String, displayName: String, text: String, color: String = "",
         badges: [String: String] = [:], fragments: [ChatFragment]? = nil, timestamp: Date = .now,
-        kind: String? = nil, notice: String? = nil, messageType: String? = nil
+        kind: String? = nil, notice: String? = nil, messageType: String? = nil, reply: ChatReply? = nil
     ) {
         self.id = id
         self.userId = userId
@@ -69,6 +83,7 @@ public struct ChatLine: Sendable, Equatable, Identifiable {
         self.kind = kind
         self.notice = notice
         self.messageType = messageType
+        self.reply = reply
     }
 
     public var isBroadcaster: Bool { badges["broadcaster"] != nil }
@@ -322,8 +337,9 @@ public final class TwitchChat {
         return id
     }
 
-    /// Posts `text` to the channel as the logged-in user.
-    public func send(_ text: String) async throws {
+    /// Posts `text` to the channel as the logged-in user, threaded under the
+    /// message `replyTo` names when there is one.
+    public func send(_ text: String, replyTo: String? = nil) async throws {
         struct Reply: Decodable {
             struct Sent: Decodable {
                 struct Drop: Decodable { var message: String }
@@ -333,9 +349,9 @@ public final class TwitchChat {
             var data: [Sent]
         }
         let broadcaster = try await resolveBroadcaster()
-        let body = try await helix(
-            "POST", "chat/messages",
-            body: ["broadcaster_id": broadcaster, "sender_id": session.userID, "message": text])
+        var message = ["broadcaster_id": broadcaster, "sender_id": session.userID, "message": text]
+        message["reply_parent_message_id"] = replyTo
+        let body = try await helix("POST", "chat/messages", body: message)
         if let sent = try Guessr.decoder.decode(Reply.self, from: body).data.first, !sent.isSent {
             throw TwitchChatError.dropped(sent.dropReason?.message ?? "no reason given")
         }
@@ -475,6 +491,12 @@ struct Frame: Decodable {
             var setId: String
             var id: String
         }
+        struct Reply: Decodable {
+            var parentMessageId: String
+            var parentMessageBody: String?
+            var parentUserLogin: String?
+            var parentUserName: String?
+        }
         var messageId: String?
         var chatterUserId: String?
         var chatterUserLogin: String?
@@ -486,6 +508,7 @@ struct Frame: Decodable {
         var noticeType: String?
         var systemMessage: String?
         var messageType: String?
+        var reply: Reply?
 
         func line(at timestamp: Date) -> ChatLine? {
             guard let messageId, let chatterUserId, let message else { return nil }
@@ -511,7 +534,12 @@ struct Frame: Decodable {
                 timestamp: timestamp,
                 kind: noticeType,
                 notice: systemMessage,
-                messageType: messageType
+                messageType: messageType,
+                reply: reply.map {
+                    ChatReply(
+                        parentId: $0.parentMessageId, login: $0.parentUserLogin ?? "",
+                        displayName: $0.parentUserName ?? $0.parentUserLogin ?? "", text: $0.parentMessageBody ?? "")
+                }
             )
         }
     }

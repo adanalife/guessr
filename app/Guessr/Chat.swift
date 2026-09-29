@@ -51,6 +51,8 @@ struct ChatLog: View {
     /// The channel's emotes and Twitch's, for the picker; empty until read.
     @State private var emotes: [ChatEmote] = []
     @State private var pickingEmote = false
+    /// The line the next send answers, from its long-press Reply.
+    @State private var replyingTo: ChatLine?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -64,6 +66,7 @@ struct ChatLog: View {
                     .padding(.horizontal)
             }
             if let stub = mentionInProgress(text) { mentions(matching: stub) }
+            if let replyingTo { replyBar(replyingTo) }
             composer
             if pickingEmote { emotePicker }
         }
@@ -143,7 +146,9 @@ struct ChatLog: View {
     private var log: some View {
         ScrollViewReader { proxy in
             List(lines) { line in
-                ChatLineView(line: line, mayModerate: mayModerate, error: $error, banned: $banned)
+                ChatLineView(line: line, mayModerate: mayModerate, error: $error, banned: $banned) {
+                    reply(to: line)
+                }
                     .listRowSeparator(.hidden)
             }
             .listStyle(.plain)
@@ -208,6 +213,28 @@ struct ChatLog: View {
         }
     }
 
+    /// Threads the next send under `line`, and starts it with the `@name`
+    /// every other client shows a reply with.
+    private func reply(to line: ChatLine) {
+        replyingTo = line
+        let at = "@\(line.displayName)"
+        if !text.hasPrefix(at) { text = at + " " + text }
+        composing = true
+    }
+
+    private func replyBar(_ line: ChatLine) -> some View {
+        HStack {
+            Label("Replying to \(line.displayName)", systemImage: "arrowshape.turn.up.left")
+                .lineLimit(1)
+            Spacer()
+            Button("Cancel reply", systemImage: "xmark") { replyingTo = nil }
+                .labelStyle(.iconOnly)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal)
+    }
+
     private func atBottom(_ geo: ScrollGeometry) -> Bool {
         geo.contentOffset.y + geo.containerSize.height
             >= geo.contentSize.height + geo.contentInsets.bottom - 40
@@ -237,12 +264,14 @@ struct ChatLog: View {
     private func send() {
         let msg = text.trimmingCharacters(in: .whitespaces)
         guard !msg.isEmpty, let chat = account.chat else { return }
+        let parent = replyingTo?.id
         text = ""
         pickingEmote = false
+        replyingTo = nil
         Task {
             await account.refreshIfNeeded()
             do {
-                try await chat.send(msg)
+                try await chat.send(msg, replyTo: parent)
                 error = nil
             } catch {
                 self.error = error.localizedDescription
@@ -257,6 +286,8 @@ struct ChatLineView: View {
     var mayModerate: Bool
     @Binding var error: String?
     @Binding var banned: Banned?
+    /// Starts a reply to this line in the composer.
+    var reply: () -> Void
     /// Emote art that has arrived, by the id Twitch named it with.
     @State private var emotes: [String: Image] = [:]
 
@@ -269,6 +300,12 @@ struct ChatLineView: View {
                     Label(notice, systemImage: kindSymbol(kind))
                         .font(.caption.italic())
                         .foregroundStyle(.secondary)
+                }
+                if let parent = line.reply {
+                    Label("\(parent.displayName): \(parent.text)", systemImage: "arrow.turn.down.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
                 if line.isFirstMessage {
                     Label("First message in the channel", systemImage: "hand.wave.fill")
@@ -304,7 +341,8 @@ struct ChatLineView: View {
                             try await $0.ban(userId: line.userId, seconds: seconds)
                             banned = Banned(userId: line.userId, name: line.displayName, seconds: seconds)
                         }
-                    } : nil))
+                    } : nil,
+                reply: line.kind == nil && !line.deleted ? reply : nil))
     }
 
     /// Runs a moderation verb on a fresh token. Twitch checks the mod's

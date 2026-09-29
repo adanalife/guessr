@@ -130,6 +130,19 @@ private func chat(userID: String = "2914196", capacity: Int = 300) -> TwitchChat
     #expect(chat.lines.first?.kind == "resub")
 }
 
+@MainActor @Test func aReplyCarriesTheMessageItAnswers() throws {
+    let chat = chat()
+    chat.handle(
+        event(
+            "channel.chat.message",
+            #""message_id":"r2","chatter_user_id":"4","chatter_user_login":"kate","message":{"text":"@RoadWatcher Utah"},"reply":{"parent_message_id":"r1","parent_message_body":"where is this?","parent_user_id":"11","parent_user_login":"roadwatcher","parent_user_name":"RoadWatcher","thread_message_id":"r1"}"#
+        ))
+    chat.handle(message("m1", from: "1"))
+    let reply = try #require(chat.lines.first?.reply)
+    #expect(reply == ChatReply(parentId: "r1", login: "roadwatcher", displayName: "RoadWatcher", text: "where is this?"))
+    #expect(chat.lines.last?.reply == nil)
+}
+
 @MainActor @Test func deleteAndClearMarkLinesDeleted() {
     let chat = chat()
     for (id, user) in [("m1", "1"), ("m2", "2"), ("m3", "1"), ("m4", "3")] { chat.handle(message(id, from: user)) }
