@@ -99,7 +99,7 @@ struct SettingsView: View {
                         // time out and ban.
                         if account.needsModLogin {
                             if let code = account.modCode {
-                                DeviceCodeRows(code: code)
+                                TwitchCodeRows(code: code)
                             } else {
                                 Button("Log in again to moderate chat") { account.startModLogin() }
                             }
@@ -214,7 +214,7 @@ struct TwitchSignIn: View {
 
     var body: some View {
         if let code {
-            DeviceCodeRows(code: code)
+            TwitchCodeRows(code: code)
         } else {
             Button("Sign in with Twitch") { Task { await signIn() } }
                 .disabled(!account.auth.isConfigured)
@@ -245,20 +245,5 @@ struct TwitchSignIn: View {
             self.error = error.localizedDescription
         }
         code = nil
-    }
-}
-
-/// A device code waiting on the human: the code, the button to Twitch's page
-/// for it, and a spinner for the wait.
-struct DeviceCodeRows: View {
-    let code: DeviceCode
-
-    var body: some View {
-        LabeledContent("Code", value: code.userCode)
-        if let url = URL(string: code.verificationUri) {
-            Link(destination: url) { Label("Go to Twitch", systemImage: "arrow.up.forward.app") }
-                .buttonStyle(.borderedProminent)
-        }
-        ProgressView()
     }
 }
