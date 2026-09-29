@@ -53,6 +53,10 @@ struct ChatLog: View {
     @State private var pickingEmote = false
     /// The line the next send answers, from its long-press Reply.
     @State private var replyingTo: ChatLine?
+    /// When this viewer's last message went, which slow mode counts from.
+    @State private var lastSent: Date?
+    /// Whether slow mode is still holding the next send back.
+    @State private var cooling = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -66,6 +70,7 @@ struct ChatLog: View {
                     .padding(.horizontal)
             }
             if let stub = mentionInProgress(text) { mentions(matching: stub) }
+            if let mode = account.chat?.mode, let summary = mode.summary { modeBar(mode, summary) }
             if let replyingTo { replyBar(replyingTo) }
             composer
             if pickingEmote { emotePicker }
@@ -79,6 +84,32 @@ struct ChatLog: View {
         }
         // Keyed on the chat, which arrives after the first appearance.
         .task(id: account.chat.map(ObjectIdentifier.init)) { await loadArt() }
+        .task(id: lastSent) { await coolDown() }
+    }
+
+    /// A mod is held to none of the modes, so sees them without a countdown.
+    private func modeBar(_ mode: ChatMode, _ summary: String) -> some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let wait = account.isMod ? 0 : mode.wait(since: lastSent, now: context.date)
+            Label(
+                wait > 0 ? "\(summary) · wait \(wait)s" : summary,
+                systemImage: mode.slowSeconds > 0 ? "hourglass" : "lock")
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal)
+    }
+
+    /// Holds the send button through slow mode's wait, which Twitch would
+    /// otherwise answer by dropping the message.
+    private func coolDown() async {
+        guard let chat = account.chat, !account.isMod else { return }
+        let wait = chat.mode.wait(since: lastSent)
+        guard wait > 0 else { return }
+        cooling = true
+        try? await Task.sleep(for: .seconds(wait))
+        cooling = false
     }
 
     /// A socket error means nothing to a player, and the chat retries on its
@@ -256,14 +287,14 @@ struct ChatLog: View {
                 .onSubmit(send)
             Button(action: send) { Image(systemName: "paperplane.fill") }
                 .accessibilityLabel("Send")
-                .disabled(account.chat == nil || text.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(account.chat == nil || cooling || text.trimmingCharacters(in: .whitespaces).isEmpty)
         }
         .padding()
     }
 
     private func send() {
         let msg = text.trimmingCharacters(in: .whitespaces)
-        guard !msg.isEmpty, let chat = account.chat else { return }
+        guard !msg.isEmpty, !cooling, let chat = account.chat else { return }
         let parent = replyingTo?.id
         text = ""
         pickingEmote = false
@@ -272,6 +303,7 @@ struct ChatLog: View {
             await account.refreshIfNeeded()
             do {
                 try await chat.helix.send(msg, replyTo: parent)
+                lastSent = .now
                 error = nil
             } catch {
                 self.error = error.localizedDescription

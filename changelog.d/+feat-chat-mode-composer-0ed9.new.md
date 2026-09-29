@@ -1,0 +1,1 @@
+App chat shows the channel's chat modes above the composer (slow, followers-only, subscribers-only, emote-only, unique messages), with a slow-mode countdown that holds the send button until Twitch would take the next message. GuessrKit: `TwitchChat.mode`, read from Helix `chat/settings` on connect and kept by the `channel.chat_settings.update` EventSub.

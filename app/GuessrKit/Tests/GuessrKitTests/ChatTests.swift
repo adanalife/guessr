@@ -58,6 +58,9 @@ final class StubHelix: URLProtocol {
             reply = #"{"data":[{"id":"emotesv2_1","name":"danaVan","images":{"url_1x":"https://c/e1"},"tier":"1000","emote_type":"subscriptions"}],"template":"https://static-cdn.jtvnw.net/emoticons/v2/{{id}}/{{format}}/{{theme_mode}}/{{scale}}"}"#
         case "/helix/chat/emotes/global":
             reply = #"{"data":[{"id":"25","name":"Kappa","images":{"url_1x":"https://g/e25"},"emote_type":"globals"}]}"#
+        case "/helix/chat/settings":
+            reply =
+                #"{"data":[{"broadcaster_id":"1971641","emote_mode":false,"follower_mode":true,"follower_mode_duration":10,"slow_mode":true,"slow_mode_wait_time":30,"subscriber_mode":false,"unique_chat_mode":false}]}"#
         case "/helix/chat/messages":
             reply = #"{"data":[{"message_id":"","is_sent":false,"drop_reason":{"code":"msg_duplicate","message":"duplicate message"}}]}"#
         default:
@@ -250,4 +253,37 @@ private func chat(userID: String = "2914196", capacity: Int = 300) -> TwitchChat
     #expect(completingLastWord("hey @ka", with: "@Kate") == "hey @Kate ")
     #expect(completingLastWord("", with: "@Kate") == "@Kate ")
     #expect(completingLastWord("a b", with: "c") == "a c ")
+}
+
+@MainActor @Test func chatModeReadsFromHelixAndFollowsUpdates() async throws {
+    let chat = chat()
+    #expect(try await chat.helix.chatMode() == ChatMode(slowSeconds: 30, followerMinutes: 10))
+    chat.handle(
+        event(
+            "channel.chat_settings.update",
+            #""emote_mode":true,"follower_mode":false,"follower_mode_duration_minutes":null,"slow_mode":true,"slow_mode_wait_time_seconds":120,"subscriber_mode":true,"unique_chat_mode":false"#
+        ))
+    #expect(chat.mode == ChatMode(slowSeconds: 120, subscribersOnly: true, emoteOnly: true))
+    // Off with a stale duration still reads as off.
+    chat.handle(
+        event(
+            "channel.chat_settings.update",
+            #""emote_mode":false,"follower_mode":true,"follower_mode_duration_minutes":0,"slow_mode":false,"slow_mode_wait_time_seconds":30,"subscriber_mode":false,"unique_chat_mode":false"#
+        ))
+    #expect(chat.mode == ChatMode(followerMinutes: 0))
+}
+
+@Test func chatModeSummarizesAndCountsDown() {
+    #expect(ChatMode().summary == nil)
+    #expect(ChatMode(followerMinutes: 0).summary == "Followers only")
+    #expect(
+        ChatMode(slowSeconds: 30, followerMinutes: 10080, emoteOnly: true).summary
+            == "Slow mode, 30s · Followers of 7d only · Emotes only")
+    let sent = Date(timeIntervalSince1970: 1000)
+    let slow = ChatMode(slowSeconds: 30)
+    #expect(slow.wait(since: nil) == 0)
+    #expect(slow.wait(since: sent, now: sent) == 30)
+    #expect(slow.wait(since: sent, now: sent.addingTimeInterval(12.5)) == 18)
+    #expect(slow.wait(since: sent, now: sent.addingTimeInterval(31)) == 0)
+    #expect(ChatMode().wait(since: sent, now: sent) == 0)
 }
