@@ -223,23 +223,23 @@ private func chat(userID: String = "2914196", capacity: Int = 300) -> TwitchChat
 }
 
 @MainActor @Test func badgeArtLayersTheChannelOverGlobal() async throws {
-    let art = try await chat().badgeArt()
+    let art = try await chat().helix.badgeArt()
     #expect(art["subscriber"]?["12"]?["url_2x"] == "https://c/sub2")
     #expect(art["moderator"]?["1"]?["url_4x"] == "https://g/mod4")
     #expect(art.url(for: BadgeTag(name: "moderator", version: "1", label: "mod")) == URL(string: "https://g/mod2"))
 }
 
 @MainActor @Test func moderatesPagesThroughTheCursor() async {
-    #expect(await chat().moderates())
-    #expect(await chat(userID: "1971641").moderates())
+    #expect(await chat().helix.moderates())
+    #expect(await chat(userID: "1971641").helix.moderates())
 }
 
 @MainActor @Test func aDroppedSendIsAnError() async {
-    await #expect(throws: TwitchChatError.dropped("duplicate message")) { try await chat().send("hi") }
+    await #expect(throws: TwitchChatError.dropped("duplicate message")) { try await chat().helix.send("hi") }
 }
 
 @MainActor @Test func emotesListTheChannelsThenTheGlobals() async throws {
-    #expect(try await chat().emotes() == [ChatEmote(id: "emotesv2_1", name: "danaVan"), ChatEmote(id: "25", name: "Kappa")])
+    #expect(try await chat().helix.emotes() == [ChatEmote(id: "emotesv2_1", name: "danaVan"), ChatEmote(id: "25", name: "Kappa")])
 }
 
 @Test func theComposerKnowsWhichMentionIsBeingTyped() {

@@ -106,8 +106,9 @@ public enum TwitchChatError: Error, LocalizedError, Equatable {
     }
 }
 
-/// A live Twitch channel's chat, read over EventSub's WebSocket transport and
-/// written and moderated through Helix, all on the viewer's own token.
+/// A live Twitch channel's chat, read over EventSub's WebSocket transport on
+/// the viewer's own token. Writing and moderating go through `helix`, which a
+/// host with no socket can build on its own.
 ///
 /// EventSub's WebSocket transport only delivers chat to the token's own user,
 /// so reading requires a login; there is no anonymous mode.
@@ -120,17 +121,17 @@ public final class TwitchChat {
     /// The last thing that went wrong, shown until the next welcome clears it.
     public private(set) var lastError: String?
 
+    /// The Helix calls the socket subscribes through, and everything that
+    /// writes to or moderates the channel.
+    @ObservationIgnored public let helix: Helix
     /// The channel's login, as typed in a URL.
-    public let channel: String
-    /// The channel's numeric id, once it has been looked up.
-    public private(set) var broadcasterID: String?
-
+    public var channel: String { helix.channel }
     /// The login everything is sent as. Settable, so the caller can swap in a
     /// refreshed token without dropping the ring.
-    @ObservationIgnored public var session: TwitchSession
-    @ObservationIgnored let clientID: String
-    @ObservationIgnored let urlSession: URLSession
-    @ObservationIgnored let helixBase: URL
+    public var session: TwitchSession {
+        get { helix.session }
+        set { helix.session = newValue }
+    }
     @ObservationIgnored let eventSubURL: URL
     // ponytail: 300 lines, a screenful many times over; raise it or page to
     // disk if scrollback ever matters.
@@ -151,11 +152,8 @@ public final class TwitchChat {
         eventSubURL: URL = URL(string: "wss://eventsub.wss.twitch.tv/ws")!,
         capacity: Int = 300
     ) {
-        self.channel = channel.lowercased()
-        self.clientID = clientID
-        self.session = session
-        self.urlSession = urlSession
-        self.helixBase = helixBase
+        self.helix = Helix(
+            channel: channel, clientID: clientID, session: session, urlSession: urlSession, base: helixBase)
         self.eventSubURL = eventSubURL
         self.capacity = capacity
     }
@@ -183,8 +181,8 @@ public final class TwitchChat {
         var attempt = 0
         while !Task.isCancelled {
             do {
-                _ = try await resolveBroadcaster()
-                let ws = urlSession.webSocketTask(with: url)
+                _ = try await helix.resolveBroadcaster()
+                let ws = helix.urlSession.webSocketTask(with: url)
                 socket = ws
                 ws.resume()
                 if let moved = try await read(ws, subscribe: subscribe, retiring: &retiring, attempt: &attempt) {
@@ -304,12 +302,12 @@ public final class TwitchChat {
     }
 
     private func subscribeAll(_ sessionID: String) async throws {
-        let broadcaster = try await resolveBroadcaster()
+        let broadcaster = try await helix.resolveBroadcaster()
         for type in [
             "channel.chat.message", "channel.chat.notification", "channel.chat.message_delete",
             "channel.chat.clear_user_messages",
         ] {
-            _ = try await helix(
+            _ = try await helix.request(
                 "POST", "eventsub/subscriptions",
                 body: [
                     "type": type, "version": "1",
@@ -318,8 +316,36 @@ public final class TwitchChat {
                 ])
         }
     }
+}
 
-    // MARK: Helix
+/// Twitch's Helix API for one channel, on the viewer's own token: the lookups,
+/// writes and moderation that need no chat socket.
+@MainActor
+public final class Helix {
+    /// The channel's login, lowercased.
+    public let channel: String
+    /// The login every call is made as. Settable, so a refreshed token swaps
+    /// in without a new client.
+    public var session: TwitchSession
+    let clientID: String
+    let urlSession: URLSession
+    let base: URL
+    /// The channel's numeric id, once it has been looked up.
+    public private(set) var broadcasterID: String?
+
+    public init(
+        channel: String,
+        clientID: String,
+        session: TwitchSession,
+        urlSession: URLSession = .shared,
+        base: URL = URL(string: "https://api.twitch.tv/helix")!
+    ) {
+        self.channel = channel.lowercased()
+        self.clientID = clientID
+        self.session = session
+        self.urlSession = urlSession
+        self.base = base
+    }
 
     /// The channel's numeric id, looked up once.
     @discardableResult
@@ -329,7 +355,7 @@ public final class TwitchChat {
             struct User: Decodable { var id: String }
             var data: [User]
         }
-        let body = try await helix("GET", "users", query: ["login": channel])
+        let body = try await request("GET", "users", query: ["login": channel])
         guard let id = try Guessr.decoder.decode(Users.self, from: body).data.first?.id else {
             throw TwitchChatError.unknownChannel(channel)
         }
@@ -351,7 +377,7 @@ public final class TwitchChat {
         let broadcaster = try await resolveBroadcaster()
         var message = ["broadcaster_id": broadcaster, "sender_id": session.userID, "message": text]
         message["reply_parent_message_id"] = replyTo
-        let body = try await helix("POST", "chat/messages", body: message)
+        let body = try await request("POST", "chat/messages", body: message)
         if let sent = try Guessr.decoder.decode(Reply.self, from: body).data.first, !sent.isSent {
             throw TwitchChatError.dropped(sent.dropReason?.message ?? "no reason given")
         }
@@ -360,7 +386,7 @@ public final class TwitchChat {
     /// Deletes one message. Needs `moderator:manage:chat_messages`.
     public func delete(messageId: String) async throws {
         let broadcaster = try await resolveBroadcaster()
-        _ = try await helix(
+        _ = try await request(
             "DELETE", "moderation/chat",
             query: ["broadcaster_id": broadcaster, "moderator_id": session.userID, "message_id": messageId])
     }
@@ -371,7 +397,7 @@ public final class TwitchChat {
         let broadcaster = try await resolveBroadcaster()
         var ban: [String: Any] = ["user_id": userId]
         if seconds > 0 { ban["duration"] = seconds }
-        _ = try await helix(
+        _ = try await request(
             "POST", "moderation/bans",
             query: ["broadcaster_id": broadcaster, "moderator_id": session.userID],
             body: ["data": ban])
@@ -380,7 +406,7 @@ public final class TwitchChat {
     /// Lifts a user's timeout or ban. Needs `moderator:manage:banned_users`.
     public func unban(userId: String) async throws {
         let broadcaster = try await resolveBroadcaster()
-        _ = try await helix(
+        _ = try await request(
             "DELETE", "moderation/bans",
             query: ["broadcaster_id": broadcaster, "moderator_id": session.userID, "user_id": userId])
     }
@@ -401,7 +427,7 @@ public final class TwitchChat {
         repeat {
             var query = ["user_id": session.userID, "first": "100"]
             query["after"] = after
-            guard let body = try? await helix("GET", "moderation/channels", query: query),
+            guard let body = try? await request("GET", "moderation/channels", query: query),
                 let page = try? Guessr.decoder.decode(Page.self, from: body)
             else { return false }
             if page.data.contains(where: { $0.broadcasterId == broadcaster }) { return true }
@@ -412,10 +438,10 @@ public final class TwitchChat {
 
     /// One Helix call on the session's token. A non-2xx answer throws with
     /// Twitch's own message.
-    func helix(_ method: String, _ path: String, query: [String: String] = [:], body: [String: Any]? = nil)
+    func request(_ method: String, _ path: String, query: [String: String] = [:], body: [String: Any]? = nil)
         async throws -> Data
     {
-        var url = helixBase.appending(path: path)
+        var url = base.appending(path: path)
         if !query.isEmpty {
             url.append(queryItems: query.keys.sorted().map { URLQueryItem(name: $0, value: query[$0]) })
         }

@@ -29,9 +29,9 @@ struct GuessStateIntent: AppIntent {
         guard let session = account.session, !account.channel.isEmpty else {
             throw GuessError(text: "Sign in to Twitch in Guessr first.")
         }
-        let chat = TwitchChat(channel: account.channel, clientID: account.auth.clientID, session: session)
+        let helix = Helix(channel: account.channel, clientID: account.auth.clientID, session: session)
         do {
-            try await chat.send("!guess \(state.rawValue)")
+            try await helix.send("!guess \(state.rawValue)")
         } catch {
             throw GuessError(text: "Twitch didn't take the guess: \(error.localizedDescription)")
         }

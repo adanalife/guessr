@@ -90,8 +90,8 @@ struct ChatLog: View {
 
     private func loadArt() async {
         guard let chat = account.chat else { return }
-        await BadgeArt.shared.load { try await chat.badgeArt() }
-        if emotes.isEmpty { emotes = (try? await chat.emotes()) ?? [] }
+        await BadgeArt.shared.load { try await chat.helix.badgeArt() }
+        if emotes.isEmpty { emotes = (try? await chat.helix.emotes()) ?? [] }
     }
 
     /// Who has spoken, newest first, once each.
@@ -205,7 +205,7 @@ struct ChatLog: View {
         Task {
             await account.refreshIfNeeded()
             do {
-                try await chat.unban(userId: ban.userId)
+                try await chat.helix.unban(userId: ban.userId)
                 error = nil
             } catch {
                 self.error = error.localizedDescription
@@ -271,7 +271,7 @@ struct ChatLog: View {
         Task {
             await account.refreshIfNeeded()
             do {
-                try await chat.send(msg, replyTo: parent)
+                try await chat.helix.send(msg, replyTo: parent)
                 error = nil
             } catch {
                 self.error = error.localizedDescription
@@ -347,12 +347,12 @@ struct ChatLineView: View {
 
     /// Runs a moderation verb on a fresh token. Twitch checks the mod's
     /// standing again, and says so when it refuses.
-    private func moderate(_ verb: @escaping (TwitchChat) async throws -> Void) {
+    private func moderate(_ verb: @escaping (Helix) async throws -> Void) {
         guard let chat = account.chat else { return }
         Task {
             await account.refreshIfNeeded()
             do {
-                try await verb(chat)
+                try await verb(chat.helix)
                 error = nil
             } catch {
                 self.error = error.localizedDescription
