@@ -128,7 +128,7 @@ struct PlayView: View {
     @ViewBuilder
     private func button(_ day: GuessrDay, image: String) -> some View {
         if revealed {
-            Button(progress.next(in: day) == nil ? "See the day" : "Next round") {
+            Button(progress.next(in: day) == nil ? "Show score screen" : "Next round") {
                 (revealed, pin, message, camera) = (false, nil, nil, PlayView.lower48)
             }
         } else {
@@ -236,10 +236,10 @@ struct JoinView: View {
     }
 }
 
-/// The finished day: every round, the total, and the way to the boards.
+/// The finished day: every round, the total, and the text to share it.
 struct DayResultView: View {
-    @Environment(Account.self) private var account
     let progress: DayProgress
+    @State private var copied = false
 
     var body: some View {
         List {
@@ -254,7 +254,7 @@ struct DayResultView: View {
                 .frame(height: 280)
                 .listRowInsets(EdgeInsets())
             }
-            Section("Today's round is done") {
+            Section("You have completed today's game") {
                 ForEach(Array(progress.played.enumerated()), id: \.offset) { i, r in
                     LabeledContent(
                         "\(i + 1). \(r.score.state), \(r.score.filmed)",
@@ -264,12 +264,12 @@ struct DayResultView: View {
                     "Total",
                     value: "\(progress.total.formatted()) / \((progress.played.count * 5000).formatted())")
                 if let text = progress.shareText() {
-                    ShareLink(item: text) { Label("Share", systemImage: "square.and.arrow.up") }
+                    Button(copied ? "Copied" : "Copy share text", systemImage: copied ? "checkmark" : "doc.on.doc") {
+                        UIPasteboard.general.string = text
+                        copied = true
+                    }
                 }
                 Text("Come back tomorrow for five more.").foregroundStyle(.secondary)
-            }
-            if account.seesBoards {
-                NavigationLink("Leaderboards") { TodayView() }
             }
         }
         .paper()
