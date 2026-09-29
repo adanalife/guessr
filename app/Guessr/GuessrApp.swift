@@ -20,7 +20,7 @@ struct GuessrApp: App {
                     NavigationStack { PlayView(player: $player) }
                 }
                 if account.seesBoards {
-                    Tab("Boards", systemImage: "list.number", value: "Boards") { NavigationStack { TodayView() } }
+                    Tab("Boards", systemImage: "list.number", value: "Boards") { NavigationStack { TodayView(alias: player.alias) } }
                 }
                 // Chat hangs off the Twitch login, so a build without a Twitch
                 // client id has nothing to show there. Settings always has the
