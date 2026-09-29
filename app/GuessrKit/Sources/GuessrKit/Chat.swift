@@ -352,6 +352,14 @@ public final class TwitchChat {
             body: ["data": ban])
     }
 
+    /// Lifts a user's timeout or ban. Needs `moderator:manage:banned_users`.
+    public func unban(userId: String) async throws {
+        let broadcaster = try await resolveBroadcaster()
+        _ = try await helix(
+            "DELETE", "moderation/bans",
+            query: ["broadcaster_id": broadcaster, "moderator_id": session.userID, "user_id": userId])
+    }
+
     /// Whether the logged-in user moderates this channel. The owner does by
     /// definition; anyone else is looked up in the channels they moderate. A
     /// failed lookup reads as no.

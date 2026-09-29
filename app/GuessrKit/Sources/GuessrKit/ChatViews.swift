@@ -123,6 +123,14 @@
         #endif
     }
 
+    /// The timeout lengths the menu offers, Chatterino's short list.
+    private let timeouts = [60, 600, 3600, 86400]
+
+    /// A timeout's length as a mod reads it: `10 minutes`, `1 hour`.
+    public func timeoutLength(_ seconds: Int) -> String {
+        Duration.seconds(seconds).formatted(.units(allowed: [.hours, .minutes], width: .wide))
+    }
+
     /// A chat line's context menu: Translate for a line with words to read,
     /// then the moderation verbs a nil closure leaves out. `ban` takes the
     /// seconds, 0 for good; the ban asks first, the one verb that doesn't undo
@@ -169,7 +177,11 @@
                             Button("Delete message", systemImage: "trash", role: .destructive, action: delete)
                         }
                         if let ban {
-                            Button("Time out 10 minutes", systemImage: "clock.badge.xmark") { ban(600) }
+                            Menu("Time out", systemImage: "clock.badge.xmark") {
+                                ForEach(timeouts, id: \.self) { seconds in
+                                    Button(timeoutLength(seconds)) { ban(seconds) }
+                                }
+                            }
                             Button("Ban", systemImage: "nosign", role: .destructive) { banning = true }
                         }
                     }
