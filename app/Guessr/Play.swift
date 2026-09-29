@@ -16,6 +16,9 @@ struct PlayView: View {
     @State private var message: String?
     @State private var camera = PlayView.lower48
     @Environment(\.horizontalSizeClass) private var sizeClass
+    /// Compact on a phone held on its side, the one shape with no room to
+    /// stack the clip over the map.
+    @Environment(\.verticalSizeClass) private var heightClass
 
     private let client = GuessrClient()
 
@@ -50,9 +53,24 @@ struct PlayView: View {
     private func round(_ day: GuessrDay, image: String, number: Int, shown: PlayedRound?) -> some View {
         // A fresh player per clip: a looper can't be rebuilt on a queue
         // player still holding the last clip's items.
-        let clip = ClipView(url: Guessr.baseURL.appending(path: image), fills: sizeClass == .regular).id(image)
+        let clip = ClipView(
+            url: Guessr.baseURL.appending(path: image), fills: sizeClass == .regular && heightClass != .compact
+        ).id(image)
         return Group {
-            if sizeClass == .regular {
+            if heightClass == .compact {
+                // A phone on its side: the clip as large as the height allows,
+                // the map and controls in the column beside it.
+                HStack(spacing: 12) {
+                    clip.aspectRatio(16 / 9, contentMode: .fit)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    VStack(spacing: 8) {
+                        map(shown)
+                        controls(day, image: image, shown: shown)
+                    }
+                    .frame(width: 280)
+                }
+                .padding(.horizontal)
+            } else if sizeClass == .regular {
                 // The web's wide layout: the clip is the whole screen, since
                 // squinting at it is the game, and the map rides over its corner
                 // until the reveal makes the map the thing worth reading.
