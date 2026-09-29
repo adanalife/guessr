@@ -82,6 +82,8 @@ final class Account {
     /// The second login's code, while a mod is asked for the moderation scopes.
     private(set) var modCode: DeviceCode?
     private var modLogin: Task<Void, Never>?
+    /// The token exchange in flight; see `refreshIfNeeded()`.
+    private var refreshing: Task<Void, Never>?
 
     init(bundle: Bundle = .main, store: any SessionStore = KeychainSessionStore()) {
         auth = TwitchAuth(clientID: bundle.object(forInfoDictionaryKey: "GuessrTwitchClientID") as? String ?? "")
@@ -139,13 +141,27 @@ final class Account {
 
     /// Refreshes a login close to expiry. A refused refresh means the login is
     /// gone, so it is dropped rather than retried.
+    ///
+    /// One exchange at a time, shared by every caller: a launch onto the Chat
+    /// tab asks twice at once (the root's mod check and the tab's chat), and
+    /// Twitch's refresh tokens are single-use, so the second exchange of the
+    /// same token is refused — which would sign out the login the first one
+    /// just renewed. Unstructured, so a view's task ending doesn't cancel it.
     func refreshIfNeeded() async {
+        if let refreshing { return await refreshing.value }
         guard let old = session, old.expiresSoon else { return }
-        do {
-            adopt(try await auth.refresh(old))
-        } catch is TwitchAuthError {
-            signOut()
-        } catch {}
+        let exchange = Task {
+            defer { refreshing = nil }
+            do {
+                let fresh = try await auth.refresh(old)
+                // A sign-out, or another login, while the exchange ran wins.
+                if session?.refreshToken == old.refreshToken { adopt(fresh) }
+            } catch is TwitchAuthError {
+                if session?.refreshToken == old.refreshToken { signOut() }
+            } catch {}
+        }
+        refreshing = exchange
+        await exchange.value
     }
 
     func signOut() {
