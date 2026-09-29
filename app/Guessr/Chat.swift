@@ -65,7 +65,7 @@ struct ChatLog: View {
     var body: some View {
         VStack(spacing: 0) {
             log
-            if let status = error ?? account.chat?.lastError {
+            if let status = error ?? connectionStatus {
                 Text(status)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -85,6 +85,13 @@ struct ChatLog: View {
         }
         // Keyed on the chat, which arrives after the first appearance.
         .task(id: account.chat.map(ObjectIdentifier.init)) { await loadArt() }
+    }
+
+    /// A socket error means nothing to a player, and the chat retries on its
+    /// own, so while it is down the log says only that it is on its way.
+    private var connectionStatus: String? {
+        guard let chat = account.chat else { return nil }
+        return chat.isConnected ? chat.lastError : "Connecting to chat…"
     }
 
     private func loadArt() async {
