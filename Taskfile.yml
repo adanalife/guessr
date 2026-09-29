@@ -125,11 +125,6 @@ tasks:
     cmds:
       - ./scripts/api-bundle.sh
 
-  # The Python Worker under workerd, against a local D1 and R2 keyed like the
-  # staging ones (`npx wrangler d1 migrations apply adanalife-guessr-answers-staging
-  # --local` from api/ gives it tables). pywrangler vendors starlette and the
-  # Workers SDK into api/python_modules/ first. An edit to server/ needs a
-  # restart, since what runs is the staged copy.
   # The whole site off Cloudflare, one process: server/local.py's docstring
   # names the env it reads (sqlite file, clip directory, admin ids, host/port).
   api:serve:
@@ -137,6 +132,11 @@ tasks:
     cmds:
       - uv run --project api python -m server.local
 
+  # The Python Worker under workerd, against a local D1 and R2 keyed like the
+  # staging ones (`npx wrangler d1 migrations apply adanalife-guessr-answers-staging
+  # --local` from api/ gives it tables). pywrangler vendors starlette and the
+  # Workers SDK into api/python_modules/ first. An edit to server/ needs a
+  # restart, since what runs is the staged copy.
   api:dev:
     desc: Run the Python Worker locally under pywrangler (args pass through to wrangler dev)
     deps: [api:bundle]

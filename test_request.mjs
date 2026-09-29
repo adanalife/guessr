@@ -129,10 +129,9 @@ function within(ms, promise) {
   console.log('ok: the method, headers and body a caller asked for survive the deadline');
 }
 
-// The two failures a caller has to tell apart, and the reason this is tested at
-// all: they were one message until an admin endpoint answered 500 from a
-// database missing a migration, and the page called that "could not reach" --
-// which reads as a network problem and sends the reader to check their login.
+// The two failures a caller has to tell apart: a 500 from a database missing a
+// migration must not read as "could not reach", which reads as a network
+// problem and sends the reader to check their login.
 {
   assert.equal(
     failure('/admin/day', { status: 500 }),

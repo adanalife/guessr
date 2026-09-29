@@ -44,13 +44,10 @@ jobs:
       - name: Stamp the build
         run: |
           printf '{"label":"main@%s","tier":"staging"}\n' "${GITHUB_SHA::7}" > web/version.json
-      # A deploy whose migrations are not applied is the outage this step
-      # exists to stop, and it is not hypothetical: #205 shipped a handler
-      # reading `day_reviews`, the table was never created on production, and
-      # every load of the day preview 500ed until somebody ran the apply by
-      # hand. The ledger knew the whole time -- this is the same read
-      # `task schema:stage:status` runs -- so the only thing missing was
-      # anything that failed on it.
+      # A deploy whose migrations are not applied serves handlers that read
+      # tables the database lacks, and every such route 500s until someone runs
+      # the apply. The ledger already knows -- this is the same read
+      # `task schema:stage:status` runs -- so this step fails on it.
       #
       # Before the deploy, not after: applying is a laptop command by design
       # (the README says why migrations are never automated), so the useful
@@ -71,9 +68,9 @@ jobs:
             echo "::error::the staging database is behind — run 'task schema:stage:apply', then re-run this job"
             exit 1
           }
-      # The Worker behind the `API` binding (see the top of this file). Skipped
-      # while the repo carries no Worker config, which leaves this job exactly
-      # the Pages deploy it has always been.
+      # The Worker behind the `API` binding (see the top of this file). Every
+      # step here is conditional on api/wrangler.jsonc, so a checkout without it
+      # deploys only the Pages site.
       #
       # Node from .tool-versions rather than the runner's: pywrangler builds its
       # Pyodide environment with a node flag that Node 26 dropped.

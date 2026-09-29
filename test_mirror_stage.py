@@ -102,8 +102,7 @@ def main():
 
     # A clip staging already played on a closed date and production books
     # again: the old booking has to go, or UNIQUE(image) drops the new one and
-    # the upcoming date comes up a round short -- 2026-09-30 did, off a clip
-    # staging had played on 2026-08-28.
+    # the upcoming date comes up a round short.
     db = fresh()
     played = prod_rows([day(-30)])
     db.executescript(mirror_sql(played))
@@ -153,7 +152,7 @@ def main():
 
     # A schedule ending today is whole by schedule_gaps.sql's reckoning -- its
     # horizon is today alone -- and still has to count as short, or staging goes
-    # dark the moment tomorrow opens. 2026-09-28's cron read exactly that.
+    # dark the moment tomorrow opens.
     today = dt.date(2026, 9, 28)
     ends_today = [{"date": "2026-09-28", "n": PER_GAME}]
     assert short(ends_today, today) == ["2026-09-29", "2026-09-30"]
