@@ -6,7 +6,8 @@ with every request, so `context` builds the D1 and R2 adapters from
 once, at deploy, into the memory snapshot every isolate restores from.
 
 Who administers comes from three vars on the Worker, set as secrets:
-TWITCH_OWNER_ID, TWITCH_CHANNEL_ID, and TWITCH_CLIENT_IDS (comma-separated).
+TWITCH_OWNER_ID, TWITCH_CHANNEL_ID, and TWITCH_CLIENT_IDS (the ids
+comma-separated: stage names the staging account as an owner too).
 One left unset admits nobody, since no validated token matches an empty id.
 """
 
