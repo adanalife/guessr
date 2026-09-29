@@ -86,6 +86,21 @@ struct PlayView: View {
         }
         .navigationTitle("Round \(number) of \(day.rounds.count) · \(progress.total.formatted())")
         .navigationBarTitleDisplayMode(.inline)
+        .sensoryFeedback(.selection, trigger: pin?.latitude)
+        .sensoryFeedback(trigger: revealed) { _, shown in
+            shown ? progress.played.last.map { Self.feedback(for: $0.score.points) } : nil
+        }
+    }
+
+    /// A reveal lands as hard as it scored: a success for a square the share
+    /// string turns green or better, a thud that softens down the bands below.
+    static func feedback(for points: Int) -> SensoryFeedback {
+        switch points {
+        case 4000...: .success
+        case 2500...: .impact(weight: .heavy)
+        case 1000...: .impact(weight: .medium)
+        default: .impact(weight: .light)
+        }
     }
 
     private func map(_ shown: PlayedRound?) -> some View {
@@ -128,7 +143,7 @@ struct PlayView: View {
     @ViewBuilder
     private func button(_ day: GuessrDay, image: String) -> some View {
         if revealed {
-            Button(progress.next(in: day) == nil ? "See the day" : "Next round") {
+            Button(progress.next(in: day) == nil ? "Show score screen" : "Next round") {
                 (revealed, pin, message, camera) = (false, nil, nil, PlayView.lower48)
             }
         } else {
@@ -236,17 +251,24 @@ struct JoinView: View {
     }
 }
 
-/// The finished day: every round, the total, and the way to the boards.
+/// The finished day: every round, the total, and the text to share it.
 struct DayResultView: View {
-    @Environment(Account.self) private var account
     let progress: DayProgress
+    @State private var copied = false
+    /// The round whose clip is playing again, by image: a map pin's selection
+    /// tag and a row's tap both set it.
+    @State private var replaying: String?
+
+    static var nextDaily: Date {
+        Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now)) ?? .now
+    }
 
     var body: some View {
         List {
             Section {
-                Map {
+                Map(selection: $replaying) {
                     ForEach(Array(progress.played.enumerated()), id: \.offset) { i, r in
-                        Marker("\(i + 1)", coordinate: r.score.answer.location).tint(.green)
+                        Marker("\(i + 1)", coordinate: r.score.answer.location).tint(.green).tag(r.image)
                         MapPolyline(coordinates: [r.guess.location, r.score.answer.location])
                             .stroke(.green, style: StrokeStyle(lineWidth: 2, dash: [5, 6]))
                     }
@@ -254,24 +276,56 @@ struct DayResultView: View {
                 .frame(height: 280)
                 .listRowInsets(EdgeInsets())
             }
-            Section("Today's round is done") {
+            Section("You have completed today's game") {
                 ForEach(Array(progress.played.enumerated()), id: \.offset) { i, r in
-                    LabeledContent(
-                        "\(i + 1). \(r.score.state), \(r.score.filmed)",
-                        value: "\(r.score.miles.formatted()) mi · \(r.score.points.formatted())")
+                    Button {
+                        replaying = r.image
+                    } label: {
+                        LabeledContent(
+                            "\(Share.square(for: r.score.points)) \(i + 1). \(r.score.state), \(r.score.filmed)",
+                            value: "\(r.score.miles.formatted()) mi · \(r.score.points.formatted())")
+                    }
+                    .foregroundStyle(Color.ink)
                 }
                 LabeledContent(
                     "Total",
                     value: "\(progress.total.formatted()) / \((progress.played.count * 5000).formatted())")
                 if let text = progress.shareText() {
-                    ShareLink(item: text) { Label("Share", systemImage: "square.and.arrow.up") }
+                    Button(copied ? "Copied" : "Copy share text", systemImage: copied ? "checkmark" : "doc.on.doc") {
+                        UIPasteboard.general.string = text
+                        copied = true
+                    }
                 }
-                Text("Come back tomorrow for five more.").foregroundStyle(.secondary)
-            }
-            if account.seesBoards {
-                NavigationLink("Leaderboards") { TodayView() }
+                // The next date opens at the player's own midnight, the day
+                // `GuessrClient.today()` turns over; a relative Text keeps counting.
+                Text("Come back in \(Text(Self.nextDaily, style: .relative)) for five more.")
+                    .foregroundStyle(.secondary)
             }
         }
+        .paper()
+        .sheet(isPresented: Binding(get: { replaying != nil }, set: { if !$0 { replaying = nil } })) {
+            if let round = progress.played.first(where: { $0.image == replaying }) {
+                ReplayView(round: round)
+            }
+        }
+    }
+}
+
+/// One played round's clip again, with where it was and how the guess did.
+private struct ReplayView: View {
+    let round: PlayedRound
+
+    var body: some View {
+        VStack(spacing: 12) {
+            ClipView(url: Guessr.baseURL.appending(path: round.image)).aspectRatio(16 / 9, contentMode: .fit)
+            Text(
+                "**\(round.score.state)**, \(round.score.filmed) — off by **\(round.score.miles.formatted()) mi** for **\(round.score.points.formatted())** points."
+            )
+            .font(.callout)
+            .multilineTextAlignment(.center)
+        }
+        .padding()
+        .presentationDetents([.medium, .large])
         .paper()
     }
 }

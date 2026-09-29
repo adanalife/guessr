@@ -10,22 +10,9 @@ struct ChatTab: View {
         NavigationStack {
             Group {
                 if let session = account.session {
-                    VStack(spacing: 0) {
-                        // The mod's second login, asked for the moment Twitch
-                        // names them a mod — Chat is where it's needed.
-                        if let code = account.modCode {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Log in again to moderate chat").font(.subheadline.bold())
-                                DeviceCodeRows(code: code)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding()
-                            .background(.thinMaterial)
-                        }
-                        ChatLog(
-                            lines: account.chat?.lines ?? [],
-                            mayModerate: account.isMod && session.canModerate)
-                    }
+                    ChatLog(
+                        lines: account.chat?.lines ?? [],
+                        mayModerate: account.isMod && session.canModerate)
                     .task(id: session.userID) { await account.openChat() }
                 } else {
                     Form {
@@ -65,7 +52,7 @@ struct ChatLog: View {
     var body: some View {
         VStack(spacing: 0) {
             log
-            if let status = error ?? account.chat?.lastError {
+            if let status = error ?? connectionStatus {
                 Text(status)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -85,6 +72,13 @@ struct ChatLog: View {
         }
         // Keyed on the chat, which arrives after the first appearance.
         .task(id: account.chat.map(ObjectIdentifier.init)) { await loadArt() }
+    }
+
+    /// A socket error means nothing to a player, and the chat retries on its
+    /// own, so while it is down the log says only that it is on its way.
+    private var connectionStatus: String? {
+        guard let chat = account.chat else { return nil }
+        return chat.isConnected ? chat.lastError : "Connecting to chat…"
     }
 
     private func loadArt() async {

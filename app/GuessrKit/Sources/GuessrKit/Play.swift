@@ -214,3 +214,26 @@ extension GuessrClient {
         return try Guessr.decoder.decode(LinkClaim.self, from: try await data(req))
     }
 }
+
+/// A code another device types in to join this player, and when it stops working.
+public struct LinkCode: Sendable, Equatable, Codable {
+    public var code: String
+    public var expiresAt: String
+
+    public init(code: String, expiresAt: String) {
+        self.code = code
+        self.expiresAt = expiresAt
+    }
+}
+
+extension GuessrClient {
+    /// A fresh code for `player`, live ten minutes; asking again retires the
+    /// previous one.
+    public func issueLinkCode(for player: Player) async throws -> LinkCode {
+        var req = URLRequest(url: baseURL.appending(path: "api/link/code"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(["player_id": player.id])
+        return try Guessr.decoder.decode(LinkCode.self, from: try await data(req))
+    }
+}

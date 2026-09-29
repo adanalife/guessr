@@ -17,31 +17,29 @@ extension View {
     }
 }
 
-/// Today's rounds and the boards, read from the public API.
+/// The boards, read from the public API, the running month first.
 struct TodayView: View {
-    @State private var day: GuessrDay?
+    /// The player's own name, whose row is picked out when it makes the board.
+    var alias: String?
     @State private var board: GuessrLeaderboard?
-    @State private var boardName = "daily"
+    @State private var boardName = "monthly"
     @State private var error: String?
 
     private let client = GuessrClient()
 
     var body: some View {
         List {
-            Section("Today") {
-                if let day {
-                    LabeledContent(day.date ?? "Practice", value: "\(day.rounds.count) rounds")
-                }
-                Link("Play on the web", destination: Guessr.baseURL)
-            }
             Section {
                 Picker("Board", selection: $boardName) {
-                    Text("Yesterday").tag("daily")
                     Text("This month").tag("monthly")
+                    Text("Yesterday").tag("daily")
                 }
                 .pickerStyle(.segmented)
                 ForEach(Array((board?.rows ?? []).enumerated()), id: \.offset) { rank, row in
-                    LabeledContent("\(rank + 1). \(row.name)", value: "\(row.points)")
+                    let mine = isMine(row)
+                    LabeledContent("\(rank + 1). \(row.name)\(mine ? " (you)" : "")", value: "\(row.points)")
+                        .fontWeight(mine ? .bold : nil)
+                        .listRowBackground(mine ? Color.accentColor.opacity(0.15) : nil)
                 }
             } header: {
                 Text(board.map { "Leaderboard · \($0.period)" } ?? "Leaderboard")
@@ -56,11 +54,18 @@ struct TodayView: View {
         .refreshable { await load() }
     }
 
+    // ponytail: matched by name, since no public response may carry a player
+    // id. Another player drawing the same two words lights up too (the board
+    // numbers them "(2)"), and an operator-set alias does not; a board that
+    // marks the caller's row server-side is the upgrade.
+    private func isMine(_ row: GuessrLeaderboard.Row) -> Bool {
+        guard let alias else { return false }
+        return row.name == alias || row.name.hasPrefix("\(alias) (")
+    }
+
     private func load() async {
         do {
-            async let d = client.day()
-            async let b = client.leaderboard(board: boardName)
-            (day, board, error) = (try await d, try await b, nil)
+            (board, error) = (try await client.leaderboard(board: boardName), nil)
         } catch {
             self.error = error.localizedDescription
         }
@@ -74,18 +79,31 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            NameSection(player: $player)
             ReminderSection()
-            // Only before the first guess: joining after it would leave the
-            // day's progress on this device belonging to the player it left.
-            if !playedToday {
-                Section {
+            Section {
+                LinkCodeRows(player: player)
+                // Only before the first guess: joining after it would leave the
+                // day's progress on this device belonging to the player it left.
+                if !playedToday {
                     NavigationLink("Already playing on the web? Enter your code") { JoinView(player: $player) }
                 }
+            } header: {
+                Text("Other devices")
             }
             if account.auth.isConfigured {
                 Section("Twitch") {
                     if let session = account.session {
                         LabeledContent("Signed in as", value: session.login)
+                        // A mod's second login, for the scopes that delete,
+                        // time out and ban.
+                        if account.needsModLogin {
+                            if let code = account.modCode {
+                                DeviceCodeRows(code: code)
+                            } else {
+                                Button("Log in again to moderate chat") { account.startModLogin() }
+                            }
+                        }
                         Button("Sign out", role: .destructive) { account.signOut() }
                     } else {
                         TwitchSignIn()
@@ -121,6 +139,66 @@ struct SettingsView: View {
         // Read on every visit rather than once: the Play tab saves as it goes.
         .onAppear { playedToday = !DayProgress.resume(Saved.progress, on: GuessrClient.today()).played.isEmpty }
         .task { await account.refreshIfNeeded() }
+    }
+}
+
+/// The name the boards show, and a reroll that keeps the one name before it,
+/// as the web's About panel does. The server records whatever name the next
+/// play carries, so a new one shows from the next round on.
+struct NameSection: View {
+    @Binding var player: Player
+    @AppStorage("alias-prev") private var previous = ""
+
+    var body: some View {
+        Section("Leaderboard name") {
+            Text(player.alias).font(.headline)
+            Button("Generate new name") {
+                var next = Alias.random()
+                while next == player.alias { next = Alias.random() }
+                previous = player.alias
+                player.alias = next
+            }
+            if !previous.isEmpty {
+                Button("Undo — go back to \(previous)") {
+                    player.alias = previous
+                    previous = ""
+                }
+            }
+        }
+    }
+}
+
+/// A code the web types in to join this device's player, live ten minutes.
+struct LinkCodeRows: View {
+    let player: Player
+    @State private var code: LinkCode?
+    @State private var asking = false
+    @State private var error: String?
+
+    private let client = GuessrClient()
+
+    var body: some View {
+        if let code {
+            LabeledContent("Code", value: code.code).font(.title3.monospaced())
+            Text("On the web, open About, tap Link a device, and enter it under \"Have a code from another device?\" It lasts ten minutes.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        Button(asking ? "Asking…" : code == nil ? "Link a device" : "Show a new code") { Task { await issue() } }
+            .disabled(asking)
+        if let error {
+            Text(error).foregroundStyle(.secondary)
+        }
+    }
+
+    private func issue() async {
+        asking = true
+        defer { asking = false }
+        do {
+            (code, error) = (try await client.issueLinkCode(for: player), nil)
+        } catch {
+            self.error = "Could not reach the server. Try again."
+        }
     }
 }
 
@@ -170,15 +248,16 @@ struct TwitchSignIn: View {
     }
 }
 
-/// A device code waiting on the human: the code, where to enter it, and a
-/// spinner for the wait.
+/// A device code waiting on the human: the code, the button to Twitch's page
+/// for it, and a spinner for the wait.
 struct DeviceCodeRows: View {
     let code: DeviceCode
 
     var body: some View {
         LabeledContent("Code", value: code.userCode)
         if let url = URL(string: code.verificationUri) {
-            Link("Enter it at Twitch", destination: url)
+            Link(destination: url) { Label("Go to Twitch", systemImage: "arrow.up.forward.app") }
+                .buttonStyle(.borderedProminent)
         }
         ProgressView()
     }
