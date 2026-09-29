@@ -86,6 +86,15 @@ struct SettingsView: View {
                 Section("Twitch") {
                     if let session = account.session {
                         LabeledContent("Signed in as", value: session.login)
+                        // A mod's second login, for the scopes that delete,
+                        // time out and ban.
+                        if account.needsModLogin {
+                            if let code = account.modCode {
+                                DeviceCodeRows(code: code)
+                            } else {
+                                Button("Log in again to moderate chat") { account.startModLogin() }
+                            }
+                        }
                         Button("Sign out", role: .destructive) { account.signOut() }
                     } else {
                         TwitchSignIn()
