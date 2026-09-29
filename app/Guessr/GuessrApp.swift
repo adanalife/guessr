@@ -179,7 +179,7 @@ final class Account {
     func checkModerates() async {
         await refreshIfNeeded()
         guard let session, !channel.isEmpty, !moderates else { return }
-        let asker = chat ?? TwitchChat(channel: channel, clientID: auth.clientID, session: session)
+        let asker = chat?.helix ?? Helix(channel: channel, clientID: auth.clientID, session: session)
         let answer = await asker.moderates()
         // The login may have changed while Twitch answered.
         if self.session?.userID == session.userID { moderates = answer }
@@ -198,7 +198,7 @@ final class Account {
             chat = fresh
         }
         // A failed lookup reads as no, so it is asked again on the next visit.
-        if !moderates, let chat { moderates = await chat.moderates() }
+        if !moderates, let chat { moderates = await chat.helix.moderates() }
     }
 
     /// Whether the login moderates the channel without the scopes to act on

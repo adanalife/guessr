@@ -158,14 +158,14 @@ private struct HelixBadges: Decodable {
     var data: [Set]
 }
 
-extension TwitchChat {
+extension Helix {
     /// Twitch's badge art: the global sets with the channel's own on top,
     /// since a channel's subscriber badges replace the stock ones. Read once
     /// and hold.
     public func badgeArt() async throws -> BadgeSets {
         let broadcaster = try await resolveBroadcaster()
-        let global = try BadgeSets.helix(try await helix("GET", "chat/global_badges"))
-        let channel = try BadgeSets.helix(try await helix("GET", "chat/badges", query: ["broadcaster_id": broadcaster]))
+        let global = try BadgeSets.helix(try await request("GET", "chat/global_badges"))
+        let channel = try BadgeSets.helix(try await request("GET", "chat/badges", query: ["broadcaster_id": broadcaster]))
         return global.overlaid(with: channel)
     }
 }
@@ -181,7 +181,7 @@ public struct ChatEmote: Sendable, Hashable, Identifiable, Decodable {
     }
 }
 
-extension TwitchChat {
+extension Helix {
     /// The channel's own emotes, then Twitch's global set. Read once and hold.
     // ponytail: every emote the channel has, whether or not this viewer may
     // use one (a sub emote sent by a non-sub goes out as its name). The exact
@@ -189,8 +189,8 @@ extension TwitchChat {
     public func emotes() async throws -> [ChatEmote] {
         struct Page: Decodable { var data: [ChatEmote] }
         let broadcaster = try await resolveBroadcaster()
-        let channel = try await helix("GET", "chat/emotes", query: ["broadcaster_id": broadcaster])
-        let global = try await helix("GET", "chat/emotes/global")
+        let channel = try await request("GET", "chat/emotes", query: ["broadcaster_id": broadcaster])
+        let global = try await request("GET", "chat/emotes/global")
         return try Guessr.decoder.decode(Page.self, from: channel).data
             + Guessr.decoder.decode(Page.self, from: global).data
     }
