@@ -270,6 +270,11 @@ struct ChatLineView: View {
                         .font(.caption.italic())
                         .foregroundStyle(.secondary)
                 }
+                if line.isFirstMessage {
+                    Label("First message in the channel", systemImage: "hand.wave.fill")
+                        .font(.caption.italic())
+                        .foregroundStyle(.secondary)
+                }
                 if line.kind == nil || !line.text.isEmpty {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         ForEach(line.badgeTags) { BadgeMark(tag: $0) }
@@ -284,6 +289,7 @@ struct ChatLineView: View {
                 .font(.caption.monospaced())
                 .foregroundStyle(.tertiary)
         }
+        .listRowBackground(tint)
         .modifier(
             ChatLineMenu(
                 translatable: line.text.isEmpty ? nil : line.text,
@@ -311,6 +317,15 @@ struct ChatLineView: View {
                 self.error = error.localizedDescription
             }
         }
+    }
+
+    /// A line worth a second look reads on a wash: one that names the reader,
+    /// a first-timer to welcome, or one bought with channel points.
+    private var tint: Color? {
+        if let me = account.session?.login, line.mentions(me) { return .accentColor.opacity(0.18) }
+        if line.isFirstMessage { return .green.opacity(0.12) }
+        if line.isPointsHighlight { return .purple.opacity(0.18) }
+        return nil
     }
 
     /// The sender's name in their Twitch color, or the palette's for one who
@@ -384,7 +399,7 @@ private func shortAge(_ then: Date, now: Date = .now) -> String {
                     badges: ["moderator": "1", "subscriber": "3012"], timestamp: now.addingTimeInterval(-300)),
                 ChatLine(
                     id: "2", userId: "11", login: "roadwatcher", displayName: "RoadWatcher", text: "where is this?",
-                    color: "#1E90FF", timestamp: now.addingTimeInterval(-95)),
+                    color: "#1E90FF", timestamp: now.addingTimeInterval(-95), messageType: "user_intro"),
                 ChatLine(
                     id: "3", userId: "12", login: "nightbot", displayName: "Nightbot",
                     text: "Guess today's rounds at guessr.dana.lol", color: "#8A2BE2",

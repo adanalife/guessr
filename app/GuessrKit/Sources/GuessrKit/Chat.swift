@@ -43,11 +43,15 @@ public struct ChatLine: Sendable, Equatable, Identifiable {
     /// added, often nothing.
     public var kind: String?
     public var notice: String?
+    /// Twitch's `message_type` for an ordinary message: `user_intro` for a
+    /// chatter's first message in the channel, `channel_points_highlighted`
+    /// for one paid for with channel points; nil or `text` otherwise.
+    public var messageType: String?
 
     public init(
         id: String, userId: String, login: String, displayName: String, text: String, color: String = "",
         badges: [String: String] = [:], fragments: [ChatFragment]? = nil, timestamp: Date = .now,
-        kind: String? = nil, notice: String? = nil
+        kind: String? = nil, notice: String? = nil, messageType: String? = nil
     ) {
         self.id = id
         self.userId = userId
@@ -60,6 +64,7 @@ public struct ChatLine: Sendable, Equatable, Identifiable {
         self.timestamp = timestamp
         self.kind = kind
         self.notice = notice
+        self.messageType = messageType
     }
 
     public var isBroadcaster: Bool { badges["broadcaster"] != nil }
@@ -476,6 +481,7 @@ struct Frame: Decodable {
         var targetUserId: String?
         var noticeType: String?
         var systemMessage: String?
+        var messageType: String?
 
         func line(at timestamp: Date) -> ChatLine? {
             guard let messageId, let chatterUserId, let message else { return nil }
@@ -500,7 +506,8 @@ struct Frame: Decodable {
                 fragments: fragments,
                 timestamp: timestamp,
                 kind: noticeType,
-                notice: systemMessage
+                notice: systemMessage,
+                messageType: messageType
             )
         }
     }
