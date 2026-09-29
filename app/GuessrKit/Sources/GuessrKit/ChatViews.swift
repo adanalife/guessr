@@ -141,19 +141,23 @@
         var name: String
         var delete: (() -> Void)?
         var ban: ((Int) -> Void)?
+        var reply: (() -> Void)?
         /// Whether the system translation sheet is up for this line.
         @State private var translating = false
         @State private var banning = false
 
         /// `translatable` is the text the Translate item offers, nil for none;
-        /// `name` is who the ban confirmation names.
+        /// `name` is who the ban confirmation names; `reply`, when given,
+        /// heads the menu.
         public init(
-            translatable: String?, name: String, delete: (() -> Void)?, ban: ((Int) -> Void)?
+            translatable: String?, name: String, delete: (() -> Void)?, ban: ((Int) -> Void)?,
+            reply: (() -> Void)? = nil
         ) {
             self.translatable = translatable
             self.name = name
             self.delete = delete
             self.ban = ban
+            self.reply = reply
         }
 
         public func body(content: Content) -> some View {
@@ -168,6 +172,9 @@
                 // time palls.
                 content
                     .contextMenu {
+                        if let reply {
+                            Button("Reply", systemImage: "arrowshape.turn.up.left", action: reply)
+                        }
                         #if canImport(Translation)
                             if translatable != nil {
                                 Button("Translate", systemImage: "translate") { translating = true }
