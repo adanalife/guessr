@@ -74,13 +74,17 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            NameSection(player: $player)
             ReminderSection()
-            // Only before the first guess: joining after it would leave the
-            // day's progress on this device belonging to the player it left.
-            if !playedToday {
-                Section {
+            Section {
+                LinkCodeRows(player: player)
+                // Only before the first guess: joining after it would leave the
+                // day's progress on this device belonging to the player it left.
+                if !playedToday {
                     NavigationLink("Already playing on the web? Enter your code") { JoinView(player: $player) }
                 }
+            } header: {
+                Text("Other devices")
             }
             if account.auth.isConfigured {
                 Section("Twitch") {
@@ -130,6 +134,66 @@ struct SettingsView: View {
         // Read on every visit rather than once: the Play tab saves as it goes.
         .onAppear { playedToday = !DayProgress.resume(Saved.progress, on: GuessrClient.today()).played.isEmpty }
         .task { await account.refreshIfNeeded() }
+    }
+}
+
+/// The name the boards show, and a reroll that keeps the one name before it,
+/// as the web's About panel does. The server records whatever name the next
+/// play carries, so a new one shows from the next round on.
+struct NameSection: View {
+    @Binding var player: Player
+    @AppStorage("alias-prev") private var previous = ""
+
+    var body: some View {
+        Section("Leaderboard name") {
+            Text(player.alias).font(.headline)
+            Button("Generate new name") {
+                var next = Alias.random()
+                while next == player.alias { next = Alias.random() }
+                previous = player.alias
+                player.alias = next
+            }
+            if !previous.isEmpty {
+                Button("Undo — go back to \(previous)") {
+                    player.alias = previous
+                    previous = ""
+                }
+            }
+        }
+    }
+}
+
+/// A code the web types in to join this device's player, live ten minutes.
+struct LinkCodeRows: View {
+    let player: Player
+    @State private var code: LinkCode?
+    @State private var asking = false
+    @State private var error: String?
+
+    private let client = GuessrClient()
+
+    var body: some View {
+        if let code {
+            LabeledContent("Code", value: code.code).font(.title3.monospaced())
+            Text("On the web, open About, tap Link a device, and enter it under \"Have a code from another device?\" It lasts ten minutes.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        Button(asking ? "Asking…" : code == nil ? "Link a device" : "Show a new code") { Task { await issue() } }
+            .disabled(asking)
+        if let error {
+            Text(error).foregroundStyle(.secondary)
+        }
+    }
+
+    private func issue() async {
+        asking = true
+        defer { asking = false }
+        do {
+            (code, error) = (try await client.issueLinkCode(for: player), nil)
+        } catch {
+            self.error = "Could not reach the server. Try again."
+        }
     }
 }
 

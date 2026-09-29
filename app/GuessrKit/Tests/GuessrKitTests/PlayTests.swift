@@ -43,6 +43,22 @@ final class ClaimingGuessr: URLProtocol, @unchecked Sendable {
     }
 }
 
+/// Answers every request with the link-code fixture and keeps the last request.
+final class IssuingGuessr: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var lastBody: [String: Any] = [:]
+    nonisolated(unsafe) static var lastPath: String?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+
+    override func startLoading() {
+        Self.lastPath = request.url?.path
+        Self.lastBody = jsonBody(of: request)
+        answer(self, with: "link-code")
+    }
+}
+
 /// URLSession hands a protocol the body as a stream, not as httpBody.
 private func jsonBody(of request: URLRequest) -> [String: Any] {
     var body = request.httpBody ?? Data()
@@ -129,6 +145,13 @@ private let image = "clips/2018_1015_183219_002_opt-026000.mp4"
     #expect(ClaimingGuessr.lastPath == "/api/link/claim")
     #expect(ClaimingGuessr.lastBody["code"] as? String == "ABCD2345")
     #expect(ClaimingGuessr.lastBody["from"] as? String == player.id)
+}
+
+@Test func anIssuedCodeIsForThisPlayer() async throws {
+    let code = try await client(IssuingGuessr.self).issueLinkCode(for: player)
+    #expect(code == LinkCode(code: "K7QM2XPB", expiresAt: "2026-09-28T23:59:00Z"))
+    #expect(IssuingGuessr.lastPath == "/api/link/code")
+    #expect(IssuingGuessr.lastBody["player_id"] as? String == player.id)
 }
 
 @Test func progressResumesItsOwnDateOnly() throws {
