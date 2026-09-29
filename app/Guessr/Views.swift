@@ -17,31 +17,29 @@ extension View {
     }
 }
 
-/// Today's rounds and the boards, read from the public API.
+/// The boards, read from the public API, the running month first.
 struct TodayView: View {
-    @State private var day: GuessrDay?
+    /// The player's own name, whose row is picked out when it makes the board.
+    var alias: String?
     @State private var board: GuessrLeaderboard?
-    @State private var boardName = "daily"
+    @State private var boardName = "monthly"
     @State private var error: String?
 
     private let client = GuessrClient()
 
     var body: some View {
         List {
-            Section("Today") {
-                if let day {
-                    LabeledContent(day.date ?? "Practice", value: "\(day.rounds.count) rounds")
-                }
-                Link("Play on the web", destination: Guessr.baseURL)
-            }
             Section {
                 Picker("Board", selection: $boardName) {
-                    Text("Yesterday").tag("daily")
                     Text("This month").tag("monthly")
+                    Text("Yesterday").tag("daily")
                 }
                 .pickerStyle(.segmented)
                 ForEach(Array((board?.rows ?? []).enumerated()), id: \.offset) { rank, row in
-                    LabeledContent("\(rank + 1). \(row.name)", value: "\(row.points)")
+                    let mine = isMine(row)
+                    LabeledContent("\(rank + 1). \(row.name)\(mine ? " (you)" : "")", value: "\(row.points)")
+                        .fontWeight(mine ? .bold : nil)
+                        .listRowBackground(mine ? Color.accentColor.opacity(0.15) : nil)
                 }
             } header: {
                 Text(board.map { "Leaderboard · \($0.period)" } ?? "Leaderboard")
@@ -56,11 +54,18 @@ struct TodayView: View {
         .refreshable { await load() }
     }
 
+    // ponytail: matched by name, since no public response may carry a player
+    // id. Another player drawing the same two words lights up too (the board
+    // numbers them "(2)"), and an operator-set alias does not; a board that
+    // marks the caller's row server-side is the upgrade.
+    private func isMine(_ row: GuessrLeaderboard.Row) -> Bool {
+        guard let alias else { return false }
+        return row.name == alias || row.name.hasPrefix("\(alias) (")
+    }
+
     private func load() async {
         do {
-            async let d = client.day()
-            async let b = client.leaderboard(board: boardName)
-            (day, board, error) = (try await d, try await b, nil)
+            (board, error) = (try await client.leaderboard(board: boardName), nil)
         } catch {
             self.error = error.localizedDescription
         }
