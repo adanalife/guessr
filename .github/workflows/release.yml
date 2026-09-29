@@ -4,6 +4,11 @@ name: release
 # main deploys to staging on every merge (staging.yml); production only moves
 # when the standing release PR is merged, so the live game is always a version
 # with a changelog entry rather than whatever landed last.
+#
+# Production runs the Python API the same way staging does: the Worker deploys
+# first, and the Pages project's `API` service binding (set by hand in the
+# dashboard) decides whether the site's /api/, /admin/ and /clips/ reach it.
+# Without the binding the Worker sits idle and the JS Functions keep answering.
 on:
   push:
     tags:
@@ -54,6 +59,23 @@ jobs:
             echo "::error::the production database is behind — run 'task schema:prod:apply', then re-run this job"
             exit 1
           }
+      # Node from .tool-versions rather than the runner's: pywrangler builds its
+      # Pyodide environment with a node flag that Node 26 dropped.
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .tool-versions
+      - uses: astral-sh/setup-uv@v10.2.0 # no floating major tag published
+      - name: Deploy the Python Worker (production)
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        # pywrangler vendors the Python packages (its `sync`) before handing the
+        # deploy to wrangler; the bundle is the server package it uploads.
+        run: |
+          ./scripts/api-bundle.sh
+          cd api
+          uv sync
+          uv run pywrangler deploy --env production
       - name: Deploy to Cloudflare Pages (production)
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
