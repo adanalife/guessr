@@ -163,7 +163,12 @@ def mirror_sql(rows: list[dict]) -> str:
         # Every unopened date goes, not just the ones being replaced. A date
         # staging holds and production does not is a leftover of an older set,
         # and leaving it would serve content no tier is reviewing.
-        + "DELETE FROM round_days WHERE date >= date('now');\n\n"
+        # And any past date holding a clip production has scheduled again:
+        # round_days is UNIQUE on image, so the old booking would make the
+        # INSERT below drop the new one and leave that date a round short.
+        # Staging's closed dates are nobody's history, so losing one costs nothing.
+        + "DELETE FROM round_days WHERE date >= date('now')\n"
+        + f"   OR image IN ({', '.join(lit(r['image']) for r in pool)});\n\n"
         + f"INSERT OR IGNORE INTO round_days (date, position, image) VALUES\n{booked};\n\n"
         # Both directions, because the DELETE above unscheduled whatever staging
         # held: 'scheduled' has to stop being true for those. A rejected round

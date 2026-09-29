@@ -1,1 +1,1 @@
-Staging's daily schedule mirror tops up two days before staging runs out, rather than the morning a date opens with nothing on it — which turned every PR's preview deploy red.
+Staging's daily schedule mirror tops up two days before staging runs out, rather than the morning a date opens with nothing on it, and no longer leaves a day a round short when production books a clip staging already played.

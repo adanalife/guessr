@@ -100,6 +100,18 @@ def main():
     db.executescript(mirror_sql(moved))
     assert schedule(db) == {day(3): PER_GAME}
 
+    # A clip staging already played on a closed date and production books
+    # again: the old booking has to go, or UNIQUE(image) drops the new one and
+    # the upcoming date comes up a round short -- 2026-09-30 did, off a clip
+    # staging had played on 2026-08-28.
+    db = fresh()
+    played = prod_rows([day(-30)])
+    db.executescript(mirror_sql(played))
+    again = prod_rows([day(1)], slug="us-30", start=700)
+    again[0] = dict(played[0], date=day(1), position=1)
+    db.executescript(mirror_sql(again))
+    assert schedule(db)[day(1)] == PER_GAME
+
     # A date staging holds and production does not is an older set's leftover,
     # and goes with the rest of the upcoming schedule.
     db = fresh()
