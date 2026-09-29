@@ -42,6 +42,20 @@ final class PracticeGuessr: URLProtocol, @unchecked Sendable {
     }
 }
 
+/// Answers every request with the day fixture and keeps the last URL.
+final class PracticeDayGuessr: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var lastURL: URL?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+
+    override func startLoading() {
+        Self.lastURL = request.url
+        answer(self, with: "day")
+    }
+}
+
 /// Answers every request with the link-claim fixture and keeps the last request.
 final class ClaimingGuessr: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var lastBody: [String: Any] = [:]
@@ -140,6 +154,13 @@ private let image = "clips/2018_1015_183219_002_opt-026000.mp4"
     #expect(body["player_id"] as? String == player.id)
     #expect(body["handle"] as? String == "Patient Delta")
     #expect(body["lat"] as? Double == 33.76)
+}
+
+@Test func aPracticeDrawAsksForPractice() async throws {
+    _ = try await client(PracticeDayGuessr.self).practiceDay()
+    // A bare /api/day is a malformed daily request, not a practice one.
+    #expect(PracticeDayGuessr.lastURL?.path == "/api/day")
+    #expect(PracticeDayGuessr.lastURL?.query == "practice")
 }
 
 @Test func aPracticeGuessSendsNoDate() async throws {
