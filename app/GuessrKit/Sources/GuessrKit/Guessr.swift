@@ -212,6 +212,12 @@ public struct GuessrClient: Sendable {
                     .appending(queryItems: [URLQueryItem(name: "date", value: date)])))
     }
 
+    /// Five rounds drawn from dates that have closed, for as many plays as
+    /// anyone likes; a guess at one scores without being recorded.
+    public func practiceDay() async throws -> GuessrDay {
+        try Guessr.decoder.decode(GuessrDay.self, from: try await data(baseURL.appending(path: "api/day")))
+    }
+
     /// The board for a period, best player first: "daily" for the last date
     /// that closed, "monthly" for the running month.
     public func leaderboard(board: String = "daily") async throws -> GuessrLeaderboard {

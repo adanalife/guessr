@@ -164,15 +164,17 @@ public struct DayProgress: Sendable, Equatable, Codable {
 extension GuessrClient {
     /// Scores a guess against a date's round and records it for `player`.
     /// First write wins on the server, so a round guessed twice comes back with
-    /// the score from the first time.
-    public func score(image: String, guess: Coordinate, date: String, player: Player) async throws
+    /// the score from the first time. A nil `date` is a practice round: the
+    /// key is left out, which is what the server reads as practice, and
+    /// nothing is recorded.
+    public func score(image: String, guess: Coordinate, date: String?, player: Player) async throws
         -> GuessrScore
     {
         struct Body: Encodable {
             var image: String
             var lat: Double
             var lng: Double
-            var date: String
+            var date: String?
             var playerId: String
             var handle: String
         }

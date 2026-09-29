@@ -27,6 +27,21 @@ final class ScoringGuessr: URLProtocol, @unchecked Sendable {
     }
 }
 
+/// The score fixture again, for the practice test alone: Swift Testing runs
+/// tests in parallel, and a shared `lastBody` would race.
+final class PracticeGuessr: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var lastBody: [String: Any] = [:]
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+
+    override func startLoading() {
+        Self.lastBody = jsonBody(of: request)
+        answer(self, with: "score")
+    }
+}
+
 /// Answers every request with the link-claim fixture and keeps the last request.
 final class ClaimingGuessr: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var lastBody: [String: Any] = [:]
@@ -125,6 +140,14 @@ private let image = "clips/2018_1015_183219_002_opt-026000.mp4"
     #expect(body["player_id"] as? String == player.id)
     #expect(body["handle"] as? String == "Patient Delta")
     #expect(body["lat"] as? Double == 33.76)
+}
+
+@Test func aPracticeGuessSendsNoDate() async throws {
+    _ = try await client(PracticeGuessr.self).score(
+        image: "clips/x.mp4", guess: Coordinate(lat: 0, lng: 0), date: nil, player: player)
+    // The key's presence, not its value, is what makes the server record a play.
+    #expect(PracticeGuessr.lastBody.keys.contains("date") == false)
+    #expect(PracticeGuessr.lastBody["player_id"] as? String == player.id)
 }
 
 @Test func aClosedDayIsARefusalNotARetry() async throws {
