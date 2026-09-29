@@ -330,22 +330,81 @@ private struct ReplayView: View {
     }
 }
 
-/// A clip on a muted loop. No controls: a scrubber is a way to hunt for a frame
-/// the round didn't mean to show. `fills` crops it to cover its frame rather
-/// than letterboxing inside it.
+/// A clip on a muted loop. No scrubber: a scrubber is a way to hunt for a
+/// frame the round didn't mean to show. A pinch zooms in and a drag pans the
+/// zoomed picture, a tap pauses it, and a double tap zooms back out. `fills`
+/// crops it to cover its frame rather than letterboxing inside it.
 struct ClipView: View {
     let url: URL
     var fills = false
     @State private var player = AVQueuePlayer()
     @State private var looper: AVPlayerLooper?
+    @State private var paused = false
+    /// The zoom between gestures, and the one a gesture in progress shows.
+    @State private var zoom = ClipZoom()
+    @State private var live: ClipZoom?
 
     var body: some View {
-        PlayerLayer(player: player, gravity: fills ? .resizeAspectFill : .resizeAspect)
-            .allowsHitTesting(false)
-            .task(id: url) {
-                player.isMuted = true
-                looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
-                player.play()
+        GeometryReader { geo in
+            let shown = live ?? zoom
+            PlayerLayer(player: player, gravity: fills ? .resizeAspectFill : .resizeAspect)
+                .allowsHitTesting(false)
+                .scaleEffect(shown.scale)
+                .offset(x: shown.x, y: shown.y)
+                .frame(width: geo.size.width, height: geo.size.height)
+                .clipped()
+                .contentShape(Rectangle())
+                .gesture(pinch(geo.size))
+                .gesture(pan(geo.size), isEnabled: zoom.scale > 1)
+                .onTapGesture(count: 2) { withAnimation { zoom = ClipZoom() } }
+                .onTapGesture { togglePause() }
+                .overlay {
+                    if paused {
+                        Image(systemName: "pause.circle.fill")
+                            .font(.largeTitle)
+                            .foregroundStyle(.white.opacity(0.8))
+                            .allowsHitTesting(false)
+                    }
+                }
+        }
+        .accessibilityElement()
+        .accessibilityLabel(paused ? "Clip, paused" : "Clip")
+        .accessibilityAction(named: paused ? "Play" : "Pause") { togglePause() }
+        .task(id: url) {
+            player.isMuted = true
+            looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
+            player.play()
+        }
+    }
+
+    private func togglePause() {
+        paused.toggle()
+        if paused { player.pause() } else { player.play() }
+    }
+
+    private func pinch(_ size: CGSize) -> some Gesture {
+        MagnifyGesture()
+            .onChanged { value in
+                live = zoom.zoomed(
+                    by: value.magnification,
+                    aboutX: value.startLocation.x - size.width / 2, y: value.startLocation.y - size.height / 2,
+                    width: size.width, height: size.height)
+            }
+            .onEnded { _ in
+                zoom = live ?? zoom
+                live = nil
+            }
+    }
+
+    private func pan(_ size: CGSize) -> some Gesture {
+        DragGesture()
+            .onChanged { value in
+                live = zoom.panned(
+                    dx: value.translation.width, dy: value.translation.height, width: size.width, height: size.height)
+            }
+            .onEnded { _ in
+                zoom = live ?? zoom
+                live = nil
             }
     }
 }
