@@ -4,6 +4,35 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.18.0 — 2026-09-29
+
+### New
+
+- The app taps when a pin drops, and a reveal lands with a haptic as strong as the round scored. ([#272](https://github.com/adanalife/guessr/pull/272))
+- The app's Settings shows the player's leaderboard name with Generate new name and a one-step Undo, and can show a link code so the web joins the phone, not only the other way round. ([#273](https://github.com/adanalife/guessr/pull/273))
+- Add your info here ([#279](https://github.com/adanalife/guessr/pull/279))
+- In the app, a pinch zooms into the playing clip and a drag moves around it; a tap pauses the clip and a double tap zooms back out. ([#280](https://github.com/adanalife/guessr/pull/280))
+- The app's chat picks out lines that mention you, a chatter's first message in the channel, and messages highlighted with channel points. ([#282](https://github.com/adanalife/guessr/pull/282))
+- The app plays on an iPhone held sideways, with the clip beside the map. ([#283](https://github.com/adanalife/guessr/pull/283))
+- The app's chat shows which message a reply answers, and a long press on a message replies to it in a thread. ([#285](https://github.com/adanalife/guessr/pull/285))
+
+### Changed
+
+- The app's score screen reads plainer ("Show score screen", "You have completed today's game", Copy share text instead of the share sheet, no Leaderboards link), counts down to the next daily, marks each round with its share square, and plays a round's clip again when its row or pin is tapped. ([#269](https://github.com/adanalife/guessr/pull/269))
+- The app's Boards tab opens on this month, drops the Today section, and picks out the player's own row. ([#270](https://github.com/adanalife/guessr/pull/270))
+- The app's Twitch sign-in has a Go to Twitch button, a dropped chat says "Connecting to chat…" rather than a socket error, and a mod's second login lives in Settings beside the first instead of popping up over Chat. ([#271](https://github.com/adanalife/guessr/pull/271))
+- Signing in with Twitch in the app opens Twitch straight away; coming back shows the code with a copy button and a button back to Twitch. ([#281](https://github.com/adanalife/guessr/pull/281))
+- A moderator in the app's chat sees a removed message struck through rather than gone; everyone else's chat still drops it. ([#284](https://github.com/adanalife/guessr/pull/284))
+
+### Fixed
+
+- Staging's daily schedule mirror tops up two days before staging runs out, rather than the morning a date opens with nothing on it, and no longer leaves a day a round short when production books a clip staging already played. ([#275](https://github.com/adanalife/guessr/pull/275))
+- The app no longer signs you out of Twitch when it opens on the Chat tab with an expired token. ([#278](https://github.com/adanalife/guessr/pull/278))
+
+### Behind the scenes
+
+- A TestFlight release checks the signed build the way the App Store would before uploading it, so a build Apple would refuse fails locally first. ([#286](https://github.com/adanalife/guessr/pull/286))
+
 ## v1.17.0 — 2026-09-28
 
 ### New
