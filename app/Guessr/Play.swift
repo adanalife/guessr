@@ -241,6 +241,10 @@ struct DayResultView: View {
     let progress: DayProgress
     @State private var copied = false
 
+    static var nextDaily: Date {
+        Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now)) ?? .now
+    }
+
     var body: some View {
         List {
             Section {
@@ -269,7 +273,10 @@ struct DayResultView: View {
                         copied = true
                     }
                 }
-                Text("Come back tomorrow for five more.").foregroundStyle(.secondary)
+                // The next date opens at the player's own midnight, the day
+                // `GuessrClient.today()` turns over; a relative Text keeps counting.
+                Text("Come back in \(Text(Self.nextDaily, style: .relative)) for five more.")
+                    .foregroundStyle(.secondary)
             }
         }
         .paper()
