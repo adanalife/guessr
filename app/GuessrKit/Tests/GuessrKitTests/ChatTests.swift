@@ -130,13 +130,14 @@ private func chat(userID: String = "2914196", capacity: Int = 300) -> TwitchChat
     #expect(chat.lines.first?.kind == "resub")
 }
 
-@MainActor @Test func deleteAndClearTakeLinesOut() {
+@MainActor @Test func deleteAndClearMarkLinesDeleted() {
     let chat = chat()
     for (id, user) in [("m1", "1"), ("m2", "2"), ("m3", "1"), ("m4", "3")] { chat.handle(message(id, from: user)) }
     chat.handle(event("channel.chat.message_delete", #""target_user_id":"3","message_id":"m4""#))
-    #expect(chat.lines.map(\.id) == ["m1", "m2", "m3"])
+    #expect(chat.lines.filter(\.deleted).map(\.id) == ["m4"])
     chat.handle(event("channel.chat.clear_user_messages", #""target_user_id":"1""#))
-    #expect(chat.lines.map(\.id) == ["m2"])
+    #expect(chat.lines.filter(\.deleted).map(\.id) == ["m1", "m3", "m4"])
+    #expect(chat.lines.count == 4)
 }
 
 @MainActor @Test func theRingIsBoundedAndDropsRedeliveries() {

@@ -10,9 +10,9 @@ struct ChatTab: View {
         NavigationStack {
             Group {
                 if let session = account.session {
-                    ChatLog(
-                        lines: account.chat?.lines ?? [],
-                        mayModerate: account.isMod && session.canModerate)
+                    let mayModerate = account.isMod && session.canModerate
+                    let lines = account.chat?.lines ?? []
+                    ChatLog(lines: mayModerate ? lines : lines.filter { !$0.deleted }, mayModerate: mayModerate)
                     .task(id: session.userID) { await account.openChat() }
                 } else {
                     Form {
@@ -280,6 +280,9 @@ struct ChatLineView: View {
                         ForEach(line.badgeTags) { BadgeMark(tag: $0) }
                         Text("\(username): \(words)")
                             .font(.subheadline)
+                            // What a mod sees of a removed line: struck, not gone.
+                            .strikethrough(line.deleted)
+                            .opacity(line.deleted ? 0.5 : 1)
                     }
                 }
             }
@@ -294,7 +297,7 @@ struct ChatLineView: View {
             ChatLineMenu(
                 translatable: line.text.isEmpty ? nil : line.text,
                 name: line.displayName,
-                delete: mayModerate ? { moderate { try await $0.delete(messageId: line.id) } } : nil,
+                delete: mayModerate && !line.deleted ? { moderate { try await $0.delete(messageId: line.id) } } : nil,
                 ban: mayModerate
                     ? { seconds in
                         moderate {

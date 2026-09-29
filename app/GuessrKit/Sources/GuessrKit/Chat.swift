@@ -47,6 +47,10 @@ public struct ChatLine: Sendable, Equatable, Identifiable {
     /// chatter's first message in the channel, `channel_points_highlighted`
     /// for one paid for with channel points; nil or `text` otherwise.
     public var messageType: String?
+    /// Whether a mod deleted it, or it went with a timeout or ban. The line
+    /// stays in the ring so a mod can see what was removed; a viewer's log
+    /// leaves it out.
+    public var deleted = false
 
     public init(
         id: String, userId: String, login: String, displayName: String, text: String, color: String = "",
@@ -244,7 +248,7 @@ public final class TwitchChat {
     }
 
     /// Applies one EventSub frame: a message joins the ring, a delete or a
-    /// user clear takes lines out of it, and session frames come back as a
+    /// user clear marks lines `deleted`, and session frames come back as a
     /// `Control` for the socket loop. An undecodable frame is ignored.
     @discardableResult
     func handle(_ frame: Data) -> Control? {
@@ -265,9 +269,9 @@ public final class TwitchChat {
             case "channel.chat.message", "channel.chat.notification":
                 if let line = event.line(at: parseTimestamp(frame.metadata.messageTimestamp)) { append(line) }
             case "channel.chat.message_delete":
-                lines.removeAll { $0.id == event.messageId }
+                for i in lines.indices where lines[i].id == event.messageId { lines[i].deleted = true }
             case "channel.chat.clear_user_messages":
-                lines.removeAll { $0.userId == event.targetUserId }
+                for i in lines.indices where lines[i].userId == event.targetUserId { lines[i].deleted = true }
             default:
                 break
             }
