@@ -35,6 +35,57 @@ public struct ChatReply: Sendable, Equatable {
     }
 }
 
+/// What the channel asks of anyone who talks: Twitch's slow, followers-only,
+/// subscribers-only, emote-only and unique-message modes.
+public struct ChatMode: Sendable, Equatable {
+    /// Seconds a viewer waits between messages; 0 when slow mode is off.
+    public var slowSeconds = 0
+    /// How long a viewer must have followed, in minutes; nil when followers-only
+    /// is off, 0 for any follower.
+    public var followerMinutes: Int?
+    public var subscribersOnly = false
+    public var emoteOnly = false
+    public var uniqueOnly = false
+
+    public init(
+        slowSeconds: Int = 0, followerMinutes: Int? = nil, subscribersOnly: Bool = false, emoteOnly: Bool = false,
+        uniqueOnly: Bool = false
+    ) {
+        (self.slowSeconds, self.followerMinutes, self.subscribersOnly, self.emoteOnly, self.uniqueOnly) =
+            (slowSeconds, followerMinutes, subscribersOnly, emoteOnly, uniqueOnly)
+    }
+
+    /// The modes in force, as the composer lists them; nil when chat is open.
+    public var summary: String? {
+        var parts: [String] = []
+        if slowSeconds > 0 { parts.append("Slow mode, \(compactDuration(slowSeconds))") }
+        if let m = followerMinutes {
+            parts.append(m > 0 ? "Followers of \(compactDuration(m * 60)) only" : "Followers only")
+        }
+        if subscribersOnly { parts.append("Subscribers only") }
+        if emoteOnly { parts.append("Emotes only") }
+        if uniqueOnly { parts.append("Unique messages only") }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// Whole seconds until a viewer whose last message went at `lastSent` may
+    /// send again; 0 when they may now.
+    public func wait(since lastSent: Date?, now: Date = .now) -> Int {
+        guard slowSeconds > 0, let lastSent else { return 0 }
+        return max(0, Int((Double(slowSeconds) - now.timeIntervalSince(lastSent)).rounded(.up)))
+    }
+}
+
+/// `30s`, `10m`, `3d`: a mode's length in its coarsest whole unit.
+func compactDuration(_ seconds: Int) -> String {
+    switch seconds {
+    case ..<60: "\(seconds)s"
+    case ..<3600: "\(seconds / 60)m"
+    case ..<86400: "\(seconds / 3600)h"
+    default: "\(seconds / 86400)d"
+    }
+}
+
 /// One chat message, in Twitch's own shape.
 public struct ChatLine: Sendable, Equatable, Identifiable {
     /// Twitch's `message_id` — what a delete names.
@@ -120,6 +171,8 @@ public final class TwitchChat {
     public private(set) var isConnected = false
     /// The last thing that went wrong, shown until the next welcome clears it.
     public private(set) var lastError: String?
+    /// The channel's chat modes: read on each connect, then kept by EventSub.
+    public private(set) var mode = ChatMode()
 
     /// The Helix calls the socket subscribes through, and everything that
     /// writes to or moderates the channel.
@@ -225,7 +278,12 @@ public final class TwitchChat {
             switch handle(data) {
             case .welcome(let sessionID, let timeout):
                 keepalive = timeout + 5
-                if subscribe { try await subscribeAll(sessionID) }
+                if subscribe {
+                    try await subscribeAll(sessionID)
+                    // After subscribing, so no change can slip between the
+                    // read and the first update. A failed read keeps the last.
+                    if let read = try? await helix.chatMode() { mode = read }
+                }
                 retiring?.cancel(with: .normalClosure, reason: nil)
                 retiring = nil
                 isConnected = true
@@ -285,6 +343,12 @@ public final class TwitchChat {
                 for i in lines.indices where lines[i].id == event.messageId { lines[i].deleted = true }
             case "channel.chat.clear_user_messages":
                 for i in lines.indices where lines[i].userId == event.targetUserId { lines[i].deleted = true }
+            case "channel.chat_settings.update":
+                mode = ChatMode(
+                    slowSeconds: event.slowMode == true ? event.slowModeWaitTimeSeconds ?? 0 : 0,
+                    followerMinutes: event.followerMode == true ? event.followerModeDurationMinutes ?? 0 : nil,
+                    subscribersOnly: event.subscriberMode ?? false, emoteOnly: event.emoteMode ?? false,
+                    uniqueOnly: event.uniqueChatMode ?? false)
             default:
                 break
             }
@@ -305,7 +369,7 @@ public final class TwitchChat {
         let broadcaster = try await helix.resolveBroadcaster()
         for type in [
             "channel.chat.message", "channel.chat.notification", "channel.chat.message_delete",
-            "channel.chat.clear_user_messages",
+            "channel.chat.clear_user_messages", "channel.chat_settings.update",
         ] {
             _ = try await helix.request(
                 "POST", "eventsub/subscriptions",
@@ -409,6 +473,29 @@ public final class Helix {
         _ = try await request(
             "DELETE", "moderation/bans",
             query: ["broadcaster_id": broadcaster, "moderator_id": session.userID, "user_id": userId])
+    }
+
+    /// The channel's chat modes as they stand. Needs no scope.
+    public func chatMode() async throws -> ChatMode {
+        struct Page: Decodable {
+            struct Settings: Decodable {
+                var emoteMode: Bool
+                var followerMode: Bool
+                var followerModeDuration: Int?
+                var slowMode: Bool
+                var slowModeWaitTime: Int?
+                var subscriberMode: Bool
+                var uniqueChatMode: Bool
+            }
+            var data: [Settings]
+        }
+        let broadcaster = try await resolveBroadcaster()
+        let body = try await request("GET", "chat/settings", query: ["broadcaster_id": broadcaster])
+        guard let s = try Guessr.decoder.decode(Page.self, from: body).data.first else { return ChatMode() }
+        return ChatMode(
+            slowSeconds: s.slowMode ? s.slowModeWaitTime ?? 0 : 0,
+            followerMinutes: s.followerMode ? s.followerModeDuration ?? 0 : nil,
+            subscribersOnly: s.subscriberMode, emoteOnly: s.emoteMode, uniqueOnly: s.uniqueChatMode)
     }
 
     /// Whether the logged-in user moderates this channel. The owner does by
@@ -535,6 +622,14 @@ struct Frame: Decodable {
         var systemMessage: String?
         var messageType: String?
         var reply: Reply?
+        // channel.chat_settings.update
+        var emoteMode: Bool?
+        var followerMode: Bool?
+        var followerModeDurationMinutes: Int?
+        var slowMode: Bool?
+        var slowModeWaitTimeSeconds: Int?
+        var subscriberMode: Bool?
+        var uniqueChatMode: Bool?
 
         func line(at timestamp: Date) -> ChatLine? {
             guard let messageId, let chatterUserId, let message else { return nil }
