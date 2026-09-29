@@ -85,12 +85,11 @@ else
   echo "note: no local web/version.json, so nothing pins which build answers"
 fi
 
-# The page, which every assertion in this script was silent about until now. They
-# all read endpoints, and an endpoint answers perfectly while the page in front
-# of it is dead: the game lives in an inline module, so a named import the
-# deployed module does not export is a load-time SyntaxError and nothing in the
-# script runs -- markup and no game, on every browser at once. That is how a
-# blank game shipped past four green PR checks.
+# The page. Every other assertion here reads an endpoint, and an endpoint answers
+# perfectly while the page in front of it is dead: the game lives in an inline
+# module, so a named import the deployed module does not export is a load-time
+# SyntaxError and nothing in the script runs -- markup and no game, on every
+# browser at once.
 #
 # deployed_imports.mjs fetches the served index.html and walks its module graph
 # out of this deployment. test_page.mjs asks the same of the working tree, which
@@ -172,9 +171,8 @@ check() { # name, expected status, actual status, body
 # Retried on a wrong status, which the other waits in this script never do, because
 # of what the version pin cannot see. version.json is a static asset and the
 # handlers are Functions, and one deployment's two halves become visible a few
-# seconds apart: a staging smoke once matched the marker and then got a 200 from
-# the previous build's /api/score, where the same code answered 403 on the next
-# deploy 47 s later. Six tries 5 s apart outlast that cutover, and a behavior
+# seconds apart, so a smoke can match the marker and still reach the previous
+# build's handlers. Six tries 5 s apart outlast that cutover (measured near 47 s), and a behavior
 # that is really wrong still goes red, just ~25 s later, with each retry logged.
 expect() {
   local name=$1 want=$2 attempt

@@ -35,10 +35,10 @@ export const request = withDeadline(TIMEOUT_MS);
 // What a page puts on screen when a request did not come back as usable JSON.
 //
 // One wording in one place, because getting it wrong is expensive in a way the
-// string does not look: every admin view used to say "could not reach" for both
-// halves of this, so an endpoint 500ing on a table its database had not got
-// read exactly like a dead connection, and the first place an operator looks
-// for that is their login.
+// string does not look: saying "could not reach" for both halves of this makes
+// an endpoint 500ing on a table its database has not got read exactly like a
+// dead connection, and the first place an operator looks for that is their
+// login.
 //
 // A response means the request arrived and the status is the whole finding --
 // it is only here because the body would not parse, which for a Function is an

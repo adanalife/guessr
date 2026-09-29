@@ -90,10 +90,9 @@ def main() -> int:
                 ref = m.group(1)
                 if ref in allowed or ref in known_files:
                     continue
-                # A bare filename resolves against any directory: the docs name
-                # a file without its directory constantly, and that is
-                # unambiguous here because no two tracked files share a
-                # basename.
+                # A bare filename passes if any tracked file has that basename:
+                # the docs name a file without its directory constantly. It
+                # proves the file exists somewhere, not which one was meant.
                 if any(f.endswith("/" + ref) for f in known_files):
                     continue
                 findings.append(f"{rel}:{n}: no such file: `{ref}`")
