@@ -4,6 +4,17 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.19.0 — 2026-09-29
+
+### New
+
+- App chat shows the channel's chat modes above the composer (slow, followers-only, subscribers-only, emote-only, unique messages), with a slow-mode countdown that holds the send button until Twitch would take the next message. GuessrKit: `TwitchChat.mode`, read from Helix `chat/settings` on connect and kept by the `channel.chat_settings.update` EventSub. ([#290](https://github.com/adanalife/guessr/pull/290))
+
+### Changed
+
+- GuessrKit: the Helix calls (send, delete, ban, unban, moderates, emotes, badge art) live on a `Helix` client a host can build without opening chat; `TwitchChat` holds one as `helix`. ([#288](https://github.com/adanalife/guessr/pull/288))
+- The admin tier accepts more than one owner Twitch user id, so the staging tier answers to the staging account as well as the main one. ([#292](https://github.com/adanalife/guessr/pull/292))
+
 ## v1.18.0 — 2026-09-29
 
 ### New
