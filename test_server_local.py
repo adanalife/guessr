@@ -57,9 +57,9 @@ with tempfile.TemporaryDirectory() as tmp:
     assert open_db(path).conn.execute("SELECT COUNT(*) FROM answers").fetchone()[0] == 1
 
 # The admin ids come off any attribute bag: the Worker's env or os.environ.
-env = type("Env", (), {"TWITCH_OWNER_ID": " 1 ", "TWITCH_CLIENT_IDS": "a, b,"})
+env = type("Env", (), {"TWITCH_OWNER_ID": " 1, 2", "TWITCH_CLIENT_IDS": "a, b,"})
 assert admins(env) == Admins(
-    owner_id="1", channel_id="", client_ids=frozenset({"a", "b"})
+    owner_ids=frozenset({"1", "2"}), channel_id="", client_ids=frozenset({"a", "b"})
 )
 
 print("ok: test_server_local")

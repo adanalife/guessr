@@ -36,7 +36,9 @@ PORT = int(os.environ.get("PORT", "8789"))
 BASE = f"http://127.0.0.1:{PORT}"
 DAYS = os.environ.get("DAYS", "6")  # see integration.sh: the reject needs six
 OWNER, APP = "1", "contract-app"
-ADMINS = Admins(owner_id=OWNER, channel_id="2", client_ids=frozenset({APP}))
+ADMINS = Admins(
+    owner_ids=frozenset({OWNER}), channel_id="2", client_ids=frozenset({APP})
+)
 
 
 async def fetch(url, headers=None):

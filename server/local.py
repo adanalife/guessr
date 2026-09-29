@@ -10,7 +10,7 @@ Run it as `task api:serve`, configured from the environment:
 - GUESSR_CLIPS: the directory clips are served from, keyed like the bucket
   (default clips/).
 - TWITCH_OWNER_ID, TWITCH_CHANNEL_ID, TWITCH_CLIENT_IDS: who administers, as
-  on the Worker. One left unset admits nobody.
+  on the Worker (the ids comma-separated). One left unset admits nobody.
 - HOST / PORT: where uvicorn listens (default 127.0.0.1:8789).
 """
 

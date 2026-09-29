@@ -20,7 +20,9 @@ from server.db import Sqlite
 
 TODAY = dt.datetime.now(dt.UTC).date().isoformat()
 OWNER_TOKEN, APP = "owner-token", "test-app"
-ADMINS = Admins(owner_id="111", channel_id="999", client_ids=frozenset({APP}))
+ADMINS = Admins(
+    owner_ids=frozenset({"111"}), channel_id="999", client_ids=frozenset({APP})
+)
 
 
 async def fetch(url, headers=None):

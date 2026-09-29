@@ -31,8 +31,9 @@
   // One bucket for every tier: a clip is the same bytes whichever tier serves
   // it (see BUCKET in Taskfile.yml).
   "r2_buckets": [{ "binding": "CLIPS", "bucket_name": "adanalife-guessr-clips" }]
-  // Who administers is three secrets, none declared here: Dana's Twitch user id
-  // (TWITCH_OWNER_ID), the adanalife_ broadcaster id (TWITCH_CHANNEL_ID), and the
-  // tempomat/console client ids, comma-separated (TWITCH_CLIENT_IDS). None lives
+  // Who administers is three secrets, none declared here: the owner Twitch user
+  // ids (TWITCH_OWNER_ID -- Dana's, plus the staging account's on stage), the
+  // adanalife_ broadcaster id (TWITCH_CHANNEL_ID), and the tempomat/console
+  // client ids (TWITCH_CLIENT_IDS); the id lists comma-separated. None lives
   // in this repo; `wrangler secret put <NAME>` sets each. Unset admits nobody.
 }
