@@ -1,5 +1,7 @@
-// The Python Worker serving server/app.py -- /api/*, /admin/* and /clips/* for
-// the staging tier. `task api:dev` runs it locally.
+// The Python Worker serving server/app.py -- /api/*, /admin/* and /clips/*.
+// The top level is the staging tier; `env.production` is the production one,
+// deployed by release.yml with `--env production`. `task api:dev` runs it
+// locally.
 //
 // In api/ rather than at the repo root, and named wrangler.jsonc, for two tools
 // at once. pywrangler reads no other name, and only beside its pyproject.toml.
@@ -30,7 +32,25 @@
   ],
   // One bucket for every tier: a clip is the same bytes whichever tier serves
   // it (see BUCKET in Taskfile.yml).
-  "r2_buckets": [{ "binding": "CLIPS", "bucket_name": "adanalife-guessr-clips" }]
+  "r2_buckets": [{ "binding": "CLIPS", "bucket_name": "adanalife-guessr-clips" }],
+  // Production: the same code against the production D1. Bindings do not
+  // inherit across wrangler environments, so each is declared again; main,
+  // rules and compatibility do inherit. Its three admin secrets are set once
+  // more with `wrangler secret put <NAME> --env production`.
+  "env": {
+    "production": {
+      "name": "adanalife-guessr-api",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "adanalife-guessr-answers",
+          "database_id": "121f1d0c-5212-482e-bbc2-ceab1084f279",
+          "migrations_dir": "../migrations"
+        }
+      ],
+      "r2_buckets": [{ "binding": "CLIPS", "bucket_name": "adanalife-guessr-clips" }]
+    }
+  }
   // Who administers is three secrets, none declared here: the owner Twitch user
   // ids (TWITCH_OWNER_ID -- Dana's, plus the staging account's on stage), the
   // adanalife_ broadcaster id (TWITCH_CHANNEL_ID), and the tempomat/console
