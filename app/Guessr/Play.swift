@@ -86,6 +86,21 @@ struct PlayView: View {
         }
         .navigationTitle("Round \(number) of \(day.rounds.count) · \(progress.total.formatted())")
         .navigationBarTitleDisplayMode(.inline)
+        .sensoryFeedback(.selection, trigger: pin?.latitude)
+        .sensoryFeedback(trigger: revealed) { _, shown in
+            shown ? progress.played.last.map { Self.feedback(for: $0.score.points) } : nil
+        }
+    }
+
+    /// A reveal lands as hard as it scored: a success for a square the share
+    /// string turns green or better, a thud that softens down the bands below.
+    static func feedback(for points: Int) -> SensoryFeedback {
+        switch points {
+        case 4000...: .success
+        case 2500...: .impact(weight: .heavy)
+        case 1000...: .impact(weight: .medium)
+        default: .impact(weight: .light)
+        }
     }
 
     private func map(_ shown: PlayedRound?) -> some View {
