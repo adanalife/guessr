@@ -10,7 +10,7 @@ import datetime as dt
 import pathlib
 import sqlite3
 
-from mirror_stage import PER_GAME, lit, mirror_sql
+from mirror_stage import PER_GAME, lit, mirror_sql, short
 
 HERE = pathlib.Path(__file__).parent
 
@@ -139,6 +139,25 @@ def main():
     # staging's schedule and put nothing back.
     assert mirror_sql([]) == ""
 
+    # A schedule ending today is whole by schedule_gaps.sql's reckoning -- its
+    # horizon is today alone -- and still has to count as short, or staging goes
+    # dark the moment tomorrow opens. 2026-09-28's cron read exactly that.
+    today = dt.date(2026, 9, 28)
+    ends_today = [{"date": "2026-09-28", "n": PER_GAME}]
+    assert short(ends_today, today) == ["2026-09-29", "2026-09-30"]
+    # Scheduled through the lead: nothing to do.
+    far = [{"date": f"2026-09-{d}", "n": PER_GAME} for d in (28, 29, 30)]
+    assert short(far, today) == []
+    # A short day inside the horizon is still reported, beside the lapse.
+    holed = [{"date": "2026-09-28", "n": PER_GAME}, {"date": "2026-09-29", "n": 4}]
+    assert short(holed, today) == ["2026-09-29", "2026-09-30"]
+    # An exhausted table: the seed row is the only one, holding nothing.
+    assert short([{"date": "2026-09-28", "n": 0}], today) == [
+        "2026-09-28",
+        "2026-09-29",
+        "2026-09-30",
+    ]
+
     assert lit(None) == "NULL"
     assert lit("it's") == "'it''s'"
 
@@ -146,6 +165,7 @@ def main():
     print("ok: re-running is a no-op, and a moved or leftover date converges")
     print("ok: a rejection survives the copy, and a quoted slug is escaped")
     print("ok: an empty production schedule generates no script at all")
+    print("ok: a schedule ending inside the lead counts as short")
 
 
 if __name__ == "__main__":
