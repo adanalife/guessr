@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Guessr — GeoGuessr with dashcam footage</title>
+<title>Guessr: GeoGuessr with dashcam footage</title>
 <meta name="description" content="Five rounds a day from a year of driving the United States. Where is this?">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <!-- iOS home-screen icon: PNG only, and it ignores transparency, so this one
@@ -26,7 +26,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Guessr">
 <meta property="og:url" content="https://guessr.dana.lol/">
-<meta property="og:title" content="Guessr — GeoGuessr with dashcam footage">
+<meta property="og:title" content="Guessr: GeoGuessr with dashcam footage">
 <meta property="og:description" content="Five rounds a day from a year of driving the United States. Where is this?">
 <meta property="og:image" content="https://guessr.dana.lol/og.jpg">
 <meta property="og:image:type" content="image/jpeg">
@@ -403,7 +403,7 @@
            autoplay muted loop playsinline preload="auto"
            aria-label="A few seconds of dashcam footage to locate"></video>
     <div id="zoomctl" hidden>
-      <button type="button" id="zin" title="Zoom in — or scroll, pinch, or double-click the frame"
+      <button type="button" id="zin" title="Zoom in, or scroll, pinch, or double-click the frame"
               aria-label="Zoom in">+</button>
       <button type="button" id="zout" title="Zoom out" aria-label="Zoom out">&minus;</button>
       <!-- The glyphs carry U+FE0E, the text variation selector, or a platform
@@ -412,12 +412,12 @@
            play/pause events rather than on click, so it stays honest when
            playback stops for a reason the page didn't ask for — an autoplay
            block on iOS being the one that actually happens. -->
-      <button type="button" id="playpause" title="Pause — or press space"
+      <button type="button" id="playpause" title="Pause, or press space"
               aria-label="Pause">&#9208;&#xFE0E;</button>
       <!-- Only up while a single round is open from the end-of-game sheet, which
            is the one state the pane can be in that the player did not arrive at
            by playing. -->
-      <button type="button" id="board" hidden title="Back to all five rounds — or press Escape"
+      <button type="button" id="board" hidden title="Back to all five rounds, or press Escape"
               aria-label="Back to all five rounds">&#9638;&#xFE0E;</button>
     </div>
     <div id="sheet" hidden></div>
@@ -692,7 +692,7 @@ playpause.addEventListener('click', togglePlay);
   frame.addEventListener(type, () => {
     const playing = !frame.paused;
     playpause.innerHTML = playing ? '&#9208;&#xFE0E;' : '&#9654;&#xFE0E;';
-    playpause.title = playing ? 'Pause — or press space' : 'Play — or press space';
+    playpause.title = playing ? 'Pause, or press space' : 'Play, or press space';
     playpause.setAttribute('aria-label', playing ? 'Pause' : 'Play');
   });
 });
@@ -951,7 +951,7 @@ function showSummary(rounds, played, res) {
           iconSize: [22, 22],
           iconAnchor: [11, 11],
         }),
-      }).addTo(map).bindTooltip(`${r.state}, ${r.filmed} — ${res[i].toLocaleString()}`),
+      }).addTo(map).bindTooltip(`${r.state}, ${r.filmed} · ${res[i].toLocaleString()}`),
     );
     seen.push(from, truth);
   });
@@ -1077,7 +1077,7 @@ async function fillLiveTile() {
 
   const player = document.createElement('iframe');
   player.src = `https://www.youtube-nocookie.com/embed/${videoId}?mute=1&autoplay=1&playsinline=1`;
-  player.title = 'A Dana Life — the 24/7 dashcam stream, live on YouTube';
+  player.title = 'A Dana Life: the 24/7 dashcam stream, live on YouTube';
   player.allow = 'autoplay; encrypted-media; picture-in-picture';
   player.referrerPolicy = 'strict-origin-when-cross-origin';
   player.allowFullscreen = true;
