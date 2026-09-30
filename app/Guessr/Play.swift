@@ -160,6 +160,8 @@ struct PlayView: View {
                 guard !revealed, !scoring, let at = proxy.convert(point, from: .local) else { return }
                 pin = at
             }
+            .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
+            .background(Color.paper)
         }
     }
 
@@ -311,6 +313,8 @@ struct DayResultView: View {
                         }
                     }
                 }
+                .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
+                .background(Color.paper)
                 .frame(height: 280)
                 .listRowInsets(EdgeInsets())
             }
@@ -490,7 +494,9 @@ private struct PlayerLayer: UIViewRepresentable {
 
     func makeUIView(context: Context) -> View {
         let view = View()
-        view.backgroundColor = .black
+        // Seen only until the first frame: a shade off the page, so the slot
+        // reads as a clip on its way rather than a hole in the paper.
+        view.backgroundColor = UIColor(Color.ink.opacity(0.08))
         view.playerLayer.player = player
         return view
     }
