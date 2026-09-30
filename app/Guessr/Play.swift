@@ -456,7 +456,9 @@ private struct PlayerLayer: UIViewRepresentable {
 
     func makeUIView(context: Context) -> View {
         let view = View()
-        view.backgroundColor = UIColor(Color.paper)
+        // Seen only until the first frame: a shade off the page, so the slot
+        // reads as a clip on its way rather than a hole in the paper.
+        view.backgroundColor = UIColor(Color.ink.opacity(0.08))
         view.playerLayer.player = player
         return view
     }
