@@ -80,7 +80,7 @@ struct SettingsView: View {
     var body: some View {
         Form {
             NameSection(player: $player)
-            ReminderSection()
+            // Beside the name: a linked device plays as this same name.
             Section {
                 LinkCodeRows(player: player)
                 // Only before the first guess: joining after it would leave the
@@ -91,6 +91,7 @@ struct SettingsView: View {
             } header: {
                 Text("Other devices")
             }
+            ReminderSection()
             if account.auth.isConfigured {
                 Section("Twitch") {
                     if let session = account.session {
@@ -151,7 +152,8 @@ struct NameSection: View {
 
     var body: some View {
         Section("Leaderboard name") {
-            Text(player.alias).font(.headline)
+            // Serif, after the web's ET Book, so the name reads as the name.
+            Text(player.alias).font(.system(.title2, design: .serif, weight: .semibold))
             Button("Generate new name") {
                 var next = Alias.random()
                 while next == player.alias { next = Alias.random() }
