@@ -111,7 +111,7 @@ struct ChatLog: View {
     /// empty log says so itself, in its middle.
     private var connectionStatus: String? {
         guard let chat = account.chat else { return nil }
-        return chat.isConnected ? chat.lastError : lines.isEmpty ? nil : "Connecting to chat…"
+        return chat.isConnected ? chat.lastError : lines.isEmpty ? nil : "Connecting…"
     }
 
     private func loadArt() async {
@@ -187,8 +187,8 @@ struct ChatLog: View {
                 if lines.isEmpty {
                     Text(
                         account.chat?.isConnected == true
-                            ? "Connected to \(account.channel) · nobody has said anything yet"
-                            : "Connecting to \(account.channel)…"
+                            ? "Connected · nobody has said anything yet"
+                            : "Connecting…"
                     )
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
