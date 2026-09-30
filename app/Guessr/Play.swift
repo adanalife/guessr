@@ -250,6 +250,15 @@ struct PlayView: View {
         }
     #endif
 
+    /// The reveal's view: both pins with room around them, and never closer
+    /// than a few degrees, so a near miss still shows where it was.
+    static func fit(_ a: Coordinate, _ b: Coordinate) -> MKCoordinateRegion {
+        let span = max(abs(a.lat - b.lat), abs(a.lng - b.lng), 2) * 1.8
+        return MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: (a.lat + b.lat) / 2, longitude: (a.lng + b.lng) / 2),
+            span: MKCoordinateSpan(latitudeDelta: min(span, 90), longitudeDelta: min(span, 180)))
+    }
+
     private func guess(_ image: String) async {
         guard let pin else { return }
         scoring = true
@@ -262,7 +271,7 @@ struct PlayView: View {
             progress.played.append(PlayedRound(image: image, guess: at, score: score))
             Saved.progress = progress
             if progress.played.count == 1 { await Reminder.refreshBadge() }
-            (revealed, message, camera) = (true, nil, .automatic)
+            (revealed, message, camera) = (true, nil, .region(Self.fit(at, score.answer)))
         } catch let error as GuessrError where error.isFinal {
             // Refused, so retrying gets the same answer: say what the server said.
             day = nil
