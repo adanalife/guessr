@@ -388,11 +388,17 @@ struct ClipView: View {
         .accessibilityElement()
         .accessibilityLabel(paused ? "Clip, paused" : "Clip")
         .accessibilityAction(named: paused ? "Play" : "Pause") { togglePause() }
-        .task(id: url) {
-            player.isMuted = true
-            looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
-            player.play()
+        // A tab switch runs this again on the way back, and a second looper on
+        // a player still holding the first one's items leaves it with nothing
+        // to play: the looper is built once, and each appearance only resumes.
+        .onAppear {
+            if looper == nil {
+                player.isMuted = true
+                looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
+            }
+            if !paused { player.play() }
         }
+        .onDisappear { player.pause() }
     }
 
     private func togglePause() {
