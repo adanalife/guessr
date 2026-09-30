@@ -536,24 +536,39 @@ extension Color {
 }
 
 /// Five squares that fill in band color as the day is played, with the running
-/// total beside them. The current round is outlined in ink.
+/// total beside them. The current round is outlined in ink. Until the day's
+/// first round scores, the row asks the question instead, since empty squares
+/// and a zero mean nothing to a first-time player.
 struct ProgressSquares: View {
     let progress: DayProgress
     let of: Int
 
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(0..<of, id: \.self) { i in
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(i < progress.played.count ? Color.band(for: progress.played[i].score.points) : .clear)
-                    .strokeBorder(i == progress.played.count ? Color.ink : Color.secondary.opacity(0.4), lineWidth: 1.5)
-                    .frame(width: 16, height: 16)
+        Group {
+            if progress.played.isEmpty {
+                Text("Where was this dashcam clip taken?")
+                    .font(.system(.title3, design: .serif, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .transition(.opacity)
+            } else {
+                HStack(spacing: 6) {
+                    ForEach(0..<of, id: \.self) { i in
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(i < progress.played.count ? Color.band(for: progress.played[i].score.points) : .clear)
+                            .strokeBorder(i == progress.played.count ? Color.ink : Color.secondary.opacity(0.4), lineWidth: 1.5)
+                            .frame(width: 16, height: 16)
+                    }
+                    Spacer()
+                    Text(progress.total.formatted())
+                        .font(.system(.title3, design: .serif, weight: .semibold))
+                        .monospacedDigit()
+                }
+                .transition(.opacity)
             }
-            Spacer()
-            Text(progress.total.formatted())
-                .font(.system(.title3, design: .serif, weight: .semibold))
-                .monospacedDigit()
         }
+        .animation(.default, value: progress.played.isEmpty)
     }
 }
 
