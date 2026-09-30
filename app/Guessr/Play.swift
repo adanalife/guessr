@@ -15,6 +15,8 @@ struct PlayView: View {
     @State private var scoring = false
     @State private var message: String?
     @State private var camera = PlayView.lower48
+    /// The map sheet on an upright phone, up until the guess is scored.
+    @State private var showingMap = false
     @Environment(\.horizontalSizeClass) private var sizeClass
     /// Compact on a phone held on its side, the one shape with no room to
     /// stack the clip over the map.
@@ -61,7 +63,7 @@ struct PlayView: View {
         // A fresh player per clip: a looper can't be rebuilt on a queue
         // player still holding the last clip's items.
         let clip = ClipView(
-            url: Guessr.baseURL.appending(path: image), fills: sizeClass == .regular && heightClass != .compact
+            url: Guessr.baseURL.appending(path: image), fills: heightClass != .compact
         ).id(image)
         return Group {
             if heightClass == .compact {
@@ -105,13 +107,47 @@ struct PlayView: View {
                     }
                 }
             } else {
-                VStack(spacing: 12) {
-                    ProgressSquares(progress: progress, of: day.rounds.count)
-                    clip.aspectRatio(ClipView.aspect, contentMode: .fit)
-                    map(shown)
-                    controls(day, image: image, shown: shown)
+                // A phone upright: the clip is the game, so it takes the top of
+                // the screen edge to edge, and the map waits in a sheet until the
+                // player wants it. The reveal reads on paper under the clip.
+                GeometryReader { screen in
+                    VStack(spacing: 12) {
+                        clip.frame(height: max(screen.size.height * 0.6, screen.size.width / ClipView.aspect))
+                            .clipShape(.rect(bottomLeadingRadius: 16, bottomTrailingRadius: 16))
+                        ScrollView {
+                            VStack(spacing: 12) {
+                                ProgressSquares(progress: progress, of: day.rounds.count)
+                                if let shown {
+                                    RevealCard(round: shown)
+                                    map(shown)
+                                        .frame(height: 160)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    button(day, image: image).inkButton()
+                                } else {
+                                    Button("Open the map", systemImage: "map") { showingMap = true }
+                                        .inkButton()
+                                        .controlSize(.large)
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
                 }
-                .padding()
+                .ignoresSafeArea(edges: .top)
+                .sheet(isPresented: $showingMap) {
+                    VStack(spacing: 12) {
+                        map(shown).clipShape(RoundedRectangle(cornerRadius: 8))
+                        if let message {
+                            Text(message).font(.callout).multilineTextAlignment(.center)
+                        }
+                        button(day, image: image).inkButton()
+                    }
+                    .padding()
+                    .presentationDetents([.medium, .large])
+                    .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+                    .paper()
+                }
+                .onChange(of: revealed) { if revealed { showingMap = false } }
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -185,13 +221,15 @@ struct PlayView: View {
             message = (error as? GuessrError)?.errorDescription ?? "Could not reach the rounds"
         }
         #if DEBUG
+            showingMap = UserDefaults.standard.bool(forKey: "map")
             await autoplay()
         #endif
     }
 
     #if DEBUG
         /// `-autoplay 1` plays the rest of the day unattended, pausing on each
-        /// round and each reveal long enough to screenshot it.
+        /// round and each reveal long enough to screenshot it. `-map 1` opens
+        /// the upright phone's map sheet on launch, a tap the shell can't make.
         private func autoplay() async {
             guard UserDefaults.standard.bool(forKey: "autoplay"), let day else { return }
             while let next = progress.next(in: day) {
