@@ -107,10 +107,11 @@ struct ChatLog: View {
     }
 
     /// A socket error means nothing to a player, and the chat retries on its
-    /// own, so while it is down the log says only that it is on its way.
+    /// own, so while it is down the log says only that it is on its way. An
+    /// empty log says so itself, in its middle.
     private var connectionStatus: String? {
         guard let chat = account.chat else { return nil }
-        return chat.isConnected ? chat.lastError : "Connecting to chat…"
+        return chat.isConnected ? chat.lastError : lines.isEmpty ? nil : "Connecting to chat…"
     }
 
     private func loadArt() async {
@@ -180,6 +181,21 @@ struct ChatLog: View {
                     .listRowSeparator(.hidden)
             }
             .listStyle(.plain)
+            // A quiet channel and one still connecting would otherwise both
+            // be a blank page.
+            .overlay {
+                if lines.isEmpty {
+                    Text(
+                        account.chat?.isConnected == true
+                            ? "Connected to \(account.channel) · nobody has said anything yet"
+                            : "Connecting to \(account.channel)…"
+                    )
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding()
+                }
+            }
             .defaultScrollAnchor(.bottom)
             .scrollDismissesKeyboard(.interactively)
             .onScrollPhaseChange { _, phase, context in
@@ -279,7 +295,10 @@ struct ChatLog: View {
                 .accessibilityLabel(pickingEmote ? "Hide emotes" : "Emotes")
                 .disabled(emotes.isEmpty)
             TextField("Say something as \(account.session?.login ?? "you")", text: $text)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.thinMaterial, in: Capsule())
                 .focused($composing)
                 .onSubmit(send)
             Button(action: send) { Image(systemName: "paperplane.fill") }
@@ -287,6 +306,7 @@ struct ChatLog: View {
                 .disabled(account.chat == nil || cooling || text.trimmingCharacters(in: .whitespaces).isEmpty)
         }
         .padding()
+        .background(.bar)
     }
 
     private func send() {
