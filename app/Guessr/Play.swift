@@ -184,7 +184,7 @@ struct PlayView: View {
                 (revealed, pin, message, camera) = (false, nil, nil, PlayView.lower48)
             }
         } else {
-            Button(scoring ? "Scoring…" : pin == nil ? "Drop a pin to guess" : "Guess") {
+            Button(scoring ? "Scoring…" : pin == nil ? "Place a pin on the map to guess" : "Guess") {
                 Task { await guess(image) }
             }
             .disabled(pin == nil || scoring)
