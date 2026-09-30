@@ -173,6 +173,10 @@ private func chat(userID: String = "2914196", capacity: Int = 300) -> TwitchChat
         #"{"metadata":{"message_type":"session_reconnect"},"payload":{"session":{"id":"s1","status":"reconnecting","reconnect_url":"wss://eventsub.wss.twitch.tv/ws?id=abc"}}}"#
             .utf8)
     #expect(chat.handle(reconnect) == .reconnect(URL(string: "wss://eventsub.wss.twitch.tv/ws?id=abc")!))
+    let revocation = Data(
+        #"{"metadata":{"message_type":"revocation","subscription_type":"channel.chat.message"},"payload":{"subscription":{"id":"f1","status":"authorization_revoked","type":"channel.chat.message","version":"1"}}}"#
+            .utf8)
+    #expect(chat.handle(revocation) == .revoked("Twitch stopped channel.chat.message: authorization_revoked"))
     #expect(chat.handle(Data(#"{"metadata":{"message_type":"session_keepalive"},"payload":{}}"#.utf8)) == nil)
     #expect(chat.handle(Data("not json".utf8)) == nil)
 }
