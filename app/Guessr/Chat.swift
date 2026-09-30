@@ -170,7 +170,10 @@ struct ChatLog: View {
     private var log: some View {
         ScrollViewReader { proxy in
             List(lines) { line in
-                ChatLineView(line: line, mayModerate: mayModerate, error: $error, banned: $banned) {
+                ChatLineView(
+                    line: line, mayModerate: mayModerate, error: $error, banned: $banned,
+                    recent: { lines.filter { $0.userId == line.userId && !$0.text.isEmpty }.map(\.text) }
+                ) {
                     reply(to: line)
                 }
                     .listRowSeparator(.hidden)
@@ -311,8 +314,11 @@ struct ChatLineView: View {
     var mayModerate: Bool
     @Binding var error: String?
     @Binding var banned: Banned?
+    /// The chatter's lines in this log, read when their card opens.
+    var recent: () -> [String]
     /// Starts a reply to this line in the composer.
     var reply: () -> Void
+    @State private var showingCard = false
     /// Emote art that has arrived, by the id Twitch named it with.
     @State private var emotes: [String: Image] = [:]
 
@@ -355,6 +361,14 @@ struct ChatLineView: View {
                 .foregroundStyle(.tertiary)
         }
         .listRowBackground(tint)
+        .contentShape(Rectangle())
+        .onTapGesture { showingCard = true }
+        .sheet(isPresented: $showingCard) {
+            UserCard(displayName: line.displayName, login: line.login, recent: recent()) {
+                try? await account.chat?.helix.user(id: line.userId)
+            }
+            .presentationDetents([.medium])
+        }
         .modifier(
             ChatLineMenu(
                 translatable: line.text.isEmpty ? nil : line.text,
@@ -488,4 +502,14 @@ private func shortAge(_ then: Date, now: Date = .now) -> String {
         .navigationTitle("Chat")
     }
     .environment(Account(store: MemorySessionStore()))
+}
+
+#Preview("User card") {
+    UserCard(
+        displayName: "RoadWatcher", login: "roadwatcher", recent: ["where is this?", "looks like Utah Kappa"]
+    ) {
+        TwitchUser(
+            id: "11", login: "roadwatcher", displayName: "RoadWatcher",
+            profileImageUrl: "", createdAt: Date(timeIntervalSince1970: 1_481_747_548))
+    }
 }
