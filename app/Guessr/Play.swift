@@ -15,6 +15,8 @@ struct PlayView: View {
     @State private var scoring = false
     @State private var message: String?
     @State private var camera = PlayView.lower48
+    /// Where the map is looking, whoever moved it last: the zoom buttons scale it.
+    @State private var region: MKCoordinateRegion?
     @Environment(\.horizontalSizeClass) private var sizeClass
     /// Compact on a phone held on its side, the one shape with no room to
     /// stack the clip over the map.
@@ -160,9 +162,36 @@ struct PlayView: View {
                 guard !revealed, !scoring, let at = proxy.convert(point, from: .local) else { return }
                 pin = at
             }
+            .onMapCameraChange { region = $0.region }
             .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
             .background(Color.paper)
+            .overlay(alignment: .bottomTrailing) {
+                VStack(spacing: 0) {
+                    Button { zoom(by: 0.5) } label: {
+                        Image(systemName: "plus").frame(width: 44, height: 44).contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("Zoom in")
+                    Divider()
+                    Button { zoom(by: 2) } label: {
+                        Image(systemName: "minus").frame(width: 44, height: 44).contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("Zoom out")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.ink)
+                .fixedSize()
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                .padding(8)
+            }
         }
+    }
+
+    private func zoom(by factor: Double) {
+        guard let region else { return }
+        let span = MKCoordinateSpan(
+            latitudeDelta: min(region.span.latitudeDelta * factor, 90),
+            longitudeDelta: min(region.span.longitudeDelta * factor, 180))
+        withAnimation { camera = .region(MKCoordinateRegion(center: region.center, span: span)) }
     }
 
     private func controls(_ day: GuessrDay, image: String, shown: PlayedRound?) -> some View {
