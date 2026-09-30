@@ -292,25 +292,48 @@ struct DayResultView: View {
                         Marker("\(i + 1)", coordinate: r.score.answer.location).tint(.green).tag(r.image)
                         MapPolyline(coordinates: [r.guess.location, r.score.answer.location])
                             .stroke(.green, style: StrokeStyle(lineWidth: 2, dash: [5, 6]))
+                        Annotation("", coordinate: r.guess.location, anchor: .center) {
+                            Circle().fill(Color.ink).frame(width: 8, height: 8)
+                        }
                     }
                 }
                 .frame(height: 280)
                 .listRowInsets(EdgeInsets())
             }
-            Section("You have completed today's game") {
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("You have completed today's game").font(.caption).foregroundStyle(.secondary)
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(progress.total.formatted())
+                            .font(.system(size: 44, weight: .bold, design: .serif))
+                            .monospacedDigit()
+                        Text("/ \((progress.played.count * 5000).formatted())").foregroundStyle(.secondary)
+                    }
+                    HStack(spacing: 6) {
+                        ForEach(Array(progress.played.enumerated()), id: \.offset) { _, r in
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.band(for: r.score.points))
+                                .frame(width: 16, height: 16)
+                        }
+                    }
+                }
+            }
+            Section {
+                // The date is the replay sheet's to show; a row holds to one line.
                 ForEach(Array(progress.played.enumerated()), id: \.offset) { i, r in
                     Button {
                         replaying = r.image
                     } label: {
-                        LabeledContent(
-                            "\(Share.square(for: r.score.points)) \(i + 1). \(r.score.state), \(r.score.filmed)",
-                            value: "\(r.score.miles.formatted()) mi · \(r.score.points.formatted())")
+                        LabeledContent {
+                            Text("\(r.score.miles.formatted()) mi · \(r.score.points.formatted())").layoutPriority(1)
+                        } label: {
+                            Text("\(i + 1). \(r.score.state)")
+                        }
                     }
                     .foregroundStyle(Color.ink)
                 }
-                LabeledContent(
-                    "Total",
-                    value: "\(progress.total.formatted()) / \((progress.played.count * 5000).formatted())")
+            }
+            Section {
                 if let text = progress.shareText() {
                     Button(copied ? "Copied" : "Copy share text", systemImage: copied ? "checkmark" : "doc.on.doc") {
                         UIPasteboard.general.string = text
