@@ -17,6 +17,8 @@ struct PlayView: View {
     @State private var scoring = false
     @State private var message: String?
     @State private var camera = PlayView.lower48
+    /// Where the map is looking, whoever moved it last: the zoom buttons scale it.
+    @State private var region: MKCoordinateRegion?
     @Environment(\.horizontalSizeClass) private var sizeClass
     /// Compact on a phone held on its side, the one shape with no room to
     /// stack the clip over the map.
@@ -153,7 +155,9 @@ struct PlayView: View {
             Map(position: $camera) {
                 if let pin { Marker("Your guess", coordinate: pin) }
                 if let shown {
+                    // Titled for VoiceOver, with no label on the map to crowd a near miss.
                     Marker(shown.score.state, coordinate: shown.score.answer.location).tint(.green)
+                        .annotationTitles(.hidden)
                     MapPolyline(coordinates: [shown.guess.location, shown.score.answer.location])
                         .stroke(.green, style: StrokeStyle(lineWidth: 2, dash: [5, 6]))
                 }
@@ -162,9 +166,36 @@ struct PlayView: View {
                 guard !revealed, !scoring, let at = proxy.convert(point, from: .local) else { return }
                 pin = at
             }
+            .onMapCameraChange { region = $0.region }
             .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
             .background(Color.paper)
+            .overlay(alignment: .bottomTrailing) {
+                VStack(spacing: 0) {
+                    Button { zoom(by: 0.5) } label: {
+                        Image(systemName: "plus").frame(width: 44, height: 44).contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("Zoom in")
+                    Divider()
+                    Button { zoom(by: 2) } label: {
+                        Image(systemName: "minus").frame(width: 44, height: 44).contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("Zoom out")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.ink)
+                .fixedSize()
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                .padding(8)
+            }
         }
+    }
+
+    private func zoom(by factor: Double) {
+        guard let region else { return }
+        let span = MKCoordinateSpan(
+            latitudeDelta: min(region.span.latitudeDelta * factor, 90),
+            longitudeDelta: min(region.span.longitudeDelta * factor, 180))
+        withAnimation { camera = .region(MKCoordinateRegion(center: region.center, span: span)) }
     }
 
     private func controls(_ day: GuessrDay, image: String, shown: PlayedRound?) -> some View {
@@ -238,6 +269,15 @@ struct PlayView: View {
         }
     #endif
 
+    /// The reveal's view: both pins with room around them, and never closer
+    /// than a few degrees, so a near miss still shows where it was.
+    static func fit(_ a: Coordinate, _ b: Coordinate) -> MKCoordinateRegion {
+        let span = max(abs(a.lat - b.lat), abs(a.lng - b.lng), 2) * 1.8
+        return MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: (a.lat + b.lat) / 2, longitude: (a.lng + b.lng) / 2),
+            span: MKCoordinateSpan(latitudeDelta: min(span, 90), longitudeDelta: min(span, 180)))
+    }
+
     private func guess(_ image: String) async {
         guard let pin else { return }
         scoring = true
@@ -250,7 +290,7 @@ struct PlayView: View {
             progress.played.append(PlayedRound(image: image, guess: at, score: score))
             Saved.progress = progress
             if progress.played.count == 1 { await Reminder.refreshBadge() }
-            (revealed, message, camera) = (true, nil, .automatic)
+            (revealed, message, camera) = (true, nil, .region(Self.fit(at, score.answer)))
         } catch let error as GuessrError where error.isFinal {
             // Refused, so retrying gets the same answer: say what the server said.
             day = nil
@@ -412,8 +452,9 @@ private struct ReplayView: View {
 
 /// A clip on a muted loop. No scrubber: a scrubber is a way to hunt for a
 /// frame the round didn't mean to show. A pinch zooms in and a drag pans the
-/// zoomed picture, a tap pauses it, and a double tap zooms back out. `fills`
-/// crops it to cover its frame rather than letterboxing inside it.
+/// zoomed picture, a tap pauses it and names the other gestures for a moment,
+/// and a double tap zooms back out. `fills` crops it to cover its frame rather
+/// than letterboxing inside it.
 struct ClipView: View {
     /// Every clip's shape: 1280 wide with the dashcam HUD cropped off the
     /// bottom. A frame of this shape leaves nothing to letterbox.
@@ -424,6 +465,7 @@ struct ClipView: View {
     @State private var player = AVQueuePlayer()
     @State private var looper: AVPlayerLooper?
     @State private var paused = false
+    @State private var hint = false
     /// The zoom between gestures, and the one a gesture in progress shows.
     @State private var zoom = ClipZoom()
     @State private var live: ClipZoom?
@@ -441,7 +483,10 @@ struct ClipView: View {
                 .gesture(pinch(geo.size))
                 .gesture(pan(geo.size), isEnabled: zoom.scale > 1)
                 .onTapGesture(count: 2) { withAnimation { zoom = ClipZoom() } }
-                .onTapGesture { togglePause() }
+                .onTapGesture {
+                    togglePause()
+                    withAnimation { hint = true }
+                }
                 .overlay {
                     if paused {
                         Image(systemName: "pause.circle.fill")
@@ -449,6 +494,23 @@ struct ClipView: View {
                             .foregroundStyle(.white.opacity(0.8))
                             .allowsHitTesting(false)
                     }
+                }
+                .overlay(alignment: .bottom) {
+                    if hint {
+                        Text("Pinch to zoom · double-tap to zoom out")
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10).padding(.vertical, 4)
+                            .background(.black.opacity(0.6), in: Capsule())
+                            .padding(8)
+                            .transition(.opacity)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .task(id: hint) {
+                    guard hint else { return }
+                    try? await Task.sleep(for: .seconds(2))
+                    withAnimation { hint = false }
                 }
         }
         .accessibilityElement()
