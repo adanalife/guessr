@@ -348,6 +348,10 @@ struct DayResultView: View {
                     Button(copied ? "Copied" : "Copy share text", systemImage: copied ? "checkmark" : "doc.on.doc") {
                         UIPasteboard.general.string = text
                         copied = true
+                        Task {
+                            try? await Task.sleep(for: .seconds(1.5))
+                            copied = false
+                        }
                     }
                 }
                 // The next date opens at the player's own midnight, the day
