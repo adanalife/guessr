@@ -153,7 +153,9 @@ struct PlayView: View {
             Map(position: $camera) {
                 if let pin { Marker("Your guess", coordinate: pin) }
                 if let shown {
+                    // Titled for VoiceOver, with no label on the map to crowd a near miss.
                     Marker(shown.score.state, coordinate: shown.score.answer.location).tint(.green)
+                        .annotationTitles(.hidden)
                     MapPolyline(coordinates: [shown.guess.location, shown.score.answer.location])
                         .stroke(.green, style: StrokeStyle(lineWidth: 2, dash: [5, 6]))
                 }
