@@ -131,33 +131,42 @@
         Duration.seconds(seconds).formatted(.units(allowed: [.hours, .minutes], width: .wide))
     }
 
+    /// What a warning says when the mod typed nothing: Twitch insists on a
+    /// reason, and the viewer has to read one to chat again.
+    public let defaultWarning = "Please keep to the chat rules"
+
     /// A chat line's context menu: Translate for a line with words to read,
     /// then the moderation verbs a nil closure leaves out. `ban` takes the
     /// seconds, 0 for good; the ban asks first, the one verb that doesn't undo
-    /// itself. Delete comes first: it answers what was said rather than who
-    /// said it. tvOS has no context menus, so there it draws the line bare.
+    /// itself. `warn` takes the reason, asked for in an alert. Delete comes
+    /// first: it answers what was said rather than who said it. tvOS has no
+    /// context menus, so there it draws the line bare.
     public struct ChatLineMenu: ViewModifier {
         var translatable: String?
         var name: String
         var delete: (() -> Void)?
         var ban: ((Int) -> Void)?
         var reply: (() -> Void)?
+        var warn: ((String) -> Void)?
         /// Whether the system translation sheet is up for this line.
         @State private var translating = false
         @State private var banning = false
+        @State private var warning = false
+        @State private var reason = ""
 
         /// `translatable` is the text the Translate item offers, nil for none;
         /// `name` is who the ban confirmation names; `reply`, when given,
         /// heads the menu.
         public init(
             translatable: String?, name: String, delete: (() -> Void)?, ban: ((Int) -> Void)?,
-            reply: (() -> Void)? = nil
+            reply: (() -> Void)? = nil, warn: ((String) -> Void)? = nil
         ) {
             self.translatable = translatable
             self.name = name
             self.delete = delete
             self.ban = ban
             self.reply = reply
+            self.warn = warn
         }
 
         public func body(content: Content) -> some View {
@@ -183,6 +192,9 @@
                         if let delete {
                             Button("Delete message", systemImage: "trash", role: .destructive, action: delete)
                         }
+                        if warn != nil {
+                            Button("Warn", systemImage: "exclamationmark.bubble") { warning = true }
+                        }
                         if let ban {
                             Menu("Time out", systemImage: "clock.badge.xmark") {
                                 ForEach(timeouts, id: \.self) { seconds in
@@ -196,6 +208,13 @@
                         "Ban \(name) from the channel?", isPresented: $banning, titleVisibility: .visible
                     ) {
                         Button("Ban", role: .destructive) { ban?(0) }
+                    }
+                    .alert("Warn \(name)", isPresented: $warning) {
+                        TextField("Reason", text: $reason)
+                        Button("Warn") { warn?(reason.isEmpty ? defaultWarning : reason) }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("They can't chat again until they've read it.")
                     }
                     #if canImport(Translation)
                         .translationPresentation(isPresented: $translating, text: translatable ?? "")

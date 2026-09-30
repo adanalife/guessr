@@ -83,6 +83,10 @@ final class StubTwitch: URLProtocol {
     }
     #expect(session(TwitchAuth.modScopes).canModerate)
     #expect(!session(TwitchAuth.scopes + ["moderator:manage:chat_messages"]).canModerate)
+    // A token from before AutoMod, warnings and the mode switches joined the
+    // set asks for the second login again, by design: the verbs are all-or-nothing.
+    #expect(
+        !session(TwitchAuth.scopes + ["moderator:manage:chat_messages", "moderator:manage:banned_users"]).canModerate)
     #expect(!session(nil).canModerate)
 }
 
