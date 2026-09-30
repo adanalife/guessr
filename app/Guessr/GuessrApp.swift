@@ -17,10 +17,10 @@ struct GuessrApp: App {
         WindowGroup {
             TabView(selection: $tab) {
                 Tab("Play", systemImage: "mappin.and.ellipse", value: "Play") {
-                    NavigationStack { PlayView(player: $player) }
+                    NavigationStack { PlayView(player: $player).viewingAsBanner() }
                 }
                 if account.seesBoards {
-                    Tab("Boards", systemImage: "list.number", value: "Boards") { NavigationStack { TodayView(alias: player.alias) } }
+                    Tab("Boards", systemImage: "list.number", value: "Boards") { NavigationStack { TodayView(alias: player.alias).viewingAsBanner() } }
                 }
                 // Chat hangs off the Twitch login, so the tab shows only while
                 // a login is signed in; Settings is where a player signs in.
@@ -30,18 +30,7 @@ struct GuessrApp: App {
                     Tab("Chat", systemImage: "bubble.left.and.bubble.right", value: "Chat") { ChatTab() }
                 }
                 Tab("Settings", systemImage: "gear", value: "Settings") {
-                    NavigationStack { SettingsView(player: $player) }
-                }
-            }
-            // An inset rather than an overlay: viewing as someone else is easy to forget,
-            // and a banner sitting on top of the screen would be easy to miss.
-            .safeAreaInset(edge: .top) {
-                if let tier = account.viewingAs {
-                    Text("Viewing as \(tier)")
-                        .font(.caption.bold())
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                        .background(.yellow.opacity(0.3))
+                    NavigationStack { SettingsView(player: $player).viewingAsBanner() }
                 }
             }
             .foregroundStyle(Color.ink)

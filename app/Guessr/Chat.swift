@@ -16,6 +16,7 @@ struct ChatTab: View {
                     .task(id: session.userID) { await account.openChat() }
                 }
             }
+            .viewingAsBanner()
             .paper()
             .navigationTitle("Chat")
         }
