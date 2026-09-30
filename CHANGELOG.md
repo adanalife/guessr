@@ -4,6 +4,33 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.20.0 — 2026-09-30
+
+### New
+
+- Tap a chat line to see who said it: their avatar, how long they have been on Twitch, and what else they have said in this chat. ([#303](https://github.com/adanalife/guessr/pull/303))
+
+### Changed
+
+- The app's Settings tab puts linking a device right under the leaderboard name, calls the reminder section Notifications, and shows the name in a serif face. ([#297](https://github.com/adanalife/guessr/pull/297))
+- The app hides its Chat tab until the player signs in to Twitch, which they do from Settings. ([#300](https://github.com/adanalife/guessr/pull/300))
+- The app's daily reminder now reads "Today's five rounds are ready to play!" ([#301](https://github.com/adanalife/guessr/pull/301))
+
+### Fixed
+
+- In the app, a round's clip fills its frame edge to edge, with no black bars above and below it. ([#296](https://github.com/adanalife/guessr/pull/296))
+- In the app, a round's clip keeps playing after a visit to another tab. ([#298](https://github.com/adanalife/guessr/pull/298))
+- The app's play screen drops the line over the guess button, which says what to do on its own. ([#299](https://github.com/adanalife/guessr/pull/299))
+
+### Behind the scenes
+
+- A release deploys the Python Worker to production alongside the site; the site keeps answering from its JS Functions until the project is bound to the Worker. ([#293](https://github.com/adanalife/guessr/pull/293))
+- The game's server now keeps a log of every request and groups its errors, so when a guess fails to score there is a record of why. ([#294](https://github.com/adanalife/guessr/pull/294))
+- The app's chat is tested to turn an EventSub revocation into the error it shows. ([#302](https://github.com/adanalife/guessr/pull/302))
+- The coverage database is ignored rather than tracked. ([#302](https://github.com/adanalife/guessr/pull/302))
+- The Python Worker's outbound fetch is tested to edge-cache the YouTube feed and nothing else, and its clip source to stream R2 bodies as bytes. ([#302](https://github.com/adanalife/guessr/pull/302))
+- GuessrKit reads a chatter's Twitch profile — avatar and account age — by user id, once per user. ([#303](https://github.com/adanalife/guessr/pull/303))
+
 ## v1.19.0 — 2026-09-29
 
 ### New
