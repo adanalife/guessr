@@ -4,6 +4,26 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.21.0 — 2026-09-30
+
+### Changed
+
+- The reveal in the iOS app is a card: the points as the headline, the place under them, in the round's share-square colour; five squares above the clip fill in as the day is played, with the running total beside them. ([#308](https://github.com/adanalife/guessr/pull/308))
+- The finished day leads with your total and its five squares, every round fits on one line, and the map marks where each guess landed. ([#310](https://github.com/adanalife/guessr/pull/310))
+- The reveal counts your points up as it lands, and a card is colored only for a round that scored orange or better. ([#311](https://github.com/adanalife/guessr/pull/311))
+- Screen titles are set in the same serif as the web game. ([#312](https://github.com/adanalife/guessr/pull/312))
+- In the iOS app, the map drops points of interest and terrain relief and mutes its colors so the clip stays the thing to look at, and a clip loads over the page color instead of a black box. ([#317](https://github.com/adanalife/guessr/pull/317))
+
+### Fixed
+
+- When the server fails, the iOS app says it is having trouble instead of showing the raw error page, and the Play tab offers a Retry button. ([#304](https://github.com/adanalife/guessr/pull/304))
+- The owner's "Viewing as" banner in the iOS app sits below each screen's navigation bar, clear of the tab bar on iPhone and iPad, as a solid yellow band that reads in dark mode. ([#305](https://github.com/adanalife/guessr/pull/305))
+- In dark mode, the app's Guess, Next round and Go to Twitch buttons are easy to read and no longer look disabled. ([#306](https://github.com/adanalife/guessr/pull/306))
+- The Chat tab says whether it is still connecting or connected to a quiet channel, and its message box reads clearly in dark mode. ([#309](https://github.com/adanalife/guessr/pull/309))
+- On iPad, the controls before a guess sit lightly on the clip instead of a grey panel, the revealed map no longer covers most of the clip, and the status bar stays readable over a bright sky. ([#314](https://github.com/adanalife/guessr/pull/314))
+- The greyed-out play button is legible again while it waits for a pin. ([#315](https://github.com/adanalife/guessr/pull/315))
+- On iPad, the boards, settings and the day's result sit in a readable column instead of stretching across the whole screen. ([#316](https://github.com/adanalife/guessr/pull/316))
+
 ## v1.20.0 — 2026-09-30
 
 ### New

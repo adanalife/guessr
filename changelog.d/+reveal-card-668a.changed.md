@@ -1,1 +1,0 @@
-The reveal in the iOS app is a card: the points as the headline, the place under them, in the round's share-square colour; five squares above the clip fill in as the day is played, with the running total beside them.
