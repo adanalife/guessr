@@ -203,4 +203,68 @@
             #endif
         }
     }
+
+    /// A chatter's card, from a tap on their line: avatar, how long they have
+    /// been on Twitch, and what they have said in this session. `recent` is
+    /// their lines' text from the log, oldest first — the ring, not an API, so
+    /// it is only what this device saw. `load` reads the profile; until it
+    /// answers, or if it fails, the card shows the name it was opened with.
+    public struct UserCard: View {
+        var displayName: String
+        var login: String
+        var recent: [String]
+        var load: () async -> TwitchUser?
+        @State private var user: TwitchUser?
+        @State private var avatar: Image?
+
+        public init(displayName: String, login: String, recent: [String], load: @escaping () async -> TwitchUser?) {
+            self.displayName = displayName
+            self.login = login
+            self.recent = recent
+            self.load = load
+        }
+
+        public var body: some View {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 12) {
+                    (avatar ?? Image(systemName: "person.crop.circle.fill"))
+                        .resizable()
+                        .scaledToFill()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 56, height: 56)
+                        .clipShape(Circle())
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(user?.displayName ?? displayName).font(.headline)
+                        if let user {
+                            Text("On Twitch since \(user.createdAt.formatted(.dateTime.month(.wide).year()))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                    if let url = URL(string: "https://www.twitch.tv/\(login)") {
+                        Link(destination: url) { Image(systemName: "arrow.up.right.square") }
+                            .accessibilityLabel("Open \(displayName) on Twitch")
+                    }
+                }
+                if !recent.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("In this chat").font(.caption.bold()).foregroundStyle(.secondary)
+                        // ponytail: the last five; a scrolling list if a
+                        // chatty viewer's card needs the whole session.
+                        ForEach(Array(recent.suffix(5).enumerated()), id: \.offset) { _, text in
+                            Text(text).font(.subheadline).lineLimit(3)
+                        }
+                    }
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .task {
+                user = await load()
+                if let url = user?.profileImage { avatar = await remoteImage(url, scale: 1) }
+            }
+        }
+    }
 #endif

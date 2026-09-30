@@ -42,6 +42,11 @@ final class StubHelix: URLProtocol {
             uniquingKeysWith: { a, _ in a })
         let reply: String
         switch url.path {
+        case "/helix/users" where query["id"] == "11":
+            reply =
+                #"{"data":[{"id":"11","login":"roadwatcher","display_name":"RoadWatcher","type":"","broadcaster_type":"","description":"","profile_image_url":"https://static-cdn.jtvnw.net/u/11-300x300.png","offline_image_url":"","view_count":0,"created_at":"2016-12-14T20:32:28Z"}]}"#
+        case "/helix/users" where query["id"] != nil:
+            reply = #"{"data":[]}"#
         case "/helix/users":
             reply = #"{"data":[{"id":"1971641","login":"\#(query["login"] ?? "")"}]}"#
         case "/helix/moderation/channels" where query["after"] == nil:
@@ -239,6 +244,15 @@ private func chat(userID: String = "2914196", capacity: Int = 300) -> TwitchChat
 @MainActor @Test func moderatesPagesThroughTheCursor() async {
     #expect(await chat().helix.moderates())
     #expect(await chat(userID: "1971641").helix.moderates())
+}
+
+@MainActor @Test func aUserCardReadsTheProfileByID() async throws {
+    let helix = chat().helix
+    let user = try #require(try await helix.user(id: "11"))
+    #expect(user.displayName == "RoadWatcher")
+    #expect(user.profileImage == URL(string: "https://static-cdn.jtvnw.net/u/11-300x300.png"))
+    #expect(user.createdAt == Date(timeIntervalSince1970: 1_481_747_548))
+    #expect(try await helix.user(id: "404") == nil)
 }
 
 @MainActor @Test func aDroppedSendIsAnError() async {
