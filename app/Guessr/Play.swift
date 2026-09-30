@@ -146,6 +146,8 @@ struct PlayView: View {
                 guard !revealed, !scoring, let at = proxy.convert(point, from: .local) else { return }
                 pin = at
             }
+            .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
+            .background(Color.paper)
         }
     }
 
@@ -294,6 +296,8 @@ struct DayResultView: View {
                             .stroke(.green, style: StrokeStyle(lineWidth: 2, dash: [5, 6]))
                     }
                 }
+                .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
+                .background(Color.paper)
                 .frame(height: 280)
                 .listRowInsets(EdgeInsets())
             }
@@ -452,7 +456,7 @@ private struct PlayerLayer: UIViewRepresentable {
 
     func makeUIView(context: Context) -> View {
         let view = View()
-        view.backgroundColor = .black
+        view.backgroundColor = UIColor(Color.paper)
         view.playerLayer.player = player
         return view
     }
