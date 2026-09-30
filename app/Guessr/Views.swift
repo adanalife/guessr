@@ -158,7 +158,7 @@ struct SettingsView: View {
                             if let code = account.modCode {
                                 TwitchCodeRows(code: code, prominentLabel: .paper).tint(Color.ink)
                             } else {
-                                Button("Log in again to moderate chat") { account.startModLogin() }
+                                Button("Access your mod tools") { account.startModLogin() }
                             }
                         }
                         Button("Sign out", role: .destructive) { account.signOut() }
