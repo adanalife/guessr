@@ -46,10 +46,14 @@ struct GuessrApp: App {
             }
             .foregroundStyle(Color.ink)
             .environment(account)
-            // A sign-out while on Chat, or a `-tab Chat` launch signed out,
-            // lands on Play rather than on a tab that isn't there.
+            // A sign-out while on Chat, a "View as" that drops the boards, or a
+            // `-tab` launch naming a hidden tab lands on Play rather than on a
+            // tab that isn't there.
             .onChange(of: account.showsChat, initial: true) { _, shows in
                 if !shows, tab == "Chat" { tab = "Play" }
+            }
+            .onChange(of: account.seesBoards, initial: true) { _, sees in
+                if !sees, tab == "Boards" { tab = "Play" }
             }
             .onChange(of: player) { _, joined in players.save(joined) }
             .task(id: account.session?.userID) { await account.checkModerates() }
