@@ -64,6 +64,7 @@ struct ChatLog: View {
                     .padding(.horizontal)
             }
             if let stub = mentionInProgress(text) { mentions(matching: stub) }
+            if mayModerate, let held = account.chat?.held, !held.isEmpty { heldBar(held) }
             if let mode = account.chat?.mode, let summary = mode.summary { modeBar(mode, summary) }
             if let replyingTo { replyBar(replyingTo) }
             composer
@@ -79,6 +80,83 @@ struct ChatLog: View {
         // Keyed on the chat, which arrives after the first appearance.
         .task(id: account.chat.map(ObjectIdentifier.init)) { await loadArt() }
         .task(id: lastSent) { await coolDown() }
+    }
+
+    /// AutoMod's queue: each held message with its reason and the two
+    /// verdicts. Twitch tells every mod's client when one rules, so a row
+    /// leaves on its own.
+    private func heldBar(_ held: [HeldMessage]) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(held) { message in
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(message.displayName): \(message.text)").font(.subheadline).lineLimit(3)
+                            Text(message.why).font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Allow", systemImage: "checkmark") { rule(message, allow: true) }
+                        Button("Deny", systemImage: "xmark") { rule(message, allow: false) }
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.bordered)
+                }
+            }
+            .padding(.horizontal)
+        }
+        // ponytail: three rows tall; AutoMod rarely holds more at once.
+        .frame(maxHeight: 150)
+        .background(.orange.opacity(0.12))
+    }
+
+    private func rule(_ message: HeldMessage, allow: Bool) {
+        guard let chat = account.chat else { return }
+        Task {
+            await account.refreshIfNeeded()
+            do {
+                try await chat.helix.rule(messageId: message.id, allow: allow)
+                error = nil
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    /// Flips one of the channel's modes. The bar updates when Twitch echoes
+    /// the change over EventSub, not before.
+    private func setMode(_ change: (inout ChatMode) -> Void) {
+        guard let chat = account.chat else { return }
+        var mode = chat.mode
+        change(&mode)
+        Task {
+            await account.refreshIfNeeded()
+            do {
+                try await chat.helix.update(mode: mode)
+                error = nil
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    /// The modes a mod can switch. Slow mode and followers-only take Twitch's
+    /// defaults, 30 seconds and any follower.
+    // ponytail: fixed lengths; a picker per mode if a mod ever asks for 2m.
+    private var modeMenu: some View {
+        let mode = account.chat?.mode ?? ChatMode()
+        return Menu {
+            Toggle("Slow mode", isOn: Binding(get: { mode.slowSeconds > 0 }, set: { on in setMode { $0.slowSeconds = on ? 30 : 0 } }))
+            Toggle(
+                "Followers only",
+                isOn: Binding(get: { mode.followerMinutes != nil }, set: { on in setMode { $0.followerMinutes = on ? 0 : nil } }))
+            Toggle("Subscribers only", isOn: Binding(get: { mode.subscribersOnly }, set: { on in setMode { $0.subscribersOnly = on } }))
+            Toggle("Emotes only", isOn: Binding(get: { mode.emoteOnly }, set: { on in setMode { $0.emoteOnly = on } }))
+            Toggle("Unique messages", isOn: Binding(get: { mode.uniqueOnly }, set: { on in setMode { $0.uniqueOnly = on } }))
+        } label: {
+            Image(systemName: mode.summary == nil ? "lock.open" : "lock.fill")
+        }
+        .accessibilityLabel("Chat modes")
+        .disabled(account.chat == nil)
     }
 
     /// A mod is held to none of the modes, so sees them without a countdown.
@@ -291,6 +369,7 @@ struct ChatLog: View {
 
     private var composer: some View {
         HStack {
+            if mayModerate { modeMenu }
             Button { pickingEmote.toggle() } label: { Image(systemName: pickingEmote ? "keyboard" : "face.smiling") }
                 .accessibilityLabel(pickingEmote ? "Hide emotes" : "Emotes")
                 .disabled(emotes.isEmpty)
@@ -402,7 +481,9 @@ struct ChatLineView: View {
                             banned = Banned(userId: line.userId, name: line.displayName, seconds: seconds)
                         }
                     } : nil,
-                reply: line.kind == nil && !line.deleted ? reply : nil))
+                reply: line.kind == nil && !line.deleted ? reply : nil,
+                warn: mayModerate && !line.isBroadcaster
+                    ? { reason in moderate { try await $0.warn(userId: line.userId, reason: reason) } } : nil))
     }
 
     /// Runs a moderation verb on a fresh token. Twitch checks the mod's
