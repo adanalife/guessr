@@ -40,7 +40,14 @@ struct PlayView: View {
                     DayResultView(progress: progress)
                 }
             } else if let message {
-                ContentUnavailableView(message, systemImage: "car")
+                ContentUnavailableView {
+                    Label(message, systemImage: "car")
+                } actions: {
+                    Button("Retry") {
+                        self.message = nil
+                        Task { await load() }
+                    }
+                }
             } else {
                 ProgressView()
             }
