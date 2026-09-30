@@ -147,8 +147,6 @@ struct PlayView: View {
                     )
                 } else if let message {
                     Text(message)
-                } else {
-                    Text("Somewhere in the United States. Where?")
                 }
             }
             .font(.callout)
