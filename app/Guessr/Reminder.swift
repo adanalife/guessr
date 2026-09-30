@@ -48,7 +48,7 @@ struct ReminderSection: View {
     @AppStorage("reminder-minutes") private var minutes = 9 * 60
 
     var body: some View {
-        Section("Reminder") {
+        Section("Notifications") {
             Toggle("Remind me to play", isOn: $on)
             if on {
                 DatePicker("At", selection: time, displayedComponents: .hourAndMinute)
