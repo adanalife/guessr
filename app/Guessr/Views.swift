@@ -220,7 +220,7 @@ struct NameSection: View {
                 player.alias = next
             }
             if !previous.isEmpty {
-                Button("Undo — go back to \(previous)") {
+                Button("Undo, back to \(previous)") {
                     player.alias = previous
                     previous = ""
                 }
