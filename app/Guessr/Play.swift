@@ -10,6 +10,8 @@ struct PlayView: View {
     @State private var day: GuessrDay?
     @State private var progress = DayProgress(date: "")
     @State private var pin: CLLocationCoordinate2D?
+    /// The state under the pin, for the button's `!guess <state>` callback.
+    @State private var pinState: String?
     /// The round just scored stays on screen until the player moves on.
     @State private var revealed = false
     @State private var scoring = false
@@ -184,10 +186,25 @@ struct PlayView: View {
                 (revealed, pin, message, camera) = (false, nil, nil, PlayView.lower48)
             }
         } else {
-            Button(scoring ? "Scoring…" : pin == nil ? "Place a pin on the map to guess" : "Guess") {
+            Button(
+                scoring ? "Scoring…" : pin == nil ? "Place a pin on the map to guess" : pinState.map { "Guess \($0)" } ?? "Guess"
+            ) {
                 Task { await guess(image) }
             }
             .disabled(pin == nil || scoring)
+            // A new pin cancels the last lookup; until one answers, or outside
+            // the US, the button says plain "Guess". ponytail: CLGeocoder is
+            // deprecated in iOS 26, but MKReverseGeocodingRequest's addresses
+            // carry a city and a country and no state field to read.
+            .task(id: pin.map { [$0.latitude, $0.longitude] }) {
+                pinState = nil
+                guard let pin else { return }
+                let placemark = try? await CLGeocoder()
+                    .reverseGeocodeLocation(CLLocation(latitude: pin.latitude, longitude: pin.longitude)).first
+                guard !Task.isCancelled, placemark?.isoCountryCode == "US", let area = placemark?.administrativeArea
+                else { return }
+                pinState = (USState.abbreviations[area] ?? USState(rawValue: area))?.rawValue
+            }
         }
     }
 
