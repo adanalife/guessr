@@ -19,8 +19,23 @@ extension View {
     /// The web game's play button: an ink fill under a paper label, the
     /// highest-contrast thing on screen in either theme. The accent is a text
     /// color, too light in dark mode to carry a white label.
-    func inkButton() -> some View {
-        buttonStyle(.borderedProminent).tint(Color.ink).foregroundStyle(Color.paper)
+    func inkButton() -> some View { buttonStyle(InkButtonStyle()) }
+}
+
+/// An ink capsule under a paper label. Disabled, it is the same capsule at
+/// half strength rather than the system's grey, which vanishes on paper in
+/// light mode and on footage in either.
+private struct InkButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.body.weight(.semibold))
+            .foregroundStyle(Color.paper)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .background(Color.ink.opacity(isEnabled ? 1 : 0.45), in: Capsule())
+            .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }
 
