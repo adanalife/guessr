@@ -143,11 +143,15 @@ struct SettingsView: View {
     @Environment(Account.self) private var account
     @Binding var player: Player
     @State private var playedToday = false
+    @AppStorage("kilometers") private var kilometers = false
 
     var body: some View {
         Form {
             NameSection(player: $player, playedToday: playedToday)
             ReminderSection()
+            Section {
+                Toggle("Distances in kilometers", isOn: $kilometers)
+            }
             if account.auth.isConfigured {
                 Section("Twitch") {
                     if let session = account.session {
