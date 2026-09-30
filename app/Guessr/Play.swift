@@ -345,16 +345,23 @@ struct JoinView: View {
     }
 }
 
-/// The finished day: every round, the total, and the text to share it.
+/// The finished day: every round on the map, the total, and the text to share it.
 struct DayResultView: View {
     let progress: DayProgress
     @State private var copied = false
     /// The round whose clip is playing again, by image: a map pin's selection
-    /// tag and a row's tap both set it.
+    /// tag sets it.
     @State private var replaying: String?
 
     static var nextDaily: Date {
         Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now)) ?? .now
+    }
+
+    /// "Play again in 6 h, 10 min", dropping the hours in the last one.
+    static func playAgain(from now: Date) -> String {
+        let left = Calendar.current.dateComponents([.hour, .minute], from: now, to: nextDaily)
+        let (h, m) = (left.hour ?? 0, left.minute ?? 0)
+        return h > 0 ? "Play again in \(h) h, \(m) min" : "Play again in \(m) min"
     }
 
     var body: some View {
@@ -394,31 +401,21 @@ struct DayResultView: View {
                 }
             }
             Section {
-                // The date is the replay sheet's to show; a row holds to one line.
-                ForEach(Array(progress.played.enumerated()), id: \.offset) { i, r in
-                    Button {
-                        replaying = r.image
-                    } label: {
-                        LabeledContent {
-                            Text("\(r.score.miles.formatted()) mi · \(r.score.points.formatted())").layoutPriority(1)
-                        } label: {
-                            Text("\(i + 1). \(r.score.state)")
-                        }
-                    }
-                    .foregroundStyle(Color.ink)
-                }
-            }
-            Section {
                 if let text = progress.shareText() {
                     Button(copied ? "Copied" : "Copy share text", systemImage: copied ? "checkmark" : "doc.on.doc") {
                         UIPasteboard.general.string = text
                         copied = true
+                        Task {
+                            try? await Task.sleep(for: .seconds(1.5))
+                            copied = false
+                        }
                     }
                 }
                 // The next date opens at the player's own midnight, the day
-                // `GuessrClient.today()` turns over; a relative Text keeps counting.
-                Text("Come back in \(Text(Self.nextDaily, style: .relative)) for five more.")
-                    .foregroundStyle(.secondary)
+                // `GuessrClient.today()` turns over; the timeline recounts each minute.
+                TimelineView(.everyMinute) { context in
+                    Text(Self.playAgain(from: context.date)).foregroundStyle(.secondary)
+                }
             }
         }
         .readableWidth()
@@ -434,19 +431,24 @@ struct DayResultView: View {
 /// One played round's clip again, with where it was and how the guess did.
 private struct ReplayView: View {
     let round: PlayedRound
+    /// The content's own height, so the sheet stops where the sentence does.
+    @State private var height: CGFloat = 320
+    @AppStorage("kilometers") private var kilometers = false
 
     var body: some View {
         VStack(spacing: 12) {
             ClipView(url: Guessr.baseURL.appending(path: round.image)).aspectRatio(ClipView.aspect, contentMode: .fit)
             Text(
-                "**\(round.score.state)**, \(round.score.filmed) — off by **\(round.score.miles.formatted()) mi** for **\(round.score.points.formatted())** points."
+                "**\(round.score.state)**, \(round.score.filmed). Off by **\(round.score.distance(kilometers: kilometers))** for **\(round.score.points.formatted())** points."
             )
             .font(.system(.callout, design: .serif))
             .multilineTextAlignment(.center)
         }
         .padding()
-        .presentationDetents([.medium, .large])
-        .paper()
+        .fixedSize(horizontal: false, vertical: true)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+        .presentationDetents([.height(height)])
+        .presentationBackground(Color.paper)
     }
 }
 
@@ -659,6 +661,7 @@ struct RevealCard: View {
     let round: PlayedRound
     /// The points roll up from zero as the reveal's haptic lands.
     @State private var counted = 0.0
+    @AppStorage("kilometers") private var kilometers = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -672,7 +675,7 @@ struct RevealCard: View {
             Text(round.score.state)
                 .font(.system(.title2, design: .serif, weight: .semibold))
                 .padding(.top, 6)
-            Text("\(round.score.miles.formatted()) mi away · \(round.score.filmed)")
+            Text("\(round.score.distance(kilometers: kilometers)) away · \(round.score.filmed)")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -684,6 +687,13 @@ struct RevealCard: View {
             let points = Double(round.score.points)
             if reduceMotion { counted = points } else { withAnimation(.easeOut(duration: 0.8)) { counted = points } }
         }
+    }
+}
+
+extension GuessrScore {
+    /// How far off the guess was, in the unit Settings picks.
+    func distance(kilometers: Bool) -> String {
+        kilometers ? "\(Int(km.rounded()).formatted()) km" : "\(miles.formatted()) mi"
     }
 }
 
