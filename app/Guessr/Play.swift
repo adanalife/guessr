@@ -370,19 +370,23 @@ struct DayResultView: View {
 /// One played round's clip again, with where it was and how the guess did.
 private struct ReplayView: View {
     let round: PlayedRound
+    /// The content's own height, so the sheet stops where the sentence does.
+    @State private var height: CGFloat = 320
 
     var body: some View {
         VStack(spacing: 12) {
             ClipView(url: Guessr.baseURL.appending(path: round.image)).aspectRatio(ClipView.aspect, contentMode: .fit)
             Text(
-                "**\(round.score.state)**, \(round.score.filmed) — off by **\(round.score.miles.formatted()) mi** for **\(round.score.points.formatted())** points."
+                "**\(round.score.state)**, \(round.score.filmed). Off by **\(round.score.miles.formatted()) mi** for **\(round.score.points.formatted())** points."
             )
             .font(.system(.callout, design: .serif))
             .multilineTextAlignment(.center)
         }
         .padding()
-        .presentationDetents([.medium, .large])
-        .paper()
+        .fixedSize(horizontal: false, vertical: true)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+        .presentationDetents([.height(height)])
+        .presentationBackground(Color.paper)
     }
 }
 
