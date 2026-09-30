@@ -144,6 +144,7 @@ struct SettingsView: View {
     @Binding var player: Player
     @State private var playedToday = false
     @AppStorage("kilometers") private var kilometers = false
+    @AppStorage("appearance") private var appearance = "dark"
 
     var body: some View {
         Form {
@@ -151,6 +152,12 @@ struct SettingsView: View {
             ReminderSection()
             Section {
                 Toggle("Distances in kilometers", isOn: $kilometers)
+                Picker("Appearance", selection: $appearance) {
+                    Text("System").tag("system")
+                    Text("Light").tag("light")
+                    Text("Dark").tag("dark")
+                }
+                .pickerStyle(.segmented)
             }
             if account.auth.isConfigured {
                 Section("Twitch") {
