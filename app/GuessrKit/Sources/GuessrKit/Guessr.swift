@@ -250,7 +250,9 @@ public struct GuessrClient: Sendable {
             struct Envelope: Decodable { var error: String }
             let message =
                 (try? JSONDecoder().decode(Envelope.self, from: data))?.error
-                ?? String(decoding: data, as: UTF8.self)
+                ?? (http.statusCode >= 500
+                    ? "The server is having trouble. Try again in a moment."
+                    : "The server refused that request (HTTP \(http.statusCode)).")
             throw GuessrError.http(status: http.statusCode, message: message)
         }
         return data
