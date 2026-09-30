@@ -146,18 +146,7 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            NameSection(player: $player)
-            // Beside the name: a linked device plays as this same name.
-            Section {
-                LinkCodeRows(player: player)
-                // Only before the first guess: joining after it would leave the
-                // day's progress on this device belonging to the player it left.
-                if !playedToday {
-                    NavigationLink("Already playing on the web? Enter your code") { JoinView(player: $player) }
-                }
-            } header: {
-                Text("Other devices")
-            }
+            NameSection(player: $player, playedToday: playedToday)
             ReminderSection()
             if account.auth.isConfigured {
                 Section("Twitch") {
@@ -213,9 +202,11 @@ struct SettingsView: View {
 
 /// The name the boards show, and a reroll that keeps the one name before it,
 /// as the web's About panel does. The server records whatever name the next
-/// play carries, so a new one shows from the next round on.
+/// play carries, so a new one shows from the next round on. Below them, the
+/// ways another device plays as this same name.
 struct NameSection: View {
     @Binding var player: Player
+    let playedToday: Bool
     @AppStorage("alias-prev") private var previous = ""
 
     var body: some View {
@@ -233,6 +224,13 @@ struct NameSection: View {
                     player.alias = previous
                     previous = ""
                 }
+            }
+            // Beside the name: a linked device plays as this same name.
+            LinkCodeRows(player: player)
+            // Only before the first guess: joining after it would leave the
+            // day's progress on this device belonging to the player it left.
+            if !playedToday {
+                NavigationLink("Already playing on the web? Enter your code") { JoinView(player: $player) }
             }
         }
     }
