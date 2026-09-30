@@ -85,21 +85,35 @@ struct PlayView: View {
                 GeometryReader { screen in
                     ZStack(alignment: .bottomTrailing) {
                         clip.ignoresSafeArea()
+                            // A scrim under the status bar, whose white text is lost
+                            // over a bright sky.
+                            .overlay(alignment: .top) {
+                                LinearGradient(colors: [.black.opacity(0.35), .clear], startPoint: .top, endPoint: .bottom)
+                                    .frame(height: 80)
+                                    .ignoresSafeArea()
+                                    .allowsHitTesting(false)
+                            }
+                        let width = revealed ? min(screen.size.width * 0.6, 736) : 352
                         VStack(alignment: .trailing, spacing: 12) {
                             map(shown)
-                                .frame(
-                                    width: revealed ? min(screen.size.width * 0.6, 736) : 352,
-                                    height: revealed ? screen.size.height * 0.6 : 240
-                                )
+                                // Revealed, the map keeps its own aspect rather than
+                                // growing taller than wide on a portrait screen.
+                                .frame(width: width, height: revealed ? min(screen.size.height * 0.6, width * 0.66) : 240)
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                                 .shadow(color: .black.opacity(0.4), radius: 12, y: 8)
+                            // Before the reveal the column is one width with the map,
+                            // the squares on a capsule of their own and the pill on the
+                            // clip, carrying its own contrast; the reveal gets a card.
                             VStack(spacing: 12) {
                                 ProgressSquares(progress: progress, of: day.rounds.count)
+                                    .padding(.horizontal, 12).padding(.vertical, 6)
+                                    .background(.regularMaterial.opacity(shown == nil ? 1 : 0), in: Capsule())
                                 controls(day, image: image, shown: shown)
+                                    .shadow(color: .black.opacity(shown == nil ? 0.4 : 0), radius: 8, y: 4)
                             }
-                            .padding()
-                            .frame(maxWidth: 420)
-                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                            .padding(shown == nil ? 0 : 16)
+                            .frame(maxWidth: shown == nil ? 352 : 420)
+                            .background(.regularMaterial.opacity(shown == nil ? 0 : 1), in: RoundedRectangle(cornerRadius: 12))
                         }
                         .padding()
                     }
