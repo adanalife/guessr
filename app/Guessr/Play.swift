@@ -35,7 +35,7 @@ struct PlayView: View {
                 // stay the same views across a guess rather than reloading.
                 let shown = revealed ? progress.played.last : nil
                 if let image = shown?.image ?? progress.next(in: day)?.image {
-                    round(day, image: image, number: progress.played.count + (shown == nil ? 1 : 0), shown: shown)
+                    round(day, image: image, shown: shown)
                 } else {
                     DayResultView(progress: progress)
                 }
@@ -57,7 +57,7 @@ struct PlayView: View {
         .task { await load() }
     }
 
-    private func round(_ day: GuessrDay, image: String, number: Int, shown: PlayedRound?) -> some View {
+    private func round(_ day: GuessrDay, image: String, shown: PlayedRound?) -> some View {
         // A fresh player per clip: a looper can't be rebuilt on a queue
         // player still holding the last clip's items.
         let clip = ClipView(
@@ -502,7 +502,7 @@ extension Coordinate {
 }
 
 extension Color {
-    /// The share string's square for a score, as a colour: the one language
+    /// The share string's square for a score, as a color: the one language
     /// the reveal, the day result and the share text all speak.
     static func band(for points: Int) -> Color {
         switch Share.square(for: points) {
@@ -515,7 +515,7 @@ extension Color {
     }
 }
 
-/// Five squares that fill in band colour as the day is played, with the running
+/// Five squares that fill in band color as the day is played, with the running
 /// total beside them. The current round is outlined in ink.
 struct ProgressSquares: View {
     let progress: DayProgress
@@ -538,16 +538,22 @@ struct ProgressSquares: View {
 }
 
 /// The reveal: the points as the headline, the place under them, painted in the
-/// round's band colour so the score reads before the number does.
+/// round's band color so the score reads before the number does. Only orange
+/// and up are painted: a grey round keeps a plain outline, so color on the card
+/// always means a good round.
 struct RevealCard: View {
     let round: PlayedRound
+    /// The points roll up from zero as the reveal's haptic lands.
+    @State private var counted = 0.0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let band = Color.band(for: round.score.points)
+        let band = Share.square(for: round.score.points) == "⬜" ? nil : Color.band(for: round.score.points)
         VStack(spacing: 2) {
-            Text(round.score.points.formatted())
+            CountUp(value: counted)
                 .font(.system(size: 44, weight: .bold, design: .serif))
                 .monospacedDigit()
+                .accessibilityLabel(round.score.points.formatted())
             Text("points").font(.caption).textCase(.uppercase).foregroundStyle(.secondary)
             Text(round.score.state)
                 .font(.system(.title2, design: .serif, weight: .semibold))
@@ -558,7 +564,23 @@ struct RevealCard: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
-        .background(band.opacity(0.18), in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(band, lineWidth: 2))
+        .background((band ?? .clear).opacity(0.18), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(band ?? Color.secondary.opacity(0.4), lineWidth: 2))
+        .onAppear {
+            let points = Double(round.score.points)
+            if reduceMotion { counted = points } else { withAnimation(.easeOut(duration: 0.8)) { counted = points } }
+        }
     }
+}
+
+/// A number SwiftUI interpolates frame by frame, so an animated change counts
+/// through every value on the way.
+private struct CountUp: View, Animatable {
+    var value: Double
+    var animatableData: Double {
+        get { value }
+        set { value = newValue }
+    }
+
+    var body: some View { Text(Int(value.rounded()).formatted()) }
 }
