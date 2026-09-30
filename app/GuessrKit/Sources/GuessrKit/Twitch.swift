@@ -137,7 +137,7 @@ public enum TwitchAuthError: Error, LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .notConfigured: "Twitch login isn't configured in this build"
-        case .expired: "The code expired before it was entered — try again"
+        case .expired: "The code expired before it was entered. Try again."
         case .refused(let why): "Twitch refused the login: \(why)"
         }
     }

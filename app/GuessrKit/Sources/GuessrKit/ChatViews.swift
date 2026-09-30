@@ -269,7 +269,7 @@
                 }
                 if !recent.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("In this chat").font(.caption.bold()).foregroundStyle(.secondary)
+                        Text("Recent messages").font(.caption.bold()).foregroundStyle(.secondary)
                         // ponytail: the last five; a scrolling list if a
                         // chatty viewer's card needs the whole session.
                         ForEach(Array(recent.suffix(5).enumerated()), id: \.offset) { _, text in
