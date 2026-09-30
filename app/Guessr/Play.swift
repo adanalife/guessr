@@ -61,7 +61,7 @@ struct PlayView: View {
                 // A phone on its side: the clip as large as the height allows,
                 // the map and controls in the column beside it.
                 HStack(spacing: 12) {
-                    clip.aspectRatio(16 / 9, contentMode: .fit)
+                    clip.aspectRatio(ClipView.aspect, contentMode: .fit)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     VStack(spacing: 8) {
                         map(shown)
@@ -95,7 +95,7 @@ struct PlayView: View {
                 }
             } else {
                 VStack(spacing: 12) {
-                    clip.aspectRatio(16 / 9, contentMode: .fit)
+                    clip.aspectRatio(ClipView.aspect, contentMode: .fit)
                     map(shown)
                     controls(day, image: image, shown: shown)
                 }
@@ -335,7 +335,7 @@ private struct ReplayView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            ClipView(url: Guessr.baseURL.appending(path: round.image)).aspectRatio(16 / 9, contentMode: .fit)
+            ClipView(url: Guessr.baseURL.appending(path: round.image)).aspectRatio(ClipView.aspect, contentMode: .fit)
             Text(
                 "**\(round.score.state)**, \(round.score.filmed) — off by **\(round.score.miles.formatted()) mi** for **\(round.score.points.formatted())** points."
             )
@@ -353,6 +353,10 @@ private struct ReplayView: View {
 /// zoomed picture, a tap pauses it, and a double tap zooms back out. `fills`
 /// crops it to cover its frame rather than letterboxing inside it.
 struct ClipView: View {
+    /// Every clip's shape: 1280 wide with the dashcam HUD cropped off the
+    /// bottom. A frame of this shape leaves nothing to letterbox.
+    static let aspect = 1280.0 / 674.0
+
     let url: URL
     var fills = false
     @State private var player = AVQueuePlayer()
