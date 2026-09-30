@@ -342,7 +342,7 @@ private struct ReplayView: View {
             Text(
                 "**\(round.score.state)**, \(round.score.filmed) — off by **\(round.score.miles.formatted()) mi** for **\(round.score.points.formatted())** points."
             )
-            .font(.callout)
+            .font(.system(.callout, design: .serif))
             .multilineTextAlignment(.center)
         }
         .padding()
