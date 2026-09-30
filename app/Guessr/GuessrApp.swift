@@ -22,10 +22,11 @@ struct GuessrApp: App {
                 if account.seesBoards {
                     Tab("Boards", systemImage: "list.number", value: "Boards") { NavigationStack { TodayView(alias: player.alias) } }
                 }
-                // Chat hangs off the Twitch login, so a build without a Twitch
-                // client id has nothing to show there. Settings always has the
-                // reminder, and hides only its Twitch section in such a build.
-                if account.auth.isConfigured {
+                // Chat hangs off the Twitch login, so the tab shows only while
+                // a login is signed in; Settings is where a player signs in.
+                // Settings always has the reminder, and hides only its Twitch
+                // section in a build without a Twitch client id.
+                if account.showsChat {
                     Tab("Chat", systemImage: "bubble.left.and.bubble.right", value: "Chat") { ChatTab() }
                 }
                 Tab("Settings", systemImage: "gear", value: "Settings") {
@@ -45,6 +46,11 @@ struct GuessrApp: App {
             }
             .foregroundStyle(Color.ink)
             .environment(account)
+            // A sign-out while on Chat, or a `-tab Chat` launch signed out,
+            // lands on Play rather than on a tab that isn't there.
+            .onChange(of: account.showsChat, initial: true) { _, shows in
+                if !shows, tab == "Chat" { tab = "Play" }
+            }
             .onChange(of: player) { _, joined in players.save(joined) }
             .task(id: account.session?.userID) { await account.checkModerates() }
             .onChange(of: scenePhase, initial: true) { _, phase in
@@ -121,6 +127,9 @@ final class Account {
 
     /// Whether we moderate the channel — really, or for the length of a look.
     var isMod: Bool { viewingAs.map { $0 == "mod" } ?? moderates }
+
+    /// Whether the Chat tab is there: a Twitch build with a login signed in.
+    var showsChat: Bool { auth.isConfigured && session != nil }
 
     /// The boards are for the channel's staff; a player sees their own day.
     var seesBoards: Bool { isOwner || isMod }
