@@ -323,6 +323,7 @@ struct DayResultView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .readableWidth()
         .paper()
         .sheet(isPresented: Binding(get: { replaying != nil }, set: { if !$0 { replaying = nil } })) {
             if let round = progress.played.first(where: { $0.image == replaying }) {

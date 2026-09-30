@@ -16,6 +16,11 @@ extension View {
         scrollContentBackground(.hidden).background(Color.paper)
     }
 
+    /// A list or form at a readable width, centred on the page, on regular width
+    /// only: an iPad row the full width of the screen strands a toggle far from
+    /// its label. Goes inside `paper()`, so the page color still fills the screen.
+    func readableWidth() -> some View { modifier(ReadableWidth()) }
+
     /// The web game's play button: an ink fill under a paper label, the
     /// highest-contrast thing on screen in either theme. The accent is a text
     /// color, too light in dark mode to carry a white label.
@@ -32,6 +37,18 @@ extension View {
     /// the other. Solid yellow with black text reads in light and dark; the fill stays
     /// out of the safe area, where it would flood the transparent navigation bar.
     func viewingAsBanner() -> some View { modifier(ViewingAsBanner()) }
+}
+
+private struct ReadableWidth: ViewModifier {
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
+    func body(content: Content) -> some View {
+        if sizeClass == .regular {
+            content.frame(maxWidth: 640).frame(maxWidth: .infinity)
+        } else {
+            content
+        }
+    }
 }
 
 private struct ViewingAsBanner: ViewModifier {
@@ -82,6 +99,7 @@ struct TodayView: View {
                 Text(error).foregroundStyle(.secondary)
             }
         }
+        .readableWidth()
         .paper()
         .navigationTitle("Guessr")
         .task(id: boardName) { await load() }
@@ -169,6 +187,7 @@ struct SettingsView: View {
                 }
             }
         }
+        .readableWidth()
         .paper()
         .navigationTitle("Settings")
         // Read on every visit rather than once: the Play tab saves as it goes.
