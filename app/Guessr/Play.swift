@@ -288,12 +288,12 @@ struct JoinView: View {
     }
 }
 
-/// The finished day: every round, the total, and the text to share it.
+/// The finished day: every round on the map, the total, and the text to share it.
 struct DayResultView: View {
     let progress: DayProgress
     @State private var copied = false
     /// The round whose clip is playing again, by image: a map pin's selection
-    /// tag and a row's tap both set it.
+    /// tag sets it.
     @State private var replaying: String?
 
     static var nextDaily: Date {
@@ -334,21 +334,6 @@ struct DayResultView: View {
                                 .frame(width: 16, height: 16)
                         }
                     }
-                }
-            }
-            Section {
-                // The date is the replay sheet's to show; a row holds to one line.
-                ForEach(Array(progress.played.enumerated()), id: \.offset) { i, r in
-                    Button {
-                        replaying = r.image
-                    } label: {
-                        LabeledContent {
-                            Text("\(r.score.miles.formatted()) mi · \(r.score.points.formatted())").layoutPriority(1)
-                        } label: {
-                            Text("\(i + 1). \(r.score.state)")
-                        }
-                    }
-                    .foregroundStyle(Color.ink)
                 }
             }
             Section {
