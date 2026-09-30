@@ -300,6 +300,13 @@ struct DayResultView: View {
         Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now)) ?? .now
     }
 
+    /// "Play again in 6 h, 10 min", dropping the hours in the last one.
+    static func playAgain(from now: Date) -> String {
+        let left = Calendar.current.dateComponents([.hour, .minute], from: now, to: nextDaily)
+        let (h, m) = (left.hour ?? 0, left.minute ?? 0)
+        return h > 0 ? "Play again in \(h) h, \(m) min" : "Play again in \(m) min"
+    }
+
     var body: some View {
         List {
             Section {
@@ -344,9 +351,10 @@ struct DayResultView: View {
                     }
                 }
                 // The next date opens at the player's own midnight, the day
-                // `GuessrClient.today()` turns over; a relative Text keeps counting.
-                Text("Come back in \(Text(Self.nextDaily, style: .relative)) for five more.")
-                    .foregroundStyle(.secondary)
+                // `GuessrClient.today()` turns over; the timeline recounts each minute.
+                TimelineView(.everyMinute) { context in
+                    Text(Self.playAgain(from: context.date)).foregroundStyle(.secondary)
+                }
             }
         }
         .readableWidth()
