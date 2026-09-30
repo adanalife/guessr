@@ -15,6 +15,13 @@ extension View {
     func paper() -> some View {
         scrollContentBackground(.hidden).background(Color.paper)
     }
+
+    /// The web game's play button: an ink fill under a paper label, the
+    /// highest-contrast thing on screen in either theme. The accent is a text
+    /// color, too light in dark mode to carry a white label.
+    func inkButton() -> some View {
+        buttonStyle(.borderedProminent).tint(Color.ink).foregroundStyle(Color.paper)
+    }
 }
 
 /// The boards, read from the public API, the running month first.
@@ -100,7 +107,7 @@ struct SettingsView: View {
                         // time out and ban.
                         if account.needsModLogin {
                             if let code = account.modCode {
-                                TwitchCodeRows(code: code)
+                                TwitchCodeRows(code: code, prominentLabel: .paper).tint(Color.ink)
                             } else {
                                 Button("Log in again to moderate chat") { account.startModLogin() }
                             }
@@ -216,7 +223,7 @@ struct TwitchSignIn: View {
 
     var body: some View {
         if let code {
-            TwitchCodeRows(code: code)
+            TwitchCodeRows(code: code, prominentLabel: .paper).tint(Color.ink)
         } else {
             Button("Sign in with Twitch") { Task { await signIn() } }
                 .disabled(!account.auth.isConfigured)

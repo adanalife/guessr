@@ -159,7 +159,7 @@ struct PlayView: View {
             .font(.callout)
             .multilineTextAlignment(.center)
             button(day, image: image)
-                .buttonStyle(.borderedProminent)
+                .inkButton()
         }
     }
 
