@@ -435,8 +435,9 @@ private struct ReplayView: View {
 
 /// A clip on a muted loop. No scrubber: a scrubber is a way to hunt for a
 /// frame the round didn't mean to show. A pinch zooms in and a drag pans the
-/// zoomed picture, a tap pauses it, and a double tap zooms back out. `fills`
-/// crops it to cover its frame rather than letterboxing inside it.
+/// zoomed picture, a tap pauses it and names the other gestures for a moment,
+/// and a double tap zooms back out. `fills` crops it to cover its frame rather
+/// than letterboxing inside it.
 struct ClipView: View {
     /// Every clip's shape: 1280 wide with the dashcam HUD cropped off the
     /// bottom. A frame of this shape leaves nothing to letterbox.
@@ -447,6 +448,7 @@ struct ClipView: View {
     @State private var player = AVQueuePlayer()
     @State private var looper: AVPlayerLooper?
     @State private var paused = false
+    @State private var hint = false
     /// The zoom between gestures, and the one a gesture in progress shows.
     @State private var zoom = ClipZoom()
     @State private var live: ClipZoom?
@@ -464,7 +466,10 @@ struct ClipView: View {
                 .gesture(pinch(geo.size))
                 .gesture(pan(geo.size), isEnabled: zoom.scale > 1)
                 .onTapGesture(count: 2) { withAnimation { zoom = ClipZoom() } }
-                .onTapGesture { togglePause() }
+                .onTapGesture {
+                    togglePause()
+                    withAnimation { hint = true }
+                }
                 .overlay {
                     if paused {
                         Image(systemName: "pause.circle.fill")
@@ -472,6 +477,23 @@ struct ClipView: View {
                             .foregroundStyle(.white.opacity(0.8))
                             .allowsHitTesting(false)
                     }
+                }
+                .overlay(alignment: .bottom) {
+                    if hint {
+                        Text("Pinch to zoom · double-tap to zoom out")
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10).padding(.vertical, 4)
+                            .background(.black.opacity(0.6), in: Capsule())
+                            .padding(8)
+                            .transition(.opacity)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .task(id: hint) {
+                    guard hint else { return }
+                    try? await Task.sleep(for: .seconds(2))
+                    withAnimation { hint = false }
                 }
         }
         .accessibilityElement()
