@@ -305,3 +305,46 @@ private func chat(userID: String = "2914196", capacity: Int = 300) -> TwitchChat
     #expect(slow.wait(since: sent, now: sent.addingTimeInterval(31)) == 0)
     #expect(ChatMode().wait(since: sent, now: sent) == 0)
 }
+
+@MainActor @Test func aHeldMessageWaitsUntilAnyModRules() throws {
+    let chat = chat()
+    let hold = #"""
+        "broadcaster_user_id":"1971641","user_id":"11","user_login":"roadwatcher","user_name":"RoadWatcher",
+        "message_id":"h1","message":{"text":"wow that is a bad word","fragments":[{"type":"text","text":"wow that is a bad word"}]},
+        "reason":"automod","automod":{"category":"swearing","level":2,"boundaries":[{"start_pos":14,"end_pos":22}]},
+        "blocked_term":null,"status":"unknown","held_at":"2026-09-30T14:56:51.123456789Z"
+        """#
+    chat.handle(event("automod.message.hold", hold))
+    chat.handle(event("automod.message.hold", hold))
+    let held = try #require(chat.held.first)
+    #expect(chat.held.count == 1)
+    #expect(held.id == "h1" && held.userId == "11" && held.displayName == "RoadWatcher")
+    #expect(held.text == "wow that is a bad word" && held.why == "AutoMod: swearing 2")
+    #expect(held.heldAt == Date(timeIntervalSince1970: 1_790_780_211.123))
+    // A message the log would show is not a held one, and a hold is not a line.
+    #expect(chat.lines.isEmpty)
+
+    chat.handle(
+        event(
+            "automod.message.hold",
+            #""user_id":"12","user_login":"vanfan","message_id":"h2","message":{"text":"buy now"},"reason":"blocked_term","automod":null,"blocked_term":{"terms_found":[{"term_id":"t1","boundary":{"start_pos":0,"end_pos":6},"owner_broadcaster_user_id":"1971641"}]}"#
+        ))
+    #expect(chat.held.map(\.why) == ["AutoMod: swearing 2", "Blocked term"])
+    chat.handle(event("automod.message.update", #""message_id":"h1","status":"approved","moderator_user_id":"2914196""#))
+    #expect(chat.held.map(\.id) == ["h2"])
+    chat.handle(event("automod.message.update", #""message_id":"h2","status":"expired""#))
+    #expect(chat.held.isEmpty)
+}
+
+@Test func chatModeSettingsSendALengthOnlyWithItsMode() throws {
+    func json(_ mode: ChatMode) throws -> String {
+        String(decoding: try JSONSerialization.data(withJSONObject: mode.settings, options: .sortedKeys), as: UTF8.self)
+    }
+    #expect(
+        try json(ChatMode())
+            == #"{"emote_mode":false,"follower_mode":false,"slow_mode":false,"subscriber_mode":false,"unique_chat_mode":false}"#)
+    #expect(
+        try json(ChatMode(slowSeconds: 30, followerMinutes: 0, emoteOnly: true))
+            == #"{"emote_mode":true,"follower_mode":true,"follower_mode_duration":0,"slow_mode":true,"slow_mode_wait_time":30,"subscriber_mode":false,"unique_chat_mode":false}"#
+    )
+}

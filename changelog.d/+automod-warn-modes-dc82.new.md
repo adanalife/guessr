@@ -1,0 +1,1 @@
+Mods rule on the AutoMod queue from the app: a held message shows above the composer with why AutoMod held it and Allow / Deny. The line menu grows Warn (with a reason), and the composer a menu that switches slow, followers-only, subscribers-only, emote-only and unique-message modes. Three new scopes come with it, so every mod is asked to log in again to moderate.

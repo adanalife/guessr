@@ -151,10 +151,15 @@ public struct TwitchAuth: Sendable {
     /// that read, on your own token, is how a channel mod is recognized without
     /// anyone keeping a list.
     public static let scopes = ["user:read:chat", "user:write:chat", "user:read:moderated_channels"]
-    /// The same, plus deleting messages and banning — asked for only once the
-    /// login turns out to moderate the channel, so a viewer's consent screen
-    /// never lists powers they don't have.
-    public static let modScopes = scopes + ["moderator:manage:chat_messages", "moderator:manage:banned_users"]
+    /// The same, plus the moderation verbs — asked for only once the login
+    /// turns out to moderate the channel, so a viewer's consent screen never
+    /// lists powers they don't have. Adding a scope here asks every mod for a
+    /// second login again: `canModerate` wants all of them.
+    public static let modScopes =
+        scopes + [
+            "moderator:manage:chat_messages", "moderator:manage:banned_users", "moderator:manage:automod",
+            "moderator:manage:warnings", "moderator:manage:chat_settings",
+        ]
 
     /// The Twitch application's client id, registered as a Public client. Not a
     /// secret; empty leaves login switched off.
