@@ -71,6 +71,7 @@ struct PlayView: View {
                     clip.aspectRatio(ClipView.aspect, contentMode: .fit)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     VStack(spacing: 8) {
+                        ProgressSquares(progress: progress, of: day.rounds.count)
                         map(shown)
                         controls(day, image: image, shown: shown)
                     }
@@ -92,9 +93,12 @@ struct PlayView: View {
                                 )
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                                 .shadow(color: .black.opacity(0.4), radius: 12, y: 8)
-                            controls(day, image: image, shown: shown)
-                                .padding()
-                                .frame(maxWidth: 420)
+                            VStack(spacing: 12) {
+                                ProgressSquares(progress: progress, of: day.rounds.count)
+                                controls(day, image: image, shown: shown)
+                            }
+                            .padding()
+                            .frame(maxWidth: 420)
                                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
                         }
                         .padding()
@@ -102,6 +106,7 @@ struct PlayView: View {
                 }
             } else {
                 VStack(spacing: 12) {
+                    ProgressSquares(progress: progress, of: day.rounds.count)
                     clip.aspectRatio(ClipView.aspect, contentMode: .fit)
                     map(shown)
                     controls(day, image: image, shown: shown)
@@ -109,8 +114,7 @@ struct PlayView: View {
                 .padding()
             }
         }
-        .navigationTitle("Round \(number) of \(day.rounds.count) · \(progress.total.formatted())")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .sensoryFeedback(.selection, trigger: pin?.latitude)
         .sensoryFeedback(trigger: revealed) { _, shown in
             shown ? progress.played.last.map { Self.feedback(for: $0.score.points) } : nil
@@ -147,17 +151,11 @@ struct PlayView: View {
 
     private func controls(_ day: GuessrDay, image: String, shown: PlayedRound?) -> some View {
         VStack(spacing: 12) {
-            Group {
-                if let shown {
-                    Text(
-                        "**\(shown.score.state)**, \(shown.score.filmed) — you were off by **\(shown.score.miles.formatted()) mi** for **\(shown.score.points.formatted())** points."
-                    )
-                } else if let message {
-                    Text(message)
-                }
+            if let shown {
+                RevealCard(round: shown)
+            } else if let message {
+                Text(message).font(.callout).multilineTextAlignment(.center)
             }
-            .font(.callout)
-            .multilineTextAlignment(.center)
             button(day, image: image)
                 .inkButton()
         }
@@ -477,4 +475,66 @@ enum Saved {
 
 extension Coordinate {
     var location: CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: lat, longitude: lng) }
+}
+
+extension Color {
+    /// The share string's square for a score, as a colour: the one language
+    /// the reveal, the day result and the share text all speak.
+    static func band(for points: Int) -> Color {
+        switch Share.square(for: points) {
+        case "🏆": .yellow
+        case "🟩": .green
+        case "🟨": .yellow
+        case "🟧": .orange
+        default: .gray
+        }
+    }
+}
+
+/// Five squares that fill in band colour as the day is played, with the running
+/// total beside them. The current round is outlined in ink.
+struct ProgressSquares: View {
+    let progress: DayProgress
+    let of: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<of, id: \.self) { i in
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(i < progress.played.count ? Color.band(for: progress.played[i].score.points) : .clear)
+                    .strokeBorder(i == progress.played.count ? Color.ink : Color.secondary.opacity(0.4), lineWidth: 1.5)
+                    .frame(width: 16, height: 16)
+            }
+            Spacer()
+            Text(progress.total.formatted())
+                .font(.system(.title3, design: .serif, weight: .semibold))
+                .monospacedDigit()
+        }
+    }
+}
+
+/// The reveal: the points as the headline, the place under them, painted in the
+/// round's band colour so the score reads before the number does.
+struct RevealCard: View {
+    let round: PlayedRound
+
+    var body: some View {
+        let band = Color.band(for: round.score.points)
+        VStack(spacing: 2) {
+            Text(round.score.points.formatted())
+                .font(.system(size: 44, weight: .bold, design: .serif))
+                .monospacedDigit()
+            Text("points").font(.caption).textCase(.uppercase).foregroundStyle(.secondary)
+            Text(round.score.state)
+                .font(.system(.title2, design: .serif, weight: .semibold))
+                .padding(.top, 6)
+            Text("\(round.score.miles.formatted()) mi away · \(round.score.filmed)")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(band.opacity(0.18), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(band, lineWidth: 2))
+    }
 }
