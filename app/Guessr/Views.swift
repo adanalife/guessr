@@ -24,6 +24,33 @@ extension View {
     }
 }
 
+extension View {
+    /// The owner's "Viewing as" band, on each tab's root inside its navigation stack.
+    /// Inside the stack it sits below the navigation bar and clear of the tab bar on
+    /// both devices: iPadOS floats the tab bar over the top of the window and iOS
+    /// floats it over the bottom, so an inset on the tab view collides with one or
+    /// the other. Solid yellow with black text reads in light and dark; the fill stays
+    /// out of the safe area, where it would flood the transparent navigation bar.
+    func viewingAsBanner() -> some View { modifier(ViewingAsBanner()) }
+}
+
+private struct ViewingAsBanner: ViewModifier {
+    @Environment(Account.self) private var account
+
+    func body(content: Content) -> some View {
+        content.safeAreaInset(edge: .top) {
+            if let tier = account.viewingAs {
+                Text("Viewing as \(tier)")
+                    .font(.caption.bold())
+                    .foregroundStyle(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .background(.yellow, ignoresSafeAreaEdges: [])
+            }
+        }
+    }
+}
+
 /// The boards, read from the public API, the running month first.
 struct TodayView: View {
     /// The player's own name, whose row is picked out when it makes the board.
