@@ -4,6 +4,25 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.22.0 — 2026-09-30
+
+### New
+
+- Mods rule on the AutoMod queue from the app: a held message shows above the composer with why AutoMod held it and Allow / Deny. The line menu grows Warn (with a reason), and the composer a menu that switches slow, followers-only, subscribers-only, emote-only and unique-message modes. Three new scopes come with it, so every mod is asked to log in again to moderate. ([#320](https://github.com/adanalife/guessr/pull/320))
+- The iOS app's Settings adds a kilometers toggle and a System / Light / Dark appearance picker (dark by default), and links other devices from the name section. ([#322](https://github.com/adanalife/guessr/pull/322))
+- The iOS app asks "Where was this dashcam clip taken?" until the first round scores, and the guess button names the state under the pin ("Guess Oklahoma"). ([#323](https://github.com/adanalife/guessr/pull/323))
+- The iPhone app's play map has zoom buttons, the reveal frames both pins without a label on the answer, and a tap on the clip names its zoom gestures. ([#324](https://github.com/adanalife/guessr/pull/324))
+
+### Changed
+
+- Chat's connection status leaves out the channel name, the user card's message list is titled "Recent messages", and player-facing copy in the app and on the web uses no em-dashes. ([#321](https://github.com/adanalife/guessr/pull/321))
+- The iPhone day result counts down to the next daily ("Play again in 6 h, 10 min"), drops the rounds table for the map pins, fits the replay sheet to its clip, lets "Copied" reset, and shows distances in kilometers when Settings asks. ([#325](https://github.com/adanalife/guessr/pull/325))
+
+### Behind the scenes
+
+- The staging deploy proves the Python Worker's cold isolates start, and redeploys once when they don't. ([#318](https://github.com/adanalife/guessr/pull/318))
+- The Python Worker toolchain is current: workers-py 1.17.5 and workers-runtime-sdk 1.9.2. ([#319](https://github.com/adanalife/guessr/pull/319))
+
 ## v1.21.0 — 2026-09-30
 
 ### Changed

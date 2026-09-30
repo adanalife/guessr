@@ -1,1 +1,0 @@
-The iPhone day result counts down to the next daily ("Play again in 6 h, 10 min"), drops the rounds table for the map pins, fits the replay sheet to its clip, lets "Copied" reset, and shows distances in kilometers when Settings asks.
