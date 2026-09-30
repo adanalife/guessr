@@ -9,6 +9,8 @@ struct GuessrApp: App {
     /// the code joined; every change goes back to the Keychain.
     @State private var player = KeychainPlayerStore().current()
     @State private var tab = GuessrApp.firstTab
+    /// Settings' theme: "system" follows the device, else "light" or "dark".
+    @AppStorage("appearance") private var appearance = "dark"
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -43,6 +45,7 @@ struct GuessrApp: App {
                 }
             }
             .foregroundStyle(Color.ink)
+            .preferredColorScheme(appearance == "system" ? nil : appearance == "dark" ? .dark : .light)
             .environment(account)
             // A sign-out while on Chat, a "View as" that drops the boards, or a
             // `-tab` launch naming a hidden tab lands on Play rather than on a

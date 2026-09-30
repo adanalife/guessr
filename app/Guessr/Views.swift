@@ -143,22 +143,22 @@ struct SettingsView: View {
     @Environment(Account.self) private var account
     @Binding var player: Player
     @State private var playedToday = false
+    @AppStorage("kilometers") private var kilometers = false
+    @AppStorage("appearance") private var appearance = "dark"
 
     var body: some View {
         Form {
-            NameSection(player: $player)
-            // Beside the name: a linked device plays as this same name.
-            Section {
-                LinkCodeRows(player: player)
-                // Only before the first guess: joining after it would leave the
-                // day's progress on this device belonging to the player it left.
-                if !playedToday {
-                    NavigationLink("Already playing on the web? Enter your code") { JoinView(player: $player) }
-                }
-            } header: {
-                Text("Other devices")
-            }
+            NameSection(player: $player, playedToday: playedToday)
             ReminderSection()
+            Section {
+                Toggle("Distances in kilometers", isOn: $kilometers)
+                Picker("Appearance", selection: $appearance) {
+                    Text("System").tag("system")
+                    Text("Light").tag("light")
+                    Text("Dark").tag("dark")
+                }
+                .pickerStyle(.segmented)
+            }
             if account.auth.isConfigured {
                 Section("Twitch") {
                     if let session = account.session {
@@ -169,7 +169,7 @@ struct SettingsView: View {
                             if let code = account.modCode {
                                 TwitchCodeRows(code: code, prominentLabel: .paper).tint(Color.ink)
                             } else {
-                                Button("Log in again to moderate chat") { account.startModLogin() }
+                                Button("Access your mod tools") { account.startModLogin() }
                             }
                         }
                         Button("Sign out", role: .destructive) { account.signOut() }
@@ -213,9 +213,11 @@ struct SettingsView: View {
 
 /// The name the boards show, and a reroll that keeps the one name before it,
 /// as the web's About panel does. The server records whatever name the next
-/// play carries, so a new one shows from the next round on.
+/// play carries, so a new one shows from the next round on. Below them, the
+/// ways another device plays as this same name.
 struct NameSection: View {
     @Binding var player: Player
+    let playedToday: Bool
     @AppStorage("alias-prev") private var previous = ""
 
     var body: some View {
@@ -229,10 +231,17 @@ struct NameSection: View {
                 player.alias = next
             }
             if !previous.isEmpty {
-                Button("Undo — go back to \(previous)") {
+                Button("Undo, back to \(previous)") {
                     player.alias = previous
                     previous = ""
                 }
+            }
+            // Beside the name: a linked device plays as this same name.
+            LinkCodeRows(player: player)
+            // Only before the first guess: joining after it would leave the
+            // day's progress on this device belonging to the player it left.
+            if !playedToday {
+                NavigationLink("Already playing on the web? Enter your code") { JoinView(player: $player) }
             }
         }
     }
