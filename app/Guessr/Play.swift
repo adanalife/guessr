@@ -478,7 +478,7 @@ extension Coordinate {
 }
 
 extension Color {
-    /// The share string's square for a score, as a colour: the one language
+    /// The share string's square for a score, as a color: the one language
     /// the reveal, the day result and the share text all speak.
     static func band(for points: Int) -> Color {
         switch Share.square(for: points) {
@@ -491,7 +491,7 @@ extension Color {
     }
 }
 
-/// Five squares that fill in band colour as the day is played, with the running
+/// Five squares that fill in band color as the day is played, with the running
 /// total beside them. The current round is outlined in ink.
 struct ProgressSquares: View {
     let progress: DayProgress
@@ -514,7 +514,7 @@ struct ProgressSquares: View {
 }
 
 /// The reveal: the points as the headline, the place under them, painted in the
-/// round's band colour so the score reads before the number does. Only orange
+/// round's band color so the score reads before the number does. Only orange
 /// and up are painted: a grey round keeps a plain outline, so color on the card
 /// always means a good round.
 struct RevealCard: View {
