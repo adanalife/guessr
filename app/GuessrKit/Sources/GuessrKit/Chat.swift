@@ -396,6 +396,8 @@ public final class Helix {
     let base: URL
     /// The channel's numeric id, once it has been looked up.
     public private(set) var broadcasterID: String?
+    /// Profiles already read, by user id: a card reopened costs no call.
+    private var users: [String: TwitchUser] = [:]
 
     public init(
         channel: String,
@@ -425,6 +427,17 @@ public final class Helix {
         }
         broadcasterID = id
         return id
+    }
+
+    /// A chatter's public profile, for their user card: read once per user
+    /// id, nil for an id Twitch no longer knows. Needs no scope.
+    public func user(id: String) async throws -> TwitchUser? {
+        if let known = users[id] { return known }
+        struct Page: Decodable { var data: [TwitchUser] }
+        let body = try await request("GET", "users", query: ["id": id])
+        let user = try TwitchUser.decoder.decode(Page.self, from: body).data.first
+        users[id] = user
+        return user
     }
 
     /// Posts `text` to the channel as the logged-in user, threaded under the
@@ -551,6 +564,35 @@ public final class Helix {
         }
         return data
     }
+}
+
+/// Who a chatter is, as Helix `users` answers: what a user card shows.
+public struct TwitchUser: Decodable, Sendable, Equatable {
+    public var id: String
+    public var login: String
+    public var displayName: String
+    /// Twitch's avatar art; every account has one, a default if never set.
+    public var profileImageUrl: String
+    /// When the account was made.
+    public var createdAt: Date
+
+    public init(id: String, login: String, displayName: String, profileImageUrl: String, createdAt: Date) {
+        self.id = id
+        self.login = login
+        self.displayName = displayName
+        self.profileImageUrl = profileImageUrl
+        self.createdAt = createdAt
+    }
+
+    public var profileImage: URL? { URL(string: profileImageUrl) }
+
+    /// Helix writes `created_at` in whole seconds, which `.iso8601` reads.
+    static let decoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.keyDecodingStrategy = .convertFromSnakeCase
+        d.dateDecodingStrategy = .iso8601
+        return d
+    }()
 }
 
 /// Twitch's `message_timestamp` carries nanoseconds, which the ISO 8601
