@@ -11,7 +11,16 @@ struct GuessrApp: App {
     @State private var tab = GuessrApp.firstTab
     @Environment(\.scenePhase) private var scenePhase
 
-    init() { Telemetry.start() }
+    init() {
+        Telemetry.start()
+        // The navigation titles carry the web's serif (ET Book there, New York
+        // here). SwiftUI has no modifier for a title's font, so it goes on the
+        // bar's appearance proxy, built from the text style so Dynamic Type
+        // still scales it.
+        let bar = UINavigationBar.appearance()
+        bar.largeTitleTextAttributes = [.font: UIFont.serif(.largeTitle)]
+        bar.titleTextAttributes = [.font: UIFont.serif(.headline)]
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -220,5 +229,14 @@ final class Account {
             modCode = code
             try? await signIn(code, scopes: TwitchAuth.modScopes)
         }
+    }
+}
+
+extension UIFont {
+    /// The text style's system font in New York, bold.
+    fileprivate static func serif(_ style: TextStyle) -> UIFont {
+        let base = preferredFont(forTextStyle: style).fontDescriptor
+        let serif = base.withDesign(.serif)?.withSymbolicTraits(.traitBold) ?? base
+        return UIFont(descriptor: serif, size: 0)
     }
 }
