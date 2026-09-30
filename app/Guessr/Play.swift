@@ -376,12 +376,13 @@ private struct ReplayView: View {
     let round: PlayedRound
     /// The content's own height, so the sheet stops where the sentence does.
     @State private var height: CGFloat = 320
+    @AppStorage("kilometers") private var kilometers = false
 
     var body: some View {
         VStack(spacing: 12) {
             ClipView(url: Guessr.baseURL.appending(path: round.image)).aspectRatio(ClipView.aspect, contentMode: .fit)
             Text(
-                "**\(round.score.state)**, \(round.score.filmed). Off by **\(round.score.miles.formatted()) mi** for **\(round.score.points.formatted())** points."
+                "**\(round.score.state)**, \(round.score.filmed). Off by **\(round.score.distance(kilometers: kilometers))** for **\(round.score.points.formatted())** points."
             )
             .font(.system(.callout, design: .serif))
             .multilineTextAlignment(.center)
@@ -566,6 +567,7 @@ struct RevealCard: View {
     let round: PlayedRound
     /// The points roll up from zero as the reveal's haptic lands.
     @State private var counted = 0.0
+    @AppStorage("kilometers") private var kilometers = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -579,7 +581,7 @@ struct RevealCard: View {
             Text(round.score.state)
                 .font(.system(.title2, design: .serif, weight: .semibold))
                 .padding(.top, 6)
-            Text("\(round.score.miles.formatted()) mi away · \(round.score.filmed)")
+            Text("\(round.score.distance(kilometers: kilometers)) away · \(round.score.filmed)")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -591,6 +593,13 @@ struct RevealCard: View {
             let points = Double(round.score.points)
             if reduceMotion { counted = points } else { withAnimation(.easeOut(duration: 0.8)) { counted = points } }
         }
+    }
+}
+
+extension GuessrScore {
+    /// How far off the guess was, in the unit Settings picks.
+    func distance(kilometers: Bool) -> String {
+        kilometers ? "\(Int(km.rounded()).formatted()) km" : "\(miles.formatted()) mi"
     }
 }
 
