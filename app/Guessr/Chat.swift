@@ -1,8 +1,8 @@
 import GuessrKit
 import SwiftUI
 
-/// The channel's Twitch chat: the sign-in until there is a login, then the log
-/// and the composer.
+/// The channel's Twitch chat for the signed-in login: the log and the composer.
+/// The tab is there only while a login is signed in.
 struct ChatTab: View {
     @Environment(Account.self) private var account
 
@@ -14,13 +14,6 @@ struct ChatTab: View {
                     let lines = account.chat?.lines ?? []
                     ChatLog(lines: mayModerate ? lines : lines.filter { !$0.deleted }, mayModerate: mayModerate)
                     .task(id: session.userID) { await account.openChat() }
-                } else {
-                    Form {
-                        Section {
-                            Text("Chat is for signed-in Twitch viewers: sign in to read and talk in \(account.channel).")
-                            TwitchSignIn()
-                        }
-                    }
                 }
             }
             .paper()
