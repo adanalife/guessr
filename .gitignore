@@ -64,3 +64,5 @@ api/python_modules/
 api/.venv-workers/
 api/pylock.toml
 api/bundle/
+.coverage
+.coverage.*
