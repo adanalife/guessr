@@ -409,6 +409,8 @@ struct DayResultView: View {
     /// The round whose clip is playing again, by image: a map pin's selection
     /// tag sets it.
     @State private var replaying: String?
+    /// The total's size, grown and shrunk with the reader's text size.
+    @ScaledMetric(relativeTo: .largeTitle) private var headline = 44.0
 
     static var nextDaily: Date {
         Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now)) ?? .now
@@ -444,7 +446,7 @@ struct DayResultView: View {
                     Text("You have completed today's game").font(.caption).foregroundStyle(.secondary)
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text(progress.total.formatted())
-                            .font(.system(size: 44, weight: .bold, design: .serif))
+                            .font(.system(size: headline, weight: .bold, design: .serif))
                             .monospacedDigit()
                         Text("/ \((progress.played.count * 5000).formatted())").foregroundStyle(.secondary)
                     }
@@ -802,6 +804,7 @@ struct RevealCard: View {
     let round: PlayedRound
     /// The points roll up from zero as the reveal's haptic lands.
     @State private var counted = 0.0
+    @ScaledMetric(relativeTo: .largeTitle) private var headline = 44.0
     @AppStorage("kilometers") private var kilometers = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -809,7 +812,7 @@ struct RevealCard: View {
         let band = Share.square(for: round.score.points) == "⬜" ? nil : Color.band(for: round.score.points)
         VStack(spacing: 2) {
             CountUp(value: counted)
-                .font(.system(size: 44, weight: .bold, design: .serif))
+                .font(.system(size: headline, weight: .bold, design: .serif))
                 .monospacedDigit()
                 .accessibilityLabel(round.score.points.formatted())
             Text("points").font(.caption).textCase(.uppercase).foregroundStyle(.secondary)
