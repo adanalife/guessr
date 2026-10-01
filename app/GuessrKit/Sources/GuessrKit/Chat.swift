@@ -536,15 +536,26 @@ public final class Helix {
     }
 
     /// Times a user out for `seconds`, or bans them for good when `seconds`
-    /// is 0. Needs `moderator:manage:banned_users`.
-    public func ban(userId: String, seconds: Int) async throws {
+    /// is 0, with the reason the mod gave, if any -- Twitch shows it to the
+    /// other mods and in the user's own notice. Needs
+    /// `moderator:manage:banned_users`.
+    public func ban(userId: String, seconds: Int, reason: String? = nil) async throws {
         let broadcaster = try await resolveBroadcaster()
-        var ban: [String: Any] = ["user_id": userId]
-        if seconds > 0 { ban["duration"] = seconds }
         _ = try await request(
             "POST", "moderation/bans",
             query: ["broadcaster_id": broadcaster, "moderator_id": session.userID],
-            body: ["data": ban])
+            body: ["data": Self.banData(userId: userId, seconds: seconds, reason: reason)])
+    }
+
+    /// The `data` object a ban posts: no `duration` for a permanent ban, no
+    /// `reason` when the mod typed nothing. Twitch caps a reason at 500
+    /// characters.
+    nonisolated static func banData(userId: String, seconds: Int, reason: String?) -> [String: Any] {
+        var ban: [String: Any] = ["user_id": userId]
+        if seconds > 0 { ban["duration"] = seconds }
+        let why = (reason ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !why.isEmpty { ban["reason"] = String(why.prefix(500)) }
+        return ban
     }
 
     /// Lifts a user's timeout or ban. Needs `moderator:manage:banned_users`.

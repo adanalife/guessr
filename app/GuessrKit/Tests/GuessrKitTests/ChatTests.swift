@@ -336,6 +336,19 @@ private func chat(userID: String = "2914196", capacity: Int = 300) -> TwitchChat
     #expect(chat.held.isEmpty)
 }
 
+@Test func aBanCarriesItsLengthAndReasonOnlyWhenGiven() throws {
+    func json(_ data: [String: Any]) throws -> String {
+        String(decoding: try JSONSerialization.data(withJSONObject: data, options: .sortedKeys), as: UTF8.self)
+    }
+    #expect(try json(Helix.banData(userId: "12", seconds: 0, reason: nil)) == #"{"user_id":"12"}"#)
+    #expect(try json(Helix.banData(userId: "12", seconds: 600, reason: "  ")) == #"{"duration":600,"user_id":"12"}"#)
+    #expect(
+        try json(Helix.banData(userId: "12", seconds: 0, reason: " spam ")) == #"{"reason":"spam","user_id":"12"}"#)
+    #expect(
+        (Helix.banData(userId: "12", seconds: 60, reason: String(repeating: "x", count: 600))["reason"] as? String)?
+            .count == 500)
+}
+
 @Test func chatModeSettingsSendALengthOnlyWithItsMode() throws {
     func json(_ mode: ChatMode) throws -> String {
         String(decoding: try JSONSerialization.data(withJSONObject: mode.settings, options: .sortedKeys), as: UTF8.self)

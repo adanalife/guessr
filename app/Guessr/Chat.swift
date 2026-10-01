@@ -475,9 +475,9 @@ struct ChatLineView: View {
                 name: line.displayName,
                 delete: mayModerate && !line.deleted ? { moderate { try await $0.delete(messageId: line.id) } } : nil,
                 ban: mayModerate
-                    ? { seconds in
+                    ? { seconds, reason in
                         moderate {
-                            try await $0.ban(userId: line.userId, seconds: seconds)
+                            try await $0.ban(userId: line.userId, seconds: seconds, reason: reason)
                             banned = Banned(userId: line.userId, name: line.displayName, seconds: seconds)
                         }
                     } : nil,

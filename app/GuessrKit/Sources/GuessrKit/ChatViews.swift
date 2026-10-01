@@ -137,20 +137,24 @@
 
     /// A chat line's context menu: Translate for a line with words to read,
     /// then the moderation verbs a nil closure leaves out. `ban` takes the
-    /// seconds, 0 for good; the ban asks first, the one verb that doesn't undo
-    /// itself. `warn` takes the reason, asked for in an alert. Delete comes
-    /// first: it answers what was said rather than who said it. tvOS has no
-    /// context menus, so there it draws the line bare.
+    /// seconds, 0 for good, and the reason the mod typed, nil for none: a
+    /// length from the submenu is one tap with no reason, the submenu's last
+    /// item and the ban itself ask in an alert, where the reason is optional.
+    /// The ban always asks first, the one verb that doesn't undo itself.
+    /// `warn` takes the reason, asked for in an alert. Delete comes first: it
+    /// answers what was said rather than who said it. tvOS has no context
+    /// menus, so there it draws the line bare.
     public struct ChatLineMenu: ViewModifier {
         var translatable: String?
         var name: String
         var delete: (() -> Void)?
-        var ban: ((Int) -> Void)?
+        var ban: ((Int, String?) -> Void)?
         var reply: (() -> Void)?
         var warn: ((String) -> Void)?
         /// Whether the system translation sheet is up for this line.
         @State private var translating = false
         @State private var banning = false
+        @State private var timingOut = false
         @State private var warning = false
         @State private var reason = ""
 
@@ -158,7 +162,7 @@
         /// `name` is who the ban confirmation names; `reply`, when given,
         /// heads the menu.
         public init(
-            translatable: String?, name: String, delete: (() -> Void)?, ban: ((Int) -> Void)?,
+            translatable: String?, name: String, delete: (() -> Void)?, ban: ((Int, String?) -> Void)?,
             reply: (() -> Void)? = nil, warn: ((String) -> Void)? = nil
         ) {
             self.translatable = translatable
@@ -168,6 +172,9 @@
             self.reply = reply
             self.warn = warn
         }
+
+        /// The typed reason, nil when the field was left blank.
+        private var why: String? { reason.isEmpty ? nil : reason }
 
         public func body(content: Content) -> some View {
             #if os(tvOS)
@@ -198,16 +205,33 @@
                         if let ban {
                             Menu("Time out", systemImage: "clock.badge.xmark") {
                                 ForEach(timeouts, id: \.self) { seconds in
-                                    Button(timeoutLength(seconds)) { ban(seconds) }
+                                    Button(timeoutLength(seconds)) { ban(seconds, nil) }
+                                }
+                                Divider()
+                                Button("With a reason…", systemImage: "text.bubble") {
+                                    reason = ""
+                                    timingOut = true
                                 }
                             }
-                            Button("Ban", systemImage: "nosign", role: .destructive) { banning = true }
+                            Button("Ban", systemImage: "nosign", role: .destructive) {
+                                reason = ""
+                                banning = true
+                            }
                         }
                     }
-                    .confirmationDialog(
-                        "Ban \(name) from the channel?", isPresented: $banning, titleVisibility: .visible
-                    ) {
-                        Button("Ban", role: .destructive) { ban?(0) }
+                    .alert("Ban \(name) from the channel?", isPresented: $banning) {
+                        TextField("Reason (optional)", text: $reason)
+                        Button("Ban", role: .destructive) { ban?(0, why) }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("Other mods see the reason, and so do they.")
+                    }
+                    .alert("Time out \(name)", isPresented: $timingOut) {
+                        TextField("Reason (optional)", text: $reason)
+                        ForEach(timeouts, id: \.self) { seconds in
+                            Button(timeoutLength(seconds)) { ban?(seconds, why) }
+                        }
+                        Button("Cancel", role: .cancel) {}
                     }
                     .alert("Warn \(name)", isPresented: $warning) {
                         TextField("Reason", text: $reason)
