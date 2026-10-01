@@ -58,13 +58,13 @@ public struct ChatMode: Sendable, Equatable {
     /// The modes in force, as the composer lists them; nil when chat is open.
     public var summary: String? {
         var parts: [String] = []
-        if slowSeconds > 0 { parts.append("Slow mode, \(compactDuration(slowSeconds))") }
+        if slowSeconds > 0 { parts.append(String(localized: "Slow mode, \(compactDuration(slowSeconds))", bundle: .module)) }
         if let m = followerMinutes {
-            parts.append(m > 0 ? "Followers of \(compactDuration(m * 60)) only" : "Followers only")
+            parts.append(m > 0 ? String(localized: "Followers of \(compactDuration(m * 60)) only", bundle: .module) : String(localized: "Followers only", bundle: .module))
         }
-        if subscribersOnly { parts.append("Subscribers only") }
-        if emoteOnly { parts.append("Emotes only") }
-        if uniqueOnly { parts.append("Unique messages only") }
+        if subscribersOnly { parts.append(String(localized: "Subscribers only", bundle: .module)) }
+        if emoteOnly { parts.append(String(localized: "Emotes only", bundle: .module)) }
+        if uniqueOnly { parts.append(String(localized: "Unique messages only", bundle: .module)) }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
@@ -192,9 +192,9 @@ public enum TwitchChatError: Error, LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .unknownChannel(let login): "Twitch has no channel called \(login)"
-        case .http(let status, let message): "Twitch answered \(status): \(message)"
-        case .dropped(let why): "Twitch didn't send the message: \(why)"
+        case .unknownChannel(let login): String(localized: "Twitch has no channel called \(login)", bundle: .module)
+        case .http(let status, let message): String(localized: "Twitch answered \(status): \(message)", bundle: .module)
+        case .dropped(let why): String(localized: "Twitch didn't send the message: \(why)", bundle: .module)
         }
     }
 }
@@ -820,7 +820,7 @@ struct Frame: Decodable {
             guard let messageId, let userId, let message else { return nil }
             let why =
                 if let automod { "AutoMod: \(automod.category) \(automod.level)" } else if reason == "blocked_term" {
-                    "Blocked term"
+                    String(localized: "Blocked term", bundle: .module)
                 } else { reason ?? "AutoMod" }
             return HeldMessage(
                 id: messageId, userId: userId, login: userLogin ?? "", displayName: userName ?? userLogin ?? "",
