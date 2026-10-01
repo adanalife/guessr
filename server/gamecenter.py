@@ -37,12 +37,20 @@ BULLSEYE = f"{BUNDLE_ID}.bullseye"
 GOLDEN_DAY = f"{BUNDLE_ID}.golden-day"
 WEEK_STREAK = f"{BUNDLE_ID}.week-streak"
 CENTURY = f"{BUNDLE_ID}.century"
+PERFECT_ROUND = f"{BUNDLE_ID}.perfect-round"
+PERFECT_DAY = f"{BUNDLE_ID}.perfect-day"
+# A closed month finished in the board's top ten. One achievement for any
+# month: Game Center's identifiers are configured ahead of time, so a
+# per-month one would have to be created in App Store Connect each month.
+TOP_TEN = f"{BUNDLE_ID}.top-ten"
 
 BULLSEYE_KM = 10
 # Five rounds at the "success" haptic band (4000) and up.
 GOLDEN_DAY_POINTS = 4000 * rules.ROUNDS_PER_GAME
 STREAK_DAYS = 7
 CENTURY_ROUNDS = 100
+PERFECT_DAY_POINTS = rules.MAX_ROUND_SCORE * rules.ROUNDS_PER_GAME
+TOP_TEN_RANK = 10
 
 MAX_ID = 64
 
@@ -83,10 +91,42 @@ def standing(rows: list[dict], month: str) -> tuple[dict, dict]:
         GOLDEN_DAY: 100 if any(p >= GOLDEN_DAY_POINTS for p in by_date.values()) else 0,
         WEEK_STREAK: min(100, longest_streak(by_date) * 100 // STREAK_DAYS),
         CENTURY: min(100, len(rows) * 100 // CENTURY_ROUNDS),
+        PERFECT_ROUND: 100
+        if any(r["points"] == rules.MAX_ROUND_SCORE for r in rows)
+        else 0,
+        PERFECT_DAY: 100
+        if any(p >= PERFECT_DAY_POINTS for p in by_date.values())
+        else 0,
     }
     return {k: v for k, v in scores.items() if v}, {
         k: v for k, v in percents.items() if v
     }
+
+
+async def top_ten_months(db, player_id: str, month: str) -> list[str]:
+    """The months before `month` the player finished in the top ten of. A
+    month is ranked as the monthly board ranks it, by summed points; a tie
+    counts as the better rank. The running month is left out: it is not over."""
+    months = await db.fetchall(
+        "SELECT DISTINCT substr(date, 1, 7) AS m FROM plays WHERE player_id = ? AND substr(date, 1, 7) < ? ORDER BY m",
+        player_id,
+        month,
+    )
+    placed = []
+    for row in months:
+        m = row["m"]
+        above = await db.fetchone(
+            """SELECT COUNT(*) AS n FROM (
+                 SELECT player_id, SUM(points) AS points FROM plays
+                  WHERE date LIKE ? || '-%' GROUP BY player_id)
+               WHERE points > (SELECT SUM(points) FROM plays WHERE player_id = ? AND date LIKE ? || '-%')""",
+            m,
+            player_id,
+            m,
+        )
+        if above["n"] < TOP_TEN_RANK:
+            placed.append(m)
+    return placed
 
 
 async def sync(db, body, asc, fetch, now=None) -> tuple[int, dict]:
@@ -100,7 +140,10 @@ async def sync(db, body, asc, fetch, now=None) -> tuple[int, dict]:
     rows = await db.fetchall(
         "SELECT date, km, points FROM plays WHERE player_id = ?", ids["player_id"]
     )
-    scores, percents = standing(rows, rules.month_of(now))
+    month = rules.month_of(now)
+    scores, percents = standing(rows, month)
+    if await top_ten_months(db, ids["player_id"], month):
+        percents[TOP_TEN] = 100
     base = {
         "bundleId": BUNDLE_ID,
         "scopedPlayerId": ids["game_player_id"],

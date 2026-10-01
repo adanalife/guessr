@@ -67,6 +67,13 @@ tab, with these identifiers (`server/gamecenter.py` is where they live in code):
 | `lol.dana.guessr.golden-day` | achievement | five rounds in a day totaling 20,000 |
 | `lol.dana.guessr.week-streak` | achievement, progressive | seven days in a row |
 | `lol.dana.guessr.century` | achievement, progressive | a hundred rounds |
+| `lol.dana.guessr.perfect-round` | achievement | 5,000 on a round |
+| `lol.dana.guessr.perfect-day` | achievement | 5,000 on all five rounds of a day |
+| `lol.dana.guessr.top-ten` | achievement | a finished month in the monthly board's top ten |
+
+Whether an achievement is browsable before it is earned, or hidden until then,
+is the per-achievement *Hidden* setting in App Store Connect, not anything in
+code.
 
 The server submits only where the Worker has the App Store Connect key, set as
 three secrets; a tier without them (stage) accepts the sync and submits

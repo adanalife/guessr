@@ -82,6 +82,46 @@ assert gc.standing(week[:3], "2026-10")[1][gc.WEEK_STREAK] == 42
 # The century caps at 100.
 assert gc.standing([rows[0]] * 250, "2026-10")[1][gc.CENTURY] == 100
 
+# A perfect round is the maximum exactly; a perfect day is five of them on one date.
+assert gc.PERFECT_ROUND in gc.standing([{**rows[0], "points": 5000}], "2026-10")[1]
+assert gc.PERFECT_ROUND not in gc.standing([{**rows[0], "points": 4999}], "2026-10")[1]
+perfect = [{"date": "2026-10-01", "km": 0, "points": 5000} for _ in range(5)]
+assert gc.PERFECT_DAY in gc.standing(perfect, "2026-10")[1]
+assert (
+    gc.PERFECT_DAY
+    not in gc.standing(perfect[:4] + [{**perfect[0], "points": 4999}], "2026-10")[1]
+)
+assert gc.PERFECT_DAY not in gc.standing(golden, "2026-10")[1]
+
+
+# --- top ten --------------------------------------------------------------
+
+
+async def ranked(others, mine, month="2026-10"):
+    """`others` players' September totals as one play each; `mine` likewise."""
+    db = Sqlite().migrate()
+    plays = [
+        (f"2026-09-0{1 + i % 9}", f"rival-{i}", f"clips/r{i}.mp4", 100, pts)
+        for i, pts in enumerate(others)
+    ]
+    plays += [
+        ("2026-09-15", PLAYER, f"clips/m{i}.mp4", 100, pts)
+        for i, pts in enumerate(mine)
+    ]
+    await seed(db, plays)
+    return await gc.top_ten_months(db, PLAYER, month)
+
+
+# Ten rivals ahead: eleventh. Nine ahead: tenth. A tie for tenth counts.
+assert asyncio.run(ranked([5000] * 10, [100])) == []
+assert asyncio.run(ranked([5000] * 9, [100])) == ["2026-09"]
+assert asyncio.run(ranked([5000] * 9 + [100], [100])) == ["2026-09"]
+# Summed across the month, not per play: two 60s beat one 100.
+assert asyncio.run(ranked([100] * 10, [60, 60])) == ["2026-09"]
+# The running month is not over, so it does not count yet.
+assert asyncio.run(ranked([], [100], month="2026-09")) == []
+assert asyncio.run(ranked([], [], month="2026-10")) == []
+
 # --- the handler ------------------------------------------------------------
 
 for bad in [
@@ -126,7 +166,9 @@ assert set(body["submitted"]) == {
     gc.BULLSEYE,
     gc.WEEK_STREAK,
     gc.CENTURY,
-} | ({gc.MONTHLY} if gc.rules.month_of() == "2026-10" else set()), body
+} | ({gc.MONTHLY} if gc.rules.month_of() == "2026-10" else set()) | (
+    {gc.TOP_TEN} if gc.rules.month_of() > "2026-10" else set()
+), body
 assert "failed" not in body
 for resource, attrs in sent:
     assert (
