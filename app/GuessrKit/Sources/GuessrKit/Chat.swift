@@ -231,6 +231,10 @@ public final class TwitchChat {
         get { helix.session }
         set { helix.session = newValue }
     }
+    /// Runs before each connect, so a reconnect hours into a session
+    /// subscribes on a live token: the package never refreshes one itself,
+    /// so the host does it here and sets `session` with the result.
+    @ObservationIgnored public var beforeConnect: (() async -> Void)?
     @ObservationIgnored let eventSubURL: URL
     // ponytail: 300 lines, a screenful many times over; raise it or page to
     // disk if scrollback ever matters.
@@ -289,6 +293,7 @@ public final class TwitchChat {
         var attempt = 0
         while !Task.isCancelled {
             do {
+                if subscribe { await beforeConnect?() }
                 _ = try await helix.resolveBroadcaster()
                 let ws = helix.urlSession.webSocketTask(with: url)
                 socket = ws

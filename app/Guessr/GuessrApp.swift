@@ -213,7 +213,8 @@ final class Account {
 
     /// Connects the signed-in login to the channel's chat, or keeps the
     /// connection it already has, then asks whether it moderates there.
-    /// The package never refreshes a token, so this is where it happens.
+    /// The package never refreshes a token, so this is where it happens: on
+    /// opening, and before each reconnect.
     func openChat() async {
         await refreshIfNeeded()
         guard let session, !channel.isEmpty else { return }
@@ -225,6 +226,7 @@ final class Account {
             let earlier = Saved.chat
             fresh.seed(earlier)
             earlierChat = Set(earlier.map(\.id))
+            fresh.beforeConnect = { [weak self] in await self?.refreshIfNeeded() }
             fresh.start()
             chat = fresh
         }
