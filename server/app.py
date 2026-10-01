@@ -28,7 +28,16 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
-from server import admin_day, admin_players, clips, day, guesses, leaderboard, link
+from server import (
+    admin_day,
+    admin_players,
+    clips,
+    day,
+    guesses,
+    leaderboard,
+    link,
+    progress,
+)
 from server import live, rules, score
 from server.admin_auth import caller, refusal
 
@@ -71,6 +80,7 @@ ROUTES = [
             r.db, r.body, client=rules.client_of(r.headers.get("user-agent"))
         ),
     ),
+    ("/api/progress", "POST", lambda r: progress.progress(r.db, r.body)),
     ("/api/link", "POST", lambda r: link.link(r.db, r.body)),
     ("/api/link/code", "POST", lambda r: link.issue_code(r.db, r.body)),
     ("/api/link/claim", "POST", lambda r: link.claim(r.db, r.body)),

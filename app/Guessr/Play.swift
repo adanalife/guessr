@@ -58,7 +58,9 @@ struct PlayView: View {
         }
         .paper()
         .navigationTitle("Guessr")
-        .task { await load() }
+        // Keyed on the player: a link to another device's player is a new
+        // record to resume from.
+        .task(id: player.id) { await load() }
     }
 
     private func round(_ day: GuessrDay, image: String, shown: PlayedRound?) -> some View {
@@ -248,7 +250,17 @@ struct PlayView: View {
         let date = GuessrClient.today()
         progress = DayProgress.resume(Saved.progress, on: date)
         do {
-            day = try await client.day(date)
+            let loaded = try await client.day(date)
+            day = loaded
+            // A day begun on another device, or under a player this one just
+            // joined, carries on from where it got to. Best effort: a miss here
+            // only means starting from what this device remembers.
+            if progress.played.count < loaded.rounds.count,
+                let recorded = try? await client.progress(on: date, for: player)
+            {
+                progress = progress.seeded(from: recorded, in: loaded)
+                Saved.progress = progress
+            }
         } catch {
             // The server says why — nothing scheduled, or a date not yet open.
             message = (error as? GuessrError)?.errorDescription ?? "Could not reach the rounds"

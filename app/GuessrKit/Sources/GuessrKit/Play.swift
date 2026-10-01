@@ -153,6 +153,20 @@ public struct DayProgress: Sendable, Equatable, Codable {
         return DayProgress(date: date)
     }
 
+    /// What the server has on record for this player today, when that is more
+    /// than this device remembers: a day started on another device, or under
+    /// the player this one just linked to. Walked in the day's order and cut at
+    /// the first round not played, so `next(in:)` still deals the right one.
+    public func seeded(from recorded: [PlayedRound], in day: GuessrDay) -> DayProgress {
+        let byImage = Dictionary(recorded.map { ($0.image, $0) }, uniquingKeysWith: { a, _ in a })
+        var rounds: [PlayedRound] = []
+        for round in day.rounds {
+            guard let played = byImage[round.image] else { break }
+            rounds.append(played)
+        }
+        return rounds.count > played.count ? DayProgress(date: date, played: rounds) : self
+    }
+
     public var total: Int { played.reduce(0) { $0 + $1.score.points } }
 
     /// The next round of `day` to play, or nil once every round is played.
@@ -189,6 +203,38 @@ extension GuessrClient {
                 image: image, lat: guess.lat, lng: guess.lng, date: date,
                 playerId: player.id, handle: player.alias))
         return try Guessr.decoder.decode(GuessrScore.self, from: try await data(req))
+    }
+}
+
+extension GuessrClient {
+    /// The rounds `player` has on record for `date`, in the order the day dealt
+    /// them, each with the score that was recorded. A round from before pins
+    /// were kept comes back with its answer standing in for the guess.
+    public func progress(on date: String, for player: Player) async throws -> [PlayedRound] {
+        struct Row: Decodable {
+            var image: String
+            var km: Double
+            var points: Int
+            var guessLat: Double?
+            var guessLng: Double?
+            var lat: Double
+            var lng: Double
+            var state: String
+            var filmed: String
+        }
+        struct Answer: Decodable { var rounds: [Row] }
+        var req = URLRequest(url: baseURL.appending(path: "api/progress"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(["date": date, "player_id": player.id])
+        return try Guessr.decoder.decode(Answer.self, from: try await data(req)).rounds.map { r in
+            PlayedRound(
+                image: r.image,
+                guess: Coordinate(lat: r.guessLat ?? r.lat, lng: r.guessLng ?? r.lng),
+                score: GuessrScore(
+                    km: r.km, points: r.points, lat: r.lat, lng: r.lng, state: r.state, filmed: r.filmed,
+                    recorded: true))
+        }
     }
 }
 
