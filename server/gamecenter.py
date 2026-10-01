@@ -32,20 +32,21 @@ BUNDLE_ID = "lol.dana.guessr"
 PRERELEASED = True
 
 # Vendor identifiers, as configured in App Store Connect; app/README.md lists
-# what each is.
+# what each is. Underscores, not hyphens: Apple allows only letters, digits,
+# underscores and periods.
 LIFETIME = f"{BUNDLE_ID}.lifetime"
 WEEKLY = f"{BUNDLE_ID}.weekly"
-FIRST_PIN = f"{BUNDLE_ID}.first-pin"
+FIRST_PIN = f"{BUNDLE_ID}.first_pin"
 BULLSEYE = f"{BUNDLE_ID}.bullseye"
-GOLDEN_DAY = f"{BUNDLE_ID}.golden-day"
-WEEK_STREAK = f"{BUNDLE_ID}.week-streak"
+GOLDEN_DAY = f"{BUNDLE_ID}.golden_day"
+WEEK_STREAK = f"{BUNDLE_ID}.week_streak"
 CENTURY = f"{BUNDLE_ID}.century"
-PERFECT_ROUND = f"{BUNDLE_ID}.perfect-round"
-PERFECT_DAY = f"{BUNDLE_ID}.perfect-day"
+PERFECT_ROUND = f"{BUNDLE_ID}.perfect_round"
+PERFECT_DAY = f"{BUNDLE_ID}.perfect_day"
 # A closed month finished in the board's top ten. One achievement for any
 # month: Game Center's identifiers are configured ahead of time, so a
 # per-month one would have to be created in App Store Connect each month.
-TOP_TEN = f"{BUNDLE_ID}.top-ten"
+TOP_TEN = f"{BUNDLE_ID}.top_ten"
 
 BULLSEYE_KM = 10
 # Five rounds at the "success" haptic band (4000) and up.

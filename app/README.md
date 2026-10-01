@@ -66,14 +66,14 @@ before an achievement is released:
 | --- | --- | --- |
 | `lol.dana.guessr.lifetime` | classic leaderboard, best score, integer | every point ever |
 | `lol.dana.guessr.weekly` | recurring leaderboard, 7 days from Monday 00:00 UTC, best score, integer | the ISO week's points |
-| `lol.dana.guessr.first-pin` | achievement | a first round played |
+| `lol.dana.guessr.first_pin` | achievement | a first round played |
 | `lol.dana.guessr.bullseye` | achievement | a guess inside 10 km |
-| `lol.dana.guessr.golden-day` | achievement | five rounds in a day totaling 20,000 |
-| `lol.dana.guessr.week-streak` | achievement, progressive | seven days in a row |
+| `lol.dana.guessr.golden_day` | achievement | five rounds in a day totaling 20,000 |
+| `lol.dana.guessr.week_streak` | achievement, progressive | seven days in a row |
 | `lol.dana.guessr.century` | achievement, progressive | a hundred rounds |
-| `lol.dana.guessr.perfect-round` | achievement | 5,000 on a round |
-| `lol.dana.guessr.perfect-day` | achievement | 5,000 on all five rounds of a day |
-| `lol.dana.guessr.top-ten` | achievement | a finished month in the game's monthly board's top ten |
+| `lol.dana.guessr.perfect_round` | achievement | 5,000 on a round |
+| `lol.dana.guessr.perfect_day` | achievement | 5,000 on all five rounds of a day |
+| `lol.dana.guessr.top_ten` | achievement | a finished month in the game's monthly board's top ten |
 
 The second board is a week, not the game's month: a Game Center recurring
 leaderboard runs at most 30 days, recurs only by minutes, hours or days, and
