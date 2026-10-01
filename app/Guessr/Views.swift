@@ -240,19 +240,17 @@ struct NameSection: View {
                 }
             }
             // Beside the name: a linked device plays as this same name.
-            LinkCodeRows(player: player)
-            // Only before the first guess: joining after it would leave the
-            // day's progress on this device belonging to the player it left.
-            if !playedToday {
-                NavigationLink("Already playing on the web? Enter your code") { JoinView(player: $player) }
-            }
+            LinkCodeRows(player: $player, playedToday: playedToday)
         }
     }
 }
 
 /// A code the web types in to join this device's player, live ten minutes.
+/// Once a code is showing, the other direction is offered too: entering a code
+/// the web drew.
 struct LinkCodeRows: View {
-    let player: Player
+    @Binding var player: Player
+    let playedToday: Bool
     @State private var code: LinkCode?
     @State private var asking = false
     @State private var error: String?
@@ -261,8 +259,9 @@ struct LinkCodeRows: View {
 
     var body: some View {
         if let code {
-            LabeledContent("Code", value: code.code).font(.title3.monospaced())
-            Text("On the web, open About, tap Link a device, and enter it under \"Have a code from another device?\" It lasts ten minutes.")
+            LabeledContent("Temporary code") { Text(code.code).font(.title3.monospaced()) }
+            // A markdown link opens in Safari, where the web game keeps its save.
+            Text("Visit [guessr.dana.lol](https://guessr.dana.lol), tap About, and enter this code under \"Link a device\".")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
@@ -270,6 +269,11 @@ struct LinkCodeRows: View {
             .disabled(asking)
         if let error {
             Text(error).foregroundStyle(.secondary)
+        }
+        // Only before the first guess: joining after it would leave the day's
+        // progress on this device belonging to the player it left.
+        if code != nil, !playedToday {
+            NavigationLink("Enter your code") { JoinView(player: $player) }
         }
     }
 

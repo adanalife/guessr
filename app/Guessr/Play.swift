@@ -325,7 +325,7 @@ struct JoinView: View {
                 Button(joining ? "Joining…" : "Join") { Task { await look() } }
                     .disabled(code.isEmpty || joining)
             } footer: {
-                Text(message ?? "On the web, open About and tap Link a device to see a code. It lasts ten minutes.")
+                Text(message ?? "On the web, open About and tap Link a device to see a code.")
             }
         }
         .paper()
