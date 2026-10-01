@@ -77,6 +77,30 @@ final class RefusingGuessr: URLProtocol {
     }
 }
 
+/// Fails the way a crashed Worker does: a 5xx carrying an error page, not the
+/// game's envelope.
+final class CrashingGuessr: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+
+    override func startLoading() {
+        let response = HTTPURLResponse(url: request.url!, statusCode: 500, httpVersion: "HTTP/1.1", headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(#"{"title":"Error 1101: Worker threw exception","status":500}"#.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+}
+
+@Test func anErrorPageNeverReachesThePlayer() async throws {
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [CrashingGuessr.self]
+    let client = GuessrClient(session: URLSession(configuration: config))
+    await #expect(throws: GuessrError.http(status: 500, message: "The server is having trouble. Try again in a moment.")) {
+        try await client.day("2099-01-01")
+    }
+}
+
 @Test func todayIsTheLocalCalendarDate() {
     var parts = DateComponents()
     (parts.year, parts.month, parts.day, parts.hour) = (2026, 9, 23, 23)

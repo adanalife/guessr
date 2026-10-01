@@ -9,9 +9,8 @@
 // what settles it is the guesses: two people who both scored 21,340 did not both
 // drop a pin in the same wrong Portland.
 //
-// Everything here already exists in the tables -- `plays` carries the per-round
-// result and the pin since 0003, `answers` the truth -- so this is a query and a
-// page, and nothing about it is a schema change.
+// Everything here reads existing tables -- `plays` carries the per-round result
+// and the pin (since migration 0003), `answers` the truth.
 //
 // Same gate as the rest of this directory: _middleware.js has already proved who
 // the caller is, and what is left is whether the deployment this landed on is

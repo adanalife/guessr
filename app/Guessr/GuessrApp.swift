@@ -4,47 +4,67 @@ import SwiftUI
 @main
 struct GuessrApp: App {
     @State private var account = Account()
+    @State private var gameCenter = GameCenter()
     private let players = KeychainPlayerStore()
+    private let client = GuessrClient()
     /// State rather than a constant because a link code swaps it for the player
     /// the code joined; every change goes back to the Keychain.
     @State private var player = KeychainPlayerStore().current()
     @State private var tab = GuessrApp.firstTab
+    /// Settings' theme: "system" follows the device, else "light" or "dark".
+    @AppStorage("appearance") private var appearance = "dark"
     @Environment(\.scenePhase) private var scenePhase
 
-    init() { Telemetry.start() }
+    init() {
+        Telemetry.start()
+        // The navigation titles carry the web's serif (ET Book there, New York
+        // here). SwiftUI has no modifier for a title's font, so it goes on the
+        // bar's appearance proxy, built from the text style so Dynamic Type
+        // still scales it.
+        let bar = UINavigationBar.appearance()
+        bar.largeTitleTextAttributes = [.font: UIFont.serif(.largeTitle)]
+        bar.titleTextAttributes = [.font: UIFont.serif(.headline)]
+    }
 
     var body: some Scene {
         WindowGroup {
             TabView(selection: $tab) {
                 Tab("Play", systemImage: "mappin.and.ellipse", value: "Play") {
-                    NavigationStack { PlayView(player: $player) }
+                    NavigationStack { PlayView(player: $player).viewingAsBanner() }
                 }
                 if account.seesBoards {
-                    Tab("Boards", systemImage: "list.number", value: "Boards") { NavigationStack { TodayView() } }
+                    Tab("Boards", systemImage: "list.number", value: "Boards") { NavigationStack { TodayView(alias: player.alias).viewingAsBanner() } }
                 }
-                // Chat hangs off the Twitch login, so a build without a Twitch
-                // client id has nothing to show there. Settings always has the
-                // reminder, and hides only its Twitch section in such a build.
-                if account.auth.isConfigured {
+                // Chat hangs off the Twitch login, so the tab shows only while
+                // a login is signed in; Settings is where a player signs in.
+                // Settings always has the reminder, and hides only its Twitch
+                // section in a build without a Twitch client id.
+                if account.showsChat {
                     Tab("Chat", systemImage: "bubble.left.and.bubble.right", value: "Chat") { ChatTab() }
                 }
                 Tab("Settings", systemImage: "gear", value: "Settings") {
-                    NavigationStack { SettingsView(player: $player) }
-                }
-            }
-            // An inset rather than an overlay: viewing as someone else is easy to forget,
-            // and a banner sitting on top of the screen would be easy to miss.
-            .safeAreaInset(edge: .top) {
-                if let tier = account.viewingAs {
-                    Text("Viewing as \(tier)")
-                        .font(.caption.bold())
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                        .background(.yellow.opacity(0.3))
+                    NavigationStack { SettingsView(player: $player).viewingAsBanner() }
                 }
             }
             .foregroundStyle(Color.ink)
+            .preferredColorScheme(appearance == "system" ? nil : appearance == "dark" ? .dark : .light)
+            .modifier(AchievementToast())
             .environment(account)
+            .environment(gameCenter)
+            .task { gameCenter.start { await gameCenter.sync(player, with: client) } }
+            // A sign-in opens Chat, the tab it brings, on every device: left to
+            // itself, the iPad's tab bar keeps Settings selected as Chat
+            // appears ahead of it.
+            // A sign-out while on Chat, a "View as" that drops the boards, or a
+            // `-tab` launch naming a hidden tab lands on Play rather than on a
+            // tab that isn't there.
+            .onChange(of: account.showsChat, initial: true) { showed, shows in
+                if shows, !showed { tab = "Chat" }
+                if !shows, tab == "Chat" { tab = "Play" }
+            }
+            .onChange(of: account.seesBoards, initial: true) { _, sees in
+                if !sees, tab == "Boards" { tab = "Play" }
+            }
             .onChange(of: player) { _, joined in players.save(joined) }
             .task(id: account.session?.userID) { await account.checkModerates() }
             .onChange(of: scenePhase, initial: true) { _, phase in
@@ -77,11 +97,16 @@ final class Account {
     /// The channel's chat for the signed-in login, made the first time the
     /// Chat tab opens and kept until sign-out, so switching tabs keeps the log.
     private(set) var chat: TwitchChat?
+    /// The ids of the lines the chat opened with from last time, which the
+    /// log draws dimmed under a rule.
+    private(set) var earlierChat: Set<String> = []
     /// Whether Twitch says the signed-in login moderates the channel.
     private(set) var moderates = false
     /// The second login's code, while a mod is asked for the moderation scopes.
     private(set) var modCode: DeviceCode?
     private var modLogin: Task<Void, Never>?
+    /// The token exchange in flight; see `refreshIfNeeded()`.
+    private var refreshing: Task<Void, Never>?
 
     init(bundle: Bundle = .main, store: any SessionStore = KeychainSessionStore()) {
         auth = TwitchAuth(clientID: bundle.object(forInfoDictionaryKey: "GuessrTwitchClientID") as? String ?? "")
@@ -120,6 +145,9 @@ final class Account {
     /// Whether we moderate the channel — really, or for the length of a look.
     var isMod: Bool { viewingAs.map { $0 == "mod" } ?? moderates }
 
+    /// Whether the Chat tab is there: a Twitch build with a login signed in.
+    var showsChat: Bool { auth.isConfigured && session != nil }
+
     /// The boards are for the channel's staff; a player sees their own day.
     var seesBoards: Bool { isOwner || isMod }
 
@@ -139,13 +167,27 @@ final class Account {
 
     /// Refreshes a login close to expiry. A refused refresh means the login is
     /// gone, so it is dropped rather than retried.
+    ///
+    /// One exchange at a time, shared by every caller: a launch onto the Chat
+    /// tab asks twice at once (the root's mod check and the tab's chat), and
+    /// Twitch's refresh tokens are single-use, so the second exchange of the
+    /// same token is refused — which would sign out the login the first one
+    /// just renewed. Unstructured, so a view's task ending doesn't cancel it.
     func refreshIfNeeded() async {
+        if let refreshing { return await refreshing.value }
         guard let old = session, old.expiresSoon else { return }
-        do {
-            adopt(try await auth.refresh(old))
-        } catch is TwitchAuthError {
-            signOut()
-        } catch {}
+        let exchange = Task {
+            defer { refreshing = nil }
+            do {
+                let fresh = try await auth.refresh(old)
+                // A sign-out, or another login, while the exchange ran wins.
+                if session?.refreshToken == old.refreshToken { adopt(fresh) }
+            } catch is TwitchAuthError {
+                if session?.refreshToken == old.refreshToken { signOut() }
+            } catch {}
+        }
+        refreshing = exchange
+        await exchange.value
     }
 
     func signOut() {
@@ -163,7 +205,7 @@ final class Account {
     func checkModerates() async {
         await refreshIfNeeded()
         guard let session, !channel.isEmpty, !moderates else { return }
-        let asker = chat ?? TwitchChat(channel: channel, clientID: auth.clientID, session: session)
+        let asker = chat?.helix ?? Helix(channel: channel, clientID: auth.clientID, session: session)
         let answer = await asker.moderates()
         // The login may have changed while Twitch answered.
         if self.session?.userID == session.userID { moderates = answer }
@@ -178,11 +220,16 @@ final class Account {
         if chat?.session.userID != session.userID {
             chat?.stop()
             let fresh = TwitchChat(channel: channel, clientID: auth.clientID, session: session)
+            // EventSub replays nothing, so last time's tail is what the tab
+            // opens on until live lines arrive.
+            let earlier = Saved.chat
+            fresh.seed(earlier)
+            earlierChat = Set(earlier.map(\.id))
             fresh.start()
             chat = fresh
         }
         // A failed lookup reads as no, so it is asked again on the next visit.
-        if !moderates, let chat { moderates = await chat.moderates() }
+        if !moderates, let chat { moderates = await chat.helix.moderates() }
     }
 
     /// Whether the login moderates the channel without the scopes to act on
@@ -202,5 +249,14 @@ final class Account {
             modCode = code
             try? await signIn(code, scopes: TwitchAuth.modScopes)
         }
+    }
+}
+
+extension UIFont {
+    /// The text style's system font in New York, bold.
+    fileprivate static func serif(_ style: TextStyle) -> UIFont {
+        let base = preferredFont(forTextStyle: style).fontDescriptor
+        let serif = base.withDesign(.serif)?.withSymbolicTraits(.traitBold) ?? base
+        return UIFont(descriptor: serif, size: 0)
     }
 }

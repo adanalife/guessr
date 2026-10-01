@@ -20,7 +20,9 @@ from server.db import Sqlite
 
 TODAY = dt.datetime.now(dt.UTC).date().isoformat()
 OWNER_TOKEN, APP = "owner-token", "test-app"
-ADMINS = Admins(owner_id="111", channel_id="999", client_ids=frozenset({APP}))
+ADMINS = Admins(
+    owner_ids=frozenset({"111"}), channel_id="999", client_ids=frozenset({APP})
+)
 
 
 async def fetch(url, headers=None):
@@ -122,6 +124,29 @@ async def main() -> None:
     status, headers, raw = await call(app, "GET", "/clips/streamed-123456.mp4")
     assert status == 200 and raw == b"stand-in", (status, raw)
     assert headers["content-type"] == "video/mp4", headers
+
+    # The caller's User-Agent reaches the scorer as a platform bucket on the row,
+    # and the answer carries no trace of it.
+    play = {
+        "image": "clips/today_1-010000.mp4",
+        "lat": 40,
+        "lng": -100,
+        "date": TODAY,
+        "player_id": "a3f1c2d4-0000-4000-8000-000000000000",
+    }
+    await db.execute(
+        "INSERT INTO answers (image, lat, lng, state, filmed) VALUES (?, 40, -100, 'CA', '2018-01-01')",
+        play["image"],
+    )
+    status, headers, raw = await call(
+        app,
+        "POST",
+        "/api/score",
+        json.dumps(play).encode(),
+        headers=[("user-agent", "Guessr/1.13.0 (iPadOS 26.0)")],
+    )
+    assert status == 200 and "client" not in json.loads(raw), (status, raw)
+    assert (await db.fetchone("SELECT client FROM plays"))["client"] == "ipados"
 
 
 asyncio.run(main())

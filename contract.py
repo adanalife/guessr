@@ -400,7 +400,10 @@ def score(images, first_images):
 
 def leaderboard():
     r = get("the daily board reads", 200, "/api/leaderboard?board=daily")
-    assert r.json["period"] == str(LAST_CLOSED), r.json
+    # The newest closed date anyone played, which the seed puts at FIRST; the
+    # legacy Pages runtime answers the newest closed date whether or not it has
+    # plays, so the band admits both.
+    assert str(FIRST) <= r.json["period"] <= str(LAST_CLOSED), r.json
     assert isinstance(r.json["rows"], list)
     assert (
         get("the default board is daily", 200, "/api/leaderboard").json["board"]
@@ -567,6 +570,30 @@ def clips(image):
         )
     r = post("a POST to a clip is 405", 405, "/" + image)
     assert r.header("allow") == "GET, HEAD", r.header("allow")
+
+
+def gamecenter():
+    """The tier under test has no App Store Connect secrets, so a well-formed
+    sync is accepted and submits nothing; what it validates is the body.
+
+    Only the Python app serves the route. The Pages Functions runtime has no
+    such Function, so a POST there lands on a static path and is a 405, and the
+    rest of the contract is not held to it."""
+    if call("POST", "/api/gamecenter", {}).status == 405:
+        print("skip: /api/gamecenter is not served by this runtime")
+        return
+    for bad in ({}, {"player_id": PHONE}, {"player_id": PHONE, "game_player_id": ""}):
+        error(post("a sync missing an id is refused", 400, "/api/gamecenter", bad))
+    error(
+        post("a sync that is not JSON is refused", 400, "/api/gamecenter", raw=b"nope")
+    )
+    r = post(
+        "a sync on a tier with no secrets submits nothing",
+        200,
+        "/api/gamecenter",
+        {"player_id": PHONE, "game_player_id": "A:_5f21e308073d18f9b3afdc37f646e851"},
+    )
+    assert r.json == {"submitted": []}, r.json
 
 
 def link(desk):
@@ -934,6 +961,7 @@ def main() -> int:
     live()
     link(desk)
     link_codes()
+    gamecenter()
     last = admin_reads()
     notes()
     review()

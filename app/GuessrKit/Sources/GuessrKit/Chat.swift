@@ -9,7 +9,7 @@ import Observation
 /// only their text: the line reads right, it just isn't linked or animated.
 // ponytail: mention and cheermote render as plain text; give them their own
 // payload (user id, bits amount) when the UI draws them differently.
-public enum ChatFragment: Sendable, Equatable {
+public enum ChatFragment: Sendable, Equatable, Codable {
     case text(String)
     case emote(id: String, text: String)
     case mention(String)
@@ -23,8 +23,84 @@ public enum ChatFragment: Sendable, Equatable {
     }
 }
 
+/// The message a reply answers, as Twitch quotes it on the reply.
+public struct ChatReply: Sendable, Equatable, Codable {
+    public var parentId: String
+    public var login: String
+    public var displayName: String
+    public var text: String
+
+    public init(parentId: String, login: String, displayName: String, text: String) {
+        (self.parentId, self.login, self.displayName, self.text) = (parentId, login, displayName, text)
+    }
+}
+
+/// What the channel asks of anyone who talks: Twitch's slow, followers-only,
+/// subscribers-only, emote-only and unique-message modes.
+public struct ChatMode: Sendable, Equatable {
+    /// Seconds a viewer waits between messages; 0 when slow mode is off.
+    public var slowSeconds = 0
+    /// How long a viewer must have followed, in minutes; nil when followers-only
+    /// is off, 0 for any follower.
+    public var followerMinutes: Int?
+    public var subscribersOnly = false
+    public var emoteOnly = false
+    public var uniqueOnly = false
+
+    public init(
+        slowSeconds: Int = 0, followerMinutes: Int? = nil, subscribersOnly: Bool = false, emoteOnly: Bool = false,
+        uniqueOnly: Bool = false
+    ) {
+        (self.slowSeconds, self.followerMinutes, self.subscribersOnly, self.emoteOnly, self.uniqueOnly) =
+            (slowSeconds, followerMinutes, subscribersOnly, emoteOnly, uniqueOnly)
+    }
+
+    /// The modes in force, as the composer lists them; nil when chat is open.
+    public var summary: String? {
+        var parts: [String] = []
+        if slowSeconds > 0 { parts.append(String(localized: "Slow mode, \(compactDuration(slowSeconds))", bundle: .module)) }
+        if let m = followerMinutes {
+            parts.append(m > 0 ? String(localized: "Followers of \(compactDuration(m * 60)) only", bundle: .module) : String(localized: "Followers only", bundle: .module))
+        }
+        if subscribersOnly { parts.append(String(localized: "Subscribers only", bundle: .module)) }
+        if emoteOnly { parts.append(String(localized: "Emotes only", bundle: .module)) }
+        if uniqueOnly { parts.append(String(localized: "Unique messages only", bundle: .module)) }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// The body that sets these modes on Helix (`PATCH chat/settings`). A
+    /// length goes only with its mode switched on: Twitch refuses a wait time
+    /// beside `slow_mode: false`.
+    public var settings: [String: Any] {
+        var body: [String: Any] = [
+            "slow_mode": slowSeconds > 0, "follower_mode": followerMinutes != nil,
+            "subscriber_mode": subscribersOnly, "emote_mode": emoteOnly, "unique_chat_mode": uniqueOnly,
+        ]
+        if slowSeconds > 0 { body["slow_mode_wait_time"] = slowSeconds }
+        if let followerMinutes { body["follower_mode_duration"] = followerMinutes }
+        return body
+    }
+
+    /// Whole seconds until a viewer whose last message went at `lastSent` may
+    /// send again; 0 when they may now.
+    public func wait(since lastSent: Date?, now: Date = .now) -> Int {
+        guard slowSeconds > 0, let lastSent else { return 0 }
+        return max(0, Int((Double(slowSeconds) - now.timeIntervalSince(lastSent)).rounded(.up)))
+    }
+}
+
+/// `30s`, `10m`, `3d`: a mode's length in its coarsest whole unit.
+func compactDuration(_ seconds: Int) -> String {
+    switch seconds {
+    case ..<60: "\(seconds)s"
+    case ..<3600: "\(seconds / 60)m"
+    case ..<86400: "\(seconds / 3600)h"
+    default: "\(seconds / 86400)d"
+    }
+}
+
 /// One chat message, in Twitch's own shape.
-public struct ChatLine: Sendable, Equatable, Identifiable {
+public struct ChatLine: Sendable, Equatable, Identifiable, Codable {
     /// Twitch's `message_id` — what a delete names.
     public var id: String
     public var userId: String
@@ -43,11 +119,21 @@ public struct ChatLine: Sendable, Equatable, Identifiable {
     /// added, often nothing.
     public var kind: String?
     public var notice: String?
+    /// Twitch's `message_type` for an ordinary message: `user_intro` for a
+    /// chatter's first message in the channel, `channel_points_highlighted`
+    /// for one paid for with channel points; nil or `text` otherwise.
+    public var messageType: String?
+    /// Whether a mod deleted it, or it went with a timeout or ban. The line
+    /// stays in the ring so a mod can see what was removed; a viewer's log
+    /// leaves it out.
+    public var deleted = false
+    /// What this line answers, for a reply.
+    public var reply: ChatReply?
 
     public init(
         id: String, userId: String, login: String, displayName: String, text: String, color: String = "",
         badges: [String: String] = [:], fragments: [ChatFragment]? = nil, timestamp: Date = .now,
-        kind: String? = nil, notice: String? = nil
+        kind: String? = nil, notice: String? = nil, messageType: String? = nil, reply: ChatReply? = nil
     ) {
         self.id = id
         self.userId = userId
@@ -60,11 +146,42 @@ public struct ChatLine: Sendable, Equatable, Identifiable {
         self.timestamp = timestamp
         self.kind = kind
         self.notice = notice
+        self.messageType = messageType
+        self.reply = reply
     }
 
     public var isBroadcaster: Bool { badges["broadcaster"] != nil }
     public var isModerator: Bool { badges["moderator"] != nil }
     public var isSubscriber: Bool { badges["subscriber"] != nil || badges["founder"] != nil }
+}
+
+/// A message AutoMod is holding for a mod's verdict, as `automod.message.hold`
+/// describes it. It is not a `ChatLine`: nobody else has seen it.
+public struct HeldMessage: Sendable, Equatable, Identifiable {
+    /// Twitch's `message_id` — what the verdict names.
+    public var id: String
+    public var userId: String
+    public var login: String
+    public var displayName: String
+    public var text: String
+    public var fragments: [ChatFragment]
+    /// Why it was held, as a mod reads it: `AutoMod: sexual 3` or `Blocked term`.
+    public var why: String
+    public var heldAt: Date
+
+    public init(
+        id: String, userId: String, login: String, displayName: String, text: String, fragments: [ChatFragment]? = nil,
+        why: String, heldAt: Date = .now
+    ) {
+        self.id = id
+        self.userId = userId
+        self.login = login
+        self.displayName = displayName
+        self.text = text
+        self.fragments = fragments ?? [.text(text)]
+        self.why = why
+        self.heldAt = heldAt
+    }
 }
 
 public enum TwitchChatError: Error, LocalizedError, Equatable {
@@ -75,15 +192,16 @@ public enum TwitchChatError: Error, LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .unknownChannel(let login): "Twitch has no channel called \(login)"
-        case .http(let status, let message): "Twitch answered \(status): \(message)"
-        case .dropped(let why): "Twitch didn't send the message: \(why)"
+        case .unknownChannel(let login): String(localized: "Twitch has no channel called \(login)", bundle: .module)
+        case .http(let status, let message): String(localized: "Twitch answered \(status): \(message)", bundle: .module)
+        case .dropped(let why): String(localized: "Twitch didn't send the message: \(why)", bundle: .module)
         }
     }
 }
 
-/// A live Twitch channel's chat, read over EventSub's WebSocket transport and
-/// written and moderated through Helix, all on the viewer's own token.
+/// A live Twitch channel's chat, read over EventSub's WebSocket transport on
+/// the viewer's own token. Writing and moderating go through `helix`, which a
+/// host with no socket can build on its own.
 ///
 /// EventSub's WebSocket transport only delivers chat to the token's own user,
 /// so reading requires a login; there is no anonymous mode.
@@ -95,18 +213,24 @@ public final class TwitchChat {
     public private(set) var isConnected = false
     /// The last thing that went wrong, shown until the next welcome clears it.
     public private(set) var lastError: String?
+    /// The channel's chat modes: read on each connect, then kept by EventSub.
+    public private(set) var mode = ChatMode()
+    /// What AutoMod is holding, oldest first, for a login with the scope to
+    /// rule on it. Empty until a hold arrives — Helix has no list to read —
+    /// and a message leaves when any mod rules, or it expires.
+    public private(set) var held: [HeldMessage] = []
 
+    /// The Helix calls the socket subscribes through, and everything that
+    /// writes to or moderates the channel.
+    @ObservationIgnored public let helix: Helix
     /// The channel's login, as typed in a URL.
-    public let channel: String
-    /// The channel's numeric id, once it has been looked up.
-    public private(set) var broadcasterID: String?
-
+    public var channel: String { helix.channel }
     /// The login everything is sent as. Settable, so the caller can swap in a
     /// refreshed token without dropping the ring.
-    @ObservationIgnored public var session: TwitchSession
-    @ObservationIgnored let clientID: String
-    @ObservationIgnored let urlSession: URLSession
-    @ObservationIgnored let helixBase: URL
+    public var session: TwitchSession {
+        get { helix.session }
+        set { helix.session = newValue }
+    }
     @ObservationIgnored let eventSubURL: URL
     // ponytail: 300 lines, a screenful many times over; raise it or page to
     // disk if scrollback ever matters.
@@ -127,11 +251,8 @@ public final class TwitchChat {
         eventSubURL: URL = URL(string: "wss://eventsub.wss.twitch.tv/ws")!,
         capacity: Int = 300
     ) {
-        self.channel = channel.lowercased()
-        self.clientID = clientID
-        self.session = session
-        self.urlSession = urlSession
-        self.helixBase = helixBase
+        self.helix = Helix(
+            channel: channel, clientID: clientID, session: session, urlSession: urlSession, base: helixBase)
         self.eventSubURL = eventSubURL
         self.capacity = capacity
     }
@@ -152,6 +273,15 @@ public final class TwitchChat {
         isConnected = false
     }
 
+    /// Puts lines from before this session at the front: a log the host kept
+    /// from last time, so the tab opens on something to read rather than a
+    /// blank page. Only into an empty ring, and only the newest `capacity`;
+    /// a live line that redelivers one of these is dropped like any other.
+    public func seed(_ earlier: [ChatLine]) {
+        guard lines.isEmpty, !earlier.isEmpty else { return }
+        lines = Array(earlier.suffix(capacity))
+    }
+
     private func run() async {
         var url = eventSubURL
         var subscribe = true
@@ -159,8 +289,8 @@ public final class TwitchChat {
         var attempt = 0
         while !Task.isCancelled {
             do {
-                _ = try await resolveBroadcaster()
-                let ws = urlSession.webSocketTask(with: url)
+                _ = try await helix.resolveBroadcaster()
+                let ws = helix.urlSession.webSocketTask(with: url)
                 socket = ws
                 ws.resume()
                 if let moved = try await read(ws, subscribe: subscribe, retiring: &retiring, attempt: &attempt) {
@@ -203,7 +333,12 @@ public final class TwitchChat {
             switch handle(data) {
             case .welcome(let sessionID, let timeout):
                 keepalive = timeout + 5
-                if subscribe { try await subscribeAll(sessionID) }
+                if subscribe {
+                    try await subscribeAll(sessionID)
+                    // After subscribing, so no change can slip between the
+                    // read and the first update. A failed read keeps the last.
+                    if let read = try? await helix.chatMode() { mode = read }
+                }
                 retiring?.cancel(with: .normalClosure, reason: nil)
                 retiring = nil
                 isConnected = true
@@ -239,7 +374,7 @@ public final class TwitchChat {
     }
 
     /// Applies one EventSub frame: a message joins the ring, a delete or a
-    /// user clear takes lines out of it, and session frames come back as a
+    /// user clear marks lines `deleted`, and session frames come back as a
     /// `Control` for the socket loop. An undecodable frame is ignored.
     @discardableResult
     func handle(_ frame: Data) -> Control? {
@@ -260,9 +395,23 @@ public final class TwitchChat {
             case "channel.chat.message", "channel.chat.notification":
                 if let line = event.line(at: parseTimestamp(frame.metadata.messageTimestamp)) { append(line) }
             case "channel.chat.message_delete":
-                lines.removeAll { $0.id == event.messageId }
+                for i in lines.indices where lines[i].id == event.messageId { lines[i].deleted = true }
             case "channel.chat.clear_user_messages":
-                lines.removeAll { $0.userId == event.targetUserId }
+                for i in lines.indices where lines[i].userId == event.targetUserId { lines[i].deleted = true }
+            case "automod.message.hold":
+                if let message = event.held(at: parseTimestamp(frame.metadata.messageTimestamp)),
+                    !held.contains(where: { $0.id == message.id })
+                {
+                    held.append(message)
+                }
+            case "automod.message.update":
+                held.removeAll { $0.id == event.messageId }
+            case "channel.chat_settings.update":
+                mode = ChatMode(
+                    slowSeconds: event.slowMode == true ? event.slowModeWaitTimeSeconds ?? 0 : 0,
+                    followerMinutes: event.followerMode == true ? event.followerModeDurationMinutes ?? 0 : nil,
+                    subscribersOnly: event.subscriberMode ?? false, emoteOnly: event.emoteMode ?? false,
+                    uniqueOnly: event.uniqueChatMode ?? false)
             default:
                 break
             }
@@ -280,22 +429,65 @@ public final class TwitchChat {
     }
 
     private func subscribeAll(_ sessionID: String) async throws {
-        let broadcaster = try await resolveBroadcaster()
+        let broadcaster = try await helix.resolveBroadcaster()
         for type in [
             "channel.chat.message", "channel.chat.notification", "channel.chat.message_delete",
-            "channel.chat.clear_user_messages",
+            "channel.chat.clear_user_messages", "channel.chat_settings.update",
         ] {
-            _ = try await helix(
-                "POST", "eventsub/subscriptions",
-                body: [
-                    "type": type, "version": "1",
-                    "condition": ["broadcaster_user_id": broadcaster, "user_id": session.userID],
-                    "transport": ["method": "websocket", "session_id": sessionID],
-                ])
+            try await subscribe(type, version: "1", condition: ["user_id": session.userID], to: sessionID)
+        }
+        // AutoMod's holds go only to a moderator, and only with the scope; a
+        // refusal — a mod since demoted, say — must not cost them the chat.
+        guard session.canModerate else { return }
+        for type in ["automod.message.hold", "automod.message.update"] {
+            try? await subscribe(type, version: "2", condition: ["moderator_user_id": session.userID], to: sessionID)
         }
     }
 
-    // MARK: Helix
+    private func subscribe(_ type: String, version: String, condition: [String: String], to sessionID: String)
+        async throws
+    {
+        let broadcaster = try await helix.resolveBroadcaster()
+        _ = try await helix.request(
+            "POST", "eventsub/subscriptions",
+            body: [
+                "type": type, "version": version,
+                "condition": condition.merging(["broadcaster_user_id": broadcaster]) { a, _ in a },
+                "transport": ["method": "websocket", "session_id": sessionID],
+            ])
+    }
+}
+
+/// Twitch's Helix API for one channel, on the viewer's own token: the lookups,
+/// writes and moderation that need no chat socket.
+@MainActor
+public final class Helix {
+    /// The channel's login, lowercased.
+    public let channel: String
+    /// The login every call is made as. Settable, so a refreshed token swaps
+    /// in without a new client.
+    public var session: TwitchSession
+    let clientID: String
+    let urlSession: URLSession
+    let base: URL
+    /// The channel's numeric id, once it has been looked up.
+    public private(set) var broadcasterID: String?
+    /// Profiles already read, by user id: a card reopened costs no call.
+    private var users: [String: TwitchUser] = [:]
+
+    public init(
+        channel: String,
+        clientID: String,
+        session: TwitchSession,
+        urlSession: URLSession = .shared,
+        base: URL = URL(string: "https://api.twitch.tv/helix")!
+    ) {
+        self.channel = channel.lowercased()
+        self.clientID = clientID
+        self.session = session
+        self.urlSession = urlSession
+        self.base = base
+    }
 
     /// The channel's numeric id, looked up once.
     @discardableResult
@@ -305,7 +497,7 @@ public final class TwitchChat {
             struct User: Decodable { var id: String }
             var data: [User]
         }
-        let body = try await helix("GET", "users", query: ["login": channel])
+        let body = try await request("GET", "users", query: ["login": channel])
         guard let id = try Guessr.decoder.decode(Users.self, from: body).data.first?.id else {
             throw TwitchChatError.unknownChannel(channel)
         }
@@ -313,8 +505,20 @@ public final class TwitchChat {
         return id
     }
 
-    /// Posts `text` to the channel as the logged-in user.
-    public func send(_ text: String) async throws {
+    /// A chatter's public profile, for their user card: read once per user
+    /// id, nil for an id Twitch no longer knows. Needs no scope.
+    public func user(id: String) async throws -> TwitchUser? {
+        if let known = users[id] { return known }
+        struct Page: Decodable { var data: [TwitchUser] }
+        let body = try await request("GET", "users", query: ["id": id])
+        let user = try TwitchUser.decoder.decode(Page.self, from: body).data.first
+        users[id] = user
+        return user
+    }
+
+    /// Posts `text` to the channel as the logged-in user, threaded under the
+    /// message `replyTo` names when there is one.
+    public func send(_ text: String, replyTo: String? = nil) async throws {
         struct Reply: Decodable {
             struct Sent: Decodable {
                 struct Drop: Decodable { var message: String }
@@ -324,9 +528,9 @@ public final class TwitchChat {
             var data: [Sent]
         }
         let broadcaster = try await resolveBroadcaster()
-        let body = try await helix(
-            "POST", "chat/messages",
-            body: ["broadcaster_id": broadcaster, "sender_id": session.userID, "message": text])
+        var message = ["broadcaster_id": broadcaster, "sender_id": session.userID, "message": text]
+        message["reply_parent_message_id"] = replyTo
+        let body = try await request("POST", "chat/messages", body: message)
         if let sent = try Guessr.decoder.decode(Reply.self, from: body).data.first, !sent.isSent {
             throw TwitchChatError.dropped(sent.dropReason?.message ?? "no reason given")
         }
@@ -335,21 +539,89 @@ public final class TwitchChat {
     /// Deletes one message. Needs `moderator:manage:chat_messages`.
     public func delete(messageId: String) async throws {
         let broadcaster = try await resolveBroadcaster()
-        _ = try await helix(
+        _ = try await request(
             "DELETE", "moderation/chat",
             query: ["broadcaster_id": broadcaster, "moderator_id": session.userID, "message_id": messageId])
     }
 
     /// Times a user out for `seconds`, or bans them for good when `seconds`
-    /// is 0. Needs `moderator:manage:banned_users`.
-    public func ban(userId: String, seconds: Int) async throws {
+    /// is 0, with the reason the mod gave, if any -- Twitch shows it to the
+    /// other mods and in the user's own notice. Needs
+    /// `moderator:manage:banned_users`.
+    public func ban(userId: String, seconds: Int, reason: String? = nil) async throws {
         let broadcaster = try await resolveBroadcaster()
-        var ban: [String: Any] = ["user_id": userId]
-        if seconds > 0 { ban["duration"] = seconds }
-        _ = try await helix(
+        _ = try await request(
             "POST", "moderation/bans",
             query: ["broadcaster_id": broadcaster, "moderator_id": session.userID],
-            body: ["data": ban])
+            body: ["data": Self.banData(userId: userId, seconds: seconds, reason: reason)])
+    }
+
+    /// The `data` object a ban posts: no `duration` for a permanent ban, no
+    /// `reason` when the mod typed nothing. Twitch caps a reason at 500
+    /// characters.
+    nonisolated static func banData(userId: String, seconds: Int, reason: String?) -> [String: Any] {
+        var ban: [String: Any] = ["user_id": userId]
+        if seconds > 0 { ban["duration"] = seconds }
+        let why = (reason ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !why.isEmpty { ban["reason"] = String(why.prefix(500)) }
+        return ban
+    }
+
+    /// Lifts a user's timeout or ban. Needs `moderator:manage:banned_users`.
+    public func unban(userId: String) async throws {
+        let broadcaster = try await resolveBroadcaster()
+        _ = try await request(
+            "DELETE", "moderation/bans",
+            query: ["broadcaster_id": broadcaster, "moderator_id": session.userID, "user_id": userId])
+    }
+
+    /// Lets a held message through, or drops it. Needs `moderator:manage:automod`.
+    public func rule(messageId: String, allow: Bool) async throws {
+        _ = try await request(
+            "POST", "moderation/automod/message",
+            body: ["user_id": session.userID, "msg_id": messageId, "action": allow ? "ALLOW" : "DENY"])
+    }
+
+    /// Warns a user, who can't chat again until they acknowledge it. Twitch
+    /// wants a reason. Needs `moderator:manage:warnings`.
+    public func warn(userId: String, reason: String) async throws {
+        let broadcaster = try await resolveBroadcaster()
+        _ = try await request(
+            "POST", "moderation/warnings",
+            query: ["broadcaster_id": broadcaster, "moderator_id": session.userID],
+            body: ["data": ["user_id": userId, "reason": reason]])
+    }
+
+    /// Sets the channel's chat modes; the change comes back over EventSub.
+    /// Needs `moderator:manage:chat_settings`.
+    public func update(mode: ChatMode) async throws {
+        let broadcaster = try await resolveBroadcaster()
+        _ = try await request(
+            "PATCH", "chat/settings",
+            query: ["broadcaster_id": broadcaster, "moderator_id": session.userID], body: mode.settings)
+    }
+
+    /// The channel's chat modes as they stand. Needs no scope.
+    public func chatMode() async throws -> ChatMode {
+        struct Page: Decodable {
+            struct Settings: Decodable {
+                var emoteMode: Bool
+                var followerMode: Bool
+                var followerModeDuration: Int?
+                var slowMode: Bool
+                var slowModeWaitTime: Int?
+                var subscriberMode: Bool
+                var uniqueChatMode: Bool
+            }
+            var data: [Settings]
+        }
+        let broadcaster = try await resolveBroadcaster()
+        let body = try await request("GET", "chat/settings", query: ["broadcaster_id": broadcaster])
+        guard let s = try Guessr.decoder.decode(Page.self, from: body).data.first else { return ChatMode() }
+        return ChatMode(
+            slowSeconds: s.slowMode ? s.slowModeWaitTime ?? 0 : 0,
+            followerMinutes: s.followerMode ? s.followerModeDuration ?? 0 : nil,
+            subscribersOnly: s.subscriberMode, emoteOnly: s.emoteMode, uniqueOnly: s.uniqueChatMode)
     }
 
     /// Whether the logged-in user moderates this channel. The owner does by
@@ -368,7 +640,7 @@ public final class TwitchChat {
         repeat {
             var query = ["user_id": session.userID, "first": "100"]
             query["after"] = after
-            guard let body = try? await helix("GET", "moderation/channels", query: query),
+            guard let body = try? await request("GET", "moderation/channels", query: query),
                 let page = try? Guessr.decoder.decode(Page.self, from: body)
             else { return false }
             if page.data.contains(where: { $0.broadcasterId == broadcaster }) { return true }
@@ -379,10 +651,10 @@ public final class TwitchChat {
 
     /// One Helix call on the session's token. A non-2xx answer throws with
     /// Twitch's own message.
-    func helix(_ method: String, _ path: String, query: [String: String] = [:], body: [String: Any]? = nil)
+    func request(_ method: String, _ path: String, query: [String: String] = [:], body: [String: Any]? = nil)
         async throws -> Data
     {
-        var url = helixBase.appending(path: path)
+        var url = base.appending(path: path)
         if !query.isEmpty {
             url.append(queryItems: query.keys.sorted().map { URLQueryItem(name: $0, value: query[$0]) })
         }
@@ -405,6 +677,35 @@ public final class TwitchChat {
         }
         return data
     }
+}
+
+/// Who a chatter is, as Helix `users` answers: what a user card shows.
+public struct TwitchUser: Decodable, Sendable, Equatable {
+    public var id: String
+    public var login: String
+    public var displayName: String
+    /// Twitch's avatar art; every account has one, a default if never set.
+    public var profileImageUrl: String
+    /// When the account was made.
+    public var createdAt: Date
+
+    public init(id: String, login: String, displayName: String, profileImageUrl: String, createdAt: Date) {
+        self.id = id
+        self.login = login
+        self.displayName = displayName
+        self.profileImageUrl = profileImageUrl
+        self.createdAt = createdAt
+    }
+
+    public var profileImage: URL? { URL(string: profileImageUrl) }
+
+    /// Helix writes `created_at` in whole seconds, which `.iso8601` reads.
+    static let decoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.keyDecodingStrategy = .convertFromSnakeCase
+        d.dateDecodingStrategy = .iso8601
+        return d
+    }()
 }
 
 /// Twitch's `message_timestamp` carries nanoseconds, which the ISO 8601
@@ -458,6 +759,12 @@ struct Frame: Decodable {
             var setId: String
             var id: String
         }
+        struct Reply: Decodable {
+            var parentMessageId: String
+            var parentMessageBody: String?
+            var parentUserLogin: String?
+            var parentUserName: String?
+        }
         var messageId: String?
         var chatterUserId: String?
         var chatterUserLogin: String?
@@ -468,10 +775,36 @@ struct Frame: Decodable {
         var targetUserId: String?
         var noticeType: String?
         var systemMessage: String?
+        var messageType: String?
+        var reply: Reply?
+        // automod.message.hold
+        struct AutoMod: Decodable {
+            var category: String
+            var level: Int
+        }
+        struct BlockedTerm: Decodable {
+            struct Term: Decodable { var termId: String? }
+            var termsFound: [Term]?
+        }
+        var userId: String?
+        var userLogin: String?
+        var userName: String?
+        var reason: String?
+        var automod: AutoMod?
+        var blockedTerm: BlockedTerm?
+        var heldAt: String?
+        // channel.chat_settings.update
+        var emoteMode: Bool?
+        var followerMode: Bool?
+        var followerModeDurationMinutes: Int?
+        var slowMode: Bool?
+        var slowModeWaitTimeSeconds: Int?
+        var subscriberMode: Bool?
+        var uniqueChatMode: Bool?
 
-        func line(at timestamp: Date) -> ChatLine? {
-            guard let messageId, let chatterUserId, let message else { return nil }
-            let fragments: [ChatFragment]? = message.fragments.map {
+        /// Twitch's runs as chat fragments; nil when it sent none.
+        var fragments: [ChatFragment]? {
+            message?.fragments.map {
                 $0.map { f in
                     switch f.type {
                     case "emote": f.emote.map { .emote(id: $0.id, text: f.text) } ?? .text(f.text)
@@ -481,6 +814,22 @@ struct Frame: Decodable {
                     }
                 }
             }
+        }
+
+        func held(at timestamp: Date) -> HeldMessage? {
+            guard let messageId, let userId, let message else { return nil }
+            let why =
+                if let automod { "AutoMod: \(automod.category) \(automod.level)" } else if reason == "blocked_term" {
+                    String(localized: "Blocked term", bundle: .module)
+                } else { reason ?? "AutoMod" }
+            return HeldMessage(
+                id: messageId, userId: userId, login: userLogin ?? "", displayName: userName ?? userLogin ?? "",
+                text: message.text, fragments: fragments, why: why,
+                heldAt: heldAt == nil ? timestamp : parseTimestamp(heldAt))
+        }
+
+        func line(at timestamp: Date) -> ChatLine? {
+            guard let messageId, let chatterUserId, let message else { return nil }
             return ChatLine(
                 id: messageId,
                 userId: chatterUserId,
@@ -492,7 +841,13 @@ struct Frame: Decodable {
                 fragments: fragments,
                 timestamp: timestamp,
                 kind: noticeType,
-                notice: systemMessage
+                notice: systemMessage,
+                messageType: messageType,
+                reply: reply.map {
+                    ChatReply(
+                        parentId: $0.parentMessageId, login: $0.parentUserLogin ?? "",
+                        displayName: $0.parentUserName ?? $0.parentUserLogin ?? "", text: $0.parentMessageBody ?? "")
+                }
             )
         }
     }

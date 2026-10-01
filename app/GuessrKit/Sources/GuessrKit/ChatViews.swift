@@ -123,30 +123,58 @@
         #endif
     }
 
+    /// The timeout lengths the menu offers, Chatterino's short list.
+    private let timeouts = [60, 600, 3600, 86400]
+
+    /// A timeout's length as a mod reads it: `10 minutes`, `1 hour`.
+    public func timeoutLength(_ seconds: Int) -> String {
+        Duration.seconds(seconds).formatted(.units(allowed: [.hours, .minutes], width: .wide))
+    }
+
+    /// What a warning says when the mod typed nothing: Twitch insists on a
+    /// reason, and the viewer has to read one to chat again.
+    public var defaultWarning: String { String(localized: "Please keep to the chat rules", bundle: .module) }
+
     /// A chat line's context menu: Translate for a line with words to read,
     /// then the moderation verbs a nil closure leaves out. `ban` takes the
-    /// seconds, 0 for good; the ban asks first, the one verb that doesn't undo
-    /// itself. Delete comes first: it answers what was said rather than who
-    /// said it. tvOS has no context menus, so there it draws the line bare.
+    /// seconds, 0 for good, and the reason the mod typed, nil for none: a
+    /// length from the submenu is one tap with no reason, the submenu's last
+    /// item and the ban itself ask in an alert, where the reason is optional.
+    /// The ban always asks first, the one verb that doesn't undo itself.
+    /// `warn` takes the reason, asked for in an alert. Delete comes first: it
+    /// answers what was said rather than who said it. tvOS has no context
+    /// menus, so there it draws the line bare.
     public struct ChatLineMenu: ViewModifier {
         var translatable: String?
         var name: String
         var delete: (() -> Void)?
-        var ban: ((Int) -> Void)?
+        var ban: ((Int, String?) -> Void)?
+        var reply: (() -> Void)?
+        var warn: ((String) -> Void)?
         /// Whether the system translation sheet is up for this line.
         @State private var translating = false
         @State private var banning = false
+        @State private var timingOut = false
+        @State private var warning = false
+        @State private var reason = ""
 
         /// `translatable` is the text the Translate item offers, nil for none;
-        /// `name` is who the ban confirmation names.
+        /// `name` is who the ban confirmation names; `reply`, when given,
+        /// heads the menu.
         public init(
-            translatable: String?, name: String, delete: (() -> Void)?, ban: ((Int) -> Void)?
+            translatable: String?, name: String, delete: (() -> Void)?, ban: ((Int, String?) -> Void)?,
+            reply: (() -> Void)? = nil, warn: ((String) -> Void)? = nil
         ) {
             self.translatable = translatable
             self.name = name
             self.delete = delete
             self.ban = ban
+            self.reply = reply
+            self.warn = warn
         }
+
+        /// The typed reason, nil when the field was left blank.
+        private var why: String? { reason.isEmpty ? nil : reason }
 
         public func body(content: Content) -> some View {
             #if os(tvOS)
@@ -160,28 +188,126 @@
                 // time palls.
                 content
                     .contextMenu {
+                        if let reply {
+                            Button(String(localized: "Reply", bundle: .module), systemImage: "arrowshape.turn.up.left", action: reply)
+                        }
                         #if canImport(Translation)
                             if translatable != nil {
-                                Button("Translate", systemImage: "translate") { translating = true }
+                                Button(String(localized: "Translate", bundle: .module), systemImage: "translate") { translating = true }
                             }
                         #endif
                         if let delete {
-                            Button("Delete message", systemImage: "trash", role: .destructive, action: delete)
+                            Button(String(localized: "Delete message", bundle: .module), systemImage: "trash", role: .destructive, action: delete)
+                        }
+                        if warn != nil {
+                            Button(String(localized: "Warn", bundle: .module), systemImage: "exclamationmark.bubble") { warning = true }
                         }
                         if let ban {
-                            Button("Time out 10 minutes", systemImage: "clock.badge.xmark") { ban(600) }
-                            Button("Ban", systemImage: "nosign", role: .destructive) { banning = true }
+                            Menu(String(localized: "Time out", bundle: .module), systemImage: "clock.badge.xmark") {
+                                ForEach(timeouts, id: \.self) { seconds in
+                                    Button(timeoutLength(seconds)) { ban(seconds, nil) }
+                                }
+                                Divider()
+                                Button(String(localized: "With a reason…", bundle: .module), systemImage: "text.bubble") {
+                                    reason = ""
+                                    timingOut = true
+                                }
+                            }
+                            Button(String(localized: "Ban", bundle: .module), systemImage: "nosign", role: .destructive) {
+                                reason = ""
+                                banning = true
+                            }
                         }
                     }
-                    .confirmationDialog(
-                        "Ban \(name) from the channel?", isPresented: $banning, titleVisibility: .visible
-                    ) {
-                        Button("Ban", role: .destructive) { ban?(0) }
+                    .alert(String(localized: "Ban \(name) from the channel?", bundle: .module), isPresented: $banning) {
+                        TextField(String(localized: "Reason (optional)", bundle: .module), text: $reason)
+                        Button(String(localized: "Ban", bundle: .module), role: .destructive) { ban?(0, why) }
+                        Button(String(localized: "Cancel", bundle: .module), role: .cancel) {}
+                    } message: {
+                        Text("Other mods see the reason, and so do they.", bundle: .module)
+                    }
+                    .alert(String(localized: "Time out \(name)", bundle: .module), isPresented: $timingOut) {
+                        TextField(String(localized: "Reason (optional)", bundle: .module), text: $reason)
+                        ForEach(timeouts, id: \.self) { seconds in
+                            Button(timeoutLength(seconds)) { ban?(seconds, why) }
+                        }
+                        Button(String(localized: "Cancel", bundle: .module), role: .cancel) {}
+                    }
+                    .alert(String(localized: "Warn \(name)", bundle: .module), isPresented: $warning) {
+                        TextField(String(localized: "Reason", bundle: .module), text: $reason)
+                        Button(String(localized: "Warn", bundle: .module)) { warn?(reason.isEmpty ? defaultWarning : reason) }
+                        Button(String(localized: "Cancel", bundle: .module), role: .cancel) {}
+                    } message: {
+                        Text("They can't chat again until they've read it.", bundle: .module)
                     }
                     #if canImport(Translation)
                         .translationPresentation(isPresented: $translating, text: translatable ?? "")
                     #endif
             #endif
+        }
+    }
+
+    /// A chatter's card, from a tap on their line: avatar, how long they have
+    /// been on Twitch, and what they have said in this session. `recent` is
+    /// their lines' text from the log, oldest first — the ring, not an API, so
+    /// it is only what this device saw. `load` reads the profile; until it
+    /// answers, or if it fails, the card shows the name it was opened with.
+    public struct UserCard: View {
+        var displayName: String
+        var login: String
+        var recent: [String]
+        var load: () async -> TwitchUser?
+        @State private var user: TwitchUser?
+        @State private var avatar: Image?
+
+        public init(displayName: String, login: String, recent: [String], load: @escaping () async -> TwitchUser?) {
+            self.displayName = displayName
+            self.login = login
+            self.recent = recent
+            self.load = load
+        }
+
+        public var body: some View {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 12) {
+                    (avatar ?? Image(systemName: "person.crop.circle.fill"))
+                        .resizable()
+                        .scaledToFill()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 56, height: 56)
+                        .clipShape(Circle())
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(user?.displayName ?? displayName).font(.headline)
+                        if let user {
+                            Text("On Twitch since \(user.createdAt.formatted(.dateTime.month(.wide).year()))", bundle: .module)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                    if let url = URL(string: "https://www.twitch.tv/\(login)") {
+                        Link(destination: url) { Image(systemName: "arrow.up.right.square") }
+                            .accessibilityLabel(String(localized: "Open \(displayName) on Twitch", bundle: .module))
+                    }
+                }
+                if !recent.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Recent messages", bundle: .module).font(.caption.bold()).foregroundStyle(.secondary)
+                        // ponytail: the last five; a scrolling list if a
+                        // chatty viewer's card needs the whole session.
+                        ForEach(Array(recent.suffix(5).enumerated()), id: \.offset) { _, text in
+                            Text(text).font(.subheadline).lineLimit(3)
+                        }
+                    }
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .task {
+                user = await load()
+                if let url = user?.profileImage { avatar = await remoteImage(url, scale: 1) }
+            }
         }
     }
 #endif

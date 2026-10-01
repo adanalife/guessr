@@ -9,10 +9,12 @@ import json
 
 from server.admin_auth import MOD_SCOPE, Admins, Caller, caller
 
-OWNER, CHANNEL = "111", "999"
+OWNER, STAGE_OWNER, CHANNEL = "111", "112", "999"
 TEMPOMAT, CONSOLE, STRANGER_APP = "tempomat-app", "console-app", "some-other-app"
 ADMINS = Admins(
-    owner_id=OWNER, channel_id=CHANNEL, client_ids=frozenset({TEMPOMAT, CONSOLE})
+    owner_ids=frozenset({OWNER, STAGE_OWNER}),
+    channel_id=CHANNEL,
+    client_ids=frozenset({TEMPOMAT, CONSOLE}),
 )
 
 # token -> what /oauth2/validate answers (None = 401)
@@ -22,6 +24,12 @@ VALIDATE = {
         "client_id": CONSOLE,
         "login": "dana",
         "user_id": OWNER,
+        "scopes": [],
+    },
+    "owner-staging": {
+        "client_id": CONSOLE,
+        "login": "dana_staging",
+        "user_id": STAGE_OWNER,
         "scopes": [],
     },
     "owner-elsewhere": {
@@ -109,6 +117,9 @@ async def test_admin_auth() -> None:
     assert (await who("bearer owner-console"))[0].tier == "owner", (
         "the scheme is case-insensitive"
     )
+    assert (await who("Bearer owner-staging"))[0] == Caller(
+        "owner", STAGE_OWNER, "dana_staging"
+    ), "every listed owner id is the owner"
     assert (await who("Bearer mod"))[0] == Caller("mod", "222", "friend")
     assert (await who("Bearer mod-console"))[0].tier == "mod", (
         "Helix asked with the token's own app"

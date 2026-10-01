@@ -8,7 +8,9 @@ anywhere else, so moving host is a new `context`, never a new router.
 `context(request) -> (db, get_clip, admins)` is asked once per request, because
 on Cloudflare the bindings arrive with the request (`request.scope["env"]`) and
 not at import. Anywhere they are fixed it is a lambda returning the same three.
-`fetch` is the outbound-HTTP seam /api/live and the admin gate share.
+`fetch` is the outbound-HTTP seam /api/live, the admin gate and the Game Center
+submission share. `asc(request)` is the App Store Connect client for the tier's
+secrets, or None where there are none, which switches /api/gamecenter off.
 
 Everything under /admin is gated before routing, so a caller who is not the
 owner learns nothing about which admin paths exist or which methods they take:
@@ -28,8 +30,18 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
-from server import admin_day, admin_players, clips, day, guesses, leaderboard, link
-from server import live, score
+from server import (
+    admin_day,
+    admin_players,
+    clips,
+    day,
+    gamecenter,
+    guesses,
+    leaderboard,
+    link,
+    progress,
+)
+from server import live, rules, score
 from server.admin_auth import caller, refusal
 
 
@@ -57,17 +69,30 @@ def respond(status: int, body, headers: dict | None = None) -> Response:
 
 
 # (path, method, handler). `r` carries what the request resolved to: db,
-# get_clip, fetch, params, body (POST only) and who (the gate's admitted caller,
-# under /admin/ only).
+# get_clip, fetch, asc, params, headers, body (POST only) and who (the gate's
+# admitted caller, under /admin/ only).
 ROUTES = [
     ("/api/day", "GET", lambda r: day.day(r.db, r.params)),
     ("/api/guesses", "GET", lambda r: guesses.guesses(r.db, r.params)),
     ("/api/leaderboard", "GET", lambda r: leaderboard.leaderboard(r.db, r.params)),
     ("/api/live", "GET", lambda r: live.live(r.fetch)),
-    ("/api/score", "POST", lambda r: score.score(r.db, r.body)),
+    (
+        "/api/score",
+        "POST",
+        lambda r: score.score(
+            r.db, r.body, client=rules.client_of(r.headers.get("user-agent"))
+        ),
+    ),
+    ("/api/progress", "POST", lambda r: progress.progress(r.db, r.body)),
+    (
+        "/api/gamecenter",
+        "POST",
+        lambda r: gamecenter.sync(r.db, r.body, r.asc, r.fetch),
+    ),
     ("/api/link", "POST", lambda r: link.link(r.db, r.body)),
     ("/api/link/code", "POST", lambda r: link.issue_code(r.db, r.body)),
     ("/api/link/claim", "POST", lambda r: link.claim(r.db, r.body)),
+    ("/api/link/preview", "POST", lambda r: link.preview(r.db, r.body)),
     ("/admin/day", "GET", lambda r: admin_day.preview(r.db, r.who, r.params)),
     (
         "/admin/day",
@@ -100,7 +125,7 @@ ROUTES = [
 EVERY_METHOD = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 
 
-def make_app(context, fetch) -> Starlette:
+def make_app(context, fetch, asc=lambda request: None) -> Starlette:
     def route(path: str, method: str, handler) -> Route:
         async def endpoint(request):
             db, get_clip, _ = context(request)
@@ -108,7 +133,9 @@ def make_app(context, fetch) -> Starlette:
                 db=db,
                 get_clip=get_clip,
                 fetch=fetch,
+                asc=asc(request),
                 params=request.query_params,
+                headers=request.headers,
                 body=await _body(request) if method == "POST" else None,
                 who=request.scope.get("state", {}).get("who"),
             )

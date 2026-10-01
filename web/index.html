@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Guessr — GeoGuessr with dashcam footage</title>
+<title>Guessr: GeoGuessr with dashcam footage</title>
 <meta name="description" content="Five rounds a day from a year of driving the United States. Where is this?">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <!-- iOS home-screen icon: PNG only, and it ignores transparency, so this one
@@ -26,7 +26,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Guessr">
 <meta property="og:url" content="https://guessr.dana.lol/">
-<meta property="og:title" content="Guessr — GeoGuessr with dashcam footage">
+<meta property="og:title" content="Guessr: GeoGuessr with dashcam footage">
 <meta property="og:description" content="Five rounds a day from a year of driving the United States. Where is this?">
 <meta property="og:image" content="https://guessr.dana.lol/og.jpg">
 <meta property="og:image:type" content="image/jpeg">
@@ -300,19 +300,19 @@
 <body>
 <header>
   <h1>Guessr</h1>
-  <span class="stat" id="label">Daily</span>
-  <span class="stat">Round <b id="roundnum">1</b>/<b id="roundtot">5</b></span>
-  <span class="stat">Score <b id="score">0</b></span>
+  <span class="stat" id="label" data-i18n>Daily</span>
+  <span class="stat"><span data-i18n>Round</span> <b id="roundnum">1</b>/<b id="roundtot">5</b></span>
+  <span class="stat"><span data-i18n>Score</span> <b id="score">0</b></span>
   <span class="spacer"></span>
   <details id="about" class="stat">
-    <summary>about<span class="dot" id="aboutdot" hidden></span></summary>
+    <summary><span data-i18n>about</span><span class="dot" id="aboutdot" hidden></span></summary>
     <div class="panel">
-      <p>Every round is a few seconds of real dashcam footage, filmed on a
+      <p data-i18n>Every round is a few seconds of real dashcam footage, filmed on a
         year-long drive around the United States in 2018. Five rounds a day, the
         same five for everyone. Practice rounds are unlimited.</p>
-      <p>Pause the clip with the pause button or spacebar. Zoom in and look for
+      <p data-i18n>Pause the clip with the pause button or spacebar. Zoom in and look for
         clues.</p>
-      <p>All of the footage comes from the <a href="https://dana.lol">A Dana
+      <p data-i18n>All of the footage comes from the <a href="https://dana.lol">A Dana
         Life</a> project, a livestream that streams the trip 24/7. It's
         available on several platforms, some of which have more games you can
         play.</p>
@@ -322,24 +322,25 @@
              them out of the accessibility tree since the link text already
              names the platform. -->
         <a href="https://youtube.com/@adanalife_/live"><svg viewBox="0 0 24 24"
-          aria-hidden="true"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>Watch on YouTube</a>
+          aria-hidden="true"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg><span data-i18n>Watch on YouTube</span></a>
         <a href="https://twitch.tv/adanalife_"><svg viewBox="0 0 24 24"
-          aria-hidden="true"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>Guess in realtime on Twitch</a>
+          aria-hidden="true"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg><span data-i18n>Guess in realtime on Twitch</span></a>
       </p>
       <!-- The name a daily score is recorded under. Generated rather than typed
            (web/alias.js says why), so the control is a reroll rather than a
            field: keep drawing until one reads right. -->
-      <p id="identity">Your leaderboard name is <b id="alias"></b><br>
-        <button type="button" id="reroll" class="secondary" title="Draw another name">Generate new name</button>
+      <p id="identity"><span data-i18n>Your leaderboard name is</span> <b id="alias"></b><br>
+        <button type="button" id="reroll" class="secondary" title="Draw another name" data-i18n data-i18n-attr="title">Generate new name</button>
         <!-- Only ever the one name back: shown when a reroll has something to
              undo, gone again the moment it is taken. -->
         <button type="button" id="undo" class="secondary" hidden
-          title="Go back to the name before the last reroll">Undo</button>
+          title="Go back to the name before the last reroll" data-i18n data-i18n-attr="title">Undo</button>
         <!-- Playing on a phone and a desktop otherwise puts the same person on
              the board twice. The code carries the player id, so scanning it
              from the other device is the whole mechanism. -->
         <button type="button" id="link" class="secondary"
-          title="Show a code that adds another device's scores to yours">Link a device</button></p>
+          title="Show a code that adds another device's scores to yours" data-i18n
+          data-i18n-attr="title">Link a device</button></p>
       <!-- An anchor around it, so the id is reachable by anyone who can't scan a
            picture: a screen reader announces a link, and a phone that has the
            panel open can follow it directly. Following it on the device that
@@ -351,39 +352,44 @@
         <!-- The same link for a device that cannot scan its way in: a Home
              Screen install keeps its own storage and the app has no browser to
              open a link in, so both take a code typed by hand instead. -->
-        <p id="codeline" hidden>Or enter <b id="linkcode"></b> on the other
+        <p id="codeline" hidden data-i18n>Or enter <b id="linkcode"></b> on the other
           device.</p>
         <!-- And the receiving half, for a code drawn somewhere else. -->
-        <form id="claim"><label>Have a code from another device?
+        <form id="claim"><label><span data-i18n>Have a code from another device?</span>
           <input id="claimcode" autocomplete="off" autocapitalize="characters"
             spellcheck="false" maxlength="12" required></label>
-          <button type="submit" class="secondary">Join</button></form>
+          <button type="submit" class="secondary" data-i18n>Join</button></form>
       </div>
+      <!-- The language the page speaks; Auto is the browser's. Each name is
+           written in itself, so a player who can't read the current language
+           can still find their own. -->
+      <p><label><span data-i18n>Language</span>
+        <select id="lang"><option value="" data-i18n>Auto</option></select></label></p>
       <!-- Both halves are stamped in at deploy time, so the whole line stays
            hidden until version.json says something. The reset is for the
            testing tiers: the intro, the About dot and the daily record are all
            once-per-browser, so without it the only way to see any of them a
            second time is to clear site data by hand. -->
       <!-- biome-ignore lint/a11y/useAnchorContent: the version string is stamped in at deploy time -->
-      <p id="build" hidden><span id="buildlabel" hidden>Running <a id="version"
+      <p id="build" hidden><span id="buildlabel" hidden><span data-i18n>Running</span> <a id="version"
         href="https://github.com/adanalife/guessr/blob/main/CHANGELOG.md"></a></span>
-        <button type="button" id="reset" class="secondary" hidden>Reset saved state</button></p>
+        <button type="button" id="reset" class="secondary" hidden data-i18n>Reset saved state</button></p>
       <!-- The footage is not under the repo's MIT licence, and a licence file
            cannot speak to anyone who never opens the repo — which is nearly
            everyone who plays. LICENSE-CONTENT is the long version. Outside
            #build because that hides itself until version.json says something,
            and this line is true either way. -->
-      <p id="licence">Dashcam footage ©&nbsp;A Dana Life, all rights reserved</p>
+      <p id="licence" data-i18n>Dashcam footage ©&nbsp;A Dana Life, all rights reserved</p>
     </div>
   </details>
 </header>
 <dialog id="welcome">
-  <h2>Drop a pin where you think this clip was filmed</h2>
-  <p>This is real footage from a year of traveling in a campervan</p>
-  <p>Every player guesses the same 5 clips, new ones daily</p>
+  <h2 data-i18n>Drop a pin where you think this clip was filmed</h2>
+  <p data-i18n>This is real footage from a year of traveling in a campervan</p>
+  <p data-i18n>Every player guesses the same 5 clips, new ones daily</p>
   <div class="actions">
-    <button type="button" id="welcomeplay" autofocus>Play</button>
-    <button type="button" id="welcomemore" class="secondary">Learn more</button>
+    <button type="button" id="welcomeplay" autofocus data-i18n>Play</button>
+    <button type="button" id="welcomemore" class="secondary" data-i18n>Learn more</button>
   </div>
 </dialog>
 <main>
@@ -401,24 +407,24 @@
          frame the round didn't mean to show. -->
     <video id="frame" draggable="false" hidden
            autoplay muted loop playsinline preload="auto"
-           aria-label="A few seconds of dashcam footage to locate"></video>
+           aria-label="A few seconds of dashcam footage to locate" data-i18n-attr="aria-label"></video>
     <div id="zoomctl" hidden>
-      <button type="button" id="zin" title="Zoom in — or scroll, pinch, or double-click the frame"
-              aria-label="Zoom in">+</button>
-      <button type="button" id="zout" title="Zoom out" aria-label="Zoom out">&minus;</button>
+      <button type="button" id="zin" title="Zoom in, or scroll, pinch, or double-click the frame"
+              aria-label="Zoom in" data-i18n-attr="title aria-label">+</button>
+      <button type="button" id="zout" title="Zoom out" aria-label="Zoom out" data-i18n-attr="title aria-label">&minus;</button>
       <!-- The glyphs carry U+FE0E, the text variation selector, or a platform
            with emoji for these code points renders two coloured cartoons in a
            row of monochrome map controls. The label is set from the video's own
            play/pause events rather than on click, so it stays honest when
            playback stops for a reason the page didn't ask for — an autoplay
            block on iOS being the one that actually happens. -->
-      <button type="button" id="playpause" title="Pause — or press space"
-              aria-label="Pause">&#9208;&#xFE0E;</button>
+      <button type="button" id="playpause" title="Pause, or press space"
+              aria-label="Pause" data-i18n-attr="title aria-label">&#9208;&#xFE0E;</button>
       <!-- Only up while a single round is open from the end-of-game sheet, which
            is the one state the pane can be in that the player did not arrive at
            by playing. -->
-      <button type="button" id="board" hidden title="Back to all five rounds — or press Escape"
-              aria-label="Back to all five rounds">&#9638;&#xFE0E;</button>
+      <button type="button" id="board" hidden title="Back to all five rounds, or press Escape"
+              aria-label="Back to all five rounds" data-i18n-attr="title aria-label">&#9638;&#xFE0E;</button>
     </div>
     <div id="sheet" hidden></div>
   </div>
@@ -426,23 +432,23 @@
        beats any stylesheet rule, so the minimap is positioned by this wrapper
        rather than by #map itself. -->
   <div id="mapwrap"><div id="map"></div>
-    <p id="tilewarn" hidden>The map is having trouble loading. You can still drop a pin
-      &mdash; the grid is the same.</p></div>
+    <p id="tilewarn" hidden data-i18n>The map is having trouble loading. You can still drop a pin
+      — the grid is the same.</p></div>
 </main>
 <footer>
-  <button type="button" id="go" disabled>Drop a pin to guess</button>
+  <button type="button" id="go" disabled data-i18n>Drop a pin to guess</button>
   <!-- Testing tiers only, like the reset button, and for the same reason: the
        slow part of walking a change through five rounds is aiming the pin, not
        committing it. Guesses and advances, so a whole game is one click per
        round. -->
   <button type="button" id="rando" class="secondary"
-          title="Guess a random point and move on">Place random</button>
-  <button type="button" id="share" class="secondary" hidden>Share</button>
-  <button type="button" id="practice" class="secondary" hidden>Practice</button>
-  <button type="button" id="history" class="secondary" hidden>All my guesses</button>
-  <span id="result">Somewhere in the United States. Where?</span>
+          title="Guess a random point and move on" data-i18n data-i18n-attr="title">Place random</button>
+  <button type="button" id="share" class="secondary" hidden data-i18n>Share</button>
+  <button type="button" id="practice" class="secondary" hidden data-i18n>Practice</button>
+  <button type="button" id="history" class="secondary" hidden data-i18n>All my guesses</button>
+  <span id="result" data-i18n>Somewhere in the United States. Where?</span>
   <!-- After #result, which is flex: 1, so the toggle sits at the far end. -->
-  <button type="button" class="theme-toggle" aria-label="Toggle dark mode"
+  <button type="button" class="theme-toggle" aria-label="Toggle dark mode" data-i18n-attr="aria-label"
           onclick="toggleTheme()">🌓</button>
 </footer>
 
@@ -468,6 +474,30 @@ import {
   seen,
 } from './storage.js';
 import { fitScale, fitView, panView, zoomAbout } from './zoom.js';
+import { LANG_KEY, LANGUAGES, NAMES, t, translatePage } from './i18n.js';
+
+// Before anything below reads or writes the page's words.
+translatePage();
+
+{
+  const picker = document.getElementById('lang');
+  for (const lang of ['en', ...LANGUAGES]) picker.add(new Option(NAMES[lang], lang));
+  try {
+    picker.value = localStorage.getItem(LANG_KEY) ?? '';
+  } catch {
+    /* nothing saved to show */
+  }
+  // The words are rewritten once at load, so a new language is a reload.
+  picker.addEventListener('change', () => {
+    try {
+      if (picker.value) localStorage.setItem(LANG_KEY, picker.value);
+      else localStorage.removeItem(LANG_KEY);
+    } catch {
+      /* storage refused: nothing to remember the choice in */
+    }
+    location.reload();
+  });
+}
 
 // What a scored round tells us about where it was, as opposed to how it went.
 // Kept apart because it is also what gets stored and replayed: a resumed or
@@ -692,8 +722,8 @@ playpause.addEventListener('click', togglePlay);
   frame.addEventListener(type, () => {
     const playing = !frame.paused;
     playpause.innerHTML = playing ? '&#9208;&#xFE0E;' : '&#9654;&#xFE0E;';
-    playpause.title = playing ? 'Pause — or press space' : 'Play — or press space';
-    playpause.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+    playpause.title = playing ? t('Pause, or press space') : t('Play, or press space');
+    playpause.setAttribute('aria-label', playing ? t('Pause') : t('Play'));
   });
 });
 
@@ -783,7 +813,7 @@ map.on('click', e => {
   if (guess) map.removeLayer(guess);
   guess = L.marker(e.latlng).addTo(map);
   go.disabled = false;
-  go.textContent = 'Guess';
+  go.textContent = t('Guess');
 });
 
 function startRound() {
@@ -794,7 +824,7 @@ function startRound() {
   if (guess) { map.removeLayer(guess); guess = null; }
   go.hidden = false;
   go.disabled = true;
-  go.textContent = 'Drop a pin to guess';
+  go.textContent = t('Drop a pin to guess');
   go.dataset.phase = 'guess';
   // After the layout, not before: the fit has to be against the box the map
   // ends the round in, which is the collapsed minimap.
@@ -804,7 +834,7 @@ function startRound() {
   shareBtn.hidden = true;
   practiceBtn.hidden = true;
   historyBtn.hidden = true;
-  result.textContent = 'Somewhere in the United States. Where?';
+  result.textContent = t('Somewhere in the United States. Where?');
 }
 
 async function reveal() {
@@ -812,7 +842,7 @@ async function reveal() {
   // The button is the only progress indicator: the request is one indexed lookup,
   // so on a working connection this flickers rather than reads.
   go.disabled = true;
-  go.textContent = 'Scoring…';
+  go.textContent = t('Scoring…');
   // Off the guess phase for the duration, so a map click mid-flight can't move
   // the pin out from under the answer being scored.
   go.dataset.phase = 'scoring';
@@ -827,16 +857,16 @@ async function reveal() {
     if (e.final) {
       go.hidden = true;
       practiceBtn.hidden = false;
-      practiceBtn.textContent = 'Practice rounds';
-      result.textContent = `${e.message}. Practice rounds still work.`;
+      practiceBtn.textContent = t('Practice rounds');
+      result.textContent = t('{error}. Practice rounds still work.', { error: e.message });
       return;
     }
     // Back to guessing with the pin still where it was -- losing a round to a
     // dropped request would be worse than the retry.
     go.dataset.phase = 'guess';
     go.disabled = false;
-    go.textContent = 'Guess';
-    result.textContent = 'Could not reach the scorer. Try that guess again.';
+    go.textContent = t('Guess');
+    result.textContent = t('Could not reach the scorer. Try that guess again.');
     return;
   }
 
@@ -869,13 +899,14 @@ async function reveal() {
   if (!last) map.fitBounds(line.getBounds(), { padding: [50, 50], maxZoom: 9 });
 
   const miles = Math.round(km * 0.621371);
-  result.innerHTML = `<b>${scored.state}</b>, ${scored.filmed} &mdash; you were off by
-    <b>${miles.toLocaleString()} mi</b> for <b>${pts.toLocaleString()}</b> points.`;
+  result.innerHTML = t('<b>{state}</b>, {filmed} — you were off by <b>{miles} mi</b> for <b>{pts}</b> points.', {
+    state: scored.state, filmed: scored.filmed, miles: miles.toLocaleString(), pts: pts.toLocaleString(),
+  });
 
   go.disabled = false;
   go.dataset.phase = 'next';
   if (last) finish();
-  else go.textContent = 'Next round';
+  else go.textContent = t('Next round');
 }
 
 // What a resumed day is rebuilt from. Written after every reveal rather than
@@ -896,7 +927,7 @@ const today = () => effectiveDay(savedDaily());
 //
 // One function for both modes because the only difference is the query: a date
 // for the daily, `practice` for a random draw over days that have finished.
-const UNREACHABLE = 'Could not reach the rounds';
+const UNREACHABLE = t('Could not reach the rounds');
 
 async function loadRounds(query) {
   let res;
@@ -951,7 +982,7 @@ function showSummary(rounds, played, res) {
           iconSize: [22, 22],
           iconAnchor: [11, 11],
         }),
-      }).addTo(map).bindTooltip(`${r.state}, ${r.filmed} — ${res[i].toLocaleString()}`),
+      }).addTo(map).bindTooltip(`${r.state}, ${r.filmed} · ${res[i].toLocaleString()}`),
     );
     seen.push(from, truth);
   });
@@ -1003,10 +1034,10 @@ function showHistory() {
   // Rounds recorded before the mode was stored have no flag and read as
   // practice, which is what most of them were.
   const daily = rounds.filter(r => r[5]).length;
-  result.innerHTML = `<b>${rounds.length}</b> rounds &mdash;
-    ${swatch(DAILY_COLOUR)}<b>${daily} daily</b>,
-    ${swatch(PRACTICE_COLOUR)}<b>${rounds.length - daily} practice</b>.
-    Each line runs from your guess to the truth.`;
+  result.innerHTML = t('<b>{n}</b> rounds — {daily}<b>{d} daily</b>, {practice}<b>{p} practice</b>. Each line runs from your guess to the truth.', {
+    n: rounds.length, d: daily, p: rounds.length - daily,
+    daily: swatch(DAILY_COLOUR), practice: swatch(PRACTICE_COLOUR),
+  });
 }
 
 // The frame pane goes black when a game ends, which throws away half the
@@ -1023,9 +1054,9 @@ function showSheet(rounds, played, res) {
   // and paints it, which is how you get a poster without generating one. The
   // bytes are already in cache, since these are the five just played.
   sheet.innerHTML = rounds.map((r, i) => `
-    <button type="button" data-i="${i}" title="Watch round ${i + 1} again">
+    <button type="button" data-i="${i}" title="${t('Watch round {n} again', { n: i + 1 })}">
       <video src="${r.image}#t=1" preload="metadata" muted playsinline
-             aria-label="Round ${i + 1}${r.state ? `, ${r.state} ${r.filmed}` : ''}"></video>
+             aria-label="${t('Round {n}', { n: i + 1 })}${r.state ? `, ${r.state} ${r.filmed}` : ''}"></video>
       <span class="cap">
         <span class="n" style="background:${bandFor(res[i]).colour}">${i + 1}</span>
         ${r.state ? `${r.state} &middot; ` : ''}${res[i].toLocaleString()}
@@ -1052,7 +1083,7 @@ const LIVE_TILE = `
   <div class="live">
     <span class="cap">
       <a href="https://youtube.com/@adanalife_/live" target="_blank" rel="noopener">
-        Watch live on YouTube &rarr;</a>
+        ${t('Watch live on YouTube →')}</a>
     </span>
   </div>`;
 
@@ -1077,7 +1108,7 @@ async function fillLiveTile() {
 
   const player = document.createElement('iframe');
   player.src = `https://www.youtube-nocookie.com/embed/${videoId}?mute=1&autoplay=1&playsinline=1`;
-  player.title = 'A Dana Life — the 24/7 dashcam stream, live on YouTube';
+  player.title = t('A Dana Life: the 24/7 dashcam stream, live on YouTube');
   player.allow = 'autoplay; encrypted-media; picture-in-picture';
   player.referrerPolicy = 'strict-origin-when-cross-origin';
   player.allowFullscreen = true;
@@ -1130,7 +1161,7 @@ function finish() {
     go.hidden = true;
     shareBtn.hidden = false;
   } else {
-    go.textContent = 'Play again';
+    go.textContent = t('Play again');
   }
   setFrame(null);
   // Back to the even split: the frame pane now holds the contact sheet and the
@@ -1141,7 +1172,7 @@ function finish() {
   showSummary(game, guesses, results);
   result.innerHTML = scoreLine(results, total);
   practiceBtn.hidden = false;
-  practiceBtn.textContent = mode === 'daily' ? 'Practice rounds' : "Back to today's";
+  practiceBtn.textContent = mode === 'daily' ? t('Practice rounds') : t("Back to today's");
   offerHistory();
 }
 
@@ -1157,7 +1188,7 @@ async function showFinished(saved) {
   gameDay = saved.day;
   total = saved.total;
   results = saved.results;
-  el('label').textContent = `Daily #${saved.day}`;
+  el('label').textContent = t('Daily #{n}', { n: saved.day });
   el('roundnum').textContent = saved.results.length;
   el('roundtot').textContent = saved.results.length;
   el('score').textContent = saved.total.toLocaleString();
@@ -1166,7 +1197,7 @@ async function showFinished(saved) {
   go.hidden = true;
   shareBtn.hidden = false;
   practiceBtn.hidden = false;
-  practiceBtn.textContent = 'Practice rounds';
+  practiceBtn.textContent = t('Practice rounds');
 
   // Rebuild the board from the saved day. The rounds themselves aren't stored —
   // the schedule is, so asking for that date returns exactly what was played.
@@ -1183,9 +1214,8 @@ async function showFinished(saved) {
     if (saved.guesses) showSummary(rounds, saved.guesses, saved.results);
   }
   offerHistory();
-  result.innerHTML = `Today's round is done &mdash;
-    ${scoreLine(saved.results, saved.total)}. Come back tomorrow, or play
-    practice rounds.`;
+  result.innerHTML = t("Today's round is done — {score}. Come back tomorrow, or play practice rounds.",
+    { score: scoreLine(saved.results, saved.total) });
 }
 
 go.addEventListener('click', () => {
@@ -1226,12 +1256,12 @@ shareBtn.addEventListener('click', async () => {
   const text = shareText(gameDay, results, total);
   try {
     await navigator.clipboard.writeText(text);
-    shareBtn.textContent = 'Copied';
-    setTimeout(() => { shareBtn.textContent = 'Share'; }, 1500);
+    shareBtn.textContent = t('Copied');
+    setTimeout(() => { shareBtn.textContent = t('Share'); }, 1500);
   } catch {
     // The clipboard API needs a secure context, which a plain-http LAN or
     // tailnet address is not. Fall back to something selectable.
-    window.prompt('Copy your result:', text);
+    window.prompt(t('Copy your result:'), text);
   }
 });
 
@@ -1358,13 +1388,13 @@ el('link').addEventListener('click', () => {
   code.make();
   el('qr').innerHTML = code.createSvgTag({
     cellSize: 4, margin: 16, scalable: true,
-    alt: 'Scan from your other device to play as one player',
+    alt: t('Scan from your other device to play as one player'),
   });
   // Both at once: until the href lands this is not a link, and a link whose only
   // content is a QR image has no name for a screen reader to announce.
   const qrlink = el('qrlink');
   qrlink.href = url;
-  qrlink.setAttribute('aria-label', 'Link a device to play as one player');
+  qrlink.setAttribute('aria-label', t('Link a device to play as one player'));
   showCode();
 });
 
@@ -1388,28 +1418,30 @@ async function showCode() {
 // Typing in a code drawn on another device: this browser's plays fold onto that
 // player, and it plays as them from here on. Confirmed for the same reason a
 // scanned link is -- a code is something anyone can read out to you -- and the
-// id is adopted only once the merge has answered, as in adoptLink() below.
+// question names both players, looked up first, so it is answerable. The id is
+// adopted only once the merge has answered, as in adoptLink() below.
 el('claim').addEventListener('submit', async event => {
   event.preventDefault();
   // No id means no localStorage, which could not hold the adopted one either.
   const from = playerId();
   if (!from) return;
-  if (!window.confirm("Add this browser's scores to the player on your other device?"
-    + ' Both devices will play as one player from now on.')) return;
-  let res;
-  try {
-    res = await request('api/link/claim', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ code: el('claimcode').value, from }),
-    });
-  } catch { res = null; }
-  if (!res?.ok) {
-    window.alert(res && res.status < 500
-      ? 'That code is unknown or has expired. Draw a new one on the other device.'
-      : 'Could not link the devices just now. Try the code again.');
-    return;
-  }
+  const body = JSON.stringify({ code: el('claimcode').value, from });
+  const post = path => request(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body,
+  }).catch(() => null);
+  const refused = res => window.alert(res && res.status < 500
+    ? t('That code is unknown or has expired. Draw a new one on the other device.')
+    : t('Could not link the devices just now. Try the code again.'));
+  const peek = await post('api/link/preview');
+  if (!peek?.ok) return refused(peek);
+  const { to, from: me } = await peek.json();
+  if (!window.confirm(t('This browser becomes {to} ({toPoints} points), replacing {me} ({mePoints} points). Its scores go with it. Both devices will play as one player from now on.', {
+    to: to.name, toPoints: to.points.toLocaleString(), me: me.name, mePoints: me.points.toLocaleString(),
+  }))) return;
+  const res = await post('api/link/claim');
+  if (!res?.ok) return refused(res);
   localStorage.setItem(PLAYER_KEY, (await res.json()).player_id);
   // Reloaded for the reason adoptLink() gives: everything on screen was drawn
   // for a player who no longer plays here.
@@ -1438,8 +1470,8 @@ async function adoptLink() {
   // browser that drew it, which has nothing to do.
   if (!from || from === to) return;
 
-  if (!window.confirm(`Add this browser's scores to ${isAlias(name) ? name : 'your other device'}?`
-    + ' Both devices will play as one player from now on.')) return;
+  if (!window.confirm(t("Add this browser's scores to {name}? Both devices will play as one player from now on.",
+    { name: isAlias(name) ? name : t('your other device') }))) return;
 
   try {
     const res = await request('api/link', {
@@ -1453,7 +1485,7 @@ async function adoptLink() {
     // failing here would strand them under an id nothing points at any more:
     // the link has already left the address bar, and the id it replaced would
     // have left localStorage.
-    window.alert('Could not link the devices just now. Open the link again to retry.');
+    window.alert(t('Could not link the devices just now. Open the link again to retry.'));
     return;
   }
 
@@ -1531,7 +1563,7 @@ async function newGame(which, saved = null) {
     result.textContent = `${e.message}.`;
     return;
   }
-  el('label').textContent = mode === 'daily' ? `Daily #${day}` : 'Practice';
+  el('label').textContent = mode === 'daily' ? t('Daily #{n}', { n: day }) : t('Practice');
   // Not always five: practice comes up short until enough dates have finished
   // playing, and a game reads its length from what it was handed.
   el('roundtot').textContent = game.length;

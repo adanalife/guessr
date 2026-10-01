@@ -4,6 +4,11 @@ name: release
 # main deploys to staging on every merge (staging.yml); production only moves
 # when the standing release PR is merged, so the live game is always a version
 # with a changelog entry rather than whatever landed last.
+#
+# Production runs the Python API the same way staging does: the Worker deploys
+# first, and the Pages project's `API` service binding (set by hand in the
+# dashboard) decides whether the site's /api/, /admin/ and /clips/ reach it.
+# Without the binding the Worker sits idle and the JS Functions keep answering.
 on:
   push:
     tags:
@@ -30,13 +35,10 @@ jobs:
       - name: Stamp the build
         run: |
           printf '{"label":"%s","tier":"production"}\n' "$GITHUB_REF_NAME" > web/version.json
-      # A deploy whose migrations are not applied is the outage this step
-      # exists to stop, and it is not hypothetical: #205 shipped a handler
-      # reading `day_reviews`, the table was never created on production, and
-      # every load of the day preview 500ed until somebody ran the apply by
-      # hand. The ledger knew the whole time -- this is the same read
-      # `task schema:prod:status` runs -- so the only thing missing was
-      # anything that failed on it.
+      # A deploy whose migrations are not applied serves handlers that read
+      # tables the database lacks, and every such route 500s until someone runs
+      # the apply. The ledger already knows -- this is the same read
+      # `task schema:prod:status` runs -- so this step fails on it.
       #
       # Before the deploy, not after: applying is a laptop command by design
       # (the README says why migrations are never automated), so the useful
@@ -57,6 +59,40 @@ jobs:
             echo "::error::the production database is behind — run 'task schema:prod:apply', then re-run this job"
             exit 1
           }
+      # Node from .tool-versions rather than the runner's: pywrangler builds its
+      # Pyodide environment with a node flag that Node 26 dropped.
+      # Both caches off: this job deploys to production with the Cloudflare
+      # token in hand, so a poisoned cache entry would be restored straight into
+      # the release path. A cold install is the cheaper risk.
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .tool-versions
+          package-manager-cache: false
+      - uses: astral-sh/setup-uv@v10.2.0 # no floating major tag published
+        with:
+          enable-cache: false
+      - name: Deploy the Python Worker (production)
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        # pywrangler vendors the Python packages (its `sync`) before handing the
+        # deploy to wrangler; the bundle is the server package it uploads.
+        run: |
+          ./scripts/api-bundle.sh
+          cd api
+          uv sync
+          uv run pywrangler deploy --env production
+      # The same guard staging.yml runs: a version whose memory snapshot came up
+      # bad answers 500 from every cold isolate until it is redeployed, and on
+      # prod that is players' scores failing to post. The action says the rest.
+      - name: Prove the Worker's cold isolates start
+        uses: ./.github/actions/worker-cold-start
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        with:
+          base: https://adanalife-guessr.pages.dev
+          deploy-args: --env production
       - name: Deploy to Cloudflare Pages (production)
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

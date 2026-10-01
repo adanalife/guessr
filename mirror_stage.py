@@ -29,6 +29,7 @@ functions/admin/day.js), and staging has no players whose history it could be.
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import pathlib
 import subprocess
@@ -37,6 +38,12 @@ import sys
 PROD = "adanalife-guessr-answers"
 STAGE = "adanalife-guessr-answers-staging"
 PER_GAME = 5  # ROUNDS_PER_GAME in check.py and web/index.html
+# How far past today (UTC) staging must already be scheduled. The cron runs
+# once a day and has landed anywhere from 07:00 to 15:00 UTC, and tomorrow's
+# date opens at 10:00 UTC today (playWindow in web/daily.js), so one run has to
+# cover through the day after tomorrow or the next run finds a date already open
+# with nothing on it.
+LEAD_DAYS = 2
 HERE = pathlib.Path(__file__).parent
 
 # The columns to carry over, verbatim. `status` is excluded and set below
@@ -156,7 +163,12 @@ def mirror_sql(rows: list[dict]) -> str:
         # Every unopened date goes, not just the ones being replaced. A date
         # staging holds and production does not is a leftover of an older set,
         # and leaving it would serve content no tier is reviewing.
-        + "DELETE FROM round_days WHERE date >= date('now');\n\n"
+        # And any past date holding a clip production has scheduled again:
+        # round_days is UNIQUE on image, so the old booking would make the
+        # INSERT below drop the new one and leave that date a round short.
+        # Staging's closed dates are nobody's history, so losing one costs nothing.
+        + "DELETE FROM round_days WHERE date >= date('now')\n"
+        + f"   OR image IN ({', '.join(lit(r['image']) for r in pool)});\n\n"
         + f"INSERT OR IGNORE INTO round_days (date, position, image) VALUES\n{booked};\n\n"
         # Both directions, because the DELETE above unscheduled whatever staging
         # held: 'scheduled' has to stop being true for those. A rejected round
@@ -170,10 +182,27 @@ def mirror_sql(rows: list[dict]) -> str:
     )
 
 
+def short(gaps: list[dict], today: dt.date) -> list[str]:
+    """The dates in `gaps` holding fewer than a game, plus every date from the
+    end of the schedule through LEAD_DAYS past `today`.
+
+    schedule_gaps.sql stops its horizon at the table's last date, which is right
+    for verify_days.sh -- it asks whether what is scheduled is whole -- but blind
+    to a schedule about to run out: with its last date today, the horizon is
+    today alone, whole, and nothing is short until tomorrow is already open."""
+    out = [r["date"] for r in gaps if r["n"] < PER_GAME]
+    # The query's seed guarantees at least one row.
+    d = max(dt.date.fromisoformat(r["date"]) for r in gaps) + dt.timedelta(days=1)
+    while d <= today + dt.timedelta(days=LEAD_DAYS):
+        out.append(d.isoformat())
+        d += dt.timedelta(days=1)
+    return out
+
+
 def short_dates(db: str) -> list[str]:
-    """The upcoming dates this tier cannot play, per schedule_gaps.sql."""
+    """The upcoming dates this tier cannot play, or is about to run out of."""
     gaps = d1(db, (HERE / "schedule_gaps.sql").read_text())
-    return [r["date"] for r in gaps if r["n"] < PER_GAME]
+    return short(gaps, dt.datetime.now(dt.timezone.utc).date())
 
 
 def main(argv: list[str]) -> int:
@@ -187,7 +216,7 @@ def main(argv: list[str]) -> int:
 
     short = short_dates(STAGE)
     if not short:
-        print("staging is playable through its horizon -- nothing to mirror.")
+        print(f"staging is playable through {LEAD_DAYS} days out -- nothing to mirror.")
         return 0
     print(f"staging is short on {len(short)} date(s): {', '.join(short)}")
 

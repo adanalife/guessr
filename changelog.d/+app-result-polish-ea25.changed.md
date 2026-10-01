@@ -1,1 +1,0 @@
-The app's score screen reads plainer ("Show score screen", "You have completed today's game", Copy share text instead of the share sheet, no Leaderboards link), counts down to the next daily, marks each round with its share square, and plays a round's clip again when its row or pin is tapped.

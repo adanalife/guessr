@@ -15,52 +15,142 @@ extension View {
     func paper() -> some View {
         scrollContentBackground(.hidden).background(Color.paper)
     }
+
+    /// A list or form at a readable width, centred on the page, on regular width
+    /// only: an iPad row the full width of the screen strands a toggle far from
+    /// its label. The large title moves over the column with it, so it doesn't
+    /// float at the screen's edge. Goes inside `paper()`, so the page color still
+    /// fills the screen.
+    func readableWidth(title: LocalizedStringKey) -> some View { modifier(ReadableWidth(title: title)) }
+
+    /// The web game's play button: an ink fill under a paper label, the
+    /// highest-contrast thing on screen in either theme. The accent is a text
+    /// color, too light in dark mode to carry a white label.
+    func inkButton() -> some View { buttonStyle(InkButtonStyle()) }
 }
 
-/// Today's rounds and the boards, read from the public API.
+/// An ink capsule under a paper label. Disabled, it is the same capsule at
+/// half strength rather than the system's grey, which vanishes on paper in
+/// light mode and on footage in either.
+private struct InkButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.body.weight(.semibold))
+            .foregroundStyle(Color.paper)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .background(Color.ink.opacity(isEnabled ? 1 : 0.45), in: Capsule())
+            .opacity(configuration.isPressed ? 0.7 : 1)
+    }
+}
+
+extension View {
+    /// The owner's "Viewing as" band, on each tab's root inside its navigation stack.
+    /// Inside the stack it sits below the navigation bar and clear of the tab bar on
+    /// both devices: iPadOS floats the tab bar over the top of the window and iOS
+    /// floats it over the bottom, so an inset on the tab view collides with one or
+    /// the other. Solid yellow with black text reads in light and dark; the fill stays
+    /// out of the safe area, where it would flood the transparent navigation bar.
+    func viewingAsBanner() -> some View { modifier(ViewingAsBanner()) }
+}
+
+private struct ReadableWidth: ViewModifier {
+    let title: LocalizedStringKey
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
+    func body(content: Content) -> some View {
+        if sizeClass == .regular {
+            content.frame(maxWidth: 640).frame(maxWidth: .infinity)
+                .navigationTitle(title)
+                .toolbar {
+                    // The bar's own large title, drawn over the column and
+                    // lined up with its cards' edge, where a full-width list
+                    // puts it. The serif matches the appearance proxy's.
+                    ToolbarItem(placement: .largeTitle) {
+                        Text(title)
+                            .font(.system(.largeTitle, design: .serif, weight: .bold))
+                            // ponytail: 20 is the inset-grouped list's regular-width
+                            // margin, measured, not read; a system margin change
+                            // drifts it, a readable-content guide fixes that.
+                            .padding(.leading, 20)
+                            .frame(maxWidth: 640, alignment: .leading)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+        } else {
+            content.navigationTitle(title)
+        }
+    }
+}
+
+private struct ViewingAsBanner: ViewModifier {
+    @Environment(Account.self) private var account
+
+    func body(content: Content) -> some View {
+        content.safeAreaInset(edge: .top) {
+            if let tier = account.viewingAs {
+                Text("Viewing as \(tier)")
+                    .font(.caption.bold())
+                    .foregroundStyle(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .background(.yellow, ignoresSafeAreaEdges: [])
+            }
+        }
+    }
+}
+
+/// The boards, read from the public API, the running month first.
 struct TodayView: View {
-    @State private var day: GuessrDay?
+    /// The player's own name, whose row is picked out when it makes the board.
+    var alias: String?
     @State private var board: GuessrLeaderboard?
-    @State private var boardName = "daily"
+    @State private var boardName = "monthly"
     @State private var error: String?
 
     private let client = GuessrClient()
 
     var body: some View {
         List {
-            Section("Today") {
-                if let day {
-                    LabeledContent(day.date ?? "Practice", value: "\(day.rounds.count) rounds")
-                }
-                Link("Play on the web", destination: Guessr.baseURL)
-            }
             Section {
                 Picker("Board", selection: $boardName) {
-                    Text("Yesterday").tag("daily")
                     Text("This month").tag("monthly")
+                    Text("Daily").tag("daily")
                 }
                 .pickerStyle(.segmented)
                 ForEach(Array((board?.rows ?? []).enumerated()), id: \.offset) { rank, row in
-                    LabeledContent("\(rank + 1). \(row.name)", value: "\(row.points)")
+                    let mine = isMine(row)
+                    LabeledContent(mine ? "\(rank + 1). \(row.name) (you)" : "\(rank + 1). \(row.name)", value: "\(row.points)")
+                        .fontWeight(mine ? .bold : nil)
+                        .listRowBackground(mine ? Color.accentColor.opacity(0.15) : nil)
                 }
             } header: {
-                Text(board.map { "Leaderboard · \($0.period)" } ?? "Leaderboard")
+                if let board { Text("Leaderboard · \(board.period)") } else { Text("Leaderboard") }
             }
             if let error {
                 Text(error).foregroundStyle(.secondary)
             }
         }
+        .readableWidth(title: "Leaderboard")
         .paper()
-        .navigationTitle("Guessr")
         .task(id: boardName) { await load() }
         .refreshable { await load() }
     }
 
+    // ponytail: matched by name, since no public response may carry a player
+    // id. Another player drawing the same two words lights up too (the board
+    // numbers them "(2)"), and an operator-set alias does not; a board that
+    // marks the caller's row server-side is the upgrade.
+    private func isMine(_ row: GuessrLeaderboard.Row) -> Bool {
+        guard let alias else { return false }
+        return row.name == alias || row.name.hasPrefix("\(alias) (")
+    }
+
     private func load() async {
         do {
-            async let d = client.day()
-            async let b = client.leaderboard(board: boardName)
-            (day, board, error) = (try await d, try await b, nil)
+            (board, error) = (try await client.leaderboard(board: boardName), nil)
         } catch {
             self.error = error.localizedDescription
         }
@@ -68,23 +158,58 @@ struct TodayView: View {
 }
 
 struct SettingsView: View {
+    /// The language the app is showing, named in itself.
+    static var language: String {
+        let code = Bundle.main.preferredLocalizations.first ?? "en"
+        return Locale(identifier: code).localizedString(forLanguageCode: code)?.localizedCapitalized ?? code
+    }
+
     @Environment(Account.self) private var account
+    @Environment(GameCenter.self) private var gameCenter
     @Binding var player: Player
     @State private var playedToday = false
+    @AppStorage("kilometers") private var kilometers = false
+    @AppStorage("appearance") private var appearance = "dark"
 
     var body: some View {
         Form {
-            NameSection(player: $player)
+            NameSection(player: $player, playedToday: playedToday)
             ReminderSection()
             Section {
-                LinkCodeRows(player: player)
-                // Only before the first guess: joining after it would leave the
-                // day's progress on this device belonging to the player it left.
-                if !playedToday {
-                    NavigationLink("Already playing on the web? Enter your code") { JoinView(player: $player) }
+                Picker("Units", selection: $kilometers) {
+                    Text("Imperial").tag(false)
+                    Text("Metric").tag(true)
                 }
-            } header: {
-                Text("Other devices")
+                .pickerStyle(.segmented)
+            }
+            if gameCenter.signedIn {
+                Section {
+                    Button("Leaderboards and achievements") { gameCenter.showDashboard() }
+                } header: {
+                    Text("Game Center")
+                } footer: {
+                    Text("Your lifetime and weekly points and your achievements reach Game Center from the server as you play.")
+                }
+            }
+            Section("Appearance") {
+                Picker("Appearance", selection: $appearance) {
+                    Text("Light").tag("light")
+                    Text("Dark").tag("dark")
+                    Text("Auto").tag("system")
+                }
+                .pickerStyle(.segmented)
+            }
+            Section {
+                // iOS keeps each app's language under its own page in Settings,
+                // and an app can only open that page, not set the language.
+                Button {
+                    if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                } label: {
+                    LabeledContent("Language", value: Self.language)
+                }
+                .foregroundStyle(Color.ink)
+            } footer: {
+                Text("Opens Settings, where iOS keeps the app's language.")
             }
             if account.auth.isConfigured {
                 Section("Twitch") {
@@ -94,9 +219,9 @@ struct SettingsView: View {
                         // time out and ban.
                         if account.needsModLogin {
                             if let code = account.modCode {
-                                DeviceCodeRows(code: code)
+                                TwitchCodeRows(code: code, prominentLabel: .paper).tint(Color.ink)
                             } else {
-                                Button("Log in again to moderate chat") { account.startModLogin() }
+                                Button("Access your mod tools") { account.startModLogin() }
                             }
                         }
                         Button("Sign out", role: .destructive) { account.signOut() }
@@ -129,8 +254,8 @@ struct SettingsView: View {
                 }
             }
         }
+        .readableWidth(title: "Settings")
         .paper()
-        .navigationTitle("Settings")
         // Read on every visit rather than once: the Play tab saves as it goes.
         .onAppear { playedToday = !DayProgress.resume(Saved.progress, on: GuessrClient.today()).played.isEmpty }
         .task { await account.refreshIfNeeded() }
@@ -139,14 +264,17 @@ struct SettingsView: View {
 
 /// The name the boards show, and a reroll that keeps the one name before it,
 /// as the web's About panel does. The server records whatever name the next
-/// play carries, so a new one shows from the next round on.
+/// play carries, so a new one shows from the next round on. Below them, the
+/// ways another device plays as this same name.
 struct NameSection: View {
     @Binding var player: Player
+    let playedToday: Bool
     @AppStorage("alias-prev") private var previous = ""
 
     var body: some View {
         Section("Leaderboard name") {
-            Text(player.alias).font(.headline)
+            // Serif, after the web's ET Book, so the name reads as the name.
+            Text(player.alias).font(.system(.title2, design: .serif, weight: .semibold))
             Button("Generate new name") {
                 var next = Alias.random()
                 while next == player.alias { next = Alias.random() }
@@ -154,18 +282,23 @@ struct NameSection: View {
                 player.alias = next
             }
             if !previous.isEmpty {
-                Button("Undo — go back to \(previous)") {
+                Button("Undo, back to \(previous)") {
                     player.alias = previous
                     previous = ""
                 }
             }
+            // Beside the name: a linked device plays as this same name.
+            LinkCodeRows(player: $player, playedToday: playedToday)
         }
     }
 }
 
 /// A code the web types in to join this device's player, live ten minutes.
+/// Once a code is showing, the other direction is offered too: entering a code
+/// the web drew.
 struct LinkCodeRows: View {
-    let player: Player
+    @Binding var player: Player
+    let playedToday: Bool
     @State private var code: LinkCode?
     @State private var asking = false
     @State private var error: String?
@@ -174,8 +307,9 @@ struct LinkCodeRows: View {
 
     var body: some View {
         if let code {
-            LabeledContent("Code", value: code.code).font(.title3.monospaced())
-            Text("On the web, open About, tap Link a device, and enter it under \"Have a code from another device?\" It lasts ten minutes.")
+            LabeledContent("Temporary code") { Text(code.code).font(.title3.monospaced()) }
+            // A markdown link opens in Safari, where the web game keeps its save.
+            Text("Visit [guessr.dana.lol](https://guessr.dana.lol), tap About, and enter this code under \"Link a device\".")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
@@ -183,6 +317,11 @@ struct LinkCodeRows: View {
             .disabled(asking)
         if let error {
             Text(error).foregroundStyle(.secondary)
+        }
+        // Only before the first guess: joining after it would leave the day's
+        // progress on this device belonging to the player it left.
+        if code != nil, !playedToday {
+            NavigationLink("Enter your code") { JoinView(player: $player) }
         }
     }
 
@@ -192,7 +331,7 @@ struct LinkCodeRows: View {
         do {
             (code, error) = (try await client.issueLinkCode(for: player), nil)
         } catch {
-            self.error = "Could not reach the server. Try again."
+            self.error = String(localized: "Could not reach the server. Try again.")
         }
     }
 }
@@ -209,7 +348,7 @@ struct TwitchSignIn: View {
 
     var body: some View {
         if let code {
-            DeviceCodeRows(code: code)
+            TwitchCodeRows(code: code, prominentLabel: .paper).tint(Color.ink)
         } else {
             Button("Sign in with Twitch") { Task { await signIn() } }
                 .disabled(!account.auth.isConfigured)
@@ -236,24 +375,12 @@ struct TwitchSignIn: View {
             let started = try await account.auth.start()
             code = started
             try await account.signIn(started)
+        } catch is CancellationError {
+            // An abandoned login: nothing went wrong to explain.
+        } catch let error as URLError where error.code == .cancelled {
         } catch {
             self.error = error.localizedDescription
         }
         code = nil
-    }
-}
-
-/// A device code waiting on the human: the code, the button to Twitch's page
-/// for it, and a spinner for the wait.
-struct DeviceCodeRows: View {
-    let code: DeviceCode
-
-    var body: some View {
-        LabeledContent("Code", value: code.userCode)
-        if let url = URL(string: code.verificationUri) {
-            Link(destination: url) { Label("Go to Twitch", systemImage: "arrow.up.forward.app") }
-                .buttonStyle(.borderedProminent)
-        }
-        ProgressView()
     }
 }

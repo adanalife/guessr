@@ -13,6 +13,9 @@ settings:
     SWIFT_VERSION: "6.0"
     SWIFT_APPROACHABLE_CONCURRENCY: YES
     SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    # A build writes every localizable literal it finds into the string
+    # catalogs, so a new string shows up there needing translation.
+    SWIFT_EMIT_LOC_STRINGS: YES
 packages:
   GuessrKit:
     path: GuessrKit
@@ -35,6 +38,12 @@ targets:
     configFiles:
       Debug: Guessr.xcconfig
       Release: Guessr.xcconfig
+    # Game Center: the sign-in and the dashboard. Scores and achievements reach
+    # Apple from the server, not from GameKit -- see server/gamecenter.py.
+    entitlements:
+      path: Guessr/Guessr.entitlements
+      properties:
+        com.apple.developer.game-center: true
     info:
       path: Guessr/Info.plist
       properties:
@@ -49,9 +58,13 @@ targets:
         GuessrAPIBase: $(GUESSR_API_BASE)
         # The channel the Chat tab talks in; set per configuration.
         GuessrTwitchChannel: $(GUESSR_TWITCH_CHANNEL)
-        # The play screen stacks clip over map, so a phone holds it upright. An
-        # iPad window takes any shape, which iPad multitasking requires.
-        UISupportedInterfaceOrientations~iphone: [UIInterfaceOrientationPortrait]
+        # A phone plays upright (clip over map) or on its side (clip beside
+        # map), never upside down. An iPad window takes any shape, which iPad
+        # multitasking requires.
+        UISupportedInterfaceOrientations~iphone:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         UISupportedInterfaceOrientations~ipad:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown

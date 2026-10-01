@@ -1,1 +1,0 @@
-The app's Twitch sign-in has a Go to Twitch button, a dropped chat says "Connecting to chat…" rather than a socket error, and a mod's second login lives in Settings beside the first instead of popping up over Chat.

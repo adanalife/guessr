@@ -10,7 +10,7 @@ Run it as `task api:serve`, configured from the environment:
 - GUESSR_CLIPS: the directory clips are served from, keyed like the bucket
   (default clips/).
 - TWITCH_OWNER_ID, TWITCH_CHANNEL_ID, TWITCH_CLIENT_IDS: who administers, as
-  on the Worker. One left unset admits nobody.
+  on the Worker (the ids comma-separated). One left unset admits nobody.
 - HOST / PORT: where uvicorn listens (default 127.0.0.1:8789).
 """
 
@@ -73,12 +73,15 @@ class Files:
         return Clip(size=len(data), etag=etag, body=data[start:end], range=r)
 
 
-async def fetch(url, headers=None):
+async def fetch(url, headers=None, method="GET", body=None):
     """The outbound seam over urllib, off the event loop. Any status is an
     answer; only no response at all raises."""
 
     def get():
-        req = urllib.request.Request(url, headers=headers or {})
+        data = body.encode() if isinstance(body, str) else body
+        req = urllib.request.Request(
+            url, data=data, headers=headers or {}, method=method
+        )
         try:
             with urllib.request.urlopen(req, timeout=10) as res:
                 return res.status, res.read().decode()

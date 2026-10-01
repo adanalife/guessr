@@ -1,0 +1,1 @@
+Game Center on the iOS app: lifetime and monthly leaderboards and five achievements, submitted by the server from the plays it recorded rather than by the app, so a modified client cannot claim a score the game never gave it.

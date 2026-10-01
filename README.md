@@ -105,10 +105,9 @@ run either way — `check.py` before anything leaves the machine, `verify_days.s
 over what actually landed, and a depth check that fails the run if production
 comes out of it scheduled less than a week ahead.
 
-No git, no deploy, no pull request. This used to open a PR to commit
-`web/rounds.json`, because the round set was a file and a deploy was the only way
-it could reach anyone — which meant a scheduled job would have needed a token with
-write access to a public repo's default branch. Rows in D1 need none of that.
+No git, no deploy, no pull request. The round set is rows in D1 rather than a
+committed file, so a scheduled job needs no token with write access to a public
+repo's default branch.
 
 The trade, stated plainly rather than discovered later: with round sets
 uncommitted, there is no PR for a gate to run `check.py` over a manifest on.
@@ -227,10 +226,8 @@ map tiles rather than on the page.
 `/api/day` is what a date's game *is*: five rounds by name, in the order they
 play. `/api/score` checks a posted round against the same rows before it will
 record anything. That property — the rounds scored against are provably the
-rounds the page handed out — used to hold because both sides imported the same
-draw and the same pool from the same commit, so a half-finished deploy could
-break it. There is one row set now and both read it, so a deploy cannot come into
-it at all.
+rounds the page handed out — holds because there is one row set and both read
+it, so no deploy can come between them.
 
 `daily.js` is still shared, and still an ES module for that reason (which is also
 why the page's inline script is `type="module"`) — but only for the play window
@@ -351,6 +348,17 @@ play would read as a replay of the first's) and deliberately not the IP address
 (NAT makes a household one player, CGNAT makes one phone several, and an address
 stored beside a typed name is personal data this doesn't need).
 
+### Resuming a day elsewhere
+
+`POST /api/progress {date, player_id}` answers the rounds that player has on
+record for the date, in dealt order, each with its score and the answer —
+`{date, rounds: [{image, km, points, guess_lat, guess_lng, lat, lng, state, filmed}]}`.
+A device that remembers fewer rounds than the server adopts the server's list
+up to the first round not played, so a day begun on one device, or under a
+player just linked to, carries on from there. The id is a credential, so it
+travels in a POST body rather than a query string; the answers come back
+because the player already saw them at the reveal.
+
 ### Linking a second device
 
 An id per browser means a player who plays on a phone and a desktop is two
@@ -395,8 +403,11 @@ against the id for ten minutes and answers `{code, expires_at}`; the About panel
 shows it beside the QR code. `POST /api/link/claim {code, from}` takes the code
 (single-use: it is deleted as it is read), runs the same merge with `from` as
 the mover, and answers `{player_id, moved}` — the id the claiming device plays as
-from then on. This is the one place a player id leaves the server, and only to
-the device holding a code its owner just drew. The `link_codes` table holds
+from then on. `POST /api/link/preview {code, from}` is the same lookup without
+the merge — `{to: {name, points}, from: {name, points}}`, all-time — so a device
+can say whose player it is about to become before it claims. This is the one
+place a player id leaves the server, and only to the device holding a code its
+owner just drew. The `link_codes` table holds
 nothing else, and a row is gone once claimed or once the next issue or claim
 sweeps it past its expiry.
 
@@ -701,9 +712,8 @@ assume there is a single "today".
 Both endpoints enforce the window, for different reasons. `/api/score` refuses a
 play outside it — the close is what lets a board be final. `/api/day` refuses to
 *name* the rounds of a date that has not opened, which is the whole protection on
-a schedule now the browser cannot derive it: while the draw was a seeded shuffle
-over a committed pool, anyone could work out next month's five and there was
-nothing to withhold. A refusal comes back as a 403 with a distinct message, and
+the schedule: the browser cannot derive a date's rounds, so refusing to name them
+is what keeps next month's five unknown. A refusal comes back as a 403 with a distinct message, and
 the page treats a 4xx as final rather than inviting a retry that cannot work.
 
 ### Previewing a day

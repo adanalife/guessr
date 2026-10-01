@@ -1,8 +1,8 @@
 import GuessrKit
 import SwiftUI
 
-/// The channel's Twitch chat: the sign-in until there is a login, then the log
-/// and the composer.
+/// The channel's Twitch chat for the signed-in login: the log and the composer.
+/// The tab is there only while a login is signed in.
 struct ChatTab: View {
     @Environment(Account.self) private var account
 
@@ -10,19 +10,14 @@ struct ChatTab: View {
         NavigationStack {
             Group {
                 if let session = account.session {
-                    ChatLog(
-                        lines: account.chat?.lines ?? [],
-                        mayModerate: account.isMod && session.canModerate)
+                    let mayModerate = account.isMod && session.canModerate
+                    let lines = account.chat?.lines ?? []
+                    ChatLog(lines: mayModerate ? lines : lines.filter { !$0.deleted }, mayModerate: mayModerate)
                     .task(id: session.userID) { await account.openChat() }
-                } else {
-                    Form {
-                        Section {
-                            Text("Chat is for signed-in Twitch viewers: sign in to read and talk in \(account.channel).")
-                            TwitchSignIn()
-                        }
-                    }
+                    .onChange(of: lines.count) { Saved.chat = lines }
                 }
             }
+            .viewingAsBanner()
             .paper()
             .navigationTitle("Chat")
         }
@@ -42,16 +37,26 @@ struct ChatLog: View {
     @State private var hasNew = false
     /// The last send or moderation Twitch refused, until the next one.
     @State private var error: String?
+    /// The last timeout or ban this mod made, offered back as an undo — a
+    /// long-press menu on a phone is easy to mis-tap.
+    @State private var banned: Banned?
     /// Whether the composer holds the keyboard. The log sits behind the
     /// keyboard while it does, so there has to be a way to give it back.
     @FocusState private var composing: Bool
     /// The channel's emotes and Twitch's, for the picker; empty until read.
     @State private var emotes: [ChatEmote] = []
     @State private var pickingEmote = false
+    /// The line the next send answers, from its long-press Reply.
+    @State private var replyingTo: ChatLine?
+    /// When this viewer's last message went, which slow mode counts from.
+    @State private var lastSent: Date?
+    /// Whether slow mode is still holding the next send back.
+    @State private var cooling = false
 
     var body: some View {
         VStack(spacing: 0) {
             log
+            if let banned { undoBar(banned) }
             if let status = error ?? connectionStatus {
                 Text(status)
                     .font(.caption)
@@ -60,6 +65,9 @@ struct ChatLog: View {
                     .padding(.horizontal)
             }
             if let stub = mentionInProgress(text) { mentions(matching: stub) }
+            if mayModerate, let held = account.chat?.held, !held.isEmpty { heldBar(held) }
+            if let mode = account.chat?.mode, let summary = mode.summary { modeBar(mode, summary) }
+            if let replyingTo { replyBar(replyingTo) }
             composer
             if pickingEmote { emotePicker }
         }
@@ -72,20 +80,127 @@ struct ChatLog: View {
         }
         // Keyed on the chat, which arrives after the first appearance.
         .task(id: account.chat.map(ObjectIdentifier.init)) { await loadArt() }
+        .task(id: lastSent) { await coolDown() }
+    }
+
+    /// AutoMod's queue: each held message with its reason and the two
+    /// verdicts. Twitch tells every mod's client when one rules, so a row
+    /// leaves on its own.
+    private func heldBar(_ held: [HeldMessage]) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(held) { message in
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(verbatim: "\(message.displayName): \(message.text)").font(.subheadline).lineLimit(3)
+                            Text(message.why).font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Allow", systemImage: "checkmark") { rule(message, allow: true) }
+                        Button("Deny", systemImage: "xmark") { rule(message, allow: false) }
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.bordered)
+                }
+            }
+            .padding(.horizontal)
+        }
+        // ponytail: three rows tall; AutoMod rarely holds more at once.
+        .frame(maxHeight: 150)
+        .background(.orange.opacity(0.12))
+    }
+
+    private func rule(_ message: HeldMessage, allow: Bool) {
+        guard let chat = account.chat else { return }
+        Task {
+            await account.refreshIfNeeded()
+            do {
+                try await chat.helix.rule(messageId: message.id, allow: allow)
+                error = nil
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    /// Flips one of the channel's modes. The bar updates when Twitch echoes
+    /// the change over EventSub, not before.
+    private func setMode(_ change: (inout ChatMode) -> Void) {
+        guard let chat = account.chat else { return }
+        var mode = chat.mode
+        change(&mode)
+        Task {
+            await account.refreshIfNeeded()
+            do {
+                try await chat.helix.update(mode: mode)
+                error = nil
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    /// The modes a mod can switch. Slow mode and followers-only take Twitch's
+    /// defaults, 30 seconds and any follower.
+    // ponytail: fixed lengths; a picker per mode if a mod ever asks for 2m.
+    private var modeMenu: some View {
+        let mode = account.chat?.mode ?? ChatMode()
+        return Menu {
+            Toggle("Slow mode", isOn: Binding(get: { mode.slowSeconds > 0 }, set: { on in setMode { $0.slowSeconds = on ? 30 : 0 } }))
+            Toggle(
+                "Followers only",
+                isOn: Binding(get: { mode.followerMinutes != nil }, set: { on in setMode { $0.followerMinutes = on ? 0 : nil } }))
+            Toggle("Subscribers only", isOn: Binding(get: { mode.subscribersOnly }, set: { on in setMode { $0.subscribersOnly = on } }))
+            Toggle("Emotes only", isOn: Binding(get: { mode.emoteOnly }, set: { on in setMode { $0.emoteOnly = on } }))
+            Toggle("Unique messages", isOn: Binding(get: { mode.uniqueOnly }, set: { on in setMode { $0.uniqueOnly = on } }))
+        } label: {
+            Image(systemName: mode.summary == nil ? "lock.open" : "lock.fill")
+        }
+        .accessibilityLabel("Chat modes")
+        .disabled(account.chat == nil)
+    }
+
+    /// A mod is held to none of the modes, so sees them without a countdown.
+    private func modeBar(_ mode: ChatMode, _ summary: String) -> some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let wait = account.isMod ? 0 : mode.wait(since: lastSent, now: context.date)
+            Label(
+                wait > 0 ? String(localized: "\(summary) · wait \(wait)s") : summary,
+                systemImage: mode.slowSeconds > 0 ? "hourglass" : "lock")
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal)
+    }
+
+    /// Holds the send button through slow mode's wait, which Twitch would
+    /// otherwise answer by dropping the message.
+    private func coolDown() async {
+        guard let chat = account.chat, !account.isMod else { return }
+        let wait = chat.mode.wait(since: lastSent)
+        guard wait > 0 else { return }
+        cooling = true
+        try? await Task.sleep(for: .seconds(wait))
+        cooling = false
     }
 
     /// A socket error means nothing to a player, and the chat retries on its
-    /// own, so while it is down the log says only that it is on its way.
+    /// own, so while it is down the log says only that it is on its way. An
+    /// empty log says so itself, in its middle.
     private var connectionStatus: String? {
         guard let chat = account.chat else { return nil }
-        return chat.isConnected ? chat.lastError : "Connecting to chat…"
+        return chat.isConnected ? chat.lastError : lines.isEmpty ? nil : String(localized: "Connecting…")
     }
 
     private func loadArt() async {
         guard let chat = account.chat else { return }
-        await BadgeArt.shared.load { try await chat.badgeArt() }
-        if emotes.isEmpty { emotes = (try? await chat.emotes()) ?? [] }
+        await BadgeArt.shared.load { try await chat.helix.badgeArt() }
+        if emotes.isEmpty { emotes = (try? await chat.helix.emotes()) ?? [] }
     }
+
+    /// The last line kept from last time, which the rule sits under.
+    private var earlierEnd: String? { lines.last { account.earlierChat.contains($0.id) }?.id }
 
     /// Who has spoken, newest first, once each.
     private var chatters: [ChatLine] {
@@ -139,10 +254,45 @@ struct ChatLog: View {
     private var log: some View {
         ScrollViewReader { proxy in
             List(lines) { line in
-                ChatLineView(line: line, mayModerate: mayModerate, error: $error)
+                ChatLineView(
+                    line: line, mayModerate: mayModerate, error: $error, banned: $banned,
+                    // A chatter's history is for the channel's staff; a
+                    // viewer's card, or the owner's look as one, has none.
+                    recent: {
+                        guard account.seesBoards else { return [] }
+                        return lines.filter { $0.userId == line.userId && !$0.text.isEmpty }.map(\.text)
+                    }
+                ) {
+                    reply(to: line)
+                }
                     .listRowSeparator(.hidden)
+                    // Last time's lines read dimmed, under a rule that marks
+                    // where this session starts.
+                    .opacity(account.earlierChat.contains(line.id) ? 0.55 : 1)
+                if line.id == earlierEnd {
+                    Label("Earlier, from your last visit", systemImage: "clock.arrow.circlepath")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .listRowSeparator(.hidden)
+                }
             }
             .listStyle(.plain)
+            // A quiet channel and one still connecting would otherwise both
+            // be a blank page.
+            .overlay {
+                if lines.isEmpty {
+                    Text(
+                        account.chat?.isConnected == true
+                            ? "Connected · nobody has said anything yet"
+                            : "Connecting…"
+                    )
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding()
+                }
+            }
             .defaultScrollAnchor(.bottom)
             .scrollDismissesKeyboard(.interactively)
             .onScrollPhaseChange { _, phase, context in
@@ -177,6 +327,55 @@ struct ChatLog: View {
         }
     }
 
+    private func undoBar(_ ban: Banned) -> some View {
+        HStack {
+            Text(ban.summary)
+            Spacer()
+            Button("Undo") { unban(ban) }
+            Button("Dismiss", systemImage: "xmark") { banned = nil }
+                .labelStyle(.iconOnly)
+        }
+        .font(.caption)
+        .padding(.horizontal)
+        .padding(.vertical, 4)
+    }
+
+    private func unban(_ ban: Banned) {
+        guard let chat = account.chat else { return }
+        banned = nil
+        Task {
+            await account.refreshIfNeeded()
+            do {
+                try await chat.helix.unban(userId: ban.userId)
+                error = nil
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    /// Threads the next send under `line`, and starts it with the `@name`
+    /// every other client shows a reply with.
+    private func reply(to line: ChatLine) {
+        replyingTo = line
+        let at = "@\(line.displayName)"
+        if !text.hasPrefix(at) { text = at + " " + text }
+        composing = true
+    }
+
+    private func replyBar(_ line: ChatLine) -> some View {
+        HStack {
+            Label("Replying to \(line.displayName)", systemImage: "arrowshape.turn.up.left")
+                .lineLimit(1)
+            Spacer()
+            Button("Cancel reply", systemImage: "xmark") { replyingTo = nil }
+                .labelStyle(.iconOnly)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal)
+    }
+
     private func atBottom(_ geo: ScrollGeometry) -> Bool {
         geo.contentOffset.y + geo.containerSize.height
             >= geo.contentSize.height + geo.contentInsets.bottom - 40
@@ -189,29 +388,37 @@ struct ChatLog: View {
 
     private var composer: some View {
         HStack {
+            if mayModerate { modeMenu }
             Button { pickingEmote.toggle() } label: { Image(systemName: pickingEmote ? "keyboard" : "face.smiling") }
                 .accessibilityLabel(pickingEmote ? "Hide emotes" : "Emotes")
                 .disabled(emotes.isEmpty)
-            TextField("Say something as \(account.session?.login ?? "you")", text: $text)
-                .textFieldStyle(.roundedBorder)
+            TextField("Say something as \(account.session?.login ?? String(localized: "you"))", text: $text)
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.thinMaterial, in: Capsule())
                 .focused($composing)
                 .onSubmit(send)
             Button(action: send) { Image(systemName: "paperplane.fill") }
                 .accessibilityLabel("Send")
-                .disabled(account.chat == nil || text.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(account.chat == nil || cooling || text.trimmingCharacters(in: .whitespaces).isEmpty)
         }
         .padding()
+        .background(.bar)
     }
 
     private func send() {
         let msg = text.trimmingCharacters(in: .whitespaces)
-        guard !msg.isEmpty, let chat = account.chat else { return }
+        guard !msg.isEmpty, !cooling, let chat = account.chat else { return }
+        let parent = replyingTo?.id
         text = ""
         pickingEmote = false
+        replyingTo = nil
         Task {
             await account.refreshIfNeeded()
             do {
-                try await chat.send(msg)
+                try await chat.helix.send(msg, replyTo: parent)
+                lastSent = .now
                 error = nil
             } catch {
                 self.error = error.localizedDescription
@@ -225,6 +432,13 @@ struct ChatLineView: View {
     var line: ChatLine
     var mayModerate: Bool
     @Binding var error: String?
+    @Binding var banned: Banned?
+    /// The chatter's lines in this log, read when their card opens; empty
+    /// for a login that isn't staff.
+    var recent: () -> [String]
+    /// Starts a reply to this line in the composer.
+    var reply: () -> Void
+    @State private var showingCard = false
     /// Emote art that has arrived, by the id Twitch named it with.
     @State private var emotes: [String: Image] = [:]
 
@@ -238,11 +452,25 @@ struct ChatLineView: View {
                         .font(.caption.italic())
                         .foregroundStyle(.secondary)
                 }
+                if let parent = line.reply {
+                    Label("\(parent.displayName): \(parent.text)", systemImage: "arrow.turn.down.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                if line.isFirstMessage {
+                    Label("First message in the channel", systemImage: "hand.wave.fill")
+                        .font(.caption.italic())
+                        .foregroundStyle(.secondary)
+                }
                 if line.kind == nil || !line.text.isEmpty {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         ForEach(line.badgeTags) { BadgeMark(tag: $0) }
                         Text("\(username): \(words)")
                             .font(.subheadline)
+                            // What a mod sees of a removed line: struck, not gone.
+                            .strikethrough(line.deleted)
+                            .opacity(line.deleted ? 0.5 : 1)
                     }
                 }
             }
@@ -252,27 +480,54 @@ struct ChatLineView: View {
                 .font(.caption.monospaced())
                 .foregroundStyle(.tertiary)
         }
+        .listRowBackground(tint)
+        .contentShape(Rectangle())
+        .onTapGesture { showingCard = true }
+        .sheet(isPresented: $showingCard) {
+            UserCard(displayName: line.displayName, login: line.login, recent: recent()) {
+                try? await account.chat?.helix.user(id: line.userId)
+            }
+            .presentationDetents([.medium])
+        }
         .modifier(
             ChatLineMenu(
                 translatable: line.text.isEmpty ? nil : line.text,
                 name: line.displayName,
-                delete: mayModerate ? { moderate { try await $0.delete(messageId: line.id) } } : nil,
+                delete: mayModerate && !line.deleted ? { moderate { try await $0.delete(messageId: line.id) } } : nil,
                 ban: mayModerate
-                    ? { seconds in moderate { try await $0.ban(userId: line.userId, seconds: seconds) } } : nil))
+                    ? { seconds, reason in
+                        moderate {
+                            try await $0.ban(userId: line.userId, seconds: seconds, reason: reason)
+                            banned = Banned(userId: line.userId, name: line.displayName, seconds: seconds)
+                        }
+                    } : nil,
+                reply: line.kind == nil && !line.deleted ? reply : nil,
+                warn: mayModerate && !line.isBroadcaster
+                    ? { reason in moderate { try await $0.warn(userId: line.userId, reason: reason) } } : nil))
     }
 
     /// Runs a moderation verb on a fresh token. Twitch checks the mod's
     /// standing again, and says so when it refuses.
-    private func moderate(_ verb: @escaping (TwitchChat) async throws -> Void) {
+    private func moderate(_ verb: @escaping (Helix) async throws -> Void) {
         guard let chat = account.chat else { return }
         Task {
             await account.refreshIfNeeded()
             do {
-                try await verb(chat)
+                try await verb(chat.helix)
+                error = nil
             } catch {
                 self.error = error.localizedDescription
             }
         }
+    }
+
+    /// A line worth a second look reads on a wash: one that names the reader,
+    /// a first-timer to welcome, or one bought with channel points.
+    private var tint: Color? {
+        if let me = account.session?.login, line.mentions(me) { return .accentColor.opacity(0.18) }
+        if line.isFirstMessage { return .green.opacity(0.12) }
+        if line.isPointsHighlight { return .purple.opacity(0.18) }
+        return nil
     }
 
     /// The sender's name in their Twitch color, or the palette's for one who
@@ -298,6 +553,19 @@ struct ChatLineView: View {
     }
 }
 
+/// A timeout or ban, as the undo bar names it.
+struct Banned {
+    var userId: String
+    var name: String
+    /// 0 for a ban.
+    var seconds: Int
+
+    var summary: String {
+        guard seconds > 0 else { return String(localized: "Banned \(name)") }
+        return String(localized: "Timed out \(name) for \(timeoutLength(seconds))")
+    }
+}
+
 /// The glyph for a notice's `notice_type`; a shared-chat variant reads as its
 /// plain kind.
 private func kindSymbol(_ kind: String) -> String {
@@ -316,10 +584,10 @@ private func kindSymbol(_ kind: String) -> String {
 private func shortAge(_ then: Date, now: Date = .now) -> String {
     let s = max(Int(now.timeIntervalSince(then)), 0)
     switch s {
-    case ..<60: return "\(s)s"
-    case ..<3600: return "\(s / 60)m"
-    case ..<86400: return "\(s / 3600)h"
-    default: return "\(s / 86400)d"
+    case ..<60: return String(localized: "\(s)s")
+    case ..<3600: return String(localized: "\(s / 60)m")
+    case ..<86400: return String(localized: "\(s / 3600)h")
+    default: return String(localized: "\(s / 86400)d")
     }
 }
 
@@ -333,7 +601,7 @@ private func shortAge(_ then: Date, now: Date = .now) -> String {
                     badges: ["moderator": "1", "subscriber": "3012"], timestamp: now.addingTimeInterval(-300)),
                 ChatLine(
                     id: "2", userId: "11", login: "roadwatcher", displayName: "RoadWatcher", text: "where is this?",
-                    color: "#1E90FF", timestamp: now.addingTimeInterval(-95)),
+                    color: "#1E90FF", timestamp: now.addingTimeInterval(-95), messageType: "user_intro"),
                 ChatLine(
                     id: "3", userId: "12", login: "nightbot", displayName: "Nightbot",
                     text: "Guess today's rounds at guessr.dana.lol", color: "#8A2BE2",
@@ -356,4 +624,14 @@ private func shortAge(_ then: Date, now: Date = .now) -> String {
         .navigationTitle("Chat")
     }
     .environment(Account(store: MemorySessionStore()))
+}
+
+#Preview("User card") {
+    UserCard(
+        displayName: "RoadWatcher", login: "roadwatcher", recent: ["where is this?", "looks like Utah Kappa"]
+    ) {
+        TwitchUser(
+            id: "11", login: "roadwatcher", displayName: "RoadWatcher",
+            profileImageUrl: "", createdAt: Date(timeIntervalSince1970: 1_481_747_548))
+    }
 }

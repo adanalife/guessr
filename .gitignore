@@ -51,6 +51,7 @@ __pycache__/
 # settings (the owner id and Twitch client id) that app/Guessr.xcconfig includes.
 app/Guessr.xcodeproj/
 app/Guessr/Info.plist
+app/Guessr/Guessr.entitlements
 app/Local.xcconfig
 .build/
 .swiftpm/
@@ -64,3 +65,5 @@ api/python_modules/
 api/.venv-workers/
 api/pylock.toml
 api/bundle/
+.coverage
+.coverage.*

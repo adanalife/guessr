@@ -138,6 +138,22 @@ def parse_play(body) -> dict | None:
     }
 
 
+def client_of(user_agent) -> str | None:
+    """The coarse kind of client behind a User-Agent, for the play row: the native
+    app announces itself as `Guessr/<version> (<platform> <os version>)`, and
+    anything else that sends a User-Agent is a browser. None for no header.
+    Deliberately no finer than a platform bucket -- the browser, the model and
+    the screen are fingerprinting, not analytics."""
+    if not isinstance(user_agent, str) or not user_agent:
+        return None
+    if not user_agent.startswith("Guessr/"):
+        return "web"
+    for platform, bucket in (("iPadOS", "ipados"), ("iOS", "ios"), ("macOS", "mac")):
+        if f"({platform} " in user_agent:
+            return bucket
+    return "app"
+
+
 def play_window(date: str) -> tuple[dt.datetime, dt.datetime]:
     midnight = dt.datetime.fromisoformat(date).replace(tzinfo=dt.UTC)
     return (

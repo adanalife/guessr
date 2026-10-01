@@ -27,15 +27,15 @@ struct GuessStateIntent: AppIntent {
         let account = Account()
         await account.refreshIfNeeded()
         guard let session = account.session, !account.channel.isEmpty else {
-            throw GuessError(text: "Sign in to Twitch in Guessr first.")
+            throw GuessError(text: String(localized: "Sign in to Twitch in Guessr first."))
         }
-        let chat = TwitchChat(channel: account.channel, clientID: account.auth.clientID, session: session)
+        let helix = Helix(channel: account.channel, clientID: account.auth.clientID, session: session)
         do {
-            try await chat.send("!guess \(state.rawValue)")
+            try await helix.send("!guess \(state.rawValue)")
         } catch {
-            throw GuessError(text: "Twitch didn't take the guess: \(error.localizedDescription)")
+            throw GuessError(text: String(localized: "Twitch didn't take the guess: \(error.localizedDescription)"))
         }
-        return .result(dialog: "Guessed \(state.rawValue).")
+        return .result(dialog: "Guessed \(state.localizedName).")
     }
 }
 

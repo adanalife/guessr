@@ -5,6 +5,17 @@ import Foundation
 #if canImport(FoundationNetworking)
     import FoundationNetworking
 #endif
+#if canImport(UIKit)
+    import UIKit
+#endif
+
+// corelibs-Foundation has no `String(localized:bundle:)`, so on Linux, where
+// tempomat tests its core against GuessrKit, the English key is the string.
+#if !canImport(Darwin)
+    extension String {
+        init(localized key: String, bundle: Bundle) { self = key }
+    }
+#endif
 
 public struct Coordinate: Sendable, Equatable, Codable {
     public var lat: Double
@@ -191,6 +202,31 @@ public enum GuessrError: Error, LocalizedError, Equatable {
     }
 }
 
+extension Guessr {
+    /// `Guessr/<version> (<platform> <os>)`: the app's version and the platform
+    /// it runs on, no finer. The server buckets a play by the word in the
+    /// parentheses, so the names are the ones it matches: iOS, iPadOS, macOS.
+    public static func userAgent() async -> String {
+        let version =
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+        let os = ProcessInfo.processInfo.operatingSystemVersion
+        return "Guessr/\(version) (\(await platform()) \(os.majorVersion).\(os.minorVersion))"
+    }
+
+    private static func platform() async -> String {
+        #if os(iOS)
+            if ProcessInfo.processInfo.isiOSAppOnMac { return "macOS" }
+            return await MainActor.run { UIDevice.current.userInterfaceIdiom == .pad } ? "iPadOS" : "iOS"
+        #elseif os(macOS)
+            return "macOS"
+        #elseif os(tvOS)
+            return "tvOS"
+        #else
+            return "unknown"
+        #endif
+    }
+}
+
 /// The game's public read side. Unauthenticated: a player's credential is the
 /// id their client mints, and nothing here reads as a player.
 public struct GuessrClient: Sendable {
@@ -259,7 +295,9 @@ public struct GuessrClient: Sendable {
             struct Envelope: Decodable { var error: String }
             let message =
                 (try? JSONDecoder().decode(Envelope.self, from: data))?.error
-                ?? String(decoding: data, as: UTF8.self)
+                ?? (http.statusCode >= 500
+                    ? String(localized: "The server is having trouble. Try again in a moment.", bundle: .module)
+                    : String(localized: "The server refused that request (HTTP \(http.statusCode)).", bundle: .module))
             throw GuessrError.http(status: http.statusCode, message: message)
         }
         return data
