@@ -293,34 +293,67 @@ struct NameSection: View {
     }
 }
 
-/// A code the web types in to join this device's player, live ten minutes.
-/// Once a code is showing, the other direction is offered too: entering a code
-/// the web drew.
+/// Linking devices, so one player's name and points follow them: a code this
+/// device shows for the other one to enter, or a code the other one shows,
+/// entered here. The row explains itself before it issues anything, since
+/// "link" alone doesn't say what moves where.
 struct LinkCodeRows: View {
     @Binding var player: Player
     let playedToday: Bool
     @State private var code: LinkCode?
     @State private var asking = false
     @State private var error: String?
+    @State private var explaining = false
+    @State private var copied = false
 
     private let client = GuessrClient()
 
     var body: some View {
         if let code {
-            LabeledContent("Temporary code") { Text(code.code).font(.title3.monospaced()) }
+            Button {
+                UIPasteboard.general.string = code.code
+                copied = true
+                Task {
+                    try? await Task.sleep(for: .seconds(1.5))
+                    copied = false
+                }
+            } label: {
+                LabeledContent(copied ? "Copied" : "Temporary code") { Text(code.code).font(.title3.monospaced()) }
+            }
+            .foregroundStyle(Color.ink)
+            .accessibilityHint("Copies the code")
             // A markdown link opens in Safari, where the web game keeps its save.
             Text("Visit [guessr.dana.lol](https://guessr.dana.lol), tap About, and enter this code under \"Link a device\".")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
-        Button(asking ? "Asking…" : code == nil ? "Link a device" : "Show a new code") { Task { await issue() } }
+        HStack {
+            Button(asking ? "Asking…" : code == nil ? "Playing on another device?" : "Show a new code") {
+                if code == nil { explaining = true } else { Task { await issue() } }
+            }
             .disabled(asking)
+            // Borderless, both of them: two buttons in one form row otherwise
+            // share the row's tap and fire together.
+            .buttonStyle(.borderless)
+            if code != nil {
+                Spacer()
+                Button("How linking works", systemImage: "questionmark.circle") { explaining = true }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+            }
+        }
+        .alert("Playing on another device?", isPresented: $explaining) {
+            if code == nil { Button("Show a code") { Task { await issue() } } }
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("If you play on multiple devices (like the web version), you can use a temporary code to connect the devices and keep playing under your other username.")
+        }
         if let error {
             Text(error).foregroundStyle(.secondary)
         }
         // Only before the first guess: joining after it would leave the day's
         // progress on this device belonging to the player it left.
-        if code != nil, !playedToday {
+        if !playedToday {
             NavigationLink("Enter your code") { JoinView(player: $player) }
         }
     }
