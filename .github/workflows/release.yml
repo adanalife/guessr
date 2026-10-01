@@ -76,6 +76,17 @@ jobs:
           cd api
           uv sync
           uv run pywrangler deploy --env production
+      # The same guard staging.yml runs: a version whose memory snapshot came up
+      # bad answers 500 from every cold isolate until it is redeployed, and on
+      # prod that is players' scores failing to post. The action says the rest.
+      - name: Prove the Worker's cold isolates start
+        uses: ./.github/actions/worker-cold-start
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        with:
+          base: https://adanalife-guessr.pages.dev
+          deploy-args: --env production
       - name: Deploy to Cloudflare Pages (production)
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
