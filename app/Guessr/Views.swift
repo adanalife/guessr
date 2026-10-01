@@ -133,7 +133,7 @@ struct TodayView: View {
                 Text(error).foregroundStyle(.secondary)
             }
         }
-        .readableWidth(title: "Guessr")
+        .readableWidth(title: "Leaderboard")
         .paper()
         .task(id: boardName) { await load() }
         .refreshable { await load() }
