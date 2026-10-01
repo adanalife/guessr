@@ -98,7 +98,7 @@ struct TodayView: View {
             Section {
                 Picker("Board", selection: $boardName) {
                     Text("This month").tag("monthly")
-                    Text("Yesterday").tag("daily")
+                    Text("Daily").tag("daily")
                 }
                 .pickerStyle(.segmented)
                 ForEach(Array((board?.rows ?? []).enumerated()), id: \.offset) { rank, row in

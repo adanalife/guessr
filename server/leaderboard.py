@@ -4,6 +4,12 @@
 A read the stream pulls rather than a write the game pushes: the cluster tripbot
 runs in has no inbound path, and a leaderboard is not a reason to open one.
 
+A request naming no period gets the newest board with anyone on it: the running
+month until someone plays in it, the previous month before that; the last closed
+date, or the last one anyone played. `period` in the response is the one served,
+and is what every caller labels the board with. A period named outright is served
+as named, empty included.
+
 `params` is the query string as a mapping; returns (status, body, headers).
 """
 
@@ -62,6 +68,10 @@ def query(span: str) -> str:
 DAILY = query("= ?")
 MONTHLY = query("LIKE ? || '-%'")
 
+# The newest date anyone played, at or before a cutoff. plays_by_date_points
+# makes it a seek.
+LATEST_PLAYED = "SELECT MAX(date) AS date FROM plays WHERE date <= ?"
+
 
 def span(board: str, params, now=None) -> tuple[str | None, dict, str | None]:
     """Which span a request asks for, as (period, cache, error). Shared with
@@ -97,6 +107,30 @@ def span(board: str, params, now=None) -> tuple[str | None, dict, str | None]:
     return month, CACHE if month == running else DATED_CACHE, None
 
 
+async def served(
+    db, board: str, params, now=None
+) -> tuple[str | None, dict, str | None]:
+    """`span`, then the fallback: a request that names no period is asking for
+    the newest board worth showing, so a default period nobody has played in
+    steps back to the most recent one with plays. A `date=` or `month=` is a
+    pin -- tripbot's !lastmonth reads a month by name and must get that month,
+    empty or not -- so a pinned request is span's answer as is.
+
+    One query either way: the newest played date at or before the default
+    period is the default period itself whenever that has plays."""
+    period, cache, error = span(board, params, now)
+    if error or params.get("date") is not None or params.get("month") is not None:
+        return period, cache, error
+    # "-31" sorts after every day of the month, and a date in the next month
+    # (open from 10:00 UTC the day before) sorts after it.
+    row = await db.fetchone(
+        LATEST_PLAYED, period if board == "daily" else period + "-31"
+    )
+    if row and row["date"]:
+        period = row["date"] if board == "daily" else row["date"][:7]
+    return period, cache, None
+
+
 def label(names: list[str]) -> list[str]:
     """Number the players who turn up wearing the same name, in board order, every
     member of a colliding set included -- a lone "(2)" reads as a dropped row. A
@@ -120,7 +154,7 @@ async def leaderboard(db, params, now=None) -> tuple[int, dict, dict]:
     if board not in ("daily", "monthly"):
         return 400, {"error": "board must be daily or monthly"}, CACHE
 
-    period, cache, error = span(board, params, now)
+    period, cache, error = await served(db, board, params, now)
     if error:
         return 400, {"error": error}, CACHE
 
