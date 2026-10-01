@@ -101,13 +101,18 @@ struct PlayView: View {
                         VStack(alignment: .trailing, spacing: 12) {
                             map(shown)
                                 // Revealed, the map keeps its own aspect rather than
-                                // growing taller than wide on a portrait screen.
-                                .frame(width: width, height: revealed ? min(screen.size.height * 0.6, width * 0.66) : 240)
+                                // growing taller than wide on a portrait screen, and
+                                // yields height to the card so a landscape screen
+                                // still shows the whole column.
+                                .frame(width: width)
+                                .frame(maxHeight: revealed ? min(screen.size.height * 0.6, width * 0.66) : 240)
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                                 .shadow(color: .black.opacity(0.4), radius: 12, y: 8)
+                                .layoutPriority(-1)
                             // Before the reveal the column is one width with the map,
                             // the squares on a capsule of their own and the pill on the
                             // clip, carrying its own contrast; the reveal gets a card.
+                            // Either way it shares the map's edges.
                             VStack(spacing: 12) {
                                 ProgressSquares(progress: progress, of: day.rounds.count)
                                     .padding(.horizontal, 12).padding(.vertical, 6)
@@ -116,7 +121,7 @@ struct PlayView: View {
                                     .shadow(color: .black.opacity(shown == nil ? 0.4 : 0), radius: 8, y: 4)
                             }
                             .padding(shown == nil ? 0 : 16)
-                            .frame(maxWidth: shown == nil ? 352 : 420)
+                            .frame(maxWidth: width)
                             .background(.regularMaterial.opacity(shown == nil ? 0 : 1), in: RoundedRectangle(cornerRadius: 12))
                         }
                         .padding()
