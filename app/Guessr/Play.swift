@@ -469,7 +469,7 @@ struct DayResultView: View {
                 }
             }
         }
-        .readableWidth(title: "Guessr")
+        .readableWidth(title: "Guessr", logo: true)
         .paper()
         .sheet(isPresented: Binding(get: { replaying != nil }, set: { if !$0 { replaying = nil } })) {
             if let round = progress.played.first(where: { $0.image == replaying }) {
