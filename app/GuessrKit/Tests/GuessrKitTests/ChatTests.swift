@@ -383,3 +383,15 @@ private func chat(userID: String = "2914196", capacity: Int = 300) -> TwitchChat
             == #"{"emote_mode":true,"follower_mode":true,"follower_mode_duration":0,"slow_mode":true,"slow_mode_wait_time":30,"subscriber_mode":false,"unique_chat_mode":false}"#
     )
 }
+
+/// The host's token refresh runs before a connect subscribes, so a reconnect
+/// hours in doesn't subscribe on an expired token.
+@MainActor @Test func aConnectRunsTheHostsRefreshFirst() async throws {
+    let chat = chat()
+    var refreshed = false
+    chat.beforeConnect = { refreshed = true }
+    chat.start()
+    defer { chat.stop() }
+    for _ in 0..<50 where !refreshed { try await Task.sleep(for: .milliseconds(100)) }
+    #expect(refreshed)
+}
