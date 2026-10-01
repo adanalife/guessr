@@ -1,0 +1,55 @@
+name: Prove the Worker's cold isolates start
+description: >-
+  Read the Python Worker twenty times through its Pages hostname, redeploy it
+  once if any read answers 500, and fail if the redeploy did not cure it.
+# A Python Worker restores its deploy-time memory snapshot on every cold start.
+# Now and then a deployed version comes up with a bad one: each cold isolate
+# then re-runs the whole import inside its first request, blows the startup CPU
+# budget or trips Pyodide's re-entrancy check, and answers 1101 to everything
+# until it is evicted -- ~70% of stage's calls for two hours on 2026-09-30, on
+# two versions in a row, while the same code on the versions either side of
+# them served fine; prod's first Worker version answered the same way to a
+# phone and to tripbot's board read on 2026-09-29. Uploading the bundle again is
+# the known cure, so that is what a failed read gets.
+#
+# Sequential reads on purpose: each one that lands on a fresh isolate is a cold
+# start, which is the only thing this is trying to provoke. Through pages.dev,
+# the same way the smoke test reaches the Worker: the Pages Function's binding
+# names the service, so the previous site build still forwards to the version
+# just deployed.
+#
+# ponytail: one runner sees one colo's isolates, so a version that is poisoned
+# only elsewhere still passes; a probe from several regions is the upgrade if
+# that ever bites.
+inputs:
+  base:
+    description: The tier's pages.dev origin, through which the Worker's /api/day is read
+    required: true
+  deploy-args:
+    description: Extra arguments for the `pywrangler deploy` that redeploys it (`--env production` on prod)
+    default: ""
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        BASE: ${{ inputs.base }}
+        DEPLOY_ARGS: ${{ inputs.deploy-args }}
+      run: |
+        cd api
+        url="$BASE/api/day?date=$(date -u +%F)"
+        for attempt in 1 2; do
+          sleep 15
+          failed=0
+          for _ in $(seq 1 20); do
+            [ "$(curl -s -o /dev/null -w '%{http_code}' "$url")" = 500 ] && failed=$((failed + 1))
+          done
+          [ "$failed" = 0 ] && exit 0
+          if [ "$attempt" = 2 ]; then
+            echo "::error::$failed of 20 reads still answer 500 after a redeploy -- the Worker's version is poisoned; deploy again by hand or wait for Cloudflare"
+            exit 1
+          fi
+          echo "::warning::$failed of 20 reads answered 500 -- redeploying the Worker once"
+          # shellcheck disable=SC2086 # the args are a word list by design
+          uv run pywrangler deploy $DEPLOY_ARGS
+        done

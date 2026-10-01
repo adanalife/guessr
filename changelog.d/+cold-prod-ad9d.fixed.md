@@ -1,0 +1,1 @@
+A production release now proves the Worker's cold isolates start before the site deploys, redeploying the Worker once when a version comes up with a bad memory snapshot — the failure that answered 500 to a phone's scores and to tripbot's board read on the evening of the cutover. Staging has had the same guard since 1.21.0; both tiers now share one action.
