@@ -18,8 +18,10 @@ extension View {
 
     /// A list or form at a readable width, centred on the page, on regular width
     /// only: an iPad row the full width of the screen strands a toggle far from
-    /// its label. Goes inside `paper()`, so the page color still fills the screen.
-    func readableWidth() -> some View { modifier(ReadableWidth()) }
+    /// its label. The large title moves over the column with it, so it doesn't
+    /// float at the screen's edge. Goes inside `paper()`, so the page color still
+    /// fills the screen.
+    func readableWidth(title: String) -> some View { modifier(ReadableWidth(title: title)) }
 
     /// The web game's play button: an ink fill under a paper label, the
     /// highest-contrast thing on screen in either theme. The accent is a text
@@ -55,13 +57,30 @@ extension View {
 }
 
 private struct ReadableWidth: ViewModifier {
+    let title: String
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     func body(content: Content) -> some View {
         if sizeClass == .regular {
             content.frame(maxWidth: 640).frame(maxWidth: .infinity)
+                .navigationTitle(title)
+                .toolbar {
+                    // The bar's own large title, drawn over the column and
+                    // lined up with its cards' edge, where a full-width list
+                    // puts it. The serif matches the appearance proxy's.
+                    ToolbarItem(placement: .largeTitle) {
+                        Text(title)
+                            .font(.system(.largeTitle, design: .serif, weight: .bold))
+                            // ponytail: 20 is the inset-grouped list's regular-width
+                            // margin, measured, not read; a system margin change
+                            // drifts it, a readable-content guide fixes that.
+                            .padding(.leading, 20)
+                            .frame(maxWidth: 640, alignment: .leading)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
         } else {
-            content
+            content.navigationTitle(title)
         }
     }
 }
@@ -114,9 +133,8 @@ struct TodayView: View {
                 Text(error).foregroundStyle(.secondary)
             }
         }
-        .readableWidth()
+        .readableWidth(title: "Guessr")
         .paper()
-        .navigationTitle("Guessr")
         .task(id: boardName) { await load() }
         .refreshable { await load() }
     }
@@ -205,9 +223,8 @@ struct SettingsView: View {
                 }
             }
         }
-        .readableWidth()
+        .readableWidth(title: "Settings")
         .paper()
-        .navigationTitle("Settings")
         // Read on every visit rather than once: the Play tab saves as it goes.
         .onAppear { playedToday = !DayProgress.resume(Saved.progress, on: GuessrClient.today()).played.isEmpty }
         .task { await account.refreshIfNeeded() }
