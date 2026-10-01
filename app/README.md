@@ -99,6 +99,41 @@ The key needs a role that may write Game Center data (App Manager or Admin).
 The submissions name the prerelease configuration while the app lives on
 TestFlight; `PRERELEASED` in `server/gamecenter.py` flips when it ships.
 
+## App Store
+
+The listing lives in `store.toml` beside this file: the name, subtitle,
+privacy policy and category, the version's description, keywords and URLs,
+the review notes and the age-rating declaration. `task asc:listing` reads App
+Store Connect back and prints what differs; `task asc:listing -- --apply`
+writes it, with the same key as the release. It creates the version named at
+the top of the file when none is editable, attaches the newest valid
+TestFlight build of that version once there is one, and uploads screenshots
+from `.build/screenshots` wherever App Store Connect has none for a display
+type. The review contact and the demo account are not public: they go in
+`store.local.toml` (gitignored), merged over `store.toml` table by table:
+
+```toml
+[review]
+contact_last_name = "…"
+contact_phone = "+1 …"
+contact_email = "…"
+demo_account_name = "…"      # a Twitch login that moderates the channel
+demo_account_password = "…"
+```
+
+`task ios:screenshots` takes the screenshots: it builds for the simulator,
+then on an iPhone 17 Pro Max and a 13-inch iPad Pro launches the Debug build
+with its launch arguments (`-tab`, `-owner 1`, `-autoplay 1`) and captures a
+round, its reveal, the boards and Settings, with Apple's 9:41 status bar. The
+Debug build plays stage, so the round is staging's.
+
+Two things the API does not do, and the dashboard does: the App Privacy
+labels (they must agree with `Guessr/PrivacyInfo.xcprivacy`), and the
+submission itself, which is the *Add for Review* button on the version.
+Submitting a version that reaches *Pending Developer Release* and releasing it
+by hand is the point of `release_type = "MANUAL"`: the server's
+`PRERELEASED` flag has to flip in the same minute (see Game Center above).
+
 ## Build settings
 
 Two settings are empty in a public checkout, declared in `Guessr.xcconfig`:

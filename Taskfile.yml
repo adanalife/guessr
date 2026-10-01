@@ -711,6 +711,17 @@ tasks:
     cmds:
       - ./scripts/asc-builds.py {{.CLI_ARGS}}
 
+  ios:screenshots:
+    desc: Build for the simulator and screenshot the store's screens on an iPhone and an iPad into app/.build/screenshots
+    deps: [ios:build]
+    cmds:
+      - ./scripts/ios-screenshots.sh
+
+  asc:listing:
+    desc: Write app/store.toml into App Store Connect's listing -- text, category, age rating, build, review details, screenshots (-- --apply to write; plans by default)
+    cmds:
+      - ./scripts/asc-listing.py {{.CLI_ARGS}}
+
   gamecenter:images:
     desc: Render the Game Center achievement images into app/.build/achievements for gamecenter:config to upload
     cmds:
