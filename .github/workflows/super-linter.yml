@@ -41,10 +41,12 @@ jobs:
           VALIDATE_ALL_CODEBASE: true
           ENABLE_GITHUB_PULL_REQUEST_SUMMARY_COMMENT: false
           # Excluded paths:
-          #   - web/leaflet/, web/et-book/: vendored third-party assets (the
-          #     Leaflet dist bundle and the ET Book webfont), kept byte-for-byte
-          #     as upstream ships them so a version bump stays a clean wholesale
-          #     replace. .pre-commit-config.yaml excludes the same two dirs.
+          #   - web/leaflet/, web/et-book/, web/sentry/: vendored third-party
+          #     assets (the Leaflet dist bundle, the ET Book webfont, the Sentry
+          #     replay bundle), kept byte-for-byte as upstream ships them so a
+          #     version bump stays a clean wholesale replace — codespell reads a
+          #     minified bundle's two-letter names as typos.
+          #     .pre-commit-config.yaml excludes the same three dirs.
           #   - CHANGELOG.md and changelog.d/: towncrier's output and its input.
           #     Fragments are a single sentence with no heading and the collated
           #     file repeats a section heading per release — markdownlint's MD041
@@ -52,7 +54,7 @@ jobs:
           #   - towncrier-template.md: a Jinja template that *produces* markdown;
           #     towncrier picks its markup from the .md extension, but the
           #     `{% %}`/`[...]` syntax isn't valid markdown.
-          FILTER_REGEX_EXCLUDE: '.*web/(et-book|leaflet)/.*|.*(^|/)CHANGELOG\.md$|.*changelog\.d/.*|.*(^|/)towncrier-template\.md$'
+          FILTER_REGEX_EXCLUDE: '.*web/(et-book|leaflet|sentry)/.*|.*(^|/)CHANGELOG\.md$|.*changelog\.d/.*|.*(^|/)towncrier-template\.md$'
           # Biome wants to reformat release-please's own manifest/config JSON,
           # which release-please then rewrites on its next run. Disabled across
           # the release-please repos in the fleet for the same reason.
@@ -74,6 +76,7 @@ jobs:
           VALIDATE_CSS_PRETTIER: false
           VALIDATE_HTML_PRETTIER: false
           VALIDATE_JAVASCRIPT_PRETTIER: false
+          VALIDATE_JSON_PRETTIER: false
           VALIDATE_JSONC_PRETTIER: false
           VALIDATE_MARKDOWN_PRETTIER: false
           VALIDATE_YAML_PRETTIER: false

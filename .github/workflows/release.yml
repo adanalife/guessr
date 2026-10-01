@@ -61,10 +61,16 @@ jobs:
           }
       # Node from .tool-versions rather than the runner's: pywrangler builds its
       # Pyodide environment with a node flag that Node 26 dropped.
+      # Both caches off: this job deploys to production with the Cloudflare
+      # token in hand, so a poisoned cache entry would be restored straight into
+      # the release path. A cold install is the cheaper risk.
       - uses: actions/setup-node@v7
         with:
           node-version-file: .tool-versions
+          package-manager-cache: false
       - uses: astral-sh/setup-uv@v10.2.0 # no floating major tag published
+        with:
+          enable-cache: false
       - name: Deploy the Python Worker (production)
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -76,6 +82,17 @@ jobs:
           cd api
           uv sync
           uv run pywrangler deploy --env production
+      # The same guard staging.yml runs: a version whose memory snapshot came up
+      # bad answers 500 from every cold isolate until it is redeployed, and on
+      # prod that is players' scores failing to post. The action says the rest.
+      - name: Prove the Worker's cold isolates start
+        uses: ./.github/actions/worker-cold-start
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        with:
+          base: https://adanalife-guessr.pages.dev
+          deploy-args: --env production
       - name: Deploy to Cloudflare Pages (production)
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
