@@ -46,6 +46,59 @@ between them, puts the last archive through the App Store export checks
 without uploading it; `task ios:verify` asks App Store Connect
 whether the newest tag has an installable build.
 
+## Game Center
+
+The app signs its player into Game Center and shows the dashboard from
+Settings. Scores and achievements never leave the device: the app tells the
+server which Game Center player it is (`POST /api/gamecenter`), and the server
+submits what its `plays` table says that player has earned, through the App
+Store Connect API. A modified app can therefore claim nothing the game did not
+record.
+
+Game Center is configured in App Store Connect, under the app's Game Center
+tab, with these identifiers (`server/gamecenter.py` is where they live in code).
+`task gamecenter:config` plans what is missing there and `-- --apply` creates
+it, English localization included, through the App Store Connect API with the
+same key as the release. `task gamecenter:images` renders each achievement's
+image from the game's mark and palette, which the next `--apply` uploads
+wherever an achievement has none:
+
+| Identifier | Kind | What |
+| --- | --- | --- |
+| `lol.dana.guessr.lifetime` | classic leaderboard, best score, integer | every point ever |
+| `lol.dana.guessr.weekly` | recurring leaderboard, 7 days from Monday 00:00 UTC, best score, integer | the ISO week's points |
+| `lol.dana.guessr.first_pin` | achievement | a first round played |
+| `lol.dana.guessr.bullseye` | achievement | a guess inside 10 km |
+| `lol.dana.guessr.golden_day` | achievement | five rounds in a day totaling 20,000 |
+| `lol.dana.guessr.week_streak` | achievement, progressive | seven days in a row |
+| `lol.dana.guessr.century` | achievement, progressive | a hundred rounds |
+| `lol.dana.guessr.perfect_round` | achievement | 5,000 on a round |
+| `lol.dana.guessr.perfect_day` | achievement | 5,000 on all five rounds of a day |
+| `lol.dana.guessr.top_ten` | achievement | a finished month in the game's monthly board's top ten |
+
+The second board is a week, not the game's month: a Game Center recurring
+leaderboard runs at most 30 days, recurs only by minutes, hours or days, and
+may not overlap, so a calendar month cannot be expressed.
+
+Whether an achievement is browsable before it is earned, or hidden until then,
+is the per-achievement *Hidden* setting in App Store Connect, not anything in
+code.
+
+The server submits only where the Worker has the App Store Connect key, set as
+three secrets; a tier without them (stage) accepts the sync and submits
+nothing, which is also why a Debug build pointed at stage never reaches the
+boards:
+
+```sh
+wrangler secret put ASC_KEY_ID --env production      # the key's id
+wrangler secret put ASC_ISSUER_ID --env production   # the issuer id
+wrangler secret put ASC_PRIVATE_KEY --env production # the .p8, pasted whole
+```
+
+The key needs a role that may write Game Center data (App Manager or Admin).
+The submissions name the prerelease configuration while the app lives on
+TestFlight; `PRERELEASED` in `server/gamecenter.py` flips when it ships.
+
 ## Build settings
 
 Two settings are empty in a public checkout, declared in `Guessr.xcconfig`:

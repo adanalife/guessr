@@ -159,6 +159,7 @@ struct TodayView: View {
 
 struct SettingsView: View {
     @Environment(Account.self) private var account
+    @Environment(GameCenter.self) private var gameCenter
     @Binding var player: Player
     @State private var playedToday = false
     @AppStorage("kilometers") private var kilometers = false
@@ -171,6 +172,15 @@ struct SettingsView: View {
             Section {
                 Toggle("Distances in kilometers", isOn: $kilometers)
                     .toggleStyle(.switch)
+            }
+            if gameCenter.signedIn {
+                Section {
+                    Button("Leaderboards and achievements") { gameCenter.showDashboard() }
+                } header: {
+                    Text("Game Center")
+                } footer: {
+                    Text("Your lifetime and weekly points and your achievements reach Game Center from the server as you play.")
+                }
             }
             Section("Appearance") {
                 Picker("Appearance", selection: $appearance) {
