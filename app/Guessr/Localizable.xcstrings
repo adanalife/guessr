@@ -2261,25 +2261,25 @@
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Na webu otevřete „About“ a klepněte na „Link a device“, zobrazí se kód."
+            "value" : "Na webu otevřete „o hře“ a klepněte na „Propojit zařízení“, zobrazí se kód."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "En la web, abre «About» y toca «Link a device» para ver un código."
+            "value" : "En la web, abre «acerca de» y toca «Vincular un dispositivo» para ver un código."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sur le web, ouvrez « About » et touchez « Link a device » pour obtenir un code."
+            "value" : "Sur le web, ouvrez « à propos » et touchez « Lier un appareil » pour obtenir un code."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "На сайте откройте «About» и нажмите «Link a device», чтобы получить код."
+            "value" : "На сайте откройте «об игре» и нажмите «Привязать устройство», чтобы получить код."
           }
         }
       }
@@ -3522,25 +3522,25 @@
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Otevřete [guessr.dana.lol](https://guessr.dana.lol), klepněte na „About“ a zadejte tento kód v části „Link a device“."
+            "value" : "Otevřete [guessr.dana.lol](https://guessr.dana.lol), klepněte na „o hře“ a zadejte tento kód v části „Propojit zařízení“."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Visita [guessr.dana.lol](https://guessr.dana.lol), toca «About» e introduce este código en «Link a device»."
+            "value" : "Visita [guessr.dana.lol](https://guessr.dana.lol), toca «acerca de» e introduce este código en «Vincular un dispositivo»."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Rendez-vous sur [guessr.dana.lol](https://guessr.dana.lol), touchez « About », puis saisissez ce code sous « Link a device »."
+            "value" : "Rendez-vous sur [guessr.dana.lol](https://guessr.dana.lol), touchez « à propos », puis saisissez ce code sous « Lier un appareil »."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Откройте [guessr.dana.lol](https://guessr.dana.lol), нажмите «About» и введите этот код в разделе «Link a device»."
+            "value" : "Откройте [guessr.dana.lol](https://guessr.dana.lol), нажмите «об игре» и введите этот код в разделе «Привязать устройство»."
           }
         }
       }
