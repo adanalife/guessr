@@ -73,12 +73,15 @@ class Files:
         return Clip(size=len(data), etag=etag, body=data[start:end], range=r)
 
 
-async def fetch(url, headers=None):
+async def fetch(url, headers=None, method="GET", body=None):
     """The outbound seam over urllib, off the event loop. Any status is an
     answer; only no response at all raises."""
 
     def get():
-        req = urllib.request.Request(url, headers=headers or {})
+        data = body.encode() if isinstance(body, str) else body
+        req = urllib.request.Request(
+            url, data=data, headers=headers or {}, method=method
+        )
         try:
             with urllib.request.urlopen(req, timeout=10) as res:
                 return res.status, res.read().decode()

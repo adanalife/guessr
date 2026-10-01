@@ -572,6 +572,23 @@ def clips(image):
     assert r.header("allow") == "GET, HEAD", r.header("allow")
 
 
+def gamecenter():
+    """The tier under test has no App Store Connect secrets, so a well-formed
+    sync is accepted and submits nothing; what it validates is the body."""
+    for bad in ({}, {"player_id": PHONE}, {"player_id": PHONE, "game_player_id": ""}):
+        error(post("a sync missing an id is refused", 400, "/api/gamecenter", bad))
+    error(
+        post("a sync that is not JSON is refused", 400, "/api/gamecenter", raw=b"nope")
+    )
+    r = post(
+        "a sync on a tier with no secrets submits nothing",
+        200,
+        "/api/gamecenter",
+        {"player_id": PHONE, "game_player_id": "A:_5f21e308073d18f9b3afdc37f646e851"},
+    )
+    assert r.json == {"submitted": []}, r.json
+
+
 def link(desk):
     error(post("a link with one id is refused", 400, "/api/link", {"from": PHONE}))
     error(
@@ -937,6 +954,7 @@ def main() -> int:
     live()
     link(desk)
     link_codes()
+    gamecenter()
     last = admin_reads()
     notes()
     review()
