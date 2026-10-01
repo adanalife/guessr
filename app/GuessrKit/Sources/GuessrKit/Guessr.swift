@@ -5,6 +5,9 @@ import Foundation
 #if canImport(FoundationNetworking)
     import FoundationNetworking
 #endif
+#if canImport(UIKit)
+    import UIKit
+#endif
 
 public struct Coordinate: Sendable, Equatable, Codable {
     public var lat: Double
@@ -188,6 +191,31 @@ public enum GuessrError: Error, LocalizedError, Equatable {
         switch self {
         case .http(_, let message): message
         }
+    }
+}
+
+extension Guessr {
+    /// `Guessr/<version> (<platform> <os>)`: the app's version and the platform
+    /// it runs on, no finer. The server buckets a play by the word in the
+    /// parentheses, so the names are the ones it matches: iOS, iPadOS, macOS.
+    public static func userAgent() async -> String {
+        let version =
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+        let os = ProcessInfo.processInfo.operatingSystemVersion
+        return "Guessr/\(version) (\(await platform()) \(os.majorVersion).\(os.minorVersion))"
+    }
+
+    private static func platform() async -> String {
+        #if os(iOS)
+            if ProcessInfo.processInfo.isiOSAppOnMac { return "macOS" }
+            return await MainActor.run { UIDevice.current.userInterfaceIdiom == .pad } ? "iPadOS" : "iOS"
+        #elseif os(macOS)
+            return "macOS"
+        #elseif os(tvOS)
+            return "tvOS"
+        #else
+            return "unknown"
+        #endif
     }
 }
 

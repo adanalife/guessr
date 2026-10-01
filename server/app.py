@@ -29,7 +29,7 @@ from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
 from server import admin_day, admin_players, clips, day, guesses, leaderboard, link
-from server import live, score
+from server import live, rules, score
 from server.admin_auth import caller, refusal
 
 
@@ -57,14 +57,20 @@ def respond(status: int, body, headers: dict | None = None) -> Response:
 
 
 # (path, method, handler). `r` carries what the request resolved to: db,
-# get_clip, fetch, params, body (POST only) and who (the gate's admitted caller,
-# under /admin/ only).
+# get_clip, fetch, params, headers, body (POST only) and who (the gate's
+# admitted caller, under /admin/ only).
 ROUTES = [
     ("/api/day", "GET", lambda r: day.day(r.db, r.params)),
     ("/api/guesses", "GET", lambda r: guesses.guesses(r.db, r.params)),
     ("/api/leaderboard", "GET", lambda r: leaderboard.leaderboard(r.db, r.params)),
     ("/api/live", "GET", lambda r: live.live(r.fetch)),
-    ("/api/score", "POST", lambda r: score.score(r.db, r.body)),
+    (
+        "/api/score",
+        "POST",
+        lambda r: score.score(
+            r.db, r.body, client=rules.client_of(r.headers.get("user-agent"))
+        ),
+    ),
     ("/api/link", "POST", lambda r: link.link(r.db, r.body)),
     ("/api/link/code", "POST", lambda r: link.issue_code(r.db, r.body)),
     ("/api/link/claim", "POST", lambda r: link.claim(r.db, r.body)),
@@ -110,6 +116,7 @@ def make_app(context, fetch) -> Starlette:
                 get_clip=get_clip,
                 fetch=fetch,
                 params=request.query_params,
+                headers=request.headers,
                 body=await _body(request) if method == "POST" else None,
                 who=request.scope.get("state", {}).get("who"),
             )

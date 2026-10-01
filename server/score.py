@@ -14,7 +14,9 @@ parse) and returns (status, body), so whatever serves HTTP is a thin shim.
 from server import rules
 
 
-async def score(db, body, now=None) -> tuple[int, dict]:
+async def score(db, body, now=None, client=None) -> tuple[int, dict]:
+    """`client` is rules.client_of's bucket for the caller, stored on the play
+    and never returned."""
     guess = rules.parse_guess(body)
     if not guess:
         return 400, {"error": "expected {image, lat, lng}"}
@@ -52,7 +54,11 @@ async def score(db, body, now=None) -> tuple[int, dict]:
 
     # The truth goes back either way: a replay already committed a guess for this
     # round once, and the page needs it to draw the map.
-    return 200, {**await _record(db, play, guess, scored), **answer, "recorded": True}
+    return 200, {
+        **await _record(db, play, guess, scored, client),
+        **answer,
+        "recorded": True,
+    }
 
 
 async def _in_draw(db, date: str, image: str) -> bool:
@@ -75,13 +81,13 @@ async def _practiceable(db, image: str, now) -> bool:
     return row is not None
 
 
-async def _record(db, play: dict, guess: dict, scored: dict) -> dict:
+async def _record(db, play: dict, guess: dict, scored: dict, client) -> dict:
     """Writes the play and returns what ended up on record. First write wins, so
     re-scoring a round cannot improve what the board sees. The pin is stored beside
     its distance because a radius cannot be turned back into a point."""
     changed = await db.execute(
-        """INSERT INTO plays (date, player_id, image, km, points, handle, guess_lat, guess_lng)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """INSERT INTO plays (date, player_id, image, km, points, handle, guess_lat, guess_lng, client)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (date, player_id, image) DO NOTHING""",
         play["date"],
         play["player_id"],
@@ -91,6 +97,7 @@ async def _record(db, play: dict, guess: dict, scored: dict) -> dict:
         play["handle"],
         guess["lat"],
         guess["lng"],
+        client,
     )
     if changed:
         return scored

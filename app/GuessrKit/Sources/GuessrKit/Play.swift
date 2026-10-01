@@ -181,6 +181,9 @@ extension GuessrClient {
         var req = URLRequest(url: baseURL.appending(path: "api/score"))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // The server files the play under a coarse platform bucket read off
+        // this; the system default names CFNetwork and Darwin, not the device.
+        req.setValue(await Guessr.userAgent(), forHTTPHeaderField: "User-Agent")
         req.httpBody = try encoder.encode(
             Body(
                 image: image, lat: guess.lat, lng: guess.lng, date: date,

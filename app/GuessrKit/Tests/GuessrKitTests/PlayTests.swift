@@ -15,6 +15,7 @@ private func fixture(_ name: String) throws -> Data {
 final class ScoringGuessr: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var lastBody: [String: Any] = [:]
     nonisolated(unsafe) static var lastMethod: String?
+    nonisolated(unsafe) static var lastUserAgent: String?
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -22,6 +23,7 @@ final class ScoringGuessr: URLProtocol, @unchecked Sendable {
 
     override func startLoading() {
         Self.lastMethod = request.httpMethod
+        Self.lastUserAgent = request.value(forHTTPHeaderField: "User-Agent")
         Self.lastBody = jsonBody(of: request)
         answer(self, with: "score")
     }
@@ -135,6 +137,7 @@ private let image = "clips/2018_1015_183219_002_opt-026000.mp4"
     #expect(scored.answer == Coordinate(lat: 33.913757, lng: -117.324235))
     #expect(scored.miles == 56)
     #expect(ScoringGuessr.lastMethod == "POST")
+    #expect(ScoringGuessr.lastUserAgent?.hasPrefix("Guessr/") == true)
     let body = ScoringGuessr.lastBody
     #expect(body["image"] as? String == image)
     #expect(body["date"] as? String == "2026-09-23")

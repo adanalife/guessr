@@ -1,0 +1,1 @@
+Each play now remembers whether it came from the website or the app (and which kind of device), so we can tell whether app players score differently. Nothing finer than that is kept, and it never shows up on a board.

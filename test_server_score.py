@@ -192,6 +192,7 @@ async def handler() -> None:
 
     status, body = await guess(mine, today, handle="Amber Arroyo")
     assert status == 200 and body["recorded"] and body["points"] == 5000, body
+    assert "client" not in body, "the client bucket is stored, never served"
     assert (body["lat"], body["lng"], body["state"], body["filmed"]) == (
         40,
         -100,
@@ -206,10 +207,32 @@ async def handler() -> None:
     # First write wins: a worse replay reports the stored score and writes nothing.
     status, replay = await guess(mine, today, lat=45.0)
     assert status == 200 and replay["points"] == 5000 and replay["km"] == 0, replay
-    rows = await db.fetchall("SELECT handle, guess_lat, guess_lng FROM plays")
-    assert rows == [{"handle": "Amber Arroyo", "guess_lat": 40, "guess_lng": -100}], (
-        rows
+    rows = await db.fetchall("SELECT handle, guess_lat, guess_lng, client FROM plays")
+    assert rows == [
+        {"handle": "Amber Arroyo", "guess_lat": 40, "guess_lng": -100, "client": None}
+    ], rows
+
+    # The caller's platform bucket rides on the row; a replay keeps the first.
+    body = {"image": loose, "lat": 40.0, "lng": -100, "date": today, "player_id": pid}
+    await db.execute(
+        "INSERT INTO round_days (date, position, image) VALUES (?, 2, ?)", today, loose
     )
+    assert (await score(db, body, client="ipados"))[0] == 200
+    assert (await score(db, body, client="web"))[0] == 200
+    assert (await db.fetchone("SELECT client FROM plays WHERE image = ?", loose))[
+        "client"
+    ] == "ipados"
+    for ua, bucket in [
+        (None, None),
+        ("", None),
+        ("Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) Safari/605.1", "web"),
+        ("Guessr/1.13.0 (iOS 26.0)", "ios"),
+        ("Guessr/1.13.0 (iPadOS 26.1)", "ipados"),
+        ("Guessr/1.13.0 (macOS 26.0)", "mac"),
+        ("Guessr/1.13.0 (tvOS 26.0)", "app"),
+        ("Guessr/226 CFNetwork/3826.600.41 Darwin/25.0.0", "app"),
+    ]:
+        assert rules.client_of(ua) == bucket, (ua, bucket)
 
     # Practice scores only a round from a closed date, which is all
     # /api/day?practice deals; anything else leaks an unplayed round's answer.
