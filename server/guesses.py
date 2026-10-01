@@ -11,7 +11,7 @@ whose ordering is deterministic, against the same span the board serves.
 import re
 
 from server import rules
-from server.leaderboard import CACHE, DAILY, MONTHLY, PLACEHOLDER, ROWS, span
+from server.leaderboard import CACHE, DAILY, MONTHLY, PLACEHOLDER, ROWS, served
 
 RANK = re.compile(r"[0-9]+")
 
@@ -52,7 +52,7 @@ async def at_rank(db, board: str, params, now=None) -> dict:
     if not 1 <= rank <= ROWS:
         return {"error": f"rank must be 1..{ROWS}", "status": 400}
 
-    period, cache, error = span(board, params, now)
+    period, cache, error = await served(db, board, params, now)
     if error:
         return {"error": error, "status": 400}
 

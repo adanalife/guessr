@@ -252,12 +252,38 @@ async def test_handler() -> None:
         ["anonymous (2)", 100],
     ]
 
-    # Up to two days a month the last closed date is the month before, and the
-    # daily board's players are absent from the monthly one.
+    # Up to two days a month the last closed date is the month before. Nobody
+    # has played the new month, so the unnamed monthly board is still August's,
+    # labelled as such; the month named outright is served empty.
     early = dt.datetime(2026, 9, 1, 12, tzinfo=dt.UTC)
     status, body, _ = await leaderboard(d, {"board": "monthly"}, early)
+    assert (body["period"], body["rows"]) == (MONTH, monthly_rows)
+    status, body, _ = await leaderboard(
+        d, {"board": "monthly", "month": "2026-09"}, early
+    )
     assert (body["period"], body["rows"]) == ("2026-09", [])
-    assert (await leaderboard(d, {}, early))[1]["period"] == "2026-08-31"
+
+    # The daily board steps back the same way: the last closed date has no
+    # plays, so the newest date with any is served -- and a date named outright
+    # stays that date. A date in a later month stays out of a month's fallback.
+    quiet = db(
+        [
+            ("2026-08-15", "p3", "a.jpg", 900, "Lucky Overpass"),
+            ("2026-09-01", "p5", "a.jpg", 50, "Far Future"),
+        ]
+    )
+    status, body, headers = await leaderboard(quiet, {}, NOW)
+    assert (body["period"], body["rows"]) == ("2026-08-15", [["Lucky Overpass", 900]])
+    assert headers["cache-control"] == "public, max-age=60"
+    status, body, _ = await leaderboard(quiet, {"board": "daily", "date": DAY}, NOW)
+    assert (body["period"], body["rows"]) == (DAY, [])
+    status, body, _ = await leaderboard(quiet, {"board": "monthly"}, NOW)
+    assert (body["period"], body["rows"]) == (MONTH, [["Lucky Overpass", 900]])
+    status, body, _ = await leaderboard(quiet, {"board": "monthly"}, early)
+    assert body["period"] == "2026-09"
+    # Nothing played anywhere: the default period, empty, rather than an error.
+    status, body, _ = await leaderboard(db([]), {}, NOW)
+    assert (status, body["period"], body["rows"]) == (200, DAY, [])
 
 
 test_names()

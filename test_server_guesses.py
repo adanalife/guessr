@@ -177,6 +177,16 @@ async def test_guesses() -> None:
             {"error": error},
         ), q
 
+    # Nobody played the last closed date: the unnamed board is the newest one
+    # with plays, and the drilldown resolves its rank against that same board.
+    d.conn.execute("DELETE FROM plays WHERE date = ?", (DAY,))
+    status, body, _ = await get(board="daily", rank="1")
+    assert (status, body["period"], body["name"]) == (200, EARLIER, "Winding Valley"), (
+        body
+    )
+    status, body, _ = await get(board="daily", rank="1", date=DAY)
+    assert (status, body) == (404, {"error": "no player at that rank"}), body
+
 
 asyncio.run(test_guesses())
 print("ok: the Python /api/guesses matches the contract test_guesses.mjs holds")
