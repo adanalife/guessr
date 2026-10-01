@@ -31,3 +31,12 @@ import Testing
     let past = ClipZoom(scale: 5).panned(dx: 0, dy: -1000, width: 400, height: 800, aspect: 2)
     #expect(past.y == -100)
 }
+
+@Test func aGestureInProgressStretchesPastTheLimitsAndLessTheFurtherItGoes() {
+    let out = ClipZoom().zoomed(by: 0.5, aboutX: 0, y: 0, width: 400, height: 225, elastic: true)
+    #expect(out.scale < 1 && out.scale > 0.5)
+    let far = ClipZoom().zoomed(by: 0.1, aboutX: 0, y: 0, width: 400, height: 225, elastic: true)
+    #expect(far.scale < out.scale && 1 - far.scale < 0.9)
+    let past = ClipZoom(scale: 2).panned(dx: 1000, dy: 0, width: 400, height: 200, elastic: true)
+    #expect(past.x > 200 && past.x < 600)
+}

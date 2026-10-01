@@ -643,31 +643,39 @@ struct ClipView: View {
         if paused { player.pause() } else { player.play() }
     }
 
+    /// A gesture stretches past the zoom's limits while the fingers are down,
+    /// and on release springs back inside them, the way Photos does.
     private func pinch(_ size: CGSize, aspect: Double?) -> some Gesture {
-        MagnifyGesture()
-            .onChanged { value in
-                live = zoom.zoomed(
-                    by: value.magnification,
-                    aboutX: value.startLocation.x - size.width / 2, y: value.startLocation.y - size.height / 2,
-                    width: size.width, height: size.height, aspect: aspect)
-            }
-            .onEnded { _ in
-                zoom = live ?? zoom
-                live = nil
-            }
+        func zoomed(_ value: MagnifyGesture.Value, elastic: Bool) -> ClipZoom {
+            zoom.zoomed(
+                by: value.magnification,
+                aboutX: value.startLocation.x - size.width / 2, y: value.startLocation.y - size.height / 2,
+                width: size.width, height: size.height, aspect: aspect, elastic: elastic)
+        }
+        return MagnifyGesture()
+            .onChanged { live = zoomed($0, elastic: true) }
+            .onEnded { value in settle(zoomed(value, elastic: false)) }
     }
 
+    /// A pan carries on past the finger's release to where its speed was taking
+    /// it, as a scroll view does, and stops at the picture's edge.
     private func pan(_ size: CGSize, aspect: Double?) -> some Gesture {
         DragGesture()
             .onChanged { value in
                 live = zoom.panned(
                     dx: value.translation.width, dy: value.translation.height, width: size.width, height: size.height,
-                    aspect: aspect)
+                    aspect: aspect, elastic: true)
             }
-            .onEnded { _ in
-                zoom = live ?? zoom
-                live = nil
+            .onEnded { value in
+                settle(
+                    zoom.panned(
+                        dx: value.predictedEndTranslation.width, dy: value.predictedEndTranslation.height,
+                        width: size.width, height: size.height, aspect: aspect))
             }
+    }
+
+    private func settle(_ to: ClipZoom) {
+        withAnimation(.smooth(duration: 0.4)) { (zoom, live) = (to, nil) }
     }
 }
 
