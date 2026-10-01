@@ -1,0 +1,18 @@
+-- When a player said a round's coordinates looked wrong.
+--
+-- On `plays` rather than in a table of its own, because a report is not a thing
+-- in its own right: it is a fact about one play -- this player, this date, this
+-- round -- and the play row is already the only thing that proves the reporter
+-- saw the clip. A separate table would restate that key in full and then need a
+-- foreign key back to it to mean anything.
+--
+-- It also does the work a report endpoint would otherwise need a rate limiter
+-- for. `UPDATE ... WHERE reported_at IS NULL` reports a play exactly once: the
+-- first call writes the timestamp and forwards the report, every later one
+-- changes no rows and sends nothing, so a loop costs a single indexed write
+-- rather than an unbounded run of webhook posts. Five plays a day is the whole
+-- of what a player can report.
+--
+-- Nullable and unset for every play so far, which reads correctly: nobody has
+-- reported any of them.
+ALTER TABLE plays ADD COLUMN reported_at TEXT;
