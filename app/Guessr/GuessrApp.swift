@@ -47,10 +47,14 @@ struct GuessrApp: App {
             .foregroundStyle(Color.ink)
             .preferredColorScheme(appearance == "system" ? nil : appearance == "dark" ? .dark : .light)
             .environment(account)
+            // A sign-in opens Chat, the tab it brings, on every device: left to
+            // itself, the iPad's tab bar keeps Settings selected as Chat
+            // appears ahead of it.
             // A sign-out while on Chat, a "View as" that drops the boards, or a
             // `-tab` launch naming a hidden tab lands on Play rather than on a
             // tab that isn't there.
-            .onChange(of: account.showsChat, initial: true) { _, shows in
+            .onChange(of: account.showsChat, initial: true) { showed, shows in
+                if shows, !showed { tab = "Chat" }
                 if !shows, tab == "Chat" { tab = "Play" }
             }
             .onChange(of: account.seesBoards, initial: true) { _, sees in
