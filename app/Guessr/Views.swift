@@ -233,6 +233,10 @@ struct SettingsView: View {
             } footer: {
                 Text("Opens Settings, where iOS keeps the app's language.")
             }
+            Section {
+                Link("Privacy Policy", destination: URL(string: "https://www.dana.lol/privacy/")!)
+                    .foregroundStyle(Color.ink)
+            }
             if account.auth.isConfigured {
                 Section("Twitch") {
                     if let session = account.session {
