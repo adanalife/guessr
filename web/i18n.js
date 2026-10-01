@@ -43,6 +43,8 @@ export const STRINGS = {
     'Show a code that adds another device\'s scores to yours': 'Afficher un code qui ajoute les scores d\'un autre appareil aux vôtres',
     'Have a code from another device?': 'Vous avez un code d\'un autre appareil ?',
     'Join': 'Rejoindre',
+    'Language': 'Langue',
+    'Auto': 'Auto',
     'Running': 'Version',
     'Reset saved state': 'Réinitialiser l\'état enregistré',
     'Dashcam footage ©&nbsp;A Dana Life, all rights reserved': 'Images de dashcam ©&nbsp;A Dana Life, tous droits réservés',
@@ -121,6 +123,8 @@ export const STRINGS = {
     'Show a code that adds another device\'s scores to yours': 'Mostrar un código que suma a los tuyos los puntos de otro dispositivo',
     'Have a code from another device?': '¿Tienes un código de otro dispositivo?',
     'Join': 'Unirse',
+    'Language': 'Idioma',
+    'Auto': 'Automático',
     'Running': 'Versión',
     'Reset saved state': 'Restablecer el estado guardado',
     'Dashcam footage ©&nbsp;A Dana Life, all rights reserved': 'Imágenes de dashcam ©&nbsp;A Dana Life, todos los derechos reservados',
@@ -198,6 +202,8 @@ export const STRINGS = {
     'Show a code that adds another device\'s scores to yours': 'Показать код, который добавит очки другого устройства к вашим',
     'Have a code from another device?': 'Есть код с другого устройства?',
     'Join': 'Присоединиться',
+    'Language': 'Язык',
+    'Auto': 'Авто',
     'Running': 'Версия',
     'Reset saved state': 'Сбросить сохранённое состояние',
     'Dashcam footage ©&nbsp;A Dana Life, all rights reserved': 'Записи с видеорегистратора ©&nbsp;A Dana Life, все права защищены',
@@ -275,6 +281,8 @@ export const STRINGS = {
     'Show a code that adds another device\'s scores to yours': 'Zobrazit kód, který k vašemu skóre přidá skóre z jiného zařízení',
     'Have a code from another device?': 'Máte kód z jiného zařízení?',
     'Join': 'Připojit',
+    'Language': 'Jazyk',
+    'Auto': 'Automaticky',
     'Running': 'Verze',
     'Reset saved state': 'Smazat uložený stav',
     'Dashcam footage ©&nbsp;A Dana Life, all rights reserved': 'Záznam z palubní kamery ©&nbsp;A Dana Life, všechna práva vyhrazena',
@@ -334,11 +342,19 @@ export const STRINGS = {
 
 export const LANGUAGES = Object.keys(STRINGS);
 
+// Each language's name in itself, for the About panel's picker.
+export const NAMES = { en: 'English', fr: 'Français', es: 'Español', ru: 'Русский', cs: 'Čeština' };
+
+// The localStorage key the picker saves a choice under; none saved is Auto.
+export const LANG_KEY = 'lang';
+
 // The first browser language a table exists for, by its two-letter prefix;
-// English when none is. `?lang=` wins when it names a table.
-export function pickLanguage(preferred, query = '') {
-  const asked = new URLSearchParams(query).get('lang');
-  if (asked && STRINGS[asked]) return asked;
+// English when none is. `?lang=` wins when it names a table, then the
+// picker's saved choice.
+export function pickLanguage(preferred, query = '', saved = null) {
+  for (const asked of [new URLSearchParams(query).get('lang'), saved]) {
+    if (asked === 'en' || (asked && STRINGS[asked])) return asked;
+  }
   for (const tag of preferred) {
     const lang = tag.slice(0, 2).toLowerCase();
     if (STRINGS[lang]) return lang;
@@ -346,7 +362,15 @@ export function pickLanguage(preferred, query = '') {
   return 'en';
 }
 
-export const LANG = pickLanguage(globalThis.navigator?.languages ?? [], globalThis.location?.search);
+function savedLanguage() {
+  try {
+    return globalThis.localStorage?.getItem(LANG_KEY) ?? null;
+  } catch {
+    return null; // storage refused: the browser's language stands
+  }
+}
+
+export const LANG = pickLanguage(globalThis.navigator?.languages ?? [], globalThis.location?.search, savedLanguage());
 
 // The string for `key` in the page's language, English when there is no row,
 // with each `{name}` filled from `vars`.

@@ -53,4 +53,9 @@ assert.equal(pickLanguage(['de-DE', 'cs-CZ']), 'cs');
 assert.equal(pickLanguage(['de-DE']), 'en');
 assert.equal(pickLanguage(['en-US'], '?lang=ru'), 'ru');
 assert.equal(pickLanguage(['es'], '?lang=xx'), 'es');
+// The picker's saved choice beats the browser, and `?lang=` beats the choice.
+assert.equal(pickLanguage(['fr'], '', 'cs'), 'cs');
+assert.equal(pickLanguage(['fr'], '', 'en'), 'en');
+assert.equal(pickLanguage(['fr'], '?lang=ru', 'cs'), 'ru');
+assert.equal(pickLanguage(['fr'], '', 'xx'), 'fr');
 console.log('ok: the language comes from the browser, and ?lang= overrides it');
