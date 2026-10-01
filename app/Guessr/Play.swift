@@ -303,13 +303,15 @@ struct PlayView: View {
 
 /// Joins the player on another device by the code it shows under About → Link
 /// a device. This device's plays fold onto that player, and it plays as them
-/// from here on, keeping its own name.
+/// from here on, keeping its own name. The code is looked up first, so the
+/// question names who this device is about to become.
 struct JoinView: View {
     @Binding var player: Player
     @Environment(\.dismiss) private var dismiss
     @State private var code = ""
     @State private var joining = false
     @State private var message: String?
+    @State private var preview: LinkPreview?
 
     private let client = GuessrClient()
 
@@ -320,7 +322,7 @@ struct JoinView: View {
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
                     .font(.title3.monospaced())
-                Button(joining ? "Joining…" : "Join") { Task { await join() } }
+                Button(joining ? "Joining…" : "Join") { Task { await look() } }
                     .disabled(code.isEmpty || joining)
             } footer: {
                 Text(message ?? "On the web, open About and tap Link a device to see a code. It lasts ten minutes.")
@@ -328,6 +330,24 @@ struct JoinView: View {
         }
         .paper()
         .navigationTitle("Enter your code")
+        .confirmationDialog(
+            preview.map { "Play as \($0.to.name)?" } ?? "", isPresented: Binding(get: { preview != nil }, set: { if !$0 { preview = nil } }),
+            titleVisibility: .visible, presenting: preview
+        ) { _ in
+            Button("Join") { Task { await join() } }
+        } message: { p in
+            Text("This device becomes \(p.to.name) (\(p.to.points.formatted()) points), replacing \(p.from.name) (\(p.from.points.formatted()) points). Its plays go with it.")
+        }
+    }
+
+    private func look() async {
+        joining = true
+        defer { joining = false }
+        do {
+            preview = try await client.previewLink(code: code, from: player)
+        } catch {
+            fail(error)
+        }
     }
 
     private func join() async {
@@ -337,9 +357,15 @@ struct JoinView: View {
             let claim = try await client.claimLink(code: code, from: player)
             player = Player(id: claim.playerId, alias: player.alias)
             dismiss()
-        } catch let error as GuessrError where error.isFinal {
-            message = "That code is unknown or has expired. Show a new one on the web."
         } catch {
+            fail(error)
+        }
+    }
+
+    private func fail(_ error: Error) {
+        if let error = error as? GuessrError, error.isFinal {
+            message = "That code is unknown or has expired. Show a new one on the web."
+        } else {
             message = "Could not reach the server. Try the code again."
         }
     }
