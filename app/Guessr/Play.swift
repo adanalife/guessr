@@ -819,7 +819,7 @@ struct RevealCard: View {
             Text(round.score.state)
                 .font(.system(.title2, design: .serif, weight: .semibold))
                 .padding(.top, 6)
-            Text("\(round.score.distance(kilometers: kilometers)) away · \(round.score.filmed)")
+            Text("\(round.score.distance(kilometers: kilometers)) away")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
