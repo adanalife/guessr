@@ -528,9 +528,12 @@ struct ClipView: View {
     /// Full screen is the same player and gestures on a cover of their own,
     /// so the loop carries on across the switch rather than restarting.
     @State private var full = false
+    /// Full screen grows out of the clip and shrinks back into it.
+    @Namespace private var cover
 
     var body: some View {
         surface(fills: fills)
+            .matchedTransitionSource(id: url, in: cover)
             .accessibilityElement()
             .accessibilityLabel(paused ? "Clip, paused" : "Clip")
             .accessibilityAction(named: paused ? "Play" : "Pause") { togglePause() }
@@ -553,6 +556,10 @@ struct ClipView: View {
                     .statusBarHidden()
                     .accessibilityElement(children: .contain)
                     .accessibilityAction(.escape) { full = false }
+                    .navigationTransition(.zoom(sourceID: url, in: cover))
+                    // The zoom's swipe down to close would take a zoomed
+                    // picture's downward pan.
+                    .interactiveDismissDisabled(zoom.scale > 1)
             }
             // A tab switch runs this again on the way back, onto the player the
             // disappearance emptied: a fresh looper picks up where the last one left.
