@@ -113,7 +113,7 @@ ACHIEVEMENTS = [
     (
         "perfect_round",
         "Perfect Round",
-        150,
+        100,
         True,
         "Score 5,000 on a round.",
         "You scored a perfect 5,000 on a round.",
@@ -121,7 +121,7 @@ ACHIEVEMENTS = [
     (
         "perfect_day",
         "Perfect Day",
-        250,
+        100,
         False,
         "Score 5,000 on all five rounds of a day.",
         "Five perfect rounds in one day.",
@@ -129,7 +129,7 @@ ACHIEVEMENTS = [
     (
         "top_ten",
         "Top Ten",
-        150,
+        100,
         False,
         "Finish a month in the top ten.",
         "You finished a month in the monthly top ten.",
