@@ -23,6 +23,7 @@ struct PlayView: View {
     /// Compact on a phone held on its side, the one shape with no room to
     /// stack the clip over the map.
     @Environment(\.verticalSizeClass) private var heightClass
+    @Environment(GameCenter.self) private var gameCenter
 
     private let client = GuessrClient()
 
@@ -311,6 +312,9 @@ struct PlayView: View {
             progress.played.append(PlayedRound(image: image, guess: at, score: score))
             Saved.progress = progress
             if progress.played.count == 1 { await Reminder.refreshBadge() }
+            // Off the reveal's path: the server reads the standing off its
+            // own table, so this carries nothing the reveal waits on.
+            if score.recorded { Task { await gameCenter.sync(player, with: client) } }
             (revealed, message, camera) = (true, nil, .region(Self.fit(at, score.answer)))
         } catch let error as GuessrError where error.isFinal {
             // Refused, so retrying gets the same answer: say what the server said.

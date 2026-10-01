@@ -4,7 +4,9 @@ import SwiftUI
 @main
 struct GuessrApp: App {
     @State private var account = Account()
+    @State private var gameCenter = GameCenter()
     private let players = KeychainPlayerStore()
+    private let client = GuessrClient()
     /// State rather than a constant because a link code swaps it for the player
     /// the code joined; every change goes back to the Keychain.
     @State private var player = KeychainPlayerStore().current()
@@ -47,6 +49,8 @@ struct GuessrApp: App {
             .foregroundStyle(Color.ink)
             .preferredColorScheme(appearance == "system" ? nil : appearance == "dark" ? .dark : .light)
             .environment(account)
+            .environment(gameCenter)
+            .task { gameCenter.start { await gameCenter.sync(player, with: client) } }
             // A sign-in opens Chat, the tab it brings, on every device: left to
             // itself, the iPad's tab bar keeps Settings selected as Chat
             // appears ahead of it.

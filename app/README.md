@@ -46,6 +46,43 @@ between them, puts the last archive through the App Store export checks
 without uploading it; `task ios:verify` asks App Store Connect
 whether the newest tag has an installable build.
 
+## Game Center
+
+The app signs its player into Game Center and shows the dashboard from
+Settings. Scores and achievements never leave the device: the app tells the
+server which Game Center player it is (`POST /api/gamecenter`), and the server
+submits what its `plays` table says that player has earned, through the App
+Store Connect API. A modified app can therefore claim nothing the game did not
+record.
+
+Game Center is configured in App Store Connect, under the app's Game Center
+tab, with these identifiers (`server/gamecenter.py` is where they live in code):
+
+| Identifier | Kind | What |
+| --- | --- | --- |
+| `lol.dana.guessr.lifetime` | classic leaderboard, best score, integer | every point ever |
+| `lol.dana.guessr.monthly` | recurring leaderboard, monthly, best score, integer | the calendar month's points |
+| `lol.dana.guessr.first-pin` | achievement | a first round played |
+| `lol.dana.guessr.bullseye` | achievement | a guess inside 10 km |
+| `lol.dana.guessr.golden-day` | achievement | five rounds in a day totaling 20,000 |
+| `lol.dana.guessr.week-streak` | achievement, progressive | seven days in a row |
+| `lol.dana.guessr.century` | achievement, progressive | a hundred rounds |
+
+The server submits only where the Worker has the App Store Connect key, set as
+three secrets; a tier without them (stage) accepts the sync and submits
+nothing, which is also why a Debug build pointed at stage never reaches the
+boards:
+
+```sh
+wrangler secret put ASC_KEY_ID --env production      # the key's id
+wrangler secret put ASC_ISSUER_ID --env production   # the issuer id
+wrangler secret put ASC_PRIVATE_KEY --env production # the .p8, pasted whole
+```
+
+The key needs a role that may write Game Center data (App Manager or Admin).
+The submissions name the prerelease configuration while the app lives on
+TestFlight; `PRERELEASED` in `server/gamecenter.py` flips when it ships.
+
 ## Build settings
 
 Two settings are empty in a public checkout, declared in `Guessr.xcconfig`:

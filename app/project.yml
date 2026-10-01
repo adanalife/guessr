@@ -38,6 +38,12 @@ targets:
     configFiles:
       Debug: Guessr.xcconfig
       Release: Guessr.xcconfig
+    # Game Center: the sign-in and the dashboard. Scores and achievements reach
+    # Apple from the server, not from GameKit -- see server/gamecenter.py.
+    entitlements:
+      path: Guessr/Guessr.entitlements
+      properties:
+        com.apple.developer.game-center: true
     info:
       path: Guessr/Info.plist
       properties:

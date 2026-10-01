@@ -77,6 +77,27 @@ final class RecordingGuessr: URLProtocol, @unchecked Sendable {
     }
 }
 
+/// Accepts a Game Center sync with an empty body and keeps the request. Its
+/// own class rather than RecordingGuessr: tests run in parallel, and the
+/// statics are per class.
+final class SyncingGuessr: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var lastBody: [String: Any] = [:]
+    nonisolated(unsafe) static var lastPath: String?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+
+    override func startLoading() {
+        Self.lastPath = request.url?.path
+        Self.lastBody = jsonBody(of: request)
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(#"{"submitted":[]}"#.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+}
+
 /// Answers every request with the link-code fixture and keeps the last request.
 final class IssuingGuessr: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var lastBody: [String: Any] = [:]
@@ -180,6 +201,15 @@ private let image = "clips/2018_1015_183219_002_opt-026000.mp4"
     #expect(ClaimingGuessr.lastPath == "/api/link/claim")
     #expect(ClaimingGuessr.lastBody["code"] as? String == "ABCD2345")
     #expect(ClaimingGuessr.lastBody["from"] as? String == player.id)
+}
+
+@Test func aGameCenterSyncNamesBothPlayersAndNoScore() async throws {
+    try await client(SyncingGuessr.self).syncGameCenter(player: player, gamePlayerID: "A:_5f21e308073d18f9b3afdc37f646e851")
+    #expect(SyncingGuessr.lastPath == "/api/gamecenter")
+    #expect(SyncingGuessr.lastBody["player_id"] as? String == player.id)
+    #expect(SyncingGuessr.lastBody["game_player_id"] as? String == "A:_5f21e308073d18f9b3afdc37f646e851")
+    // The server computes the standing; a body carrying a score would be the cheat.
+    #expect(SyncingGuessr.lastBody.count == 2)
 }
 
 @Test func aPreviewedCodeNamesBothPlayers() async throws {

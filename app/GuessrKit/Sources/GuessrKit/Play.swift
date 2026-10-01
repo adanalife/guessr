@@ -238,6 +238,20 @@ extension GuessrClient {
     }
 }
 
+extension GuessrClient {
+    /// Names the Game Center player this device is signed in as, and the server
+    /// submits what its plays table says `player` has earned -- the lifetime and
+    /// monthly totals and the achievements. No score travels in either
+    /// direction: a client cannot name one.
+    public func syncGameCenter(player: Player, gamePlayerID: String) async throws {
+        var req = URLRequest(url: baseURL.appending(path: "api/gamecenter"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(["player_id": player.id, "game_player_id": gamePlayerID])
+        _ = try await data(req)
+    }
+}
+
 /// What claiming a link code answers: the player this device joins, and how
 /// many of its plays moved onto them.
 public struct LinkClaim: Sendable, Equatable, Codable {
