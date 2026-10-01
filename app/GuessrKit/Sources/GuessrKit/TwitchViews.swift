@@ -40,13 +40,13 @@
                 Button {
                     copy(code.userCode)
                 } label: {
-                    Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+                    Label(copied ? String(localized: "Copied", bundle: .module) : String(localized: "Copy", bundle: .module), systemImage: copied ? "checkmark" : "doc.on.doc")
                 }
                 .buttonStyle(.bordered)
                 .disabled(copied)
             }
             if let url = URL(string: code.verificationUri) {
-                Link(destination: url) { Label("Go to Twitch", systemImage: "arrow.up.forward.app") }
+                Link(destination: url) { Label(String(localized: "Go to Twitch", bundle: .module), systemImage: "arrow.up.forward.app") }
                     .buttonStyle(.borderedProminent)
                     .foregroundStyle(prominentLabel)
                     .onAppear {

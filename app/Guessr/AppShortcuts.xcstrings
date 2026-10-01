@@ -1,0 +1,60 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Guess ${state} in ${applicationName}" : {
+      "localizations" : {
+        "cs" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Hádat ${state} v ${applicationName}",
+              "Hádat, že je to ${state}, v ${applicationName}",
+              "Hádat, že jsme v ${state}, v ${applicationName}"
+            ]
+          }
+        },
+        "en" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Guess ${state} in ${applicationName}",
+              "Guess that this is ${state} in ${applicationName}",
+              "Guess we're in ${state} in ${applicationName}"
+            ]
+          }
+        },
+        "es" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Adivinar ${state} en ${applicationName}",
+              "Adivinar que esto es ${state} en ${applicationName}",
+              "Adivinar que estamos en ${state} en ${applicationName}"
+            ]
+          }
+        },
+        "fr" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Deviner ${state} dans ${applicationName}",
+              "Deviner que c'est ${state} dans ${applicationName}",
+              "Deviner qu'on est en ${state} avec ${applicationName}"
+            ]
+          }
+        },
+        "ru" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Угадать ${state} в ${applicationName}",
+              "Угадать, что это ${state}, в ${applicationName}",
+              "Угадать, что мы в ${state}, в ${applicationName}"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

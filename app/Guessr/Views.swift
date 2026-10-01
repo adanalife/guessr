@@ -21,7 +21,7 @@ extension View {
     /// its label. The large title moves over the column with it, so it doesn't
     /// float at the screen's edge. Goes inside `paper()`, so the page color still
     /// fills the screen.
-    func readableWidth(title: String) -> some View { modifier(ReadableWidth(title: title)) }
+    func readableWidth(title: LocalizedStringKey) -> some View { modifier(ReadableWidth(title: title)) }
 
     /// The web game's play button: an ink fill under a paper label, the
     /// highest-contrast thing on screen in either theme. The accent is a text
@@ -57,7 +57,7 @@ extension View {
 }
 
 private struct ReadableWidth: ViewModifier {
-    let title: String
+    let title: LocalizedStringKey
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     func body(content: Content) -> some View {
@@ -122,12 +122,12 @@ struct TodayView: View {
                 .pickerStyle(.segmented)
                 ForEach(Array((board?.rows ?? []).enumerated()), id: \.offset) { rank, row in
                     let mine = isMine(row)
-                    LabeledContent("\(rank + 1). \(row.name)\(mine ? " (you)" : "")", value: "\(row.points)")
+                    LabeledContent(mine ? "\(rank + 1). \(row.name) (you)" : "\(rank + 1). \(row.name)", value: "\(row.points)")
                         .fontWeight(mine ? .bold : nil)
                         .listRowBackground(mine ? Color.accentColor.opacity(0.15) : nil)
                 }
             } header: {
-                Text(board.map { "Leaderboard · \($0.period)" } ?? "Leaderboard")
+                if let board { Text("Leaderboard · \(board.period)") } else { Text("Leaderboard") }
             }
             if let error {
                 Text(error).foregroundStyle(.secondary)
@@ -300,7 +300,7 @@ struct LinkCodeRows: View {
         do {
             (code, error) = (try await client.issueLinkCode(for: player), nil)
         } catch {
-            self.error = "Could not reach the server. Try again."
+            self.error = String(localized: "Could not reach the server. Try again.")
         }
     }
 }

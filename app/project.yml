@@ -13,6 +13,9 @@ settings:
     SWIFT_VERSION: "6.0"
     SWIFT_APPROACHABLE_CONCURRENCY: YES
     SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    # A build writes every localizable literal it finds into the string
+    # catalogs, so a new string shows up there needing translation.
+    SWIFT_EMIT_LOC_STRINGS: YES
 packages:
   GuessrKit:
     path: GuessrKit

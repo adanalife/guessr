@@ -109,6 +109,12 @@ enum USState: String, AppEnum {
         .wyoming: "Wyoming",
     ]
 
+    /// The name in the device's language, for a label; `rawValue` is what
+    /// `!guess` sends, in English, since the bot reads that.
+    var localizedName: String {
+        Self.caseDisplayRepresentations[self].map { String(localized: $0.title) } ?? rawValue
+    }
+
     /// By postal code, the form a reverse geocode usually names the state in.
     static let abbreviations: [String: USState] = [
         "AL": .alabama,
