@@ -4,6 +4,22 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.25.0 — 2026-10-01
+
+### New
+
+- A Privacy Policy link in Settings, and the privacy manifest the App Store asks every app for. ([#361](https://github.com/adanalife/guessr/pull/361))
+- In the app, hold a chat line to hide that chatter on your device or report them on Twitch; Settings brings hidden chatters back. ([#362](https://github.com/adanalife/guessr/pull/362))
+
+### Changed
+
+- The app's reveal card gives the distance alone; when a clip was filmed stays on the finished day's replay sheet. ([#365](https://github.com/adanalife/guessr/pull/365))
+- The app's opening question, shown before the day's first score, is centered and set a size smaller. ([#366](https://github.com/adanalife/guessr/pull/366))
+
+### Behind the scenes
+
+- The App Store listing is written from a file in the repo, and the store screenshots come off the simulator by script. ([#367](https://github.com/adanalife/guessr/pull/367))
+
 ## v1.24.0 — 2026-10-01
 
 ### New
