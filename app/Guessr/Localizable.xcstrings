@@ -7,30 +7,30 @@
     "%@" : {
       "shouldTranslate" : false
     },
-    "%@ away · %@" : {
+    "%@ away" : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ daleko · %@"
+            "value" : "%@ daleko"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "a %@ · %@"
+            "value" : "a %@"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "à %@ · %@"
+            "value" : "à %@"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ от цели · %@"
+            "value" : "%@ от цели"
           }
         }
       }
