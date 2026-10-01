@@ -142,8 +142,10 @@
     /// item and the ban itself ask in an alert, where the reason is optional.
     /// The ban always asks first, the one verb that doesn't undo itself.
     /// `warn` takes the reason, asked for in an alert. Delete comes first: it
-    /// answers what was said rather than who said it. tvOS has no context
-    /// menus, so there it draws the line bare.
+    /// answers what was said rather than who said it. `hide` and `report` are
+    /// the viewer's verbs: hide keeps this chatter's lines off this device,
+    /// report opens their Twitch page, where Twitch's own report form lives.
+    /// tvOS has no context menus, so there it draws the line bare.
     public struct ChatLineMenu: ViewModifier {
         var translatable: String?
         var name: String
@@ -151,6 +153,9 @@
         var ban: ((Int, String?) -> Void)?
         var reply: (() -> Void)?
         var warn: ((String) -> Void)?
+        var hide: (() -> Void)?
+        var report: URL?
+        @Environment(\.openURL) private var openURL
         /// Whether the system translation sheet is up for this line.
         @State private var translating = false
         @State private var banning = false
@@ -163,7 +168,8 @@
         /// heads the menu.
         public init(
             translatable: String?, name: String, delete: (() -> Void)?, ban: ((Int, String?) -> Void)?,
-            reply: (() -> Void)? = nil, warn: ((String) -> Void)? = nil
+            reply: (() -> Void)? = nil, warn: ((String) -> Void)? = nil,
+            hide: (() -> Void)? = nil, report: URL? = nil
         ) {
             self.translatable = translatable
             self.name = name
@@ -171,6 +177,8 @@
             self.ban = ban
             self.reply = reply
             self.warn = warn
+            self.hide = hide
+            self.report = report
         }
 
         /// The typed reason, nil when the field was left blank.
@@ -196,6 +204,12 @@
                                 Button(String(localized: "Translate", bundle: .module), systemImage: "translate") { translating = true }
                             }
                         #endif
+                        if let hide {
+                            Button(String(localized: "Hide messages from \(name)", bundle: .module), systemImage: "eye.slash", action: hide)
+                        }
+                        if let report {
+                            Button(String(localized: "Report on Twitch", bundle: .module), systemImage: "flag") { openURL(report) }
+                        }
                         if let delete {
                             Button(String(localized: "Delete message", bundle: .module), systemImage: "trash", role: .destructive, action: delete)
                         }
