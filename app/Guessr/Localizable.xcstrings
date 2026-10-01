@@ -297,6 +297,34 @@
         }
       }
     },
+    "Achievement unlocked" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Úspěch odemčen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logro desbloqueado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Succès débloqué"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Достижение получено"
+          }
+        }
+      }
+    },
     "Alabama" : {
       "localizations" : {
         "ru" : {
