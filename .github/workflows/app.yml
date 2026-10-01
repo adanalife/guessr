@@ -9,10 +9,10 @@ name: app
 
 on:
   pull_request:
-    paths: ['app/**', '.github/workflows/app.yml']
+    paths: ['app/**', 'Package.swift', '.github/workflows/app.yml']
   push:
     branches: [main]
-    paths: ['app/**', '.github/workflows/app.yml']
+    paths: ['app/**', 'Package.swift', '.github/workflows/app.yml']
 
 permissions:
   contents: read
@@ -74,7 +74,9 @@ jobs:
 
   # tempomat compiles GuessrKit into its core and tests it on Linux, where
   # corelibs-Foundation lacks some Apple-only API, so a GuessrKit change that
-  # only the macOS job sees can still break tempomat's build. The Swift in
+  # only the macOS job sees can still break tempomat's build. It tests the
+  # repo-root manifest, the one a package dependency reads, so that copy
+  # drifting from app/GuessrKit's fails here too. The Swift in
   # app/GuessrKit/.tool-versions matches tempomat's core pin on purpose,
   # rather than tracking the latest release.
   kit-linux:
@@ -91,4 +93,4 @@ jobs:
         with:
           working_directory: app/GuessrKit
           install_args: swift
-      - run: mise exec -- swift test
+      - run: mise exec -- swift test --package-path ../..
