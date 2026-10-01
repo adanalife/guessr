@@ -59,8 +59,9 @@ Game Center is configured in App Store Connect, under the app's Game Center
 tab, with these identifiers (`server/gamecenter.py` is where they live in code).
 `task gamecenter:config` plans what is missing there and `-- --apply` creates
 it, English localization included, through the App Store Connect API with the
-same key as the release; it uploads no images, which the dashboard asks for
-before an achievement is released:
+same key as the release. `task gamecenter:images` renders each achievement's
+image from the game's mark and palette, which the next `--apply` uploads
+wherever an achievement has none:
 
 | Identifier | Kind | What |
 | --- | --- | --- |

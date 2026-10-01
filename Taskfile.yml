@@ -711,6 +711,11 @@ tasks:
     cmds:
       - ./scripts/asc-builds.py {{.CLI_ARGS}}
 
+  gamecenter:images:
+    desc: Render the Game Center achievement images into app/.build/achievements for gamecenter:config to upload
+    cmds:
+      - ./scripts/make-achievement-images.sh
+
   gamecenter:config:
     desc: Create the Game Center leaderboards and achievements the server submits to in App Store Connect (-- --apply to write; plans by default)
     cmds:

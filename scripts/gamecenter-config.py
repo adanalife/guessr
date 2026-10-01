@@ -13,15 +13,18 @@ its English localization.
 Idempotent: what exists is read back by vendor identifier and left alone, so
 a run after a hand edit in the dashboard only fills gaps. It patches one thing
 in place -- a leaderboard whose sort is ascending, since points are better
-higher. Images are not uploaded; the dashboard wants one per achievement
-before release, and a submission to the prerelease configuration needs none.
+higher. An achievement with no image gets the one `task gamecenter:images`
+rendered into app/.build/achievements/, through Apple's reserve-upload-commit
+flow; one not rendered yet is named rather than uploaded.
 
 Reads ASC_KEY_PATH, ASC_KEY_ID and ASC_ISSUER_ID, as `task ios:release` does.
 """
 
 import datetime
+import hashlib
 import json
 import os
+from pathlib import Path
 import sys
 import time
 import urllib.error
@@ -32,6 +35,7 @@ import jwt
 API = "https://api.appstoreconnect.apple.com/v1"
 BUNDLE_ID = "lol.dana.guessr"
 LOCALE = "en-US"
+IMAGES = Path(__file__).resolve().parent.parent / "app" / ".build" / "achievements"
 
 
 def next_monday() -> str:
@@ -175,6 +179,34 @@ class Client:
     def get(self, path: str) -> list[dict]:
         return self.call("GET", path).get("data", [])
 
+    def one(self, path: str) -> dict | None:
+        """A to-one relationship: the resource, or None where there is none."""
+        return self.call("GET", path).get("data")
+
+    def upload(self, image_id: str, operations: list[dict], data: bytes) -> None:
+        """Apple's asset flow: the reservation named where each chunk goes."""
+        for op in operations:
+            chunk = data[op["offset"] : op["offset"] + op["length"]]
+            req = urllib.request.Request(op["url"], data=chunk, method=op["method"])
+            for header in op["requestHeaders"]:
+                req.add_header(header["name"], header["value"])
+            with urllib.request.urlopen(req) as res:
+                res.read()
+        self.call(
+            "PATCH",
+            f"/gameCenterAchievementImages/{image_id}",
+            {
+                "data": {
+                    "type": "gameCenterAchievementImages",
+                    "id": image_id,
+                    "attributes": {
+                        "uploaded": True,
+                        "sourceFileChecksum": hashlib.md5(data).hexdigest(),
+                    },
+                }
+            },
+        )
+
     def create(self, kind: str, attributes: dict, relationships: dict) -> dict:
         body = {
             "data": {
@@ -277,6 +309,7 @@ def main() -> int:
                 "afterEarnedDescription": after,
             },
         )
+        picture(plan, asc, a, suffix)
 
     if not changes:
         print("nothing to do: every leaderboard and achievement is configured")
@@ -295,6 +328,50 @@ def plan_create(
         lambda: made.update(asc.create(kind, attrs, rel)),
     )
     return made or None
+
+
+def picture(plan, asc, achievement: dict | None, suffix: str) -> None:
+    """Uploads the rendered image to the English localization that has none."""
+    png = IMAGES / f"{suffix}.png"
+    if not png.is_file():
+        print(f"skip: no image for {suffix} -- render it with: task gamecenter:images")
+        return
+    if achievement is None:
+        plan(f"upload {png.name}", lambda: None)
+        return
+    loc = next(
+        (
+            loc
+            for loc in asc.get(
+                f"/gameCenterAchievements/{achievement['id']}/localizations"
+            )
+            if loc["attributes"]["locale"] == LOCALE
+        ),
+        None,
+    )
+    if loc is None:
+        plan(f"upload {png.name}", lambda: None)
+        return
+    if asc.one(
+        f"/gameCenterAchievementLocalizations/{loc['id']}/gameCenterAchievementImage"
+    ):
+        return
+
+    def do():
+        data = png.read_bytes()
+        made = asc.create(
+            "gameCenterAchievementImages",
+            {"fileName": png.name, "fileSize": len(data)},
+            {
+                "gameCenterAchievementLocalization": (
+                    "gameCenterAchievementLocalizations",
+                    loc["id"],
+                )
+            },
+        )
+        asc.upload(made["id"], made["attributes"]["uploadOperations"], data)
+
+    plan(f"upload {png.name} to {achievement['attributes']['vendorIdentifier']}", do)
 
 
 def localize(
