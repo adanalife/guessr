@@ -9,6 +9,14 @@ import Foundation
     import UIKit
 #endif
 
+// corelibs-Foundation has no `String(localized:bundle:)`, so on Linux, where
+// tempomat tests its core against GuessrKit, the English key is the string.
+#if !canImport(Darwin)
+    extension String {
+        init(localized key: String, bundle: Bundle) { self = key }
+    }
+#endif
+
 public struct Coordinate: Sendable, Equatable, Codable {
     public var lat: Double
     public var lng: Double
