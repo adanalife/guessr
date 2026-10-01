@@ -24,6 +24,7 @@ struct PlayView: View {
     /// stack the clip over the map.
     @Environment(\.verticalSizeClass) private var heightClass
     @Environment(GameCenter.self) private var gameCenter
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let client = GuessrClient()
 
@@ -315,7 +316,11 @@ struct PlayView: View {
             // Off the reveal's path: the server reads the standing off its
             // own table, so this carries nothing the reveal waits on.
             if score.recorded { Task { await gameCenter.sync(player, with: client) } }
-            (revealed, message, camera) = (true, nil, .region(Self.fit(at, score.answer)))
+            // The map travels from the guess out to the answer, and the reveal
+            // grows in around it, rather than cutting to both.
+            withAnimation(reduceMotion ? nil : .smooth(duration: 0.8)) {
+                (revealed, message, camera) = (true, nil, .region(Self.fit(at, score.answer)))
+            }
         } catch let error as GuessrError where error.isFinal {
             // Refused, so retrying gets the same answer: say what the server said.
             day = nil
