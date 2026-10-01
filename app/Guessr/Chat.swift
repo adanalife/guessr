@@ -252,7 +252,12 @@ struct ChatLog: View {
             List(lines) { line in
                 ChatLineView(
                     line: line, mayModerate: mayModerate, error: $error, banned: $banned,
-                    recent: { lines.filter { $0.userId == line.userId && !$0.text.isEmpty }.map(\.text) }
+                    // A chatter's history is for the channel's staff; a
+                    // viewer's card, or the owner's look as one, has none.
+                    recent: {
+                        guard account.seesBoards else { return [] }
+                        return lines.filter { $0.userId == line.userId && !$0.text.isEmpty }.map(\.text)
+                    }
                 ) {
                     reply(to: line)
                 }
@@ -414,7 +419,8 @@ struct ChatLineView: View {
     var mayModerate: Bool
     @Binding var error: String?
     @Binding var banned: Banned?
-    /// The chatter's lines in this log, read when their card opens.
+    /// The chatter's lines in this log, read when their card opens; empty
+    /// for a login that isn't staff.
     var recent: () -> [String]
     /// Starts a reply to this line in the composer.
     var reply: () -> Void
