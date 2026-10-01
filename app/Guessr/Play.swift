@@ -24,6 +24,7 @@ struct PlayView: View {
     /// stack the clip over the map.
     @Environment(\.verticalSizeClass) private var heightClass
     @Environment(GameCenter.self) private var gameCenter
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let client = GuessrClient()
 
@@ -141,7 +142,8 @@ struct PlayView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .sensoryFeedback(.selection, trigger: pin?.latitude)
+        // A tick as a pin lands, and none as "Next round" clears it.
+        .sensoryFeedback(.selection, trigger: pin?.latitude) { _, now in now != nil }
         .sensoryFeedback(trigger: revealed) { _, shown in
             shown ? progress.played.last.map { Self.feedback(for: $0.score.points) } : nil
         }
@@ -315,7 +317,11 @@ struct PlayView: View {
             // Off the reveal's path: the server reads the standing off its
             // own table, so this carries nothing the reveal waits on.
             if score.recorded { Task { await gameCenter.sync(player, with: client) } }
-            (revealed, message, camera) = (true, nil, .region(Self.fit(at, score.answer)))
+            // The map travels from the guess out to the answer, and the reveal
+            // grows in around it, rather than cutting to both.
+            withAnimation(reduceMotion ? nil : .smooth(duration: 0.8)) {
+                (revealed, message, camera) = (true, nil, .region(Self.fit(at, score.answer)))
+            }
         } catch let error as GuessrError where error.isFinal {
             // Refused, so retrying gets the same answer: say what the server said.
             day = nil
@@ -403,6 +409,8 @@ struct DayResultView: View {
     /// The round whose clip is playing again, by image: a map pin's selection
     /// tag sets it.
     @State private var replaying: String?
+    /// The total's size, grown and shrunk with the reader's text size.
+    @ScaledMetric(relativeTo: .largeTitle) private var headline = 44.0
 
     static var nextDaily: Date {
         Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now)) ?? .now
@@ -438,7 +446,7 @@ struct DayResultView: View {
                     Text("You have completed today's game").font(.caption).foregroundStyle(.secondary)
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text(progress.total.formatted())
-                            .font(.system(size: 44, weight: .bold, design: .serif))
+                            .font(.system(size: headline, weight: .bold, design: .serif))
                             .monospacedDigit()
                         Text("/ \((progress.played.count * 5000).formatted())").foregroundStyle(.secondary)
                     }
@@ -528,9 +536,12 @@ struct ClipView: View {
     /// Full screen is the same player and gestures on a cover of their own,
     /// so the loop carries on across the switch rather than restarting.
     @State private var full = false
+    /// Full screen grows out of the clip and shrinks back into it.
+    @Namespace private var cover
 
     var body: some View {
         surface(fills: fills)
+            .matchedTransitionSource(id: url, in: cover)
             .accessibilityElement()
             .accessibilityLabel(paused ? "Clip, paused" : "Clip")
             .accessibilityAction(named: paused ? "Play" : "Pause") { togglePause() }
@@ -553,6 +564,10 @@ struct ClipView: View {
                     .statusBarHidden()
                     .accessibilityElement(children: .contain)
                     .accessibilityAction(.escape) { full = false }
+                    .navigationTransition(.zoom(sourceID: url, in: cover))
+                    // The zoom's swipe down to close would take a zoomed
+                    // picture's downward pan.
+                    .interactiveDismissDisabled(zoom.scale > 1)
             }
             // A tab switch runs this again on the way back, onto the player the
             // disappearance emptied: a fresh looper picks up where the last one left.
@@ -643,31 +658,39 @@ struct ClipView: View {
         if paused { player.pause() } else { player.play() }
     }
 
+    /// A gesture stretches past the zoom's limits while the fingers are down,
+    /// and on release springs back inside them, the way Photos does.
     private func pinch(_ size: CGSize, aspect: Double?) -> some Gesture {
-        MagnifyGesture()
-            .onChanged { value in
-                live = zoom.zoomed(
-                    by: value.magnification,
-                    aboutX: value.startLocation.x - size.width / 2, y: value.startLocation.y - size.height / 2,
-                    width: size.width, height: size.height, aspect: aspect)
-            }
-            .onEnded { _ in
-                zoom = live ?? zoom
-                live = nil
-            }
+        func zoomed(_ value: MagnifyGesture.Value, elastic: Bool) -> ClipZoom {
+            zoom.zoomed(
+                by: value.magnification,
+                aboutX: value.startLocation.x - size.width / 2, y: value.startLocation.y - size.height / 2,
+                width: size.width, height: size.height, aspect: aspect, elastic: elastic)
+        }
+        return MagnifyGesture()
+            .onChanged { live = zoomed($0, elastic: true) }
+            .onEnded { value in settle(zoomed(value, elastic: false)) }
     }
 
+    /// A pan carries on past the finger's release to where its speed was taking
+    /// it, as a scroll view does, and stops at the picture's edge.
     private func pan(_ size: CGSize, aspect: Double?) -> some Gesture {
         DragGesture()
             .onChanged { value in
                 live = zoom.panned(
                     dx: value.translation.width, dy: value.translation.height, width: size.width, height: size.height,
-                    aspect: aspect)
+                    aspect: aspect, elastic: true)
             }
-            .onEnded { _ in
-                zoom = live ?? zoom
-                live = nil
+            .onEnded { value in
+                settle(
+                    zoom.panned(
+                        dx: value.predictedEndTranslation.width, dy: value.predictedEndTranslation.height,
+                        width: size.width, height: size.height, aspect: aspect))
             }
+    }
+
+    private func settle(_ to: ClipZoom) {
+        withAnimation(.smooth(duration: 0.4)) { (zoom, live) = (to, nil) }
     }
 }
 
@@ -781,6 +804,7 @@ struct RevealCard: View {
     let round: PlayedRound
     /// The points roll up from zero as the reveal's haptic lands.
     @State private var counted = 0.0
+    @ScaledMetric(relativeTo: .largeTitle) private var headline = 44.0
     @AppStorage("kilometers") private var kilometers = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -788,7 +812,7 @@ struct RevealCard: View {
         let band = Share.square(for: round.score.points) == "⬜" ? nil : Color.band(for: round.score.points)
         VStack(spacing: 2) {
             CountUp(value: counted)
-                .font(.system(size: 44, weight: .bold, design: .serif))
+                .font(.system(size: headline, weight: .bold, design: .serif))
                 .monospacedDigit()
                 .accessibilityLabel(round.score.points.formatted())
             Text("points").font(.caption).textCase(.uppercase).foregroundStyle(.secondary)
