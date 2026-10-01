@@ -70,7 +70,7 @@ LEADERBOARD = {
 # sum to Apple's cap of 1000. The two hidden ones are the surprises.
 ACHIEVEMENTS = [
     (
-        "first-pin",
+        "first_pin",
         "First Pin",
         50,
         True,
@@ -86,7 +86,7 @@ ACHIEVEMENTS = [
         "You put a pin within 10 km of the van.",
     ),
     (
-        "golden-day",
+        "golden_day",
         "Golden Day",
         100,
         True,
@@ -94,7 +94,7 @@ ACHIEVEMENTS = [
         "You scored 20,000 in a day.",
     ),
     (
-        "week-streak",
+        "week_streak",
         "Seven Days Running",
         100,
         True,
@@ -110,7 +110,7 @@ ACHIEVEMENTS = [
         "You played a hundred rounds.",
     ),
     (
-        "perfect-round",
+        "perfect_round",
         "Perfect Round",
         150,
         True,
@@ -118,7 +118,7 @@ ACHIEVEMENTS = [
         "You scored a perfect 5,000 on a round.",
     ),
     (
-        "perfect-day",
+        "perfect_day",
         "Perfect Day",
         250,
         False,
@@ -126,7 +126,7 @@ ACHIEVEMENTS = [
         "Five perfect rounds in one day.",
     ),
     (
-        "top-ten",
+        "top_ten",
         "Top Ten",
         150,
         False,
