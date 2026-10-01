@@ -14,12 +14,3 @@ version.json
 
 # A naming template in the migrations section of the README, not a file.
 NNNN_snake_case_description.sql
-
-# Named in web/admin/notes.html to explain why the page is *not* called this:
-# Pages serves a page at its extensionless path, so players.html would answer at
-# /admin/players, which is the Function that page calls.
-players.html
-
-# Named in web/admin/scores.html for the same reason, one page over: plays.html
-# would answer at /admin/plays, which is the Function that page calls.
-plays.html

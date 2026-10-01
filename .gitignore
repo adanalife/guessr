@@ -4,8 +4,8 @@
 #
 # The media could never be committed anyway — a set is ~125 MB of mp4 and this
 # repo is public, so it would land in history on every regeneration, permanently
-# and irreversibly. `task clips:push` sends it to the bucket, and
-# functions/clips/[[path]].js streams it back out at request time.
+# and irreversibly. `task clips:push` sends it to the bucket, and the Worker's
+# /clips/ route streams it back out at request time.
 #
 # A generation in progress belongs nowhere either: make_rounds.py builds into
 # .staging and moves the previous clips aside.
@@ -34,6 +34,8 @@ web/version.json
 
 # `task dev`'s local D1 and wrangler's scratch state.
 .wrangler/
+# `task dev` rebuilds this from answers.sql and rounds.sql on every run.
+/answers.db
 
 # `task backup:prod`. A dump of the production database holds the whole `answers`
 # table, which is the answer key, and every row of `plays`, which carries player

@@ -49,7 +49,7 @@ async def fetch(url, headers=None):
     """The outbound seam over the runtime's fetch. Raises when no response
     arrives, which is what /api/live and the admin gate both expect.
 
-    The feed alone is edge-cached, per status as functions/api/live.js has it:
+    The feed alone is edge-cached, per status:
     a success for live.TTL, a failure not at all. Nothing else may be -- a
     Twitch validate cached by URL would answer one caller's token with
     another's identity."""

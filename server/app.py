@@ -1,4 +1,4 @@
-"""The HTTP surface: every route the Pages Functions serve, as one Starlette app
+"""The HTTP surface: every route the game has, as one Starlette app
 over the framework-free handlers beside it.
 
 ASGI is the point of Starlette here. The same app runs under Python Workers'
@@ -12,9 +12,9 @@ not at import. Anywhere they are fixed it is a lambda returning the same three.
 
 Everything under /admin is gated before routing, so a caller who is not the
 owner learns nothing about which admin paths exist or which methods they take:
-401 or 403 for all of it, the same as functions/admin/_middleware.js gating the
-whole directory. The Worker also receives /admin/ itself, whose page is not
-served here.
+401 or 403 for all of it. The Worker also receives /admin/ itself, which no
+page answers: the console and tempomat are the admin surfaces, and they call the
+routes below.
 
 A handler answers (status, body[, headers]). A dict body is JSON; anything else
 is a clip's: bytes, an async iterator of bytes, or None for no body.
@@ -103,7 +103,7 @@ ROUTES = [
     ),
 ]
 
-# The clip route answers every method itself, 405 included, as the Function does.
+# The clip route answers every method itself, 405 included.
 EVERY_METHOD = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 
 

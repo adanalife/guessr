@@ -36,9 +36,9 @@ vars:
   # a disk, and a worktree that has never built finds the packages already
   # present, so its first build needs no network (the tool sandbox has none).
   SPM_CLONES: '$HOME/Library/Caches/adanalife/SourcePackages/guessr'
-  # The local D1 wrangler keeps under .wrangler/, migrated then seeded from the
-  # two generated files. Not the deployed databases — those are targeted by name.
-  LOCAL_DB: 'guessr-answers-local'
+  # The sqlite file `dev` serves from, migrated then seeded from the two
+  # generated files. Gitignored, and rebuilt on every run.
+  LOCAL_DB: 'answers.db'
 
 tasks:
   default:
@@ -67,7 +67,7 @@ tasks:
 
   # The media half of a round set. web/clips/ is gitignored -- a set is ~150 MB
   # and this repo is public -- so the bucket is where the served game reads it
-  # from: functions/clips/[[path]].js streams each clip out of R2 at request
+  # from: the Worker's /clips/ route streams each clip out of R2 at request
   # time. No deploy is involved, which is what lets a round set change without
   # one. See clips.sh for why it is one object per clip rather than a tarball.
   #
@@ -97,26 +97,24 @@ tasks:
       - python3 -m http.server -d web {{.PORT}}
 
   dev:
-    desc: Run the game with scoring, against a local D1 seeded from answers.sql
-    # Sequenced through cmds rather than listed as deps, because deps run in
-    # parallel and these two write the same SQLite file: concurrently they take
-    # it out with SQLITE_BUSY or SQLITE_READONLY, and the runtime then refuses to
-    # start on a database that reads as broken rather than unseeded. Ordinarily
-    # survivable only because a `.wrangler/` that already has the tables makes
-    # both a no-op -- so it bites hardest on a fresh checkout.
+    desc: Run the game with scoring, under uvicorn against a sqlite file seeded from answers.sql and rounds.sql
+    # A fresh database every run: the migrations replay from scratch and the
+    # seed SQL upserts, so the cheapest way to pick up a regenerated set is to
+    # rebuild from the two files rather than reconcile. Answers before rounds --
+    # the schedule's foreign keys point at the answers.
+    #
+    # The clips come from web/clips/, which `task rounds` writes and `clips:pull`
+    # fetches. Nobody is admitted to /admin/ unless TWITCH_OWNER_ID,
+    # TWITCH_CHANNEL_ID and TWITCH_CLIENT_IDS are in the environment
+    # (server/local.py's docstring).
     cmds:
-      - task: schema:local:apply
-      - task: answers:local:push
-      - task: rounds:local:push
-      # A tier for the admin surface to read, and it gates that surface
-      # twice: the day preview treats "no idea" as production, and the Access
-      # login treats it as "sign in", which nothing can do against localhost. So
-      # without this the one surface where a round set can be changed and looked
-      # at in the same minute locks itself out. Gitignored, like every other copy
-      # of this file, and it fills the About panel's empty version line as a side
-      # effect.
+      - rm -f {{.LOCAL_DB}}
+      - uv run --project api python -c "from server.db import Sqlite; db = Sqlite('{{.LOCAL_DB}}').migrate(); [db.conn.executescript(open(f).read()) for f in ('answers.sql', 'rounds.sql')]"
+      # A tier for the page to read: it gates the Place-random and Reset buttons,
+      # which a local game wants. Gitignored, like every other copy of this
+      # file, and it fills the About panel's empty version line as a side effect.
       - printf '{"label":"local","tier":"local"}\n' > web/version.json
-      - npx wrangler pages dev web/ --port {{.PORT}} --d1 ANSWERS={{.LOCAL_DB}}
+      - GUESSR_DB={{.LOCAL_DB}} GUESSR_CLIPS=web/clips PORT={{.PORT}} uv run --project api python -m server.local
 
   # What the Python Worker ships, staged apart from the repo (the script says
   # why). staging.yml runs the same script before its deploy.
@@ -144,20 +142,6 @@ tasks:
     cmds:
       - uv run pywrangler dev {{.CLI_ARGS}}
 
-  answers:local:push:
-    desc: Seed answers.sql into the local D1 that `dev` binds
-    cmds:
-      - npx wrangler d1 execute {{.LOCAL_DB}} --local --config wrangler.d1.jsonc --file answers.sql --yes
-
-  # Without this a local `dev` serves a game with no rounds in it: /api/day reads
-  # the schedule, and an unseeded database has none. It is the one seed step the
-  # page cannot start without, where a missing answers push only shows up on the
-  # first guess.
-  rounds:local:push:
-    desc: Seed rounds.sql (the pool and the schedule) into the local D1 that `dev` binds
-    cmds:
-      - npx wrangler d1 execute {{.LOCAL_DB}} --local --config wrangler.d1.jsonc --file rounds.sql --yes
-
   # The tables, as opposed to the rows a round set fills in. Numbered migrations
   # under migrations/, applied in order and recorded in each database's own
   # `d1_migrations` ledger — so "which tier is at which version" is a question
@@ -170,11 +154,6 @@ tasks:
   #
   # `apply` auto-confirms its prompt when stdout is not a terminal, so these are
   # safe from a script; run by hand you get the confirmation.
-  schema:local:apply:
-    desc: Apply pending migrations to the local D1 that `dev` binds
-    cmds:
-      - npx wrangler d1 migrations apply {{.LOCAL_DB}} --local --config wrangler.d1.jsonc
-
   # An apply is not atomic across migrations: each one is recorded in the
   # `d1_migrations` ledger as it lands, so a remote apply that dies partway (D1's
   # `storage operation exceeded timeout ... [code: 7429]`, which has followed a
@@ -521,24 +500,14 @@ tasks:
       # uv, for the one dependency the server tests need: Starlette.
       - for f in test_*.py; do echo "== $f"; uv run --project api python "$f" || exit 1; done
 
-  # The tier between `test` and `smoke`: a real D1 and a real workerd, both
-  # disposable. `test` proves handler logic against a stub of the binding;
-  # `smoke` proves a deployed tier; this proves the two ends meet -- migrations
-  # apply, Pages routes, the bindings are wired, and every route answers the
-  # HTTP contract in contract.py. It writes rounds.sql and answers.sql, and
-  # refuses to run if those hold a real set.
+  # The tier between `test` and `smoke`: the whole app under uvicorn over a
+  # throwaway sqlite file and clip directory, with Twitch stubbed at the fetch
+  # seam, held to every route's HTTP contract in contract.py. `test` proves
+  # handler logic; `smoke` proves a deployed tier; this proves the two ends meet
+  # -- migrations apply, routes resolve, every answer has the promised shape.
+  # Touches nothing in the repo; its world is a temp dir.
   test:integration:
-    desc: Assert every route's HTTP contract against a throwaway local D1 and R2
-      (no corpus needed)
-    cmds:
-      - ./integration.sh
-
-  # The same contract against the other runtime: the Python app under uvicorn,
-  # over a sqlite file and a clip directory, with Twitch stubbed at the fetch
-  # seam. Both passing is what keeps guessr portable off Cloudflare. Touches
-  # nothing in the repo; its world is a temp dir.
-  test:integration:py:
-    desc: Assert the same HTTP contract against the Python app under uvicorn
+    desc: Assert every route's HTTP contract against the app under uvicorn (no corpus needed)
     cmds:
       - uv run --project api python integration_uvicorn.py
 

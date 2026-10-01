@@ -17,9 +17,9 @@
 // Both lists are the road trip: weather, light, distance and pace on one side,
 // landscape and roadside on the other.
 
-// The words themselves are in alias.json, which is the one copy: this module,
-// the Pages Functions that bundle it, and the Python server all load that file,
-// and the app's Swift copy is held to it by a test.
+// The words themselves are in alias.json, which is the one copy: this module
+// and the Python server both load that file, and the app's Swift copy is held
+// to it by a test.
 import WORDS from './alias.json' with { type: 'json' };
 
 export const ADJECTIVES = WORDS.adjectives;

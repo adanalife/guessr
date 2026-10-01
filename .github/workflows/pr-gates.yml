@@ -60,11 +60,11 @@ jobs:
         with:
           node-version-file: .tool-versions
 
-      # The node tests: the daily-round draw, the frame-pane viewport math, the
-      # scoring curve plus the validator on /api/score, the leaderboard boards,
-      # the generated aliases and the device merge. All sub-second and needing no
-      # corpus or database, which is why they belong here as a step rather than a
-      # job.
+      # The node tests: the page's own modules -- the daily-round draw, the
+      # frame-pane viewport math, the generated aliases, the share string, the
+      # device-link client -- and the Pages forwarder. All sub-second and needing
+      # no corpus or database, which is why they belong here as a step rather
+      # than a job.
       #
       # Globbed, not listed. A listed test file is one somebody has to remember
       # to add in two places, and a test nobody adds is a test that fails by
@@ -144,25 +144,12 @@ jobs:
           sqlite3 /tmp/baseline-check.db < migrations/0001_initial_schema.sql
           sqlite3 /tmp/baseline-check.db < migrations/0001_initial_schema.sql
 
-      # And the whole game against a real local D1 -- workerd's own SQLite via
-      # `wrangler --local`, and `wrangler pages dev` for the runtime. The steps
-      # above prove the migrations parse; the node tests above prove the handlers'
-      # logic against a stub of the binding. Neither can say whether Pages routes
-      # to a handler, whether the binding is wired, or how a real D1 answers, and
-      # those are the failures that have cost a deploy each: an endpoint that
-      # 500s on a table nobody created reads as a perfectly green build.
-      #
-      # No new dependency and no service container -- wrangler is already how
-      # this repo deploys. The cost is one uncached `npx wrangler` download per
-      # run, because the repo has no package.json to cache against; worth adding
-      # one if this step ever dominates the job.
-      - name: The game runs against a real local D1
-        run: ./integration.sh
-
-      # And the same contract against the other runtime: the Python app under
-      # uvicorn over a sqlite file. The two runs are what make "portable off
-      # Cloudflare" a verdict rather than a claim -- a route one runtime answers
-      # differently from the other goes red here.
+      # And the whole game under uvicorn over a throwaway sqlite file, held to
+      # contract.py: every route's statuses, shapes and guards over HTTP. The
+      # steps above prove the migrations parse and the unit tests prove handler
+      # logic; this is what says the app routes, migrates and answers as one --
+      # an endpoint that 500s on a table nobody created reads as a perfectly
+      # green build everywhere else.
       - name: The game runs under uvicorn
         run: uv run --project api python integration_uvicorn.py
 

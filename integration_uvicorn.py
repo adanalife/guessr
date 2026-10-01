@@ -2,7 +2,7 @@
 """contract.py against the Python app under uvicorn, the stack guessr runs on
 anywhere that is not Cloudflare.
 
-integration.sh's world, built without wrangler: fixture.py's round set and
+The world it builds, with no wrangler: fixture.py's round set and
 contract.py's seed played into a sqlite file migrated from migrations/, and the
 same one clip -- the furthest day's opener -- in a directory standing in for
 the bucket. server/local.py serves it all, static site included.
@@ -12,7 +12,7 @@ contract.OWNER_TOKEN as the owner and refuses every other token, and passes
 anything else (the YouTube feed) through to the network. So the gate itself is
 real; only Twitch's side of it is not.
 
-    uv run --project api python integration_uvicorn.py   # task test:integration:py
+    uv run --project api python integration_uvicorn.py   # task test:integration
 """
 
 import json
@@ -34,7 +34,10 @@ from server.db import Sqlite
 HERE = Path(__file__).resolve().parent
 PORT = int(os.environ.get("PORT", "8789"))
 BASE = f"http://127.0.0.1:{PORT}"
-DAYS = os.environ.get("DAYS", "6")  # see integration.sh: the reject needs six
+DAYS = os.environ.get(
+    "DAYS", "6"
+)  # the admin reject is paid for out of the furthest day, which
+# has to lie beyond one that is never open yet (see contract.py)
 OWNER, APP = "1", "contract-app"
 ADMINS = Admins(
     owner_ids=frozenset({OWNER}), channel_id="2", client_ids=frozenset({APP})

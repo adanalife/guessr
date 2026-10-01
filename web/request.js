@@ -41,8 +41,8 @@ export const request = withDeadline(TIMEOUT_MS);
 // login.
 //
 // A response means the request arrived and the status is the whole finding --
-// it is only here because the body would not parse, which for a Function is an
-// error page rather than the JSON every one of these routes answers with. No
+// it is only here because the body would not parse, which means an error page
+// rather than the JSON every one of these routes answers with. No
 // response means it never landed.
 export const failure = (path, res) =>
   res ? `${path} answered ${res.status}` : `could not reach ${path}`;

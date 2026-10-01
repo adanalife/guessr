@@ -6,8 +6,8 @@ things that already ship assume this exists:
 
 - `clip_name()` puts the moment in the filename specifically so a re-cut can land
   at the URL players already hold.
-- `functions/clips/[[path]].js` serves clips with a year-long `immutable` cache
-  header, which is only safe because a rebuild cannot put *different* footage at a
+- the Worker's `/clips/` route (`server/clips.py`) serves clips with a year-long
+  `immutable` cache header, which is only safe because a rebuild cannot put *different* footage at a
   name someone has cached.
 - two closed TODO items name it as the recovery step for a stale `clip_ts_sec` and
   for watermarking a clip cut before the watermark existed.
@@ -54,7 +54,7 @@ def parse_image(image: str) -> tuple[str, int | None]:
     oldest rounds, the ones likeliest to have lost their media, out of reach of the
     tool that exists to restore it.
 
-    The six-digit floor is the same one `functions/clips/[[path]].js` applies to
+    The six-digit floor is the same one `server/clips.py` applies to
     decide whether a name may be cached forever, and the two have to agree: a
     legacy slug ending in `-123` reads as a moment to a rule with no length floor
     and as no moment to the worker's. The disagreement fails safe -- `check` would

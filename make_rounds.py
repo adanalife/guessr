@@ -9,8 +9,8 @@ than a deploy.
 
 The split is the point: a pool carrying the true lat/lng lets any player read
 the answer out of devtools, so the coords go to D1 instead (`task
-answers:{stage,prod}:push`) and functions/api/score.js is what turns a guess into
-points. Nothing under web/ says where a clip was taken.
+answers:{stage,prod}:push`) and /api/score (server/score.py) is what turns a guess
+into points. Nothing under web/ says where a clip was taken.
 
 A run builds into web/.staging and only moves the result into place once check.py
 passes on it. A run that dies on an unmounted corpus or an unreachable database
