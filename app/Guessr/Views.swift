@@ -179,7 +179,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Game Center")
                 } footer: {
-                    Text("Your lifetime and monthly points and your achievements reach Game Center from the server as you play.")
+                    Text("Your lifetime and weekly points and your achievements reach Game Center from the server as you play.")
                 }
             }
             Section("Appearance") {

@@ -19,6 +19,7 @@ before release, and a submission to the prerelease configuration needs none.
 Reads ASC_KEY_PATH, ASC_KEY_ID and ASC_ISSUER_ID, as `task ios:release` does.
 """
 
+import datetime
 import json
 import os
 import sys
@@ -32,22 +33,29 @@ API = "https://api.appstoreconnect.apple.com/v1"
 BUNDLE_ID = "lol.dana.guessr"
 LOCALE = "en-US"
 
-# (vendor suffix, reference name, attributes). The monthly board recurs from
-# the first of each month. Apple takes the occurrence's length only in time
-# components, so it is 31 days rather than a month: a short month's occurrence
-# runs a day or three into the next, and a play made then lands in both. The
-# submission is the calendar month's total under best score, so the earlier
-# occurrence keeps the earlier month's figure and the overlap costs nothing
-# unless a player's first points of the new month arrive in those days.
+
+def next_monday() -> str:
+    """Midnight UTC of the coming Monday: a recurrence may not start in the
+    past, and the weekly board turns over Monday to Monday, which is the week
+    server/gamecenter.py sums."""
+    today = datetime.datetime.now(datetime.UTC).date()
+    monday = today + datetime.timedelta(days=(7 - today.weekday()) % 7 or 7)
+    return f"{monday.isoformat()}T00:00:00Z"
+
+
+# (vendor suffix, reference name, attributes). The weekly board is seven-day
+# occurrences, which is what Apple's recurrence allows: at most 30 days, by
+# minutes, hours or days, never overlapping -- a calendar month is not
+# expressible, which is why the game's monthly board has no Game Center twin.
 LEADERBOARDS = [
     ("lifetime", "All Time", {}),
     (
-        "monthly",
-        "This Month",
+        "weekly",
+        "This Week",
         {
-            "recurrenceStartDate": "2026-10-01T00:00:00Z",
-            "recurrenceDuration": "PT744H",
-            "recurrenceRule": "FREQ=MONTHLY;INTERVAL=1",
+            "recurrenceStartDate": next_monday(),
+            "recurrenceDuration": "PT168H",
+            "recurrenceRule": "FREQ=DAILY;INTERVAL=7",
         },
     ),
 ]

@@ -11,6 +11,7 @@ with the wrong audience is a 401 from Apple that the app never sees.
 
 import asyncio
 import base64
+import datetime as dt
 import json
 
 from server import gamecenter as gc
@@ -44,26 +45,39 @@ async def seed(db, plays):
 
 # --- standing ---------------------------------------------------------------
 
-assert gc.standing([], "2026-10") == ({}, {})
+# 2026-10-01 is a Thursday in ISO week 40; the week turns over on Monday the 5th.
+WEEK = (2026, 40)
+assert gc.week_of(dt.datetime(2026, 10, 1, 12, tzinfo=dt.UTC)) == WEEK
+assert gc.week_of(dt.datetime(2026, 10, 4, 23, 59, tzinfo=dt.UTC)) == WEEK
+assert gc.week_of(dt.datetime(2026, 10, 5, 0, 0, tzinfo=dt.UTC)) == (2026, 41)
+
+assert gc.standing([], WEEK) == ({}, {})
 
 rows = [{"date": "2026-10-01", "km": 50, "points": 3000}]
-scores, percents = gc.standing(rows, "2026-10")
-assert scores == {gc.LIFETIME: 3000, gc.MONTHLY: 3000}, scores
+scores, percents = gc.standing(rows, WEEK)
+assert scores == {gc.LIFETIME: 3000, gc.WEEKLY: 3000}, scores
 assert percents == {gc.FIRST_PIN: 100, gc.WEEK_STREAK: 14, gc.CENTURY: 1}, percents
 
-# Last month's plays count for life, not for the month.
-scores, _ = gc.standing(rows, "2026-11")
+# Last week's plays count for life, not for the week; a Sunday and the Monday
+# after it are different weeks.
+scores, _ = gc.standing(rows, (2026, 41))
 assert scores == {gc.LIFETIME: 3000}, scores
+sunday_monday = [
+    {"date": "2026-10-04", "km": 1, "points": 10},
+    {"date": "2026-10-05", "km": 1, "points": 20},
+]
+assert gc.standing(sunday_monday, WEEK)[0][gc.WEEKLY] == 10
+assert gc.standing(sunday_monday, (2026, 41))[0][gc.WEEKLY] == 20
 
 # A bullseye is under BULLSEYE_KM; at it is not.
-assert gc.BULLSEYE in gc.standing([{**rows[0], "km": 9.9}], "2026-10")[1]
-assert gc.BULLSEYE not in gc.standing([{**rows[0], "km": 10}], "2026-10")[1]
+assert gc.BULLSEYE in gc.standing([{**rows[0], "km": 9.9}], WEEK)[1]
+assert gc.BULLSEYE not in gc.standing([{**rows[0], "km": 10}], WEEK)[1]
 
 # A golden day is one date's rounds summing to the threshold, not a lifetime sum.
 golden = [{"date": "2026-10-01", "km": 1, "points": 4000} for _ in range(5)]
-assert gc.GOLDEN_DAY in gc.standing(golden, "2026-10")[1]
+assert gc.GOLDEN_DAY in gc.standing(golden, WEEK)[1]
 spread = [{"date": f"2026-10-0{i}", "km": 1, "points": 4000} for i in range(1, 6)]
-assert gc.GOLDEN_DAY not in gc.standing(spread, "2026-10")[1]
+assert gc.GOLDEN_DAY not in gc.standing(spread, WEEK)[1]
 
 # A streak is consecutive dates; a gap restarts it; multiple rounds a day count once.
 assert gc.longest_streak([]) == 0
@@ -76,22 +90,22 @@ assert (
 )
 assert gc.longest_streak(["2026-09-30", "2026-10-01"]) == 2
 week = [{"date": f"2026-10-{d:02d}", "km": 1, "points": 1} for d in range(1, 8)]
-assert gc.standing(week, "2026-10")[1][gc.WEEK_STREAK] == 100
-assert gc.standing(week[:3], "2026-10")[1][gc.WEEK_STREAK] == 42
+assert gc.standing(week, WEEK)[1][gc.WEEK_STREAK] == 100
+assert gc.standing(week[:3], WEEK)[1][gc.WEEK_STREAK] == 42
 
 # The century caps at 100.
-assert gc.standing([rows[0]] * 250, "2026-10")[1][gc.CENTURY] == 100
+assert gc.standing([rows[0]] * 250, WEEK)[1][gc.CENTURY] == 100
 
 # A perfect round is the maximum exactly; a perfect day is five of them on one date.
-assert gc.PERFECT_ROUND in gc.standing([{**rows[0], "points": 5000}], "2026-10")[1]
-assert gc.PERFECT_ROUND not in gc.standing([{**rows[0], "points": 4999}], "2026-10")[1]
+assert gc.PERFECT_ROUND in gc.standing([{**rows[0], "points": 5000}], WEEK)[1]
+assert gc.PERFECT_ROUND not in gc.standing([{**rows[0], "points": 4999}], WEEK)[1]
 perfect = [{"date": "2026-10-01", "km": 0, "points": 5000} for _ in range(5)]
-assert gc.PERFECT_DAY in gc.standing(perfect, "2026-10")[1]
+assert gc.PERFECT_DAY in gc.standing(perfect, WEEK)[1]
 assert (
     gc.PERFECT_DAY
-    not in gc.standing(perfect[:4] + [{**perfect[0], "points": 4999}], "2026-10")[1]
+    not in gc.standing(perfect[:4] + [{**perfect[0], "points": 4999}], WEEK)[1]
 )
-assert gc.PERFECT_DAY not in gc.standing(golden, "2026-10")[1]
+assert gc.PERFECT_DAY not in gc.standing(golden, WEEK)[1]
 
 
 # --- top ten --------------------------------------------------------------
@@ -166,7 +180,7 @@ assert set(body["submitted"]) == {
     gc.BULLSEYE,
     gc.WEEK_STREAK,
     gc.CENTURY,
-} | ({gc.MONTHLY} if gc.rules.month_of() == "2026-10" else set()) | (
+} | ({gc.WEEKLY} if gc.week_of() == WEEK else set()) | (
     {gc.TOP_TEN} if gc.rules.month_of() > "2026-10" else set()
 ), body
 assert "failed" not in body

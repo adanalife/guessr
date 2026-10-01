@@ -65,7 +65,7 @@ before an achievement is released:
 | Identifier | Kind | What |
 | --- | --- | --- |
 | `lol.dana.guessr.lifetime` | classic leaderboard, best score, integer | every point ever |
-| `lol.dana.guessr.monthly` | recurring leaderboard, monthly, best score, integer | the calendar month's points |
+| `lol.dana.guessr.weekly` | recurring leaderboard, 7 days from Monday 00:00 UTC, best score, integer | the ISO week's points |
 | `lol.dana.guessr.first-pin` | achievement | a first round played |
 | `lol.dana.guessr.bullseye` | achievement | a guess inside 10 km |
 | `lol.dana.guessr.golden-day` | achievement | five rounds in a day totaling 20,000 |
@@ -73,7 +73,11 @@ before an achievement is released:
 | `lol.dana.guessr.century` | achievement, progressive | a hundred rounds |
 | `lol.dana.guessr.perfect-round` | achievement | 5,000 on a round |
 | `lol.dana.guessr.perfect-day` | achievement | 5,000 on all five rounds of a day |
-| `lol.dana.guessr.top-ten` | achievement | a finished month in the monthly board's top ten |
+| `lol.dana.guessr.top-ten` | achievement | a finished month in the game's monthly board's top ten |
+
+The second board is a week, not the game's month: a Game Center recurring
+leaderboard runs at most 30 days, recurs only by minutes, hours or days, and
+may not overlap, so a calendar month cannot be expressed.
 
 Whether an achievement is browsable before it is earned, or hidden until then,
 is the per-achievement *Hidden* setting in App Store Connect, not anything in

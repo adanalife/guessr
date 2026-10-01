@@ -3,8 +3,11 @@ standing, computed here from `plays` and submitted to Apple from here.
 
 The client never names a score. It says which Game Center player it is signed
 in as, and the server submits what the plays table says that guessr player has
-earned: the lifetime total, the month's total, and how far along each
-achievement is. A modified app can therefore submit nothing the real game did
+earned: the lifetime total, the week's total, and how far along each
+achievement is. The second board is a week rather than the game's own
+month because a Game Center recurring leaderboard runs at most 30 days
+and recurs only by minutes, hours or days; a Monday-to-Monday week is the
+cadence that lines up exactly. A modified app can therefore submit nothing the real game did
 not record, which is the whole reason the submission is server-side rather than
 a `GKLeaderboard.submitScore` in the app.
 
@@ -31,7 +34,7 @@ PRERELEASED = True
 # Vendor identifiers, as configured in App Store Connect; app/README.md lists
 # what each is.
 LIFETIME = f"{BUNDLE_ID}.lifetime"
-MONTHLY = f"{BUNDLE_ID}.monthly"
+WEEKLY = f"{BUNDLE_ID}.weekly"
 FIRST_PIN = f"{BUNDLE_ID}.first-pin"
 BULLSEYE = f"{BUNDLE_ID}.bullseye"
 GOLDEN_DAY = f"{BUNDLE_ID}.golden-day"
@@ -74,7 +77,13 @@ def longest_streak(dates) -> int:
     return best
 
 
-def standing(rows: list[dict], month: str) -> tuple[dict, dict]:
+def week_of(now: dt.datetime | None = None) -> tuple[int, int]:
+    """The ISO week (year, number) the weekly board covers, Monday to Monday
+    in UTC, which is when its Game Center occurrence turns over."""
+    return (now or dt.datetime.now(dt.UTC)).date().isocalendar()[:2]
+
+
+def standing(rows: list[dict], week: tuple[int, int]) -> tuple[dict, dict]:
     """(leaderboard scores, achievement percentages) for one player's plays,
     each row carrying date, km and points. Only what is worth submitting: a
     zero score or a zero percent is left out."""
@@ -83,7 +92,11 @@ def standing(rows: list[dict], month: str) -> tuple[dict, dict]:
         by_date[r["date"]] = by_date.get(r["date"], 0) + r["points"]
     scores = {
         LIFETIME: sum(by_date.values()),
-        MONTHLY: sum(p for d, p in by_date.items() if d.startswith(month + "-")),
+        WEEKLY: sum(
+            p
+            for d, p in by_date.items()
+            if dt.date.fromisoformat(d).isocalendar()[:2] == week
+        ),
     }
     percents = {
         FIRST_PIN: 100 if rows else 0,
@@ -140,9 +153,8 @@ async def sync(db, body, asc, fetch, now=None) -> tuple[int, dict]:
     rows = await db.fetchall(
         "SELECT date, km, points FROM plays WHERE player_id = ?", ids["player_id"]
     )
-    month = rules.month_of(now)
-    scores, percents = standing(rows, month)
-    if await top_ten_months(db, ids["player_id"], month):
+    scores, percents = standing(rows, week_of(now))
+    if await top_ten_months(db, ids["player_id"], rules.month_of(now)):
         percents[TOP_TEN] = 100
     base = {
         "bundleId": BUNDLE_ID,
