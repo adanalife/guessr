@@ -61,6 +61,22 @@ final class PreviewingGuessr: URLProtocol, @unchecked Sendable {
     }
 }
 
+/// Answers every request with the progress fixture and keeps the last request.
+final class RecordingGuessr: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var lastBody: [String: Any] = [:]
+    nonisolated(unsafe) static var lastPath: String?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+
+    override func startLoading() {
+        Self.lastPath = request.url?.path
+        Self.lastBody = jsonBody(of: request)
+        answer(self, with: "progress")
+    }
+}
+
 /// Answers every request with the link-code fixture and keeps the last request.
 final class IssuingGuessr: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var lastBody: [String: Any] = [:]
@@ -180,6 +196,31 @@ private let image = "clips/2018_1015_183219_002_opt-026000.mp4"
     #expect(code == LinkCode(code: "K7QM2XPB", expiresAt: "2026-09-28T23:59:00Z"))
     #expect(IssuingGuessr.lastPath == "/api/link/code")
     #expect(IssuingGuessr.lastBody["player_id"] as? String == player.id)
+}
+
+@Test func recordedRoundsComeBackInDealtOrderWithTheAnswerStandingInForALostPin() async throws {
+    let rounds = try await client(RecordingGuessr.self).progress(on: "2026-09-23", for: player)
+    #expect(RecordingGuessr.lastPath == "/api/progress")
+    #expect(RecordingGuessr.lastBody["date"] as? String == "2026-09-23")
+    #expect(RecordingGuessr.lastBody["player_id"] as? String == player.id)
+    #expect(rounds.count == 2)
+    #expect(rounds[0].guess == Coordinate(lat: 33.76, lng: -118.28))
+    #expect(rounds[0].score.points == 4091)
+    #expect(rounds[0].score.recorded)
+    #expect(rounds[1].guess == rounds[1].score.answer)
+}
+
+@Test func aDayStartedElsewhereSeedsThisDeviceUpToTheFirstGap() throws {
+    let day = try snake.decode(GuessrDay.self, from: fixture("day"))
+    let score = try snake.decode(GuessrScore.self, from: fixture("score"))
+    func played(_ i: Int) -> PlayedRound { PlayedRound(image: day.rounds[i].image, guess: Coordinate(lat: 0, lng: 0), score: score) }
+    let fresh = DayProgress(date: day.date!)
+    #expect(fresh.seeded(from: [played(0), played(1)], in: day).played.count == 2)
+    #expect(fresh.seeded(from: [played(1), played(0)], in: day).played.map(\.image) == [day.rounds[0].image, day.rounds[1].image])
+    #expect(fresh.seeded(from: [played(0), played(2)], in: day).played.count == 1, "a gap ends the resume")
+    #expect(fresh.seeded(from: [played(1)], in: day).played.isEmpty, "nothing without the first round")
+    let local = DayProgress(date: day.date!, played: [played(0), played(1), played(2)])
+    #expect(local.seeded(from: [played(0)], in: day) == local, "the server never shortens a day")
 }
 
 @Test func progressResumesItsOwnDateOnly() throws {

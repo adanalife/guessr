@@ -348,6 +348,17 @@ play would read as a replay of the first's) and deliberately not the IP address
 (NAT makes a household one player, CGNAT makes one phone several, and an address
 stored beside a typed name is personal data this doesn't need).
 
+### Resuming a day elsewhere
+
+`POST /api/progress {date, player_id}` answers the rounds that player has on
+record for the date, in dealt order, each with its score and the answer —
+`{date, rounds: [{image, km, points, guess_lat, guess_lng, lat, lng, state, filmed}]}`.
+A device that remembers fewer rounds than the server adopts the server's list
+up to the first round not played, so a day begun on one device, or under a
+player just linked to, carries on from there. The id is a credential, so it
+travels in a POST body rather than a query string; the answers come back
+because the player already saw them at the reveal.
+
 ### Linking a second device
 
 An id per browser means a player who plays on a phone and a desktop is two
