@@ -70,6 +70,7 @@ extension UIApplication {
 /// line per achievement a sync found new.
 struct AchievementToast: ViewModifier {
     @Environment(GameCenter.self) private var gameCenter
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         content.overlay(alignment: .top) {
@@ -82,7 +83,7 @@ struct AchievementToast: ViewModifier {
                 .background(.regularMaterial, in: Capsule())
                 .shadow(color: .black.opacity(0.3), radius: 10, y: 4)
                 .padding(.top, 8)
-                .transition(.move(edge: .top).combined(with: .opacity))
+                .transition(reduceMotion ? AnyTransition.opacity : .move(edge: .top).combined(with: .opacity))
                 .onTapGesture { gameCenter.newlyEarned = [] }
                 .accessibilityAddTraits(.isButton)
                 .task {

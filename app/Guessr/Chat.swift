@@ -35,6 +35,7 @@ struct ChatLog: View {
     /// content growing under a reader who hasn't moved keeps them following.
     @State private var following = true
     @State private var hasNew = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The last send or moderation Twitch refused, until the next one.
     @State private var error: String?
     /// The last timeout or ban this mod made, offered back as an undo — a
@@ -322,8 +323,11 @@ struct ChatLog: View {
                     }
                     .buttonStyle(.plain)
                     .padding(.bottom, 4)
+                    // Up off the composer it sits on, and back down into it.
+                    .transition(reduceMotion ? AnyTransition.opacity : .move(edge: .bottom).combined(with: .opacity))
                 }
             }
+            .animation(.smooth, value: hasNew)
         }
     }
 
