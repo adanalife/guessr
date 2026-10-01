@@ -34,6 +34,7 @@ task rounds   # needs the corpus mounted + kubectl access to the tripbot DB
 task check    # validates the round set
 task clips:push  # uploads the media to R2, which is where the game reads it from
 task rounds:rebuild IMAGE=clips/<slug>-<ms>.mp4  # restore one lost or corrupt clip
+task reveals  # cut the "where you guessed" stills; then reveals:push, reveals:{stage,prod}:rows
 task test     # scheduling, scoring, the endpoints, the swap; needs neither
 task test:integration  # the whole game against a throwaway local D1
 task dev      # http://localhost:8000, with scoring

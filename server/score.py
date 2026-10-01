@@ -11,6 +11,8 @@ Framework-free: the handler takes the parsed JSON body (None when it failed to
 parse) and returns (status, body), so whatever serves HTTP is a thin shim.
 """
 
+import math
+
 from server import rules
 
 
@@ -47,12 +49,66 @@ async def score(db, body, now=None) -> tuple[int, dict]:
 
     km = rules.haversine_km(guess, answer)
     scored = {"km": km, "points": rules.score_for(km)}
+    reveal = await nearest_reveal(db, guess)
     if not play:
-        return 200, {**scored, **answer, "recorded": False}
+        return 200, {**scored, **answer, "reveal": reveal, "recorded": False}
 
     # The truth goes back either way: a replay already committed a guess for this
     # round once, and the page needs it to draw the map.
-    return 200, {**await _record(db, play, guess, scored), **answer, "recorded": True}
+    kept = await _record(db, play, guess, scored)
+    return 200, {**kept, **answer, "reveal": reveal, "recorded": True}
+
+
+# How far from a pin the nearest still may be and still be "what your guess looks
+# like". Past this the pin is off every road the van drove, and a frame 60 km away
+# is a picture of somewhere else.
+REVEAL_KM = 25
+KM_PER_DEG = 111.2
+
+
+async def nearest_reveal(db, guess: dict) -> dict | None:
+    """The corpus frame nearest the guess, or None when there is none within
+    REVEAL_KM. The pin rather than the answer: a still of where the player
+    *guessed* tells them nothing about the round.
+
+    A latitude band, a longitude window widened by 1/cos(lat), then the nearest by
+    flat-earth distance, which is exact enough to rank points 25 km apart, with
+    haversine on the one winner for the number the page shows."""
+    d_lat = REVEAL_KM / KM_PER_DEG
+    cos = max(math.cos(math.radians(guess["lat"])), 0.01)
+    d_lng = d_lat / cos
+    # Any failure is no reveal rather than a failed guess: the still is decoration
+    # on a score already earned, and a tier whose migrations are behind its deploy
+    # has no table to read at all.
+    try:
+        row = await db.fetchone(
+            """SELECT image, lat, lng FROM reveals
+               WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?
+               ORDER BY (lat - ?) * (lat - ?) + (lng - ?) * (lng - ?) * ?
+               LIMIT 1""",
+            guess["lat"] - d_lat,
+            guess["lat"] + d_lat,
+            guess["lng"] - d_lng,
+            guess["lng"] + d_lng,
+            guess["lat"],
+            guess["lat"],
+            guess["lng"],
+            guess["lng"],
+            cos * cos,
+        )
+    except Exception:  # noqa: BLE001 -- see above: no reveal, never a failed guess
+        return None
+    if not row:
+        return None
+    km = rules.haversine_km(guess, row)
+    if km > REVEAL_KM:
+        return None
+    return {
+        "image": f"reveals/{row['image']}",
+        "lat": row["lat"],
+        "lng": row["lng"],
+        "km": km,
+    }
 
 
 async def _in_draw(db, date: str, image: str) -> bool:
