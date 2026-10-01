@@ -88,6 +88,9 @@ final class Account {
     /// The channel's chat for the signed-in login, made the first time the
     /// Chat tab opens and kept until sign-out, so switching tabs keeps the log.
     private(set) var chat: TwitchChat?
+    /// The ids of the lines the chat opened with from last time, which the
+    /// log draws dimmed under a rule.
+    private(set) var earlierChat: Set<String> = []
     /// Whether Twitch says the signed-in login moderates the channel.
     private(set) var moderates = false
     /// The second login's code, while a mod is asked for the moderation scopes.
@@ -208,6 +211,11 @@ final class Account {
         if chat?.session.userID != session.userID {
             chat?.stop()
             let fresh = TwitchChat(channel: channel, clientID: auth.clientID, session: session)
+            // EventSub replays nothing, so last time's tail is what the tab
+            // opens on until live lines arrive.
+            let earlier = Saved.chat
+            fresh.seed(earlier)
+            earlierChat = Set(earlier.map(\.id))
             fresh.start()
             chat = fresh
         }

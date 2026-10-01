@@ -168,6 +168,28 @@ private func chat(userID: String = "2914196", capacity: Int = 300) -> TwitchChat
     #expect(chat.lines.map(\.id) == ["m3", "m4", "m5"])
 }
 
+@MainActor @Test func aSeededRingReadsFromLastTimeUntilItRollsOver() throws {
+    func line(_ id: String) -> ChatLine {
+        ChatLine(
+            id: id, userId: "1", login: "u1", displayName: "U1", text: "Kappa @u2",
+            fragments: [.emote(id: "25", text: "Kappa"), .text(" "), .mention("@u2")],
+            timestamp: Date(timeIntervalSince1970: 1_790_000_000),
+            reply: ChatReply(parentId: "p", login: "u2", displayName: "U2", text: "yo"))
+    }
+    // The round trip a host's defaults put the lines through, fragments and reply included.
+    let kept = try JSONDecoder().decode([ChatLine].self, from: JSONEncoder().encode([line("a"), line("b"), line("c"), line("d")]))
+    #expect(kept[0] == line("a"))
+
+    let chat = chat(capacity: 3)
+    chat.seed(kept)
+    #expect(chat.lines.map(\.id) == ["b", "c", "d"], "the newest capacity-many")
+    chat.seed([line("x")])
+    #expect(chat.lines.map(\.id) == ["b", "c", "d"], "only an empty ring takes a seed")
+    chat.handle(message("d", from: "1"))
+    chat.handle(message("e", from: "1"))
+    #expect(chat.lines.map(\.id) == ["c", "d", "e"], "a redelivered seed line is dropped and the ring rolls on")
+}
+
 @MainActor @Test func sessionFramesComeBackAsControl() {
     let chat = chat()
     let welcome = Data(

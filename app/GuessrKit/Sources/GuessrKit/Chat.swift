@@ -9,7 +9,7 @@ import Observation
 /// only their text: the line reads right, it just isn't linked or animated.
 // ponytail: mention and cheermote render as plain text; give them their own
 // payload (user id, bits amount) when the UI draws them differently.
-public enum ChatFragment: Sendable, Equatable {
+public enum ChatFragment: Sendable, Equatable, Codable {
     case text(String)
     case emote(id: String, text: String)
     case mention(String)
@@ -24,7 +24,7 @@ public enum ChatFragment: Sendable, Equatable {
 }
 
 /// The message a reply answers, as Twitch quotes it on the reply.
-public struct ChatReply: Sendable, Equatable {
+public struct ChatReply: Sendable, Equatable, Codable {
     public var parentId: String
     public var login: String
     public var displayName: String
@@ -100,7 +100,7 @@ func compactDuration(_ seconds: Int) -> String {
 }
 
 /// One chat message, in Twitch's own shape.
-public struct ChatLine: Sendable, Equatable, Identifiable {
+public struct ChatLine: Sendable, Equatable, Identifiable, Codable {
     /// Twitch's `message_id` — what a delete names.
     public var id: String
     public var userId: String
@@ -271,6 +271,15 @@ public final class TwitchChat {
         socket?.cancel(with: .normalClosure, reason: nil)
         socket = nil
         isConnected = false
+    }
+
+    /// Puts lines from before this session at the front: a log the host kept
+    /// from last time, so the tab opens on something to read rather than a
+    /// blank page. Only into an empty ring, and only the newest `capacity`;
+    /// a live line that redelivers one of these is dropped like any other.
+    public func seed(_ earlier: [ChatLine]) {
+        guard lines.isEmpty, !earlier.isEmpty else { return }
+        lines = Array(earlier.suffix(capacity))
     }
 
     private func run() async {

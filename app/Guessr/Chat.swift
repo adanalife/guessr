@@ -14,6 +14,7 @@ struct ChatTab: View {
                     let lines = account.chat?.lines ?? []
                     ChatLog(lines: mayModerate ? lines : lines.filter { !$0.deleted }, mayModerate: mayModerate)
                     .task(id: session.userID) { await account.openChat() }
+                    .onChange(of: lines.count) { Saved.chat = lines }
                 }
             }
             .viewingAsBanner()
@@ -198,6 +199,9 @@ struct ChatLog: View {
         if emotes.isEmpty { emotes = (try? await chat.helix.emotes()) ?? [] }
     }
 
+    /// The last line kept from last time, which the rule sits under.
+    private var earlierEnd: String? { lines.last { account.earlierChat.contains($0.id) }?.id }
+
     /// Who has spoken, newest first, once each.
     private var chatters: [ChatLine] {
         var seen: Set<String> = []
@@ -257,6 +261,16 @@ struct ChatLog: View {
                     reply(to: line)
                 }
                     .listRowSeparator(.hidden)
+                    // Last time's lines read dimmed, under a rule that marks
+                    // where this session starts.
+                    .opacity(account.earlierChat.contains(line.id) ? 0.55 : 1)
+                if line.id == earlierEnd {
+                    Label("Earlier, from your last visit", systemImage: "clock.arrow.circlepath")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .listRowSeparator(.hidden)
+                }
             }
             .listStyle(.plain)
             // A quiet channel and one still connecting would otherwise both

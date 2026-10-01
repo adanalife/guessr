@@ -622,6 +622,15 @@ enum Saved {
         get { UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode(DayProgress.self, from: $0) } }
         set { UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: key) }
     }
+
+    private static let chatKey = "guessr-chat"
+    /// The tail of the chat ring, kept so the tab opens on last time's lines
+    /// rather than a blank page. ponytail: fifty lines in defaults, rewritten
+    /// as they arrive; a file if the ring ever needs to persist whole.
+    static var chat: [ChatLine] {
+        get { UserDefaults.standard.data(forKey: chatKey).flatMap { try? JSONDecoder().decode([ChatLine].self, from: $0) } ?? [] }
+        set { UserDefaults.standard.set(try? JSONEncoder().encode(newValue.suffix(50)), forKey: chatKey) }
+    }
 }
 
 extension Coordinate {
