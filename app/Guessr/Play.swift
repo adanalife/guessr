@@ -518,6 +518,8 @@ struct ClipView: View {
     var fills = false
     @State private var player = AVQueuePlayer()
     @State private var looper: AVPlayerLooper?
+    /// Where the loop was when the view last went away, for the next appearance.
+    @State private var resume: CMTime?
     @State private var paused = false
     @State private var hint = false
     /// The zoom between gestures, and the one a gesture in progress shows.
@@ -552,13 +554,13 @@ struct ClipView: View {
                     .accessibilityElement(children: .contain)
                     .accessibilityAction(.escape) { full = false }
             }
-            // A tab switch runs this again on the way back, and a second looper on
-            // a player still holding the first one's items leaves it with nothing
-            // to play: the looper is built once, and each appearance only resumes.
+            // A tab switch runs this again on the way back, onto the player the
+            // disappearance emptied: a fresh looper picks up where the last one left.
             .onAppear {
                 if looper == nil {
                     player.isMuted = true
                     looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
+                    if let resume { player.seek(to: resume, toleranceBefore: .zero, toleranceAfter: .zero) }
                 }
                 if !paused { player.play() }
                 #if DEBUG
@@ -570,8 +572,17 @@ struct ClipView: View {
                     if scale > 1 { zoom = ClipZoom(scale: min(scale, ClipZoom.maxScale)) }
                 #endif
             }
-            // The cover hides this view without ending the clip.
-            .onDisappear { if !full { player.pause() } }
+            // The cover hides this view without ending the clip. Anything else
+            // empties the player: a paused player still holding its items keeps
+            // a video decoder, and iOS runs out of those after enough rounds and
+            // replays, when every clip after draws as a black rectangle.
+            .onDisappear {
+                guard !full else { return }
+                resume = player.currentTime()
+                looper?.disableLooping()
+                looper = nil
+                player.removeAllItems()
+            }
     }
 
     /// The clip and its gestures. `screen` is the full-screen cover's: the
