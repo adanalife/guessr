@@ -4,6 +4,31 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.24.0 — 2026-10-01
+
+### New
+
+- Game Center on the iOS app: lifetime and monthly leaderboards and five achievements, submitted by the server from the plays it recorded rather than by the app, so a modified client cannot claim a score the game never gave it. ([#348](https://github.com/adanalife/guessr/pull/348))
+- The app's Daily reminders settings switch the unplayed-today badge and the reminder notification on separately, so a player can have the badge without the notification. ([#353](https://github.com/adanalife/guessr/pull/353))
+- The app shows an "Achievement unlocked" toast naming each Game Center achievement a play just completed, since achievements the server submits never raise Apple's own banner. ([#354](https://github.com/adanalife/guessr/pull/354))
+- A language picker on the web (in About) and in the app (in Settings), so a player can choose a language other than the one their browser or phone asks for. ([#355](https://github.com/adanalife/guessr/pull/355))
+
+### Changed
+
+- The app's leaderboard page is titled Leaderboard. ([#350](https://github.com/adanalife/guessr/pull/350))
+- The app's maps draw each guess-to-answer line thin and solid instead of dashed. ([#351](https://github.com/adanalife/guessr/pull/351))
+- The app's Settings choose units as Imperial or Metric, and label the follow-the-system appearance Auto. ([#352](https://github.com/adanalife/guessr/pull/352))
+- The app's device linking explains itself: the row reads "Playing on another device?" and says what linking does before it shows a code, a help button brings the explanation back, the code copies on a tap, and entering another device's code no longer waits for a code of this device's own. ([#357](https://github.com/adanalife/guessr/pull/357))
+- The app's finished-day screen shows the A Dana Life mark beside its serif "Guessr" title. ([#359](https://github.com/adanalife/guessr/pull/359))
+- The app moves the way iOS does: a clip pinched or panned past its limits stretches and springs back, full screen grows out of the clip, the map flies to the answer on a reveal, and a chat line highlights as it is pressed. ([#360](https://github.com/adanalife/guessr/pull/360))
+
+### Fixed
+
+- GuessrKit builds on Linux again. corelibs-Foundation has no localized-string initializer for the translations to use, so on Linux the English text stands in. ([#346](https://github.com/adanalife/guessr/pull/346))
+- The app lets go of a clip's video player once the clip leaves the screen, so a long session no longer runs out of players and draws the score screen's replays as black rectangles. ([#349](https://github.com/adanalife/guessr/pull/349))
+- An abandoned Twitch sign-in in the app no longer leaves a raw cancellation error under the button. ([#356](https://github.com/adanalife/guessr/pull/356))
+- The app's chat refreshes its Twitch login before each reconnect, so a chat left open past the token's four-hour life reconnects instead of failing to subscribe. ([#358](https://github.com/adanalife/guessr/pull/358))
+
 ## v1.23.0 — 2026-10-01
 
 ### New

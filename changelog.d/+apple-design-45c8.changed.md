@@ -1,1 +1,0 @@
-The app moves the way iOS does: a clip pinched or panned past its limits stretches and springs back, full screen grows out of the clip, the map flies to the answer on a reveal, and a chat line highlights as it is pressed.
