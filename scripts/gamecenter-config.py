@@ -21,7 +21,6 @@ Reads ASC_KEY_PATH, ASC_KEY_ID and ASC_ISSUER_ID, as `task ios:release` does.
 """
 
 import datetime
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -199,10 +198,7 @@ class Client:
                 "data": {
                     "type": "gameCenterAchievementImages",
                     "id": image_id,
-                    "attributes": {
-                        "uploaded": True,
-                        "sourceFileChecksum": hashlib.md5(data).hexdigest(),
-                    },
+                    "attributes": {"uploaded": True},
                 }
             },
         )
@@ -352,26 +348,38 @@ def picture(plan, asc, achievement: dict | None, suffix: str) -> None:
     if loc is None:
         plan(f"upload {png.name}", lambda: None)
         return
-    if asc.one(
+    vendor = achievement["attributes"]["vendorIdentifier"]
+    have = asc.one(
         f"/gameCenterAchievementLocalizations/{loc['id']}/gameCenterAchievementImage"
-    ):
+    )
+    state = (
+        (have or {}).get("attributes", {}).get("assetDeliveryState", {}).get("state")
+    )
+    if have and state in ("UPLOAD_COMPLETE", "COMPLETE"):
         return
 
     def do():
         data = png.read_bytes()
-        made = asc.create(
-            "gameCenterAchievementImages",
-            {"fileName": png.name, "fileSize": len(data)},
-            {
-                "gameCenterAchievementLocalization": (
-                    "gameCenterAchievementLocalizations",
-                    loc["id"],
-                )
-            },
-        )
-        asc.upload(made["id"], made["attributes"]["uploadOperations"], data)
+        image = have
+        if image and state == "FAILED":
+            asc.call("DELETE", f"/gameCenterAchievementImages/{image['id']}")
+            image = None
+        if image is None:
+            image = asc.create(
+                "gameCenterAchievementImages",
+                {"fileName": png.name, "fileSize": len(data)},
+                {
+                    "gameCenterAchievementLocalization": (
+                        "gameCenterAchievementLocalizations",
+                        loc["id"],
+                    )
+                },
+            )
+        # A reservation left uncommitted still names its upload operations.
+        asc.upload(image["id"], image["attributes"]["uploadOperations"], data)
 
-    plan(f"upload {png.name} to {achievement['attributes']['vendorIdentifier']}", do)
+    what = f"finish the {state} upload of" if have else "upload"
+    plan(f"{what} {png.name} to {vendor}", do)
 
 
 def localize(
