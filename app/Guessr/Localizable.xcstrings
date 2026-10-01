@@ -875,6 +875,34 @@
         }
       }
     },
+    "Copies the code" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zkopíruje kód"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copia el código"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copie le code"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Копирует код"
+          }
+        }
+      }
+    },
     "Copy share text" : {
       "localizations" : {
         "cs" : {
@@ -1670,6 +1698,34 @@
         }
       }
     },
+    "How linking works" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jak propojení funguje"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cómo funciona la vinculación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comment fonctionne la liaison"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Как работает привязка"
+          }
+        }
+      }
+    },
     "Idaho" : {
       "localizations" : {
         "ru" : {
@@ -1926,30 +1982,30 @@
         }
       }
     },
-    "Link a device" : {
+    "Link your devices to play as one name with one score. Show a code here and enter it on the other device, or enter a code the other device shows. Each code lasts ten minutes." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Propojit zařízení"
+            "value" : "Propojte svá zařízení a hrajte pod jedním jménem s jedním skóre. Zobrazte kód zde a zadejte ho na druhém zařízení, nebo zadejte kód, který ukazuje druhé zařízení. Každý kód platí deset minut."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vincular un dispositivo"
+            "value" : "Vincula tus dispositivos para jugar con un solo nombre y una sola puntuación. Muestra un código aquí e introdúcelo en el otro dispositivo, o introduce un código que muestre el otro. Cada código dura diez minutos."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lier un appareil"
+            "value" : "Liez vos appareils pour jouer sous un seul nom avec un seul score. Affichez un code ici et saisissez-le sur l’autre appareil, ou saisissez un code affiché par l’autre. Chaque code dure dix minutes."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Привязать устройство"
+            "value" : "Свяжите устройства, чтобы играть под одним именем с одним счётом. Покажите код здесь и введите его на другом устройстве или введите код, который показывает другое. Каждый код действует десять минут."
           }
         }
       }
@@ -2326,6 +2382,34 @@
         }
       }
     },
+    "OK" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aceptar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ОК"
+          }
+        }
+      }
+    },
     "Ohio" : {
       "localizations" : {
         "ru" : {
@@ -2608,6 +2692,34 @@
         }
       }
     },
+    "Playing on another device?" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hrajete i na jiném zařízení?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Juegas en otro dispositivo?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vous jouez sur un autre appareil ?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Играете на другом устройстве?"
+          }
+        }
+      }
+    },
     "Replying to %@" : {
       "localizations" : {
         "cs" : {
@@ -2810,6 +2922,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Настройки"
+          }
+        }
+      }
+    },
+    "Show a code" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zobrazit kód"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar un código"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher un code"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показать код"
           }
         }
       }
