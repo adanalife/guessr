@@ -11,7 +11,7 @@ struct ChatTab: View {
             Group {
                 if let session = account.session {
                     let mayModerate = account.isMod && session.canModerate
-                    let lines = account.chat?.lines ?? []
+                    let lines = (account.chat?.lines ?? []).filter { !account.hiddenChatters.contains($0.userId) }
                     ChatLog(lines: mayModerate ? lines : lines.filter { !$0.deleted }, mayModerate: mayModerate)
                     .task(id: session.userID) { await account.openChat() }
                     .onChange(of: lines.count) { Saved.chat = lines }
@@ -472,7 +472,10 @@ struct ChatLineView: View {
                         } : nil,
                     reply: line.kind == nil && !line.deleted ? reply : nil,
                     warn: mayModerate && !line.isBroadcaster
-                        ? { reason in moderate { try await $0.warn(userId: line.userId, reason: reason) } } : nil))
+                        ? { reason in moderate { try await $0.warn(userId: line.userId, reason: reason) } } : nil,
+                    // Not on your own lines: there is nobody to hide or report.
+                    hide: line.userId == account.session?.userID ? nil : { account.hiddenChatters.insert(line.userId) },
+                    report: line.userId == account.session?.userID ? nil : URL(string: "https://www.twitch.tv/\(line.login)")))
     }
 
     private var row: some View {

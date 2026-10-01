@@ -3094,6 +3094,34 @@
         }
       }
     },
+    "Show hidden chatters (%lld)" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zobrazit skryté chatující (%lld)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar chateadores ocultos (%lld)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher les personnes masquées (%lld)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показать скрытых участников чата (%lld)"
+          }
+        }
+      }
+    },
     "Show score screen" : {
       "localizations" : {
         "cs" : {

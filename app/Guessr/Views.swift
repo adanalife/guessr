@@ -250,6 +250,9 @@ struct SettingsView: View {
                                 Button("Access your mod tools") { account.startModLogin() }
                             }
                         }
+                        if !account.hiddenChatters.isEmpty {
+                            Button("Show hidden chatters (\(account.hiddenChatters.count))") { account.hiddenChatters = [] }
+                        }
                         Button("Sign out", role: .destructive) { account.signOut() }
                     } else {
                         TwitchSignIn()
