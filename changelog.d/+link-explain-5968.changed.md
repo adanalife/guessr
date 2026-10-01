@@ -1,1 +1,0 @@
-The app's device linking explains itself: the row reads "Playing on another device?" and says what linking does before it shows a code, a help button brings the explanation back, the code copies on a tap, and entering another device's code no longer waits for a code of this device's own.
