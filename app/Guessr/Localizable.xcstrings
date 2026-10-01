@@ -1015,6 +1015,34 @@
         }
       }
     },
+    "Daily reminders" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Denní připomínky"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recordatorios diarios"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rappels quotidiens"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ежедневные напоминания"
+          }
+        }
+      }
+    },
     "Dark" : {
       "localizations" : {
         "cs" : {
@@ -2270,28 +2298,6 @@
         }
       }
     },
-    "Notifications" : {
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Oznámení"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Notificaciones"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Уведомления"
-          }
-        }
-      }
-    },
     "Ohio" : {
       "localizations" : {
         "ru" : {
@@ -2574,34 +2580,6 @@
         }
       }
     },
-    "Remind me to play" : {
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Připomenout hru"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recordarme jugar"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Me rappeler de jouer"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Напоминать об игре"
-          }
-        }
-      }
-    },
     "Replying to %@" : {
       "localizations" : {
         "cs" : {
@@ -2752,6 +2730,34 @@
         }
       }
     },
+    "Send notification" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poslat oznámení"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enviar notificación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envoyer une notification"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отправлять уведомление"
+          }
+        }
+      }
+    },
     "Settings" : {
       "localizations" : {
         "cs" : {
@@ -2804,6 +2810,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Показать новый код"
+          }
+        }
+      }
+    },
+    "Show badge" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zobrazit odznak"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar globo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher la pastille"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показывать наклейку"
           }
         }
       }
