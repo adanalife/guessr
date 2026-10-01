@@ -4,6 +4,36 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.23.0 — 2026-10-01
+
+### New
+
+- Linking a device by code now says who you are about to become first: the player the code belongs to and their total, and the player this device plays as today, before anything moves. On the web and in the app. ([#327](https://github.com/adanalife/guessr/pull/327))
+- A day you started on one device carries on from the same round on another: link the two, or just open the app where you left off, and the rounds you have already played are there with their scores. ([#328](https://github.com/adanalife/guessr/pull/328))
+- Chat opens on the last lines from your previous visit, dimmed under a rule, instead of a blank page while the live ones arrive. ([#329](https://github.com/adanalife/guessr/pull/329))
+- Double tap the clip in the iOS app to watch it full screen; double tap again or tap the close button to return. ([#333](https://github.com/adanalife/guessr/pull/333))
+- Mods can give a reason when timing someone out or banning them: the Time out menu has a "With a reason…" item, and the ban confirmation takes one too. Twitch shows it to the other mods and to the person it was about. ([#339](https://github.com/adanalife/guessr/pull/339))
+- The app and the web game speak French, Spanish, Russian and Czech, following the device or browser language. ([#344](https://github.com/adanalife/guessr/pull/344))
+
+### Changed
+
+- The iOS app's Settings gives Appearance its own section, orders it Light, Dark, System, and shows the kilometers choice as a switch. ([#332](https://github.com/adanalife/guessr/pull/332))
+- The iOS app's Link a device shows a tappable guessr.dana.lol link and a Temporary code, and offers Enter your code only once a code is showing. ([#334](https://github.com/adanalife/guessr/pull/334))
+- The leaderboards never come up empty: until someone plays this month, the board shows last month's standings, and the daily board shows the last day anyone played. The heading names the month or day you are looking at. ([#337](https://github.com/adanalife/guessr/pull/337))
+
+### Fixed
+
+- Signing in with Twitch opens the Chat tab on iPad too, as it does on iPhone. ([#330](https://github.com/adanalife/guessr/pull/330))
+- A chatter's card shows their recent messages only to the channel's mods and owner. ([#331](https://github.com/adanalife/guessr/pull/331))
+- On iPad, the score card after a guess lines up with the map above it, and the whole reveal fits on screen in landscape. ([#335](https://github.com/adanalife/guessr/pull/335))
+- On iPad, the Boards and Settings titles line up with the column below them instead of sitting at the screen's edge. ([#336](https://github.com/adanalife/guessr/pull/336))
+- A production release now proves the Worker's cold isolates start before the site deploys, redeploying the Worker once when a version comes up with a bad memory snapshot — the failure that answered 500 to a phone's scores and to tripbot's board read on the evening of the cutover. Staging has had the same guard since 1.21.0; both tiers now share one action. ([#343](https://github.com/adanalife/guessr/pull/343))
+
+### Behind the scenes
+
+- Each play now remembers whether it came from the website or the app (and which kind of device), so we can tell whether app players score differently. Nothing finer than that is kept, and it never shows up on a board. ([#338](https://github.com/adanalife/guessr/pull/338))
+- When new rounds are published, a short note lands in the team's Discord saying how far ahead the game is scheduled. ([#340](https://github.com/adanalife/guessr/pull/340))
+
 ## v1.22.0 — 2026-09-30
 
 ### New
