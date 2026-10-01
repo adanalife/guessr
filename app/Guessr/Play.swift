@@ -167,7 +167,7 @@ struct PlayView: View {
                     Marker(shown.score.state, coordinate: shown.score.answer.location).tint(.green)
                         .annotationTitles(.hidden)
                     MapPolyline(coordinates: [shown.guess.location, shown.score.answer.location])
-                        .stroke(.green, style: StrokeStyle(lineWidth: 2, dash: [5, 6]))
+                        .stroke(.green, lineWidth: 1.5)
                 }
             }
             .onTapGesture { point in
@@ -422,7 +422,7 @@ struct DayResultView: View {
                     ForEach(Array(progress.played.enumerated()), id: \.offset) { i, r in
                         Marker("\(i + 1)", coordinate: r.score.answer.location).tint(.green).tag(r.image)
                         MapPolyline(coordinates: [r.guess.location, r.score.answer.location])
-                            .stroke(.green, style: StrokeStyle(lineWidth: 2, dash: [5, 6]))
+                            .stroke(.green, lineWidth: 1.5)
                         Annotation("", coordinate: r.guess.location, anchor: .center) {
                             Circle().fill(Color.ink).frame(width: 8, height: 8)
                         }
