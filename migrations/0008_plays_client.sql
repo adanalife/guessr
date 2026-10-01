@@ -1,0 +1,11 @@
+-- Which kind of client a play came from: 'web', 'ios', 'ipados', 'mac', or
+-- 'app' for a native build that named no platform. NULL for every play
+-- recorded before this column existed, and for a request carrying no
+-- User-Agent at all.
+--
+-- A column on the play rather than a table of its own, because it is a
+-- dimension of the play: the question it answers is whether app players score
+-- differently, which is one GROUP BY over plays with no join. A coarse platform
+-- bucket is all that question needs -- never the browser, the model or the
+-- screen -- and no public route returns it.
+ALTER TABLE plays ADD COLUMN client TEXT;
