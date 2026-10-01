@@ -711,6 +711,11 @@ tasks:
     cmds:
       - ./scripts/asc-builds.py {{.CLI_ARGS}}
 
+  gamecenter:config:
+    desc: Create the Game Center leaderboards and achievements the server submits to in App Store Connect (-- --apply to write; plans by default)
+    cmds:
+      - ./scripts/gamecenter-config.py {{.CLI_ARGS}}
+
   # The same name as tempomat's, which fans out to iPhone, Apple TV and Mac;
   # the app here is one iPhone-and-iPad build, so it is ios:release.
   release:all:

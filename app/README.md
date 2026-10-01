@@ -56,7 +56,11 @@ Store Connect API. A modified app can therefore claim nothing the game did not
 record.
 
 Game Center is configured in App Store Connect, under the app's Game Center
-tab, with these identifiers (`server/gamecenter.py` is where they live in code):
+tab, with these identifiers (`server/gamecenter.py` is where they live in code).
+`task gamecenter:config` plans what is missing there and `-- --apply` creates
+it, English localization included, through the App Store Connect API with the
+same key as the release; it uploads no images, which the dashboard asks for
+before an achievement is released:
 
 | Identifier | Kind | What |
 | --- | --- | --- |
