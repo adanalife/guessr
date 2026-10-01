@@ -328,7 +328,7 @@ struct LinkCodeRows: View {
             if code == nil { Button("Show a code") { Task { await issue() } } }
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Link your devices to play as one name with one score. Show a code here and enter it on the other device, or enter a code the other device shows. Each code lasts ten minutes.")
+            Text("If you play on multiple devices (like the web version), you can use a temporary code to connect the devices and keep playing under your other username.")
         }
         if let error {
             Text(error).foregroundStyle(.secondary)

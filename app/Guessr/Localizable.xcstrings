@@ -1736,6 +1736,34 @@
         }
       }
     },
+    "If you play on multiple devices (like the web version), you can use a temporary code to connect the devices and keep playing under your other username." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pokud hrajete na více zařízeních (třeba ve webové verzi), můžete je propojit dočasným kódem a hrát dál pod svým druhým uživatelským jménem."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si juegas en varios dispositivos (como la versión web), puedes usar un código temporal para conectarlos y seguir jugando con tu otro nombre de usuario."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si vous jouez sur plusieurs appareils (comme la version web), un code temporaire permet de les relier et de continuer à jouer sous votre autre nom d’utilisateur."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Если вы играете на нескольких устройствах (например, в веб-версии), временный код позволит связать их и продолжить играть под другим именем пользователя."
+          }
+        }
+      }
+    },
     "Illinois" : {
       "localizations" : {
         "ru" : {
@@ -1978,34 +2006,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Светлое"
-          }
-        }
-      }
-    },
-    "Link your devices to play as one name with one score. Show a code here and enter it on the other device, or enter a code the other device shows. Each code lasts ten minutes." : {
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Propojte svá zařízení a hrajte pod jedním jménem s jedním skóre. Zobrazte kód zde a zadejte ho na druhém zařízení, nebo zadejte kód, který ukazuje druhé zařízení. Každý kód platí deset minut."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Vincula tus dispositivos para jugar con un solo nombre y una sola puntuación. Muestra un código aquí e introdúcelo en el otro dispositivo, o introduce un código que muestre el otro. Cada código dura diez minutos."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Liez vos appareils pour jouer sous un seul nom avec un seul score. Affichez un code ici et saisissez-le sur l’autre appareil, ou saisissez un code affiché par l’autre. Chaque code dure dix minutes."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Свяжите устройства, чтобы играть под одним именем с одним счётом. Покажите код здесь и введите его на другом устройстве или введите код, который показывает другое. Каждый код действует десять минут."
           }
         }
       }
