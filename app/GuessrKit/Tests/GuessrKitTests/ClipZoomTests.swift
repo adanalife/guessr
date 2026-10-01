@@ -22,3 +22,12 @@ import Testing
     #expect(z.y == -100)
     #expect(ClipZoom().panned(dx: 30, dy: 30, width: 400, height: 200) == ClipZoom())
 }
+
+@Test func aFittedPictureStaysCenteredUntilItCoversTheFrame() {
+    // A 2:1 picture fitted across a 400×800 frame is 400×200.
+    let twice = ClipZoom(scale: 2).panned(dx: 1000, dy: 1000, width: 400, height: 800, aspect: 2)
+    #expect(twice.x == 200)
+    #expect(twice.y == 0)
+    let past = ClipZoom(scale: 5).panned(dx: 0, dy: -1000, width: 400, height: 800, aspect: 2)
+    #expect(past.y == -100)
+}

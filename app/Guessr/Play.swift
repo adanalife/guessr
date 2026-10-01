@@ -483,11 +483,10 @@ struct ClipView: View {
             .accessibilityAction(named: paused ? "Play" : "Pause") { togglePause() }
             .accessibilityAction(named: "Full screen") { toggleFull() }
             .fullScreenCover(isPresented: $full, onDismiss: { zoom = ClipZoom() }) {
-                // ponytail: the zoom is clipped to the clip's own frame, not
-                // the whole screen; pan into the paper if that reads cramped.
-                surface(fills: false)
-                    .aspectRatio(ClipView.aspect, contentMode: .fit)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // The whole screen is the frame, so a pinch can grow the clip
+                // past its own shape until it fills the screen.
+                surface(fills: false, screen: true)
+                    .ignoresSafeArea()
                     .overlay(alignment: .topTrailing) {
                         Button("Close", systemImage: "xmark") { full = false }
                             .labelStyle(.iconOnly)
@@ -515,24 +514,30 @@ struct ClipView: View {
                     // `-fullscreen 1` opens the cover on launch, so it can be
                     // screenshotted from the shell.
                     if UserDefaults.standard.bool(forKey: "fullscreen") { full = true }
+                    // `-zoom 4` opens the clip zoomed by that much.
+                    let scale = UserDefaults.standard.double(forKey: "zoom")
+                    if scale > 1 { zoom = ClipZoom(scale: min(scale, ClipZoom.maxScale)) }
                 #endif
             }
             // The cover hides this view without ending the clip.
             .onDisappear { if !full { player.pause() } }
     }
 
-    private func surface(fills: Bool) -> some View {
+    /// The clip and its gestures. `screen` is the full-screen cover's: the
+    /// frame is the screen, the clip fitted inside it on the bare page.
+    private func surface(fills: Bool, screen: Bool = false) -> some View {
         GeometryReader { geo in
             let shown = live ?? zoom
-            PlayerLayer(player: player, gravity: fills ? .resizeAspectFill : .resizeAspect)
+            let aspect = screen ? ClipView.aspect : nil
+            PlayerLayer(player: player, gravity: fills ? .resizeAspectFill : .resizeAspect, placeholder: !screen)
                 .allowsHitTesting(false)
                 .scaleEffect(shown.scale)
                 .offset(x: shown.x, y: shown.y)
                 .frame(width: geo.size.width, height: geo.size.height)
                 .clipped()
                 .contentShape(Rectangle())
-                .gesture(pinch(geo.size))
-                .gesture(pan(geo.size), isEnabled: zoom.scale > 1)
+                .gesture(pinch(geo.size, aspect: aspect))
+                .gesture(pan(geo.size, aspect: aspect), isEnabled: zoom.scale > 1)
                 .onTapGesture(count: 2) { toggleFull() }
                 .onTapGesture {
                     togglePause()
@@ -576,13 +581,13 @@ struct ClipView: View {
         if paused { player.pause() } else { player.play() }
     }
 
-    private func pinch(_ size: CGSize) -> some Gesture {
+    private func pinch(_ size: CGSize, aspect: Double?) -> some Gesture {
         MagnifyGesture()
             .onChanged { value in
                 live = zoom.zoomed(
                     by: value.magnification,
                     aboutX: value.startLocation.x - size.width / 2, y: value.startLocation.y - size.height / 2,
-                    width: size.width, height: size.height)
+                    width: size.width, height: size.height, aspect: aspect)
             }
             .onEnded { _ in
                 zoom = live ?? zoom
@@ -590,11 +595,12 @@ struct ClipView: View {
             }
     }
 
-    private func pan(_ size: CGSize) -> some Gesture {
+    private func pan(_ size: CGSize, aspect: Double?) -> some Gesture {
         DragGesture()
             .onChanged { value in
                 live = zoom.panned(
-                    dx: value.translation.width, dy: value.translation.height, width: size.width, height: size.height)
+                    dx: value.translation.width, dy: value.translation.height, width: size.width, height: size.height,
+                    aspect: aspect)
             }
             .onEnded { _ in
                 zoom = live ?? zoom
@@ -607,6 +613,9 @@ struct ClipView: View {
 private struct PlayerLayer: UIViewRepresentable {
     let player: AVPlayer
     let gravity: AVLayerVideoGravity
+    /// Off where the clip is fitted inside a larger frame, whose bands would
+    /// otherwise carry the shade.
+    var placeholder = true
 
     final class View: UIView {
         override static var layerClass: AnyClass { AVPlayerLayer.self }
@@ -617,7 +626,7 @@ private struct PlayerLayer: UIViewRepresentable {
         let view = View()
         // Seen only until the first frame: a shade off the page, so the slot
         // reads as a clip on its way rather than a hole in the paper.
-        view.backgroundColor = UIColor(Color.ink.opacity(0.08))
+        view.backgroundColor = placeholder ? UIColor(Color.ink.opacity(0.08)) : .clear
         view.playerLayer.player = player
         return view
     }

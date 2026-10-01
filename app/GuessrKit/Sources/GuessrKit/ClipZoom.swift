@@ -17,20 +17,28 @@ public struct ClipZoom: Sendable, Equatable {
 
     /// Scaled by `factor` about the point `(px, py)`, measured from the
     /// frame's centre, so the spot under the fingers stays under them.
-    public func zoomed(by factor: Double, aboutX px: Double, y py: Double, width: Double, height: Double) -> ClipZoom {
+    /// `aspect` is the picture's shape when it is fitted inside a frame of
+    /// another shape; nil means the picture is the frame.
+    public func zoomed(
+        by factor: Double, aboutX px: Double, y py: Double, width: Double, height: Double, aspect: Double? = nil
+    ) -> ClipZoom {
         let s = min(max(scale * factor, 1), Self.maxScale)
         let k = s / scale
-        return ClipZoom(scale: s, x: px - (px - x) * k, y: py - (py - y) * k).clamped(width: width, height: height)
+        return ClipZoom(scale: s, x: px - (px - x) * k, y: py - (py - y) * k)
+            .clamped(width: width, height: height, aspect: aspect)
     }
 
-    public func panned(dx: Double, dy: Double, width: Double, height: Double) -> ClipZoom {
-        ClipZoom(scale: scale, x: x + dx, y: y + dy).clamped(width: width, height: height)
+    public func panned(dx: Double, dy: Double, width: Double, height: Double, aspect: Double? = nil) -> ClipZoom {
+        ClipZoom(scale: scale, x: x + dx, y: y + dy).clamped(width: width, height: height, aspect: aspect)
     }
 
-    /// Kept so the picture always covers the frame: no pan past an edge.
-    func clamped(width: Double, height: Double) -> ClipZoom {
-        let mx = width * (scale - 1) / 2
-        let my = height * (scale - 1) / 2
+    /// Kept so no pan shows past the picture's edge: along a side the picture
+    /// covers, it covers the frame; along one it doesn't, it stays centered.
+    func clamped(width: Double, height: Double, aspect: Double? = nil) -> ClipZoom {
+        let pictureWidth = aspect.map { min(width, height * $0) } ?? width
+        let pictureHeight = aspect.map { min(height, width / $0) } ?? height
+        let mx = max(0, (pictureWidth * scale - width) / 2)
+        let my = max(0, (pictureHeight * scale - height) / 2)
         return ClipZoom(scale: scale, x: min(max(x, -mx), mx), y: min(max(y, -my), my))
     }
 }
