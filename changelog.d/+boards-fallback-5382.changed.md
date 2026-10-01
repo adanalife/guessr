@@ -1,1 +1,0 @@
-The leaderboards never come up empty: until someone plays this month, the board shows last month's standings, and the daily board shows the last day anyone played. The heading names the month or day you are looking at.

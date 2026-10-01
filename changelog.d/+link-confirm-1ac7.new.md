@@ -1,1 +1,0 @@
-Linking a device by code now says who you are about to become first: the player the code belongs to and their total, and the player this device plays as today, before anything moves. On the web and in the app.
