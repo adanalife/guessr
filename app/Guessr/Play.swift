@@ -481,8 +481,9 @@ private struct ReplayView: View {
 /// A clip on a muted loop. No scrubber: a scrubber is a way to hunt for a
 /// frame the round didn't mean to show. A pinch zooms in and a drag pans the
 /// zoomed picture, a tap pauses it and names the other gestures for a moment,
-/// and a double tap zooms back out. `fills` crops it to cover its frame rather
-/// than letterboxing inside it.
+/// and a double tap opens it full screen, or closes the full screen, zoomed
+/// back out. `fills` crops it to cover its frame rather than letterboxing
+/// inside it.
 struct ClipView: View {
     /// Every clip's shape: 1280 wide with the dashcam HUD cropped off the
     /// bottom. A frame of this shape leaves nothing to letterbox.
@@ -497,20 +498,73 @@ struct ClipView: View {
     /// The zoom between gestures, and the one a gesture in progress shows.
     @State private var zoom = ClipZoom()
     @State private var live: ClipZoom?
+    /// Full screen is the same player and gestures on a cover of their own,
+    /// so the loop carries on across the switch rather than restarting.
+    @State private var full = false
 
     var body: some View {
+        surface(fills: fills)
+            .accessibilityElement()
+            .accessibilityLabel(paused ? "Clip, paused" : "Clip")
+            .accessibilityAction(named: paused ? "Play" : "Pause") { togglePause() }
+            .accessibilityAction(named: "Full screen") { toggleFull() }
+            .fullScreenCover(isPresented: $full, onDismiss: { zoom = ClipZoom() }) {
+                // The whole screen is the frame, so a pinch can grow the clip
+                // past its own shape until it fills the screen.
+                surface(fills: false, screen: true)
+                    .ignoresSafeArea()
+                    .overlay(alignment: .topTrailing) {
+                        Button("Close", systemImage: "xmark") { full = false }
+                            .labelStyle(.iconOnly)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Color.ink)
+                            .frame(width: 44, height: 44)
+                            .background(.regularMaterial, in: Circle())
+                            .padding()
+                    }
+                    .paper()
+                    .statusBarHidden()
+                    .accessibilityElement(children: .contain)
+                    .accessibilityAction(.escape) { full = false }
+            }
+            // A tab switch runs this again on the way back, and a second looper on
+            // a player still holding the first one's items leaves it with nothing
+            // to play: the looper is built once, and each appearance only resumes.
+            .onAppear {
+                if looper == nil {
+                    player.isMuted = true
+                    looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
+                }
+                if !paused { player.play() }
+                #if DEBUG
+                    // `-fullscreen 1` opens the cover on launch, so it can be
+                    // screenshotted from the shell.
+                    if UserDefaults.standard.bool(forKey: "fullscreen") { full = true }
+                    // `-zoom 4` opens the clip zoomed by that much.
+                    let scale = UserDefaults.standard.double(forKey: "zoom")
+                    if scale > 1 { zoom = ClipZoom(scale: min(scale, ClipZoom.maxScale)) }
+                #endif
+            }
+            // The cover hides this view without ending the clip.
+            .onDisappear { if !full { player.pause() } }
+    }
+
+    /// The clip and its gestures. `screen` is the full-screen cover's: the
+    /// frame is the screen, the clip fitted inside it on the bare page.
+    private func surface(fills: Bool, screen: Bool = false) -> some View {
         GeometryReader { geo in
             let shown = live ?? zoom
-            PlayerLayer(player: player, gravity: fills ? .resizeAspectFill : .resizeAspect)
+            let aspect = screen ? ClipView.aspect : nil
+            PlayerLayer(player: player, gravity: fills ? .resizeAspectFill : .resizeAspect, placeholder: !screen)
                 .allowsHitTesting(false)
                 .scaleEffect(shown.scale)
                 .offset(x: shown.x, y: shown.y)
                 .frame(width: geo.size.width, height: geo.size.height)
                 .clipped()
                 .contentShape(Rectangle())
-                .gesture(pinch(geo.size))
-                .gesture(pan(geo.size), isEnabled: zoom.scale > 1)
-                .onTapGesture(count: 2) { withAnimation { zoom = ClipZoom() } }
+                .gesture(pinch(geo.size, aspect: aspect))
+                .gesture(pan(geo.size, aspect: aspect), isEnabled: zoom.scale > 1)
+                .onTapGesture(count: 2) { toggleFull() }
                 .onTapGesture {
                     togglePause()
                     withAnimation { hint = true }
@@ -525,7 +579,7 @@ struct ClipView: View {
                 }
                 .overlay(alignment: .bottom) {
                     if hint {
-                        Text("Pinch to zoom · double-tap to zoom out")
+                        Text("Pinch to zoom, double tap for full screen")
                             .font(.caption)
                             .foregroundStyle(.white)
                             .padding(.horizontal, 10).padding(.vertical, 4)
@@ -541,20 +595,11 @@ struct ClipView: View {
                     withAnimation { hint = false }
                 }
         }
-        .accessibilityElement()
-        .accessibilityLabel(paused ? "Clip, paused" : "Clip")
-        .accessibilityAction(named: paused ? "Play" : "Pause") { togglePause() }
-        // A tab switch runs this again on the way back, and a second looper on
-        // a player still holding the first one's items leaves it with nothing
-        // to play: the looper is built once, and each appearance only resumes.
-        .onAppear {
-            if looper == nil {
-                player.isMuted = true
-                looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
-            }
-            if !paused { player.play() }
-        }
-        .onDisappear { player.pause() }
+    }
+
+    private func toggleFull() {
+        zoom = ClipZoom()
+        full.toggle()
     }
 
     private func togglePause() {
@@ -562,13 +607,13 @@ struct ClipView: View {
         if paused { player.pause() } else { player.play() }
     }
 
-    private func pinch(_ size: CGSize) -> some Gesture {
+    private func pinch(_ size: CGSize, aspect: Double?) -> some Gesture {
         MagnifyGesture()
             .onChanged { value in
                 live = zoom.zoomed(
                     by: value.magnification,
                     aboutX: value.startLocation.x - size.width / 2, y: value.startLocation.y - size.height / 2,
-                    width: size.width, height: size.height)
+                    width: size.width, height: size.height, aspect: aspect)
             }
             .onEnded { _ in
                 zoom = live ?? zoom
@@ -576,11 +621,12 @@ struct ClipView: View {
             }
     }
 
-    private func pan(_ size: CGSize) -> some Gesture {
+    private func pan(_ size: CGSize, aspect: Double?) -> some Gesture {
         DragGesture()
             .onChanged { value in
                 live = zoom.panned(
-                    dx: value.translation.width, dy: value.translation.height, width: size.width, height: size.height)
+                    dx: value.translation.width, dy: value.translation.height, width: size.width, height: size.height,
+                    aspect: aspect)
             }
             .onEnded { _ in
                 zoom = live ?? zoom
@@ -593,6 +639,9 @@ struct ClipView: View {
 private struct PlayerLayer: UIViewRepresentable {
     let player: AVPlayer
     let gravity: AVLayerVideoGravity
+    /// Off where the clip is fitted inside a larger frame, whose bands would
+    /// otherwise carry the shade.
+    var placeholder = true
 
     final class View: UIView {
         override static var layerClass: AnyClass { AVPlayerLayer.self }
@@ -603,7 +652,7 @@ private struct PlayerLayer: UIViewRepresentable {
         let view = View()
         // Seen only until the first frame: a shade off the page, so the slot
         // reads as a clip on its way rather than a hole in the paper.
-        view.backgroundColor = UIColor(Color.ink.opacity(0.08))
+        view.backgroundColor = placeholder ? UIColor(Color.ink.opacity(0.08)) : .clear
         view.playerLayer.player = player
         return view
     }
