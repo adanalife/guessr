@@ -447,6 +447,35 @@ struct ChatLineView: View {
     @State private var emotes: [String: Image] = [:]
 
     var body: some View {
+        // A button, so the row highlights under the finger, a slide off it
+        // cancels, and VoiceOver says it opens something.
+        Button { showingCard = true } label: { row }
+            .foregroundStyle(.primary)
+            .listRowBackground(tint)
+            .sheet(isPresented: $showingCard) {
+                UserCard(displayName: line.displayName, login: line.login, recent: recent()) {
+                    try? await account.chat?.helix.user(id: line.userId)
+                }
+                .presentationDetents([.medium])
+            }
+            .modifier(
+                ChatLineMenu(
+                    translatable: line.text.isEmpty ? nil : line.text,
+                    name: line.displayName,
+                    delete: mayModerate && !line.deleted ? { moderate { try await $0.delete(messageId: line.id) } } : nil,
+                    ban: mayModerate
+                        ? { seconds, reason in
+                            moderate {
+                                try await $0.ban(userId: line.userId, seconds: seconds, reason: reason)
+                                banned = Banned(userId: line.userId, name: line.displayName, seconds: seconds)
+                            }
+                        } : nil,
+                    reply: line.kind == nil && !line.deleted ? reply : nil,
+                    warn: mayModerate && !line.isBroadcaster
+                        ? { reason in moderate { try await $0.warn(userId: line.userId, reason: reason) } } : nil))
+    }
+
+    private var row: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             VStack(alignment: .leading, spacing: 2) {
                 // A sub, gift, raid or announcement: Twitch's sentence about
@@ -484,30 +513,7 @@ struct ChatLineView: View {
                 .font(.caption.monospaced())
                 .foregroundStyle(.tertiary)
         }
-        .listRowBackground(tint)
         .contentShape(Rectangle())
-        .onTapGesture { showingCard = true }
-        .sheet(isPresented: $showingCard) {
-            UserCard(displayName: line.displayName, login: line.login, recent: recent()) {
-                try? await account.chat?.helix.user(id: line.userId)
-            }
-            .presentationDetents([.medium])
-        }
-        .modifier(
-            ChatLineMenu(
-                translatable: line.text.isEmpty ? nil : line.text,
-                name: line.displayName,
-                delete: mayModerate && !line.deleted ? { moderate { try await $0.delete(messageId: line.id) } } : nil,
-                ban: mayModerate
-                    ? { seconds, reason in
-                        moderate {
-                            try await $0.ban(userId: line.userId, seconds: seconds, reason: reason)
-                            banned = Banned(userId: line.userId, name: line.displayName, seconds: seconds)
-                        }
-                    } : nil,
-                reply: line.kind == nil && !line.deleted ? reply : nil,
-                warn: mayModerate && !line.isBroadcaster
-                    ? { reason in moderate { try await $0.warn(userId: line.userId, reason: reason) } } : nil))
     }
 
     /// Runs a moderation verb on a fresh token. Twitch checks the mod's
