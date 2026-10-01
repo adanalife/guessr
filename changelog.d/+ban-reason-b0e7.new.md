@@ -1,0 +1,1 @@
+Mods can give a reason when timing someone out or banning them: the Time out menu has a "With a reason…" item, and the ban confirmation takes one too. Twitch shows it to the other mods and to the person it was about.
