@@ -48,6 +48,7 @@ struct GuessrApp: App {
             }
             .foregroundStyle(Color.ink)
             .preferredColorScheme(appearance == "system" ? nil : appearance == "dark" ? .dark : .light)
+            .modifier(AchievementToast())
             .environment(account)
             .environment(gameCenter)
             .task { gameCenter.start { await gameCenter.sync(player, with: client) } }
