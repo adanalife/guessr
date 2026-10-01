@@ -455,8 +455,9 @@ private struct ReplayView: View {
 /// A clip on a muted loop. No scrubber: a scrubber is a way to hunt for a
 /// frame the round didn't mean to show. A pinch zooms in and a drag pans the
 /// zoomed picture, a tap pauses it and names the other gestures for a moment,
-/// and a double tap zooms back out. `fills` crops it to cover its frame rather
-/// than letterboxing inside it.
+/// and a double tap opens it full screen, or closes the full screen, zoomed
+/// back out. `fills` crops it to cover its frame rather than letterboxing
+/// inside it.
 struct ClipView: View {
     /// Every clip's shape: 1280 wide with the dashcam HUD cropped off the
     /// bottom. A frame of this shape leaves nothing to letterbox.
@@ -471,8 +472,56 @@ struct ClipView: View {
     /// The zoom between gestures, and the one a gesture in progress shows.
     @State private var zoom = ClipZoom()
     @State private var live: ClipZoom?
+    /// Full screen is the same player and gestures on a cover of their own,
+    /// so the loop carries on across the switch rather than restarting.
+    @State private var full = false
 
     var body: some View {
+        surface(fills: fills)
+            .accessibilityElement()
+            .accessibilityLabel(paused ? "Clip, paused" : "Clip")
+            .accessibilityAction(named: paused ? "Play" : "Pause") { togglePause() }
+            .accessibilityAction(named: "Full screen") { toggleFull() }
+            .fullScreenCover(isPresented: $full, onDismiss: { zoom = ClipZoom() }) {
+                // ponytail: the zoom is clipped to the clip's own frame, not
+                // the whole screen; pan into the paper if that reads cramped.
+                surface(fills: false)
+                    .aspectRatio(ClipView.aspect, contentMode: .fit)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay(alignment: .topTrailing) {
+                        Button("Close", systemImage: "xmark") { full = false }
+                            .labelStyle(.iconOnly)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Color.ink)
+                            .frame(width: 44, height: 44)
+                            .background(.regularMaterial, in: Circle())
+                            .padding()
+                    }
+                    .paper()
+                    .statusBarHidden()
+                    .accessibilityElement(children: .contain)
+                    .accessibilityAction(.escape) { full = false }
+            }
+            // A tab switch runs this again on the way back, and a second looper on
+            // a player still holding the first one's items leaves it with nothing
+            // to play: the looper is built once, and each appearance only resumes.
+            .onAppear {
+                if looper == nil {
+                    player.isMuted = true
+                    looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
+                }
+                if !paused { player.play() }
+                #if DEBUG
+                    // `-fullscreen 1` opens the cover on launch, so it can be
+                    // screenshotted from the shell.
+                    if UserDefaults.standard.bool(forKey: "fullscreen") { full = true }
+                #endif
+            }
+            // The cover hides this view without ending the clip.
+            .onDisappear { if !full { player.pause() } }
+    }
+
+    private func surface(fills: Bool) -> some View {
         GeometryReader { geo in
             let shown = live ?? zoom
             PlayerLayer(player: player, gravity: fills ? .resizeAspectFill : .resizeAspect)
@@ -484,7 +533,7 @@ struct ClipView: View {
                 .contentShape(Rectangle())
                 .gesture(pinch(geo.size))
                 .gesture(pan(geo.size), isEnabled: zoom.scale > 1)
-                .onTapGesture(count: 2) { withAnimation { zoom = ClipZoom() } }
+                .onTapGesture(count: 2) { toggleFull() }
                 .onTapGesture {
                     togglePause()
                     withAnimation { hint = true }
@@ -499,7 +548,7 @@ struct ClipView: View {
                 }
                 .overlay(alignment: .bottom) {
                     if hint {
-                        Text("Pinch to zoom · double-tap to zoom out")
+                        Text("Pinch to zoom, double tap for full screen")
                             .font(.caption)
                             .foregroundStyle(.white)
                             .padding(.horizontal, 10).padding(.vertical, 4)
@@ -515,20 +564,11 @@ struct ClipView: View {
                     withAnimation { hint = false }
                 }
         }
-        .accessibilityElement()
-        .accessibilityLabel(paused ? "Clip, paused" : "Clip")
-        .accessibilityAction(named: paused ? "Play" : "Pause") { togglePause() }
-        // A tab switch runs this again on the way back, and a second looper on
-        // a player still holding the first one's items leaves it with nothing
-        // to play: the looper is built once, and each appearance only resumes.
-        .onAppear {
-            if looper == nil {
-                player.isMuted = true
-                looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
-            }
-            if !paused { player.play() }
-        }
-        .onDisappear { player.pause() }
+    }
+
+    private func toggleFull() {
+        zoom = ClipZoom()
+        full.toggle()
     }
 
     private func togglePause() {
