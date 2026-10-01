@@ -142,7 +142,8 @@ struct PlayView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .sensoryFeedback(.selection, trigger: pin?.latitude)
+        // A tick as a pin lands, and none as "Next round" clears it.
+        .sensoryFeedback(.selection, trigger: pin?.latitude) { _, now in now != nil }
         .sensoryFeedback(trigger: revealed) { _, shown in
             shown ? progress.played.last.map { Self.feedback(for: $0.score.points) } : nil
         }
