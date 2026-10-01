@@ -12,7 +12,9 @@ let package = Package(
     platforms: [.iOS(.v26), .macOS(.v15)],
     products: [.library(name: "GuessrKit", targets: ["GuessrKit"])],
     targets: [
-        .target(name: "GuessrKit"),
+        // The catalog is declared rather than found: the Swift in a hosted
+        // runner leaves an .xcstrings unhandled and generates no Bundle.module.
+        .target(name: "GuessrKit", resources: [.process("Localizable.xcstrings")]),
         .testTarget(
             name: "GuessrKitTests",
             dependencies: ["GuessrKit"],
