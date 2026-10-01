@@ -357,6 +357,9 @@ struct TwitchSignIn: View {
             let started = try await account.auth.start()
             code = started
             try await account.signIn(started)
+        } catch is CancellationError {
+            // An abandoned login: nothing went wrong to explain.
+        } catch let error as URLError where error.code == .cancelled {
         } catch {
             self.error = error.localizedDescription
         }
