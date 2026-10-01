@@ -152,10 +152,13 @@ struct SettingsView: View {
             ReminderSection()
             Section {
                 Toggle("Distances in kilometers", isOn: $kilometers)
+                    .toggleStyle(.switch)
+            }
+            Section("Appearance") {
                 Picker("Appearance", selection: $appearance) {
-                    Text("System").tag("system")
                     Text("Light").tag("light")
                     Text("Dark").tag("dark")
+                    Text("System").tag("system")
                 }
                 .pickerStyle(.segmented)
             }
