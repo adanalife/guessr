@@ -32,7 +32,7 @@ task ios:release
 It reads four variables from the environment:
 
 | Variable | What |
-|---|---|
+| --- | --- |
 | `DEVELOPMENT_TEAM` | the Apple Developer team id |
 | `ASC_KEY_PATH` | the App Store Connect API key (`.p8`), kept outside the repo |
 | `ASC_KEY_ID` | that key's id |
@@ -51,7 +51,7 @@ whether the newest tag has an installable build.
 Two settings are empty in a public checkout, declared in `Guessr.xcconfig`:
 
 | Setting | Empty means |
-|---|---|
+| --- | --- |
 | `GUESSR_TWITCH_CLIENT_ID` | the Twitch login is switched off |
 | `GUESSR_OWNER_TWITCH_ID` | nobody is the owner |
 

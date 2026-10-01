@@ -4,4 +4,8 @@
 # unparseable: a legitimate spelling (test_storage.mjs's assertion messages);
 # codespell wants "unparsable". Four other repos in the fleet carry the same
 # entry — it is the one word the whole fleet shares.
-ignore-words-list = isplay,unparseable
+# nd: North Dakota's postal code (app/Guessr/USState.swift).
+# inout: a Swift keyword (`inout` parameters).
+# mappin: an SF Symbols name ("mappin.and.ellipse").
+# statics: a legitimate word — static members, in a test's doc comment.
+ignore-words-list = isplay,unparseable,nd,inout,mappin,statics
