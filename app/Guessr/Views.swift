@@ -170,8 +170,11 @@ struct SettingsView: View {
             NameSection(player: $player, playedToday: playedToday)
             ReminderSection()
             Section {
-                Toggle("Distances in kilometers", isOn: $kilometers)
-                    .toggleStyle(.switch)
+                Picker("Units", selection: $kilometers) {
+                    Text("Imperial").tag(false)
+                    Text("Metric").tag(true)
+                }
+                .pickerStyle(.segmented)
             }
             if gameCenter.signedIn {
                 Section {
@@ -186,7 +189,7 @@ struct SettingsView: View {
                 Picker("Appearance", selection: $appearance) {
                     Text("Light").tag("light")
                     Text("Dark").tag("dark")
-                    Text("System").tag("system")
+                    Text("Auto").tag("system")
                 }
                 .pickerStyle(.segmented)
             }
