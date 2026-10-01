@@ -63,6 +63,18 @@ whose client id is empty, so a TestFlight build always has the login on.
 `GUESSR_TWITCH_CHANNEL` is set in the tree: the Chat tab talks in `adanalife_`
 in a Release build and in `adanalife_staging` in a Debug one.
 
+## Languages
+
+The app follows the device language: English, French, Spanish, Russian and
+Czech. Every string lives in a catalog, `Guessr/Localizable.xcstrings` for the
+app, `GuessrKit/Sources/GuessrKit/Localizable.xcstrings` for the package, and
+`Guessr/AppShortcuts.xcstrings` for the Siri phrases. A string literal in a
+SwiftUI view localizes on its own; one built as a `String` goes through
+`String(localized:)`, and the package's strings name `bundle: .module`, since
+SwiftUI looks in the app bundle otherwise. The build extracts every literal it
+finds (`SWIFT_EMIT_LOC_STRINGS`), so a new string shows up in the catalog the
+next time the project is built in Xcode, waiting for its translations.
+
 ## The console tier
 
 The app can also link `TempomatConsole`, a private package that adds the

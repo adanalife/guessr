@@ -15,8 +15,8 @@ enum Reminder {
         let center = UNUserNotificationCenter.current()
         guard (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) == true else { return false }
         let content = UNMutableNotificationContent()
-        content.title = "Guessr"
-        content.body = "Today's five rounds are ready to play!"
+        content.title = String(localized: "Guessr")
+        content.body = String(localized: "Today's five rounds are ready to play!")
         content.sound = .default
         let trigger = UNCalendarNotificationTrigger(
             dateMatching: DateComponents(hour: hour, minute: minute), repeats: true)

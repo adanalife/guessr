@@ -92,7 +92,7 @@ struct ChatLog: View {
                 ForEach(held) { message in
                     HStack(alignment: .firstTextBaseline) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("\(message.displayName): \(message.text)").font(.subheadline).lineLimit(3)
+                            Text(verbatim: "\(message.displayName): \(message.text)").font(.subheadline).lineLimit(3)
                             Text(message.why).font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
@@ -165,7 +165,7 @@ struct ChatLog: View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let wait = account.isMod ? 0 : mode.wait(since: lastSent, now: context.date)
             Label(
-                wait > 0 ? "\(summary) · wait \(wait)s" : summary,
+                wait > 0 ? String(localized: "\(summary) · wait \(wait)s") : summary,
                 systemImage: mode.slowSeconds > 0 ? "hourglass" : "lock")
         }
         .font(.caption)
@@ -190,7 +190,7 @@ struct ChatLog: View {
     /// empty log says so itself, in its middle.
     private var connectionStatus: String? {
         guard let chat = account.chat else { return nil }
-        return chat.isConnected ? chat.lastError : lines.isEmpty ? nil : "Connecting…"
+        return chat.isConnected ? chat.lastError : lines.isEmpty ? nil : String(localized: "Connecting…")
     }
 
     private func loadArt() async {
@@ -392,7 +392,7 @@ struct ChatLog: View {
             Button { pickingEmote.toggle() } label: { Image(systemName: pickingEmote ? "keyboard" : "face.smiling") }
                 .accessibilityLabel(pickingEmote ? "Hide emotes" : "Emotes")
                 .disabled(emotes.isEmpty)
-            TextField("Say something as \(account.session?.login ?? "you")", text: $text)
+            TextField("Say something as \(account.session?.login ?? String(localized: "you"))", text: $text)
                 .textFieldStyle(.plain)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -561,8 +561,8 @@ struct Banned {
     var seconds: Int
 
     var summary: String {
-        guard seconds > 0 else { return "Banned \(name)" }
-        return "Timed out \(name) for \(timeoutLength(seconds))"
+        guard seconds > 0 else { return String(localized: "Banned \(name)") }
+        return String(localized: "Timed out \(name) for \(timeoutLength(seconds))")
     }
 }
 
@@ -584,10 +584,10 @@ private func kindSymbol(_ kind: String) -> String {
 private func shortAge(_ then: Date, now: Date = .now) -> String {
     let s = max(Int(now.timeIntervalSince(then)), 0)
     switch s {
-    case ..<60: return "\(s)s"
-    case ..<3600: return "\(s / 60)m"
-    case ..<86400: return "\(s / 3600)h"
-    default: return "\(s / 86400)d"
+    case ..<60: return String(localized: "\(s)s")
+    case ..<3600: return String(localized: "\(s / 60)m")
+    case ..<86400: return String(localized: "\(s / 3600)h")
+    default: return String(localized: "\(s / 86400)d")
     }
 }
 
