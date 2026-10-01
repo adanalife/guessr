@@ -33,8 +33,12 @@ BUNDLE_ID = "lol.dana.guessr"
 LOCALE = "en-US"
 
 # (vendor suffix, reference name, attributes). The monthly board recurs from
-# the first of a month for a month; the submission is the month's total, so
-# best score keeps it climbing.
+# the first of each month. Apple takes the occurrence's length only in time
+# components, so it is 31 days rather than a month: a short month's occurrence
+# runs a day or three into the next, and a play made then lands in both. The
+# submission is the calendar month's total under best score, so the earlier
+# occurrence keeps the earlier month's figure and the overlap costs nothing
+# unless a player's first points of the new month arrive in those days.
 LEADERBOARDS = [
     ("lifetime", "All Time", {}),
     (
@@ -42,7 +46,7 @@ LEADERBOARDS = [
         "This Month",
         {
             "recurrenceStartDate": "2026-10-01T00:00:00Z",
-            "recurrenceDuration": "P1M",
+            "recurrenceDuration": "PT744H",
             "recurrenceRule": "FREQ=MONTHLY;INTERVAL=1",
         },
     ),
