@@ -1786,6 +1786,34 @@
         }
       }
     },
+    "Language" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jazyk"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Idioma"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Langue"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Язык"
+          }
+        }
+      }
+    },
     "Leaderboard" : {
       "localizations" : {
         "cs" : {
@@ -2342,6 +2370,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "На сайте откройте «об игре» и нажмите «Привязать устройство», чтобы получить код."
+          }
+        }
+      }
+    },
+    "Opens Settings, where iOS keeps the app's language." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otevře Nastavení, kde iOS uchovává jazyk aplikace."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre Ajustes, donde iOS guarda el idioma de la app."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvre Réglages, où iOS garde la langue de l’app."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открывает Настройки, где iOS хранит язык приложения."
           }
         }
       }
