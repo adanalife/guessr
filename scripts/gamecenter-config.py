@@ -66,8 +66,9 @@ LEADERBOARD = {
     "visibility": "SHOW_FOR_ALL",
 }
 
-# (vendor suffix, name, points, shown before earned, before, after). Points
-# sum to Apple's cap of 1000. The two hidden ones are the surprises.
+# (vendor suffix, name, points, shown before earned, before, after). Apple
+# takes 0-100 points per achievement and 1000 across them; the three hardest
+# sit at the cap. The two hidden ones are the surprises.
 ACHIEVEMENTS = [
     (
         "first_pin",
