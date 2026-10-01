@@ -68,6 +68,7 @@ ROUTES = [
     ("/api/link", "POST", lambda r: link.link(r.db, r.body)),
     ("/api/link/code", "POST", lambda r: link.issue_code(r.db, r.body)),
     ("/api/link/claim", "POST", lambda r: link.claim(r.db, r.body)),
+    ("/api/link/preview", "POST", lambda r: link.preview(r.db, r.body)),
     ("/admin/day", "GET", lambda r: admin_day.preview(r.db, r.who, r.params)),
     (
         "/admin/day",

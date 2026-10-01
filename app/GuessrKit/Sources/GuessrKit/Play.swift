@@ -215,6 +215,41 @@ extension GuessrClient {
     }
 }
 
+/// What a claim would do: the player a code names and the player this device
+/// plays as today, each with their all-time points.
+public struct LinkPreview: Sendable, Equatable, Codable {
+    public struct Standing: Sendable, Equatable, Codable {
+        public var name: String
+        public var points: Int
+
+        public init(name: String, points: Int) {
+            self.name = name
+            self.points = points
+        }
+    }
+
+    public var to: Standing
+    public var from: Standing
+
+    public init(to: Standing, from: Standing) {
+        self.to = to
+        self.from = from
+    }
+}
+
+extension GuessrClient {
+    /// Looks a code up without claiming it, so the device can ask before
+    /// `claimLink` replaces its player. Same 404 as a claim for a code that is
+    /// unknown, used or expired.
+    public func previewLink(code: String, from player: Player) async throws -> LinkPreview {
+        var req = URLRequest(url: baseURL.appending(path: "api/link/preview"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(["code": code, "from": player.id])
+        return try Guessr.decoder.decode(LinkPreview.self, from: try await data(req))
+    }
+}
+
 /// A code another device types in to join this player, and when it stops working.
 public struct LinkCode: Sendable, Equatable, Codable {
     public var code: String

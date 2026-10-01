@@ -392,8 +392,11 @@ against the id for ten minutes and answers `{code, expires_at}`; the About panel
 shows it beside the QR code. `POST /api/link/claim {code, from}` takes the code
 (single-use: it is deleted as it is read), runs the same merge with `from` as
 the mover, and answers `{player_id, moved}` — the id the claiming device plays as
-from then on. This is the one place a player id leaves the server, and only to
-the device holding a code its owner just drew. The `link_codes` table holds
+from then on. `POST /api/link/preview {code, from}` is the same lookup without
+the merge — `{to: {name, points}, from: {name, points}}`, all-time — so a device
+can say whose player it is about to become before it claims. This is the one
+place a player id leaves the server, and only to the device holding a code its
+owner just drew. The `link_codes` table holds
 nothing else, and a row is gone once claimed or once the next issue or claim
 sweeps it past its expiry.
 

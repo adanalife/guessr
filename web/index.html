@@ -1388,28 +1388,30 @@ async function showCode() {
 // Typing in a code drawn on another device: this browser's plays fold onto that
 // player, and it plays as them from here on. Confirmed for the same reason a
 // scanned link is -- a code is something anyone can read out to you -- and the
-// id is adopted only once the merge has answered, as in adoptLink() below.
+// question names both players, looked up first, so it is answerable. The id is
+// adopted only once the merge has answered, as in adoptLink() below.
 el('claim').addEventListener('submit', async event => {
   event.preventDefault();
   // No id means no localStorage, which could not hold the adopted one either.
   const from = playerId();
   if (!from) return;
-  if (!window.confirm("Add this browser's scores to the player on your other device?"
+  const body = JSON.stringify({ code: el('claimcode').value, from });
+  const post = path => request(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body,
+  }).catch(() => null);
+  const refused = res => window.alert(res && res.status < 500
+    ? 'That code is unknown or has expired. Draw a new one on the other device.'
+    : 'Could not link the devices just now. Try the code again.');
+  const peek = await post('api/link/preview');
+  if (!peek?.ok) return refused(peek);
+  const { to, from: me } = await peek.json();
+  if (!window.confirm(`This browser becomes ${to.name} (${to.points.toLocaleString()} points),`
+    + ` replacing ${me.name} (${me.points.toLocaleString()} points). Its scores go with it.`
     + ' Both devices will play as one player from now on.')) return;
-  let res;
-  try {
-    res = await request('api/link/claim', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ code: el('claimcode').value, from }),
-    });
-  } catch { res = null; }
-  if (!res?.ok) {
-    window.alert(res && res.status < 500
-      ? 'That code is unknown or has expired. Draw a new one on the other device.'
-      : 'Could not link the devices just now. Try the code again.');
-    return;
-  }
+  const res = await post('api/link/claim');
+  if (!res?.ok) return refused(res);
   localStorage.setItem(PLAYER_KEY, (await res.json()).player_id);
   // Reloaded for the reason adoptLink() gives: everything on screen was drawn
   // for a player who no longer plays here.

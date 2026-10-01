@@ -43,6 +43,22 @@ final class ClaimingGuessr: URLProtocol, @unchecked Sendable {
     }
 }
 
+/// Answers every request with the link-preview fixture and keeps the last request.
+final class PreviewingGuessr: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var lastBody: [String: Any] = [:]
+    nonisolated(unsafe) static var lastPath: String?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+
+    override func startLoading() {
+        Self.lastPath = request.url?.path
+        Self.lastBody = jsonBody(of: request)
+        answer(self, with: "link-preview")
+    }
+}
+
 /// Answers every request with the link-code fixture and keeps the last request.
 final class IssuingGuessr: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var lastBody: [String: Any] = [:]
@@ -145,6 +161,15 @@ private let image = "clips/2018_1015_183219_002_opt-026000.mp4"
     #expect(ClaimingGuessr.lastPath == "/api/link/claim")
     #expect(ClaimingGuessr.lastBody["code"] as? String == "ABCD2345")
     #expect(ClaimingGuessr.lastBody["from"] as? String == player.id)
+}
+
+@Test func aPreviewedCodeNamesBothPlayers() async throws {
+    let preview = try await client(PreviewingGuessr.self).previewLink(code: "ABCD2345", from: player)
+    #expect(preview.to == LinkPreview.Standing(name: "Patient Delta", points: 12345))
+    #expect(preview.from == LinkPreview.Standing(name: "Lucky Overpass", points: 500))
+    #expect(PreviewingGuessr.lastPath == "/api/link/preview")
+    #expect(PreviewingGuessr.lastBody["code"] as? String == "ABCD2345")
+    #expect(PreviewingGuessr.lastBody["from"] as? String == player.id)
 }
 
 @Test func anIssuedCodeIsForThisPlayer() async throws {

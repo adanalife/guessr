@@ -13,6 +13,7 @@ import re
 import secrets
 
 from server import rules
+from server.leaderboard import PLACEHOLDER, name_expr
 
 # UPDATE OR IGNORE keeps the row already under `to` when both browsers answered
 # the same round on the same date (first write wins), and SWEEP clears the
@@ -52,6 +53,10 @@ ISSUE = """INSERT INTO link_codes (code, player_id, expires_at)
   RETURNING expires_at"""
 TAKE = f"""DELETE FROM link_codes WHERE code = ? AND expires_at > {NOW}
   RETURNING player_id"""
+PEEK = f"SELECT player_id FROM link_codes WHERE code = ? AND expires_at > {NOW}"
+# Who a player is on the boards, all time. `?1` twice over, so one argument.
+STANDING = f"""SELECT COALESCE(SUM(p.points), 0) AS points, {name_expr("?1")} AS name
+  FROM plays p WHERE p.player_id = ?1"""
 SWEEP_EXPIRED = f"DELETE FROM link_codes WHERE expires_at <= {NOW}"
 SHAPE = re.compile(f"[{ALPHABET}]{{{LENGTH}}}")
 
@@ -92,3 +97,25 @@ async def claim(db, body) -> tuple[int, dict]:
         return 200, {"player_id": target, "moved": 0}
     moved, _ = await db.batch([(MOVE, target, source), (SWEEP, source)])
     return 200, {"player_id": target, "moved": moved}
+
+
+async def standing(db, player) -> dict:
+    row = await db.fetchone(STANDING, player)
+    return {"name": row["name"] or PLACEHOLDER, "points": row["points"]}
+
+
+async def preview(db, body) -> tuple[int, dict]:
+    """What a claim would do, so the device can ask before it does: the player
+    the code names and the player it would replace, each with their all-time
+    points. Reads only -- the code stays live for the claim."""
+    code = normalize(body.get("code") if isinstance(body, dict) else None)
+    source = body.get("from") if isinstance(body, dict) else None
+    if not SHAPE.fullmatch(code) or not rules.is_player_id(source):
+        return 400, {"error": "expected {code, from}"}
+    row = await db.fetchone(PEEK, code)
+    if row is None:
+        return 404, {"error": "unknown or expired code"}
+    return 200, {
+        "to": await standing(db, row["player_id"]),
+        "from": await standing(db, source),
+    }
