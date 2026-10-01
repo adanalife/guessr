@@ -771,10 +771,10 @@ struct ProgressSquares: View {
         Group {
             if progress.played.isEmpty {
                 Text("Where was this dashcam clip taken?")
-                    .font(.system(.title3, design: .serif, weight: .semibold))
+                    .font(.system(.headline, design: .serif, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity)
                     .transition(.opacity)
             } else {
                 HStack(spacing: 6) {
