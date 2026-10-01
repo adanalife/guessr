@@ -875,6 +875,34 @@
         }
       }
     },
+    "Copies the code" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zkopíruje kód"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copia el código"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copie le code"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Копирует код"
+          }
+        }
+      }
+    },
     "Copy share text" : {
       "localizations" : {
         "cs" : {
@@ -1670,12 +1698,68 @@
         }
       }
     },
+    "How linking works" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jak propojení funguje"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cómo funciona la vinculación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comment fonctionne la liaison"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Как работает привязка"
+          }
+        }
+      }
+    },
     "Idaho" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Айдахо"
+          }
+        }
+      }
+    },
+    "If you play on multiple devices (like the web version), you can use a temporary code to connect the devices and keep playing under your other username." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pokud hrajete na více zařízeních (třeba ve webové verzi), můžete je propojit dočasným kódem a hrát dál pod svým druhým uživatelským jménem."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si juegas en varios dispositivos (como la versión web), puedes usar un código temporal para conectarlos y seguir jugando con tu otro nombre de usuario."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si vous jouez sur plusieurs appareils (comme la version web), un code temporaire permet de les relier et de continuer à jouer sous votre autre nom d’utilisateur."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Если вы играете на нескольких устройствах (например, в веб-версии), временный код позволит связать их и продолжить играть под другим именем пользователя."
           }
         }
       }
@@ -1814,6 +1898,34 @@
         }
       }
     },
+    "Language" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jazyk"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Idioma"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Langue"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Язык"
+          }
+        }
+      }
+    },
     "Leaderboard" : {
       "localizations" : {
         "cs" : {
@@ -1922,34 +2034,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Светлое"
-          }
-        }
-      }
-    },
-    "Link a device" : {
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Propojit zařízení"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Vincular un dispositivo"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lier un appareil"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Привязать устройство"
           }
         }
       }
@@ -2326,6 +2410,34 @@
         }
       }
     },
+    "OK" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aceptar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ОК"
+          }
+        }
+      }
+    },
     "Ohio" : {
       "localizations" : {
         "ru" : {
@@ -2370,6 +2482,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "На сайте откройте «об игре» и нажмите «Привязать устройство», чтобы получить код."
+          }
+        }
+      }
+    },
+    "Opens Settings, where iOS keeps the app's language." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otevře Nastavení, kde iOS uchovává jazyk aplikace."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre Ajustes, donde iOS guarda el idioma de la app."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvre Réglages, où iOS garde la langue de l’app."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открывает Настройки, где iOS хранит язык приложения."
           }
         }
       }
@@ -2608,6 +2748,34 @@
         }
       }
     },
+    "Playing on another device?" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hrajete i na jiném zařízení?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Juegas en otro dispositivo?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vous jouez sur un autre appareil ?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Играете на другом устройстве?"
+          }
+        }
+      }
+    },
     "Replying to %@" : {
       "localizations" : {
         "cs" : {
@@ -2810,6 +2978,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Настройки"
+          }
+        }
+      }
+    },
+    "Show a code" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zobrazit kód"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar un código"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher un code"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показать код"
           }
         }
       }

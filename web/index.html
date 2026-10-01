@@ -360,6 +360,11 @@
             spellcheck="false" maxlength="12" required></label>
           <button type="submit" class="secondary" data-i18n>Join</button></form>
       </div>
+      <!-- The language the page speaks; Auto is the browser's. Each name is
+           written in itself, so a player who can't read the current language
+           can still find their own. -->
+      <p><label><span data-i18n>Language</span>
+        <select id="lang"><option value="" data-i18n>Auto</option></select></label></p>
       <!-- Both halves are stamped in at deploy time, so the whole line stays
            hidden until version.json says something. The reset is for the
            testing tiers: the intro, the About dot and the daily record are all
@@ -469,10 +474,30 @@ import {
   seen,
 } from './storage.js';
 import { fitScale, fitView, panView, zoomAbout } from './zoom.js';
-import { t, translatePage } from './i18n.js';
+import { LANG_KEY, LANGUAGES, NAMES, t, translatePage } from './i18n.js';
 
 // Before anything below reads or writes the page's words.
 translatePage();
+
+{
+  const picker = document.getElementById('lang');
+  for (const lang of ['en', ...LANGUAGES]) picker.add(new Option(NAMES[lang], lang));
+  try {
+    picker.value = localStorage.getItem(LANG_KEY) ?? '';
+  } catch {
+    /* nothing saved to show */
+  }
+  // The words are rewritten once at load, so a new language is a reload.
+  picker.addEventListener('change', () => {
+    try {
+      if (picker.value) localStorage.setItem(LANG_KEY, picker.value);
+      else localStorage.removeItem(LANG_KEY);
+    } catch {
+      /* storage refused: nothing to remember the choice in */
+    }
+    location.reload();
+  });
+}
 
 // What a scored round tells us about where it was, as opposed to how it went.
 // Kept apart because it is also what gets stored and replayed: a resumed or
