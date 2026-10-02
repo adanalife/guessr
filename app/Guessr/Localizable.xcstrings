@@ -37,6 +37,24 @@
     },
     "%@ km" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ km"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ km"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ km"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -47,6 +65,24 @@
     },
     "%@ mi" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ mi"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ mi"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ mi"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -327,6 +363,24 @@
     },
     "Alabama" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alabama"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alabama"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alabama"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -337,6 +391,24 @@
     },
     "Alaska" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aljaška"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alaska"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alaska"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -403,6 +475,24 @@
     },
     "Arizona" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arizona"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arizona"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arizona"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -413,6 +503,24 @@
     },
     "Arkansas" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arkansas"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arkansas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arkansas"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -597,6 +705,12 @@
             "value" : "Kalifornie"
           }
         },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "California"
+          }
+        },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
@@ -641,6 +755,24 @@
     },
     "Chat" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chat"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chat"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chat"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -683,6 +815,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Klip"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clip"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clip"
           }
         },
         "ru" : {
@@ -763,6 +907,12 @@
             "value" : "Código"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -773,6 +923,24 @@
     },
     "Colorado" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Colorado"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Colorado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Colorado"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -811,6 +979,24 @@
     },
     "Connecticut" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecticut"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecticut"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecticut"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1129,6 +1315,24 @@
     },
     "Delaware" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delaware"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delaware"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delaware"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1257,6 +1461,18 @@
             "value" : "Emotikony"
           }
         },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Emoticonos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Emotes"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1351,6 +1567,18 @@
     },
     "Florida" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Florida"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Florida"
+          }
+        },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1455,6 +1683,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Georgie"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Georgia"
           }
         },
         "fr" : {
@@ -1728,6 +1962,24 @@
     },
     "Idaho" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Idaho"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Idaho"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Idaho"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1766,6 +2018,24 @@
     },
     "Illinois" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Illinois"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Illinois"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Illinois"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1804,6 +2074,24 @@
     },
     "Indiana" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indiana"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indiana"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indiana"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1814,6 +2102,24 @@
     },
     "Iowa" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iowa"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iowa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iowa"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1880,6 +2186,24 @@
     },
     "Kansas" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kansas"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kansas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kansas"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1890,6 +2214,24 @@
     },
     "Kentucky" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kentucky"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kentucky"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kentucky"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2040,6 +2382,12 @@
     },
     "Louisiana" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Louisiana"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2062,6 +2410,24 @@
     },
     "Maine" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maine"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maine"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maine"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2072,6 +2438,24 @@
     },
     "Maryland" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maryland"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maryland"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maryland"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2082,6 +2466,24 @@
     },
     "Massachusetts" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Massachusetts"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Massachusetts"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Massachusetts"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2148,6 +2550,24 @@
     },
     "Michigan" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Michigan"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Míchigan"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Michigan"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2158,6 +2578,24 @@
     },
     "Minnesota" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minnesota"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minnesota"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minnesota"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2168,10 +2606,22 @@
     },
     "Mississippi" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mississippi"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Misisipi"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mississippi"
           }
         },
         "ru" : {
@@ -2184,10 +2634,22 @@
     },
     "Missouri" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Missouri"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Misuri"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Missouri"
           }
         },
         "ru" : {
@@ -2206,6 +2668,12 @@
             "value" : "Moderátor"
           }
         },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mod"
+          }
+        },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2222,6 +2690,24 @@
     },
     "Montana" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Montana"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Montana"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Montana"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2232,6 +2718,24 @@
     },
     "Nebraska" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nebraska"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nebraska"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nebraska"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2242,6 +2746,24 @@
     },
     "Nevada" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nevada"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nevada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nevada"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2252,10 +2774,22 @@
     },
     "New Hampshire" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Hampshire"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nuevo Hampshire"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Hampshire"
           }
         },
         "ru" : {
@@ -2268,10 +2802,22 @@
     },
     "New Jersey" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Jersey"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nueva Jersey"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Jersey"
           }
         },
         "ru" : {
@@ -2312,10 +2858,22 @@
     },
     "New York" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New York"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nueva York"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New York"
           }
         },
         "ru" : {
@@ -2440,6 +2998,24 @@
     },
     "Ohio" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ohio"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ohio"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ohio"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2450,6 +3026,24 @@
     },
     "Oklahoma" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oklahoma"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oklahoma"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oklahoma"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2516,10 +3110,22 @@
     },
     "Oregon" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oregon"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Oregón"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oregon"
           }
         },
         "ru" : {
@@ -2542,6 +3148,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pausar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause"
           }
         },
         "ru" : {
@@ -2862,6 +3474,24 @@
     },
     "Rhode Island" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rhode Island"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rhode Island"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rhode Island"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3460,6 +4090,24 @@
     },
     "Tennessee" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tennessee"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tennessee"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tennessee"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3470,6 +4118,24 @@
     },
     "Texas" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Texas"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Texas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Texas"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3763,6 +4429,24 @@
     },
     "Utah" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utah"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utah"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utah"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3773,6 +4457,24 @@
     },
     "Vermont" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vermont"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vermont"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vermont"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3873,6 +4575,12 @@
             "value" : "Virginie"
           }
         },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Virginia"
+          }
+        },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3917,6 +4625,24 @@
     },
     "Washington" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Washington"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Washington"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Washington"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3983,6 +4709,24 @@
     },
     "Wisconsin" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wisconsin"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wisconsin"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wisconsin"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3993,6 +4737,24 @@
     },
     "Wyoming" : {
       "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wyoming"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wyoming"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wyoming"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4153,6 +4915,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "puntos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "points"
           }
         },
         "ru" : {
