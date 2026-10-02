@@ -86,8 +86,8 @@ ACHIEVEMENTS = [
         "Bullseye",
         100,
         True,
-        "Put a pin within 10 km of the van.",
-        "You put a pin within 10 km of the van.",
+        "Put a pin within 6 miles of the van.",
+        "You put a pin within 6 miles of the van.",
     ),
     (
         "golden_day",
