@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Same terms as the rest of /admin/: deployed everywhere, reachable behind
+     the Access login and nowhere else, and kept out of search results.
+
+     `openers.html` rather than upcoming.html, for the reason notes.html is not
+     players.html -- Pages serves a page at its extensionless path, so a page
+     named for the endpoint would answer at /admin/upcoming, which is the
+     Function this one calls. -->
+<meta name="robots" content="noindex">
+<title>guessr — upcoming rounds</title>
+<script src="/theme.js"></script>
+<link rel="stylesheet" href="/base.css">
+<style>
+  body { margin: 0 auto; padding: 1rem; max-width: 72rem; }
+  h1 { font-size: 1.3rem; font-weight: 400; font-style: italic; }
+  .nav { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+  #meta { color: var(--color-muted); }
+  /* Tiles, sized so a screenful is a comparison rather than a scroll: the
+     question is which of these look interesting *next to each other*. */
+  #tiles { display: grid; gap: .6rem; padding: 0; margin: 1rem 0; list-style: none;
+           grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); }
+  #tiles li { border: 1px solid var(--color-border); border-radius: 4px;
+              overflow: hidden; background: var(--color-panel); }
+  #tiles video { width: 100%; aspect-ratio: 16 / 9; display: block;
+                 background: #000; object-fit: cover; }
+  .caption { padding: .35rem .5rem; font-size: .8rem; }
+  .caption a { font-variant-numeric: tabular-nums; }
+  .dim { color: var(--color-muted); }
+  /* The opener is the round that decides whether somebody plays the rest, so it
+     is the one worth finding in a grid of ninety. */
+  .opener { font-weight: bold; }
+  .opener::before { content: '★ '; }
+  /* A scheduled round with no answer row: the failure the day preview exists to
+     catch, called out here too rather than rendering as a blank state. */
+  .warn { color: #b00; font-weight: bold; }
+  [data-theme='dark'] .warn { color: #ff6b6b; }
+</style>
+</head>
+<body>
+<h1>Upcoming rounds</h1>
+<p class="nav">
+  <a href="/admin/">&larr; day preview</a>
+  <a href="/admin/notes">players</a>
+  <a href="/admin/scores">score lookup</a>
+  <span id="meta"></span>
+</p>
+<ul id="tiles"></ul>
+
+<script type="module">
+// Everything the schedule still has ahead of it, most distinctive first, as
+// tiles that play when the pointer is over them.
+//
+// `mean_cos` says a clip has no near-twins in the corpus. Whether that reads as
+// an interesting round to play is a judgement no number makes, so the ranking is
+// only useful next to the footage -- which is the whole design of this page. The
+// question comes back every time the pool is regenerated.
+import { request } from '/request.js';
+
+const el = id => document.getElementById(id);
+
+// The values below are this project's own rows, but one of them is a filename
+// out of a generator -- so escape rather than trust the provenance of a string
+// forever.
+const esc = s => String(s).replace(/[&<>"]/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// `#t=0.1` so the tile shows its first frame at rest. A bare `preload=metadata`
+// leaves a black rectangle in most browsers, and ninety black rectangles is a
+// page that has to be hovered to be read at all. A media fragment is native and
+// costs one range request per tile, which is what metadata costs anyway.
+const tile = r => `<li>
+  <video src="/${esc(r.image)}#t=0.1" muted loop playsinline preload="metadata"></video>
+  <div class="caption">
+    <span class="${r.position === 1 ? 'opener' : ''}">
+      <a href="/admin/?date=${esc(r.date)}">${esc(r.date)}</a> #${r.position}
+    </span>
+    ${r.state
+      ? `<span class="dim">${esc(r.state)}</span>`
+      : '<span class="warn">no answer row</span>'}
+    <div class="dim">distinctiveness ${r.mean_cos.toFixed(3)}
+      · locatability ${r.median_km.toFixed(1)} km</div>
+  </div>
+</li>`;
+
+// Played on hover rather than autoplayed. Ninety clips playing at once is
+// unreadable and is also ninety full downloads; one at a time is the comparison
+// the page is for. Reset on the way out so the next hover starts where the
+// scored frame is rather than wherever the pointer left it.
+//
+// Delegated to the list, because the tiles are written in one go and a listener
+// per video would be one per round. pointerenter/leave rather than mouseenter,
+// so a touch device gets the same behaviour from a tap -- and registered in the
+// capture phase, which is load-bearing: neither event bubbles, so a listener on
+// the list in the bubble phase would never see one.
+function hover(e) {
+  const video = e.target.closest('video');
+  if (!video) return;
+  if (e.type === 'pointerenter') {
+    video.play().catch(() => {});
+  } else {
+    video.pause();
+    video.currentTime = 0.1;
+  }
+}
+for (const type of ['pointerenter', 'pointerleave']) {
+  el('tiles').addEventListener(type, hover, true);
+}
+
+async function load() {
+  el('meta').textContent = 'loading…';
+  let res, body;
+  try {
+    res = await request('/admin/upcoming');
+    body = await res.json();
+  } catch {
+    el('meta').textContent = 'could not reach /admin/upcoming';
+    return;
+  }
+  // The endpoint refuses on a tier it does not recognise, and says so. Passed
+  // through rather than flattened to "nothing upcoming", which is a thing that
+  // could also be true -- and is the one state on this page worth panicking
+  // about.
+  if (!res.ok) {
+    el('meta').textContent = body.error || `could not load rounds (${res.status})`;
+    return;
+  }
+  el('tiles').innerHTML = body.rounds.map(tile).join('');
+  const days = new Set(body.rounds.map(r => r.date)).size;
+  el('meta').textContent = body.rounds.length
+    ? `${body.rounds.length} rounds over ${days} days, still to play`
+    : `nothing scheduled past ${body.since} — the schedule has run out`;
+}
+
+load();
+</script>
+</body>
+</html>
