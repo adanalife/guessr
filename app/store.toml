@@ -42,9 +42,9 @@ The same five rounds for everyone, every day, so the leaderboard means something
 
 Footage is the developer's own, recorded while living on the road.
 """
-whats_new = """
-First release on the App Store.
-"""
+# The release notes. App Store Connect refuses them on an app's first
+# version; empty sends nothing.
+whats_new = ""
 
 [review]
 contact_first_name = "Dana"
