@@ -35,11 +35,32 @@ final class StubHelix: URLProtocol {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func stopLoading() {}
 
+    /// A request's body: Apple's URL loading hands a protocol the body as a
+    /// stream, corelibs Foundation as `httpBody`.
+    static func body(of request: URLRequest) -> String {
+        if let body = request.httpBody { return String(decoding: body, as: UTF8.self) }
+        guard let stream = request.httpBodyStream else { return "" }
+        stream.open()
+        defer { stream.close() }
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        let read = stream.read(&buffer, maxLength: buffer.count)
+        return read > 0 ? String(decoding: buffer[..<read], as: UTF8.self) : ""
+    }
+
     override func startLoading() {
         let url = request.url!
         let query = Dictionary(
             (URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []).map { ($0.name, $0.value ?? "") },
             uniquingKeysWith: { a, _ in a })
+        // A subscribe onto session "refused" is turned away, as Twitch does
+        // a login over its socket cap.
+        if url.path == "/helix/eventsub/subscriptions", Self.body(of: request).contains(#""session_id":"refused""#) {
+            let response = HTTPURLResponse(url: url, statusCode: 429, httpVersion: "HTTP/1.1", headerFields: nil)!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: Data(#"{"message":"websocket transports limit exceeded"}"#.utf8))
+            client?.urlProtocolDidFinishLoading(self)
+            return
+        }
         let reply: String
         switch url.path {
         case "/helix/users" where query["id"] == "11":
@@ -523,6 +544,20 @@ private final class Rig {
     try await rig.wait { rig.opened.count == 2 }
     #expect(rig.opened[0].closeCode == .goingAway)
     #expect(rig.subscribes == 2)
+}
+
+/// A connect that fails after its socket opened closes that socket before
+/// retrying, so what did subscribe on it doesn't hold one of the login's
+/// few subscribed sockets.
+@MainActor @Test func aRefusedSubscribeClosesItsSocket() async throws {
+    let rig = Rig([[welcome("refused")], [welcome("s2")]])
+    rig.twitch.start()
+    defer { rig.twitch.stop() }
+    try await rig.wait { rig.opened.count == 2 && rig.twitch.isConnected }
+    try #require(rig.opened.count == 2)
+    #expect(rig.opened[0].closeCode == .goingAway)
+    #expect(rig.opened[1].closeCode == nil)
+    #expect(rig.twitch.isConnected)
 }
 
 @Test func reconnectsBackOffByDoublingUpToAMinute() {

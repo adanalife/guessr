@@ -325,6 +325,12 @@ public final class TwitchChat {
                 lastError = error.localizedDescription
             }
             isConnected = false
+            // A connect that failed after the socket opened — a refused
+            // subscribe, say — leaves it open with whatever did subscribe, and
+            // Twitch caps a login's subscribed sockets, so a few left behind
+            // would refuse every reconnect after them.
+            socket?.cancel(with: .goingAway, reason: nil)
+            socket = nil
             retiring?.cancel(with: .goingAway, reason: nil)
             retiring = nil
             url = eventSubURL
