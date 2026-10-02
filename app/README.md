@@ -153,8 +153,8 @@ in a Release build and in `adanalife_staging` in a Debug one.
 
 ## Languages
 
-The app follows the device language: English, French, Spanish, Russian and
-Czech. Every string lives in a catalog, `Guessr/Localizable.xcstrings` for the
+The app follows the device language, or the one picked for it under iOS
+Settings › Guessr › Language: English, French, Spanish, Russian and Czech. Every string lives in a catalog, `Guessr/Localizable.xcstrings` for the
 app, `GuessrKit/Sources/GuessrKit/Localizable.xcstrings` for the package, and
 `Guessr/AppShortcuts.xcstrings` for the Siri phrases. A string literal in a
 SwiftUI view localizes on its own; one built as a `String` goes through
