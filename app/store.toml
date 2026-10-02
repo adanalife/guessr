@@ -6,7 +6,7 @@
 
 # The release tag the store version is built from; the TestFlight build for
 # that tag is what the version is attached to.
-version = "1.25.1"
+version = "1.26.0"
 
 [app]
 # "Guessr" alone belongs to another developer's app; the home-screen
