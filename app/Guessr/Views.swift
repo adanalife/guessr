@@ -179,6 +179,25 @@ struct TodayView: View {
     }
 }
 
+/// The chatters this device hides, each shown again on its own.
+struct HiddenChattersView: View {
+    @Environment(Account.self) private var account
+
+    var body: some View {
+        List {
+            ForEach(account.hiddenChatters.sorted { $0.value.localizedCaseInsensitiveCompare($1.value) == .orderedAscending }, id: \.key) { id, name in
+                LabeledContent(name) {
+                    Button("Show") { account.hiddenChatters[id] = nil }
+                }
+            }
+            if account.hiddenChatters.count > 1 {
+                Button("Show everyone") { account.hiddenChatters = [:] }
+            }
+        }
+        .navigationTitle("Hidden chatters")
+    }
+}
+
 struct SettingsView: View {
     /// The language the app is showing, named in itself.
     static var language: String {
@@ -251,7 +270,7 @@ struct SettingsView: View {
                             }
                         }
                         if !account.hiddenChatters.isEmpty {
-                            Button("Show hidden chatters (\(account.hiddenChatters.count))") { account.hiddenChatters = [] }
+                            NavigationLink("Hidden chatters (\(account.hiddenChatters.count))") { HiddenChattersView() }
                         }
                         Button("Sign out", role: .destructive) { account.signOut() }
                     } else {

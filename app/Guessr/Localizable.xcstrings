@@ -1670,6 +1670,62 @@
         }
       }
     },
+    "Hidden chatters" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skrytí chatující"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chateadores ocultos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personnes masquées"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скрытые участники чата"
+          }
+        }
+      }
+    },
+    "Hidden chatters (%lld)" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skrytí chatující (%lld)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chateadores ocultos (%lld)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personnes masquées (%lld)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скрытые участники чата (%lld)"
+          }
+        }
+      }
+    },
     "Hide emotes" : {
       "localizations" : {
         "cs" : {
@@ -3010,6 +3066,34 @@
         }
       }
     },
+    "Show" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zobrazit"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показать"
+          }
+        }
+      }
+    },
     "Show a code" : {
       "localizations" : {
         "cs" : {
@@ -3094,30 +3178,30 @@
         }
       }
     },
-    "Show hidden chatters (%lld)" : {
+    "Show everyone" : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Zobrazit skryté chatující (%lld)"
+            "value" : "Zobrazit všechny"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mostrar chateadores ocultos (%lld)"
+            "value" : "Mostrar a todos"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Afficher les personnes masquées (%lld)"
+            "value" : "Tout afficher"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Показать скрытых участников чата (%lld)"
+            "value" : "Показать всех"
           }
         }
       }
