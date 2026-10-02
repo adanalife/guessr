@@ -533,6 +533,9 @@ struct ClipView: View {
     @State private var looper: AVPlayerLooper?
     /// Where the loop was when the view last went away, for the next appearance.
     @State private var resume: CMTime?
+    /// Loads in a row that failed, for the backoff before the next; above zero
+    /// the clip says it is trying again.
+    @State private var failures = 0
     @State private var paused = false
     @State private var hint = false
     /// The zoom between gestures, and the one a gesture in progress shows.
@@ -548,7 +551,7 @@ struct ClipView: View {
         surface(fills: fills)
             .matchedTransitionSource(id: url, in: cover)
             .accessibilityElement()
-            .accessibilityLabel(paused ? "Clip, paused" : "Clip")
+            .accessibilityLabel(failures > 0 ? "Clip, loading again" : paused ? "Clip, paused" : "Clip")
             .accessibilityAction(named: paused ? "Play" : "Pause") { togglePause() }
             .accessibilityAction(named: "Full screen") { toggleFull() }
             .fullScreenCover(isPresented: $full, onDismiss: { zoom = ClipZoom() }) {
@@ -577,11 +580,7 @@ struct ClipView: View {
             // A tab switch runs this again on the way back, onto the player the
             // disappearance emptied: a fresh looper picks up where the last one left.
             .onAppear {
-                if looper == nil {
-                    player.isMuted = true
-                    looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
-                    if let resume { player.seek(to: resume, toleranceBefore: .zero, toleranceAfter: .zero) }
-                }
+                if looper == nil { load() }
                 if !paused { player.play() }
                 #if DEBUG
                     // `-fullscreen 1` opens the cover on launch, so it can be
@@ -603,6 +602,29 @@ struct ClipView: View {
                 looper = nil
                 player.removeAllItems()
             }
+            // A clip that fails to load -- a server error, a dropped connection --
+            // would otherwise stay a black panel for the rest of the round. Load it
+            // again, backing off to every 16 seconds, for as long as it's on screen.
+            .task(id: looper.map(ObjectIdentifier.init)) {
+                guard let looper else { return }
+                for await status in looper.publisher(for: \.status).values {
+                    if status == .ready { failures = 0 }
+                    guard status == .failed else { continue }
+                    failures += 1
+                    guard (try? await Task.sleep(for: .seconds(1 << min(failures, 4)))) != nil else { return }
+                    looper.disableLooping()
+                    player.removeAllItems()
+                    load()
+                    if !paused { player.play() }
+                    return
+                }
+            }
+    }
+
+    private func load() {
+        player.isMuted = true
+        looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
+        if let resume { player.seek(to: resume, toleranceBefore: .zero, toleranceAfter: .zero) }
     }
 
     /// The clip and its gestures. `screen` is the full-screen cover's: the
@@ -626,7 +648,18 @@ struct ClipView: View {
                     withAnimation { hint = true }
                 }
                 .overlay {
-                    if paused {
+                    if failures > 0 {
+                        // Says the black panel is on its way rather than broken.
+                        VStack(spacing: 8) {
+                            ProgressView().tint(.white)
+                            Text("The clip didn't load. Trying again…")
+                                .font(.caption)
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+                        .allowsHitTesting(false)
+                    } else if paused {
                         Image(systemName: "pause.circle.fill")
                             .font(.largeTitle)
                             .foregroundStyle(.white.opacity(0.8))

@@ -837,6 +837,34 @@
         }
       }
     },
+    "Clip, loading again" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klip, načítá se znovu"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clip, cargando de nuevo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clip, nouveau chargement"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Клип, загружается снова"
+          }
+        }
+      }
+    },
     "Clip, paused" : {
       "localizations" : {
         "cs" : {
@@ -4224,6 +4252,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Код неизвестен или истёк. Получите новый на сайте."
+          }
+        }
+      }
+    },
+    "The clip didn't load. Trying again…" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klip se nenačetl. Zkouším to znovu…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El clip no se cargó. Intentándolo de nuevo…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le clip ne s'est pas chargé. Nouvel essai…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Клип не загрузился. Пробуем снова…"
           }
         }
       }
