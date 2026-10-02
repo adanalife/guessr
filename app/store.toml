@@ -13,7 +13,7 @@ version = "1.25.1"
 # name is CFBundleDisplayName in project.yml.
 name = "A Dana Life: Guessr"
 # At most 30 characters.
-subtitle = "Where was this dashcam?"
+subtitle = "Where was this clip filmed?"
 privacy_policy_url = "https://www.dana.lol/privacy/"
 # App Store Connect's category ids.
 primary_category = "GAMES"
