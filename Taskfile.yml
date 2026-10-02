@@ -576,11 +576,13 @@ tasks:
     vars:
       SIM:
         sh: xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name|startswith("iPhone")) | .name] | last // empty'
+      # Build settings for xcodebuild's command line, e.g. from ios:screenshots.
+      SETTINGS: '{{.SETTINGS | default ""}}'
     preconditions:
       - sh: test -n "{{.SIM}}"
         msg: "No iPhone simulator available — run: xcodebuild -downloadPlatform iOS"
     cmds:
-      - xcodebuild -scheme Guessr -destination 'platform=iOS Simulator,name={{.SIM}}' -derivedDataPath .build/DerivedData -clonedSourcePackagesDirPath {{.SPM_CLONES}} -quiet build
+      - xcodebuild -scheme Guessr -destination 'platform=iOS Simulator,name={{.SIM}}' -derivedDataPath .build/DerivedData -clonedSourcePackagesDirPath {{.SPM_CLONES}} -quiet build {{.SETTINGS}}
 
   # Signs for distribution (the Release config in app/project.yml), so it needs
   # the "Apple Distribution" certificate in the login keychain.
@@ -713,8 +715,13 @@ tasks:
 
   ios:screenshots:
     desc: Build for the simulator and screenshot the store's screens on an iPhone and an iPad into app/.build/screenshots
-    deps: [ios:build]
     cmds:
+      # The store build's compilation conditions, plus DEBUG for the launch
+      # arguments the script drives it with: no TWITCH, so no Twitch section
+      # in Settings (see Guessr.xcconfig).
+      - task: ios:build
+        vars:
+          SETTINGS: SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG
       - ./scripts/ios-screenshots.sh
 
   asc:listing:

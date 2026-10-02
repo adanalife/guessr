@@ -114,7 +114,13 @@ final class Account {
     }
 
     init(bundle: Bundle = .main, store: any SessionStore = KeychainSessionStore()) {
-        auth = TwitchAuth(clientID: bundle.object(forInfoDictionaryKey: "GuessrTwitchClientID") as? String ?? "")
+        #if TWITCH
+            auth = TwitchAuth(clientID: bundle.object(forInfoDictionaryKey: "GuessrTwitchClientID") as? String ?? "")
+        #else
+            // No client id is no Twitch login: Settings hides its Twitch
+            // section and the Chat tab never appears.
+            auth = TwitchAuth(clientID: "")
+        #endif
         ownerID = bundle.object(forInfoDictionaryKey: "GuessrOwnerTwitchID") as? String ?? ""
         channel = bundle.object(forInfoDictionaryKey: "GuessrTwitchChannel") as? String ?? ""
         self.store = store
@@ -209,7 +215,7 @@ final class Account {
     /// joining its chat, so the gates that hang off it hold before Chat opens.
     func checkModerates() async {
         await refreshIfNeeded()
-        guard let session, !channel.isEmpty, !moderates else { return }
+        guard auth.isConfigured, let session, !channel.isEmpty, !moderates else { return }
         let asker = chat?.helix ?? Helix(channel: channel, clientID: auth.clientID, session: session)
         let answer = await asker.moderates()
         // The login may have changed while Twitch answered.
