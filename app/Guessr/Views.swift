@@ -210,13 +210,6 @@ struct SettingsView: View {
         Form {
             NameSection(player: $player, playedToday: playedToday)
             ReminderSection()
-            Section {
-                Picker("Units", selection: $kilometers) {
-                    Text("Imperial").tag(false)
-                    Text("Metric").tag(true)
-                }
-                .pickerStyle(.segmented)
-            }
             if gameCenter.signedIn {
                 Section {
                     Button("Leaderboards and achievements") { gameCenter.showDashboard() }
@@ -231,6 +224,11 @@ struct SettingsView: View {
                     Text("Light").tag("light")
                     Text("Dark").tag("dark")
                     Text("Auto").tag("system")
+                }
+                .pickerStyle(.segmented)
+                Picker("Units", selection: $kilometers) {
+                    Text("Imperial").tag(false)
+                    Text("Metric").tag(true)
                 }
                 .pickerStyle(.segmented)
             }
