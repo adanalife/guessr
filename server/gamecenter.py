@@ -48,8 +48,8 @@ PERFECT_DAY = f"{BUNDLE_ID}.perfect_day"
 # per-month one would have to be created in App Store Connect each month.
 TOP_TEN = f"{BUNDLE_ID}.top_ten"
 
-# Six miles: the achievement reads in miles, as the app does by default.
-BULLSEYE_KM = 6 * 1.609344
+# Five miles: the achievement reads in miles, as the app does by default.
+BULLSEYE_KM = 5 * 1.609344
 # Five rounds at the "success" haptic band (4000) and up.
 GOLDEN_DAY_POINTS = 4000 * rules.ROUNDS_PER_GAME
 STREAK_DAYS = 7
