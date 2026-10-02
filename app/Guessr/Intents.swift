@@ -1,3 +1,4 @@
+#if TWITCH
 import AppIntents
 import GuessrKit
 
@@ -54,3 +55,4 @@ struct GuessrShortcuts: AppShortcutsProvider {
         )
     }
 }
+#endif
