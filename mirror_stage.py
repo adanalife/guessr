@@ -24,7 +24,7 @@ scheduled on staging under a different date is silently dropped -- and filling
 around that leaves a four-round day, which is the failure verify_days.sh exists
 to catch. Replacing is the only version with one outcome. Safe because every
 date it touches is unopened: an opened date's schedule is frozen (see
-functions/admin/day.js), and staging has no players whose history it could be.
+server/admin_day.py), and staging has no players whose history it could be.
 """
 
 from __future__ import annotations

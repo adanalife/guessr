@@ -6,8 +6,8 @@
 // In api/ rather than at the repo root, and named wrangler.jsonc, for two tools
 // at once. pywrangler reads no other name, and only beside its pyproject.toml.
 // Wrangler auto-loads that name from the directory it runs in or any parent, and
-// `wrangler pages dev` at the root would then take this Worker's main and
-// bindings as its own -- so the name is safe only down here.
+// the `wrangler pages deploy` runs at the root would then take this Worker's
+// main and bindings as the site's -- so the name is safe only down here.
 //
 // The Worker ships api/bundle/, which `task api:bundle` (scripts/api-bundle.sh)
 // stages from server/ and web/alias.json, rather than the repo: wrangler uploads
@@ -21,6 +21,9 @@
   "rules": [{ "type": "Data", "globs": ["web/alias.json"], "fallthrough": true }],
   "compatibility_date": "2026-09-22",
   "compatibility_flags": ["python_workers"],
+  // Reached through the Pages project's `API` service binding and nowhere else:
+  // the workers.dev hostname would answer the whole API on a name nothing uses.
+  "workers_dev": false,
   // Every request's log and trace, kept in Workers Logs, with Issues grouping
   // the exceptions. Without it, an invocation that dies over the CPU or memory
   // limit, or throws past the ASGI app (a client sees a bare 1101), leaves
@@ -55,6 +58,7 @@
   "env": {
     "production": {
       "name": "adanalife-guessr-api",
+      "workers_dev": false,
       "d1_databases": [
         {
           "binding": "DB",

@@ -1,0 +1,1 @@
+The Pages Functions are gone: the Python Worker is the only backend, `task dev` serves the game under uvicorn from a sqlite file, and `task test:integration` runs the HTTP contract against that stack. The Worker's `workers.dev` hostname is switched off.

@@ -5,34 +5,26 @@ One rule -- `<slug>-<milliseconds>.mp4` -- is implemented three times, in two
 languages, by three programs that never call each other:
 
   - make_rounds.clip_name writes the name.
-  - functions/clips/[[path]].js decides from the name whether the footage may be
-    cached for a year as `immutable`.
+  - server/clips.py decides from the name whether the footage may be cached for
+    a year as `immutable`.
   - rebuild.parse_image reads the name back to find the moment to re-cut.
 
 Nothing ties them together, and the ways they can drift apart are quiet ones.
 Narrow the padding in clip_name and every clip silently drops from a year's
 cache to an hour -- no error, no failed test, just clips billed against the
-Functions request budget at roughly 8,000x the rate the year-long cache was
+Worker request budget at roughly 8,000x the rate the year-long cache was
 bought to avoid. Widen the regex and a bare `<slug>.mp4` takes the immutable
 header, which is the failure the header was reasoned about to prevent: a
 regeneration putting different footage behind a URL somebody already holds.
 
-So the worker's regex is read out of its own source rather than copied here.
-A fourth copy of the rule would drift the same way the first three can.
+So the worker's regex is imported rather than copied here. A fourth copy of
+the rule would drift the same way the first three can.
 """
-
-import re
-from pathlib import Path
 
 from make_rounds import clip_name
 from rebuild import parse_image
 
-WORKER = Path(__file__).parent / "functions" / "clips" / "[[path]].js"
-
-found = re.search(r"^const MOMENT_IN_NAME = /(.+)/;$", WORKER.read_text(), re.M)
-# Without this the whole file passes by testing an empty pattern against nothing.
-assert found, f"no MOMENT_IN_NAME regex in {WORKER} -- this test has lost its subject"
-moment_in_name = re.compile(found.group(1))
+from server.clips import MOMENT_IN_NAME as moment_in_name
 
 # The shapes a slug really takes, plus the ones that would break a naive split:
 # a slug already ending in -<digits>, one ending in a bare hyphen, one that is
@@ -57,7 +49,7 @@ def test_every_generated_name_earns_the_immutable_year():
         for ts in MOMENTS:
             name = clip_name({"slug": slug, "ts": ts})
             assert moment_in_name.search(name), (
-                f"{name!r} does not match the worker's {found.group(1)!r}, so this "
+                f"{name!r} does not match the worker's {moment_in_name.pattern!r}, so this "
                 f"clip would be served with a one-hour cache instead of a year"
             )
 

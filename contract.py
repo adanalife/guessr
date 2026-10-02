@@ -1,24 +1,22 @@
 #!/usr/bin/env python3
 """The HTTP contract every route promises, asserted against a running server.
 
-    python3 contract.py <base-url>          # the whole contract, tier "local"
-    python3 contract.py <base-url> locked   # /admin/ with no tier stamped
+    python3 contract.py <base-url>          # the whole contract, as the owner
     python3 contract.py <base-url> twitch   # /admin/ to a caller Twitch refuses
     python3 contract.py --seed              # the plays SQL the contract expects
 
 Black-box on purpose: it speaks HTTP and nothing else, so it says nothing about
 what language the handlers are written in, and it holds whatever serves them to
-the same statuses, shapes and guards. integration.sh is the orchestrator -- it
-fabricates the round set, seeds a throwaway local D1 and R2, boots the server and
-runs this twice, once before stamping a tier and once after.
-integration_uvicorn.py does the same for the Python app under uvicorn.
+the same statuses, shapes and guards. integration_uvicorn.py is the
+orchestrator -- it fabricates the round set, seeds a throwaway sqlite file and
+clip directory, boots the app under uvicorn and runs this twice, once as a
+caller Twitch refuses and once as the owner.
 
 Every /admin/ request carries `Authorization: Bearer <OWNER_TOKEN>` unless it
-names its own. workerd's Access gate never reads it; the Python app's Twitch
-gate is what it is for, and integration_uvicorn.py stubs Twitch to answer that
-token as the owner.
+names its own; integration_uvicorn.py stubs Twitch to answer that token as the
+owner.
 
-What it assumes about the database is exactly what integration.sh seeds, and all
+What it assumes about the database is exactly what the orchestrator seeds, and all
 of it is keyed on dates relative to today (UTC) so no answer depends on the
 hour it runs at:
 
@@ -161,7 +159,7 @@ def d(offset):
     return (TODAY + dt.timedelta(days=offset)).isoformat()
 
 
-# -- /admin/ with no tier stamped -------------------------------------------
+# -- /admin/ -----------------------------------------------------------------
 
 ADMIN = [
     ("GET", "/admin/"),
@@ -174,27 +172,6 @@ ADMIN = [
     ("GET", f"/admin/board-note?board=daily&date={FIRST}&rank=1"),
     ("POST", f"/admin/board-note?board=daily&date={FIRST}&rank=1"),
 ]
-
-
-def locked():
-    """A tier the middleware cannot name is not "local", and with no Access
-    application configured it closes every route -- page included -- rather
-    than falling through to the handlers. A forged token changes nothing."""
-    for method, path in ADMIN:
-        for how, headers in (
-            ("", {}),
-            (" to a forged token", {"cf-access-jwt-assertion": "a.b.c"}),
-        ):
-            r = expect(
-                f"{method} {path} is closed{how}",
-                503,
-                method,
-                path,
-                {},
-                headers=headers,
-            )
-            assert "no Access application" in error(r), r.raw
-            assert r.header("cache-control") == "no-store", r.header("cache-control")
 
 
 def twitch():
@@ -665,10 +642,9 @@ def link_codes():
 
 
 def admin_reads():
-    page = get("the review page is served", 200, "/admin/")
-    assert page.header("content-type").startswith("text/html"), page.header(
-        "content-type"
-    )
+    # No page lives at the admin root: the console and tempomat are the admin
+    # surfaces, so even the owner gets nothing there.
+    get("the admin root serves no page, owner included", 404, "/admin/")
     error(get("a preview with no date is refused", 400, "/admin/day"))
     error(
         get(
@@ -940,15 +916,11 @@ def main() -> int:
     if sys.argv[1:] == ["--seed"]:
         sys.stdout.write(seed_sql())
         return 0
-    if len(sys.argv) not in (2, 3) or sys.argv[2:] not in ([], ["locked"], ["twitch"]):
+    if len(sys.argv) not in (2, 3) or sys.argv[2:] not in ([], ["twitch"]):
         print(__doc__, file=sys.stderr)
         return 2
     BASE = sys.argv[1].rstrip("/")
 
-    if sys.argv[2:] == ["locked"]:
-        locked()
-        print("ok: /admin/ is closed on a tier nobody stamped")
-        return 0
     if sys.argv[2:] == ["twitch"]:
         twitch()
         print("ok: /admin/ refuses a caller Twitch does not vouch for")

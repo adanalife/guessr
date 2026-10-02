@@ -1,13 +1,11 @@
-// Hands the dynamic routes to the Python Worker when this project is bound to
-// one, and leaves everything else to Pages.
+// Hands the dynamic routes to the Python Worker and leaves everything else to
+// Pages: the static site beside this file.
 //
-// `API` is a Pages service binding, set by hand in the dashboard. Without it --
-// production, and `wrangler pages dev` -- every request falls through to the
-// Functions and static assets beside this file, so the binding alone decides
-// which runtime answers /api/, /admin/ and /clips/.
-//
-// A forwarded request never reaches functions/admin/_middleware.js, so on a
-// bound tier the Worker owns the admin login as well as the handlers.
+// `API` is a Pages service binding, set by hand in the dashboard (terraform
+// ignores both projects' deployment_configs). It is the only thing that answers
+// /api/, /admin/ and /clips/, so a project without it fails those requests here,
+// loudly, which is what smoke.sh reads -- rather than falling through to Pages,
+// which serves the site's HTML with a 200 for any path that has no file.
 const FORWARDED = ['/api/', '/admin/', '/clips/'];
 
 // A Python Worker isolate can come up broken: Pyodide's startup throws
@@ -39,7 +37,7 @@ async function forward(api, request) {
 
 export async function onRequest({ request, env, next }) {
   const { pathname } = new URL(request.url);
-  if (env.API && FORWARDED.some(p => pathname.startsWith(p))) {
+  if (FORWARDED.some(p => pathname.startsWith(p))) {
     return forward(env.API, request);
   }
   return next();

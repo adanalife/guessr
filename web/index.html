@@ -42,7 +42,7 @@
 <script src="sentry-init.js"></script>
 
 <!-- Blocking and before the stylesheet, so the page never flashes the wrong
-     palette. Shared with /admin/, which reads the same saved choice. -->
+     palette. -->
 <script src="theme.js"></script>
 
 <!-- Leaflet, vendored rather than loaded from unpkg. It is the only thing on
@@ -459,9 +459,8 @@
      the next one. Pinned, and from unpkg: unlike the map, a QR code that fails
      to load costs the page one optional button rather than any way to play. -->
 <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
-<!-- A module, so daily.js can be imported here and by functions/api/score.js
-     alike: the play window the page reads and the one the server enforces have
-     to be the same code. The classic scripts above run first, so Leaflet's `L`
+<!-- A module, so daily.js can be imported here: the play window the page
+     reads and the one the server enforces (server/rules.py) have to agree. The classic scripts above run first, so Leaflet's `L`
      is in place by the time this executes. -->
 <script type="module">
 import { ROUNDS_PER_GAME, dailyState, dateForDay, effectiveDay } from './daily.js';
@@ -540,7 +539,7 @@ function alias(next = null) {
   }
 }
 
-// Scoring is a round trip to functions/api/score.js, which holds the answers. The
+// Scoring is a round trip to /api/score, which holds the answers. The
 // response is also where the truth coordinates come from -- so a player learns
 // where the frame was only by committing a guess first.
 //

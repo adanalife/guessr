@@ -38,8 +38,23 @@ async def link(db, body) -> tuple[int, dict]:
 
 # Link codes: the device with the history asks for one, a person types it into
 # the new device, and the claim runs the merge above with the new device as the
-# mover. functions/api/link/code.js and claim.js carry the reasoning; the SQL is
-# the same text, so the two runtimes share a clock (SQLite's) and a format.
+# mover.
+#
+# /api/link needs both ids in one hand, which a URL fragment can only deliver to
+# a browser that opens links: a Home Screen install keeps its own storage, and
+# the native app has no way to receive one at all. A code goes the other way
+# round -- this device asks, a person carries eight letters to the other screen,
+# and the server is the only party that ever holds both ids. Anyone can ask for
+# a code against any id, which gives them nothing: a code only ever makes its
+# *claimer* play as the id behind it, and asking already requires knowing that
+# id -- the same secret /api/link and /api/score treat as the whole credential.
+#
+# No 0/O or 1/I in the alphabet, since the point is being read off one screen
+# and typed into another. Expiry is SQLite's clock in the stored format, so it is
+# a plain string comparison and no handler reads a clock of its own; expired
+# codes are swept by the next issue or claim rather than a schedule, and the
+# same sweep drops the asker's earlier codes, so a player has at most one live
+# code and asking again replaces it.
 #
 # ponytail: no rate limit. 2^40 codes, live ten minutes each: 1,000 guesses a
 # second against one live code is ~35 years per hit. Upgrade: a Cloudflare
