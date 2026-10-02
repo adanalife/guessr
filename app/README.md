@@ -123,8 +123,8 @@ demo_account_password = "…"
 
 `task ios:screenshots` takes the screenshots: it builds for the simulator,
 then on an iPhone 17 Pro Max and a 13-inch iPad Pro launches the Debug build
-with its launch arguments (`-tab`, `-owner 1`, `-autoplay 1`) and captures a
-round, its reveal, the boards and Settings, with Apple's 9:41 status bar. The
+with its launch arguments (`-tab`, `-autoplay 1`) and captures a
+round, its reveal and Settings, with Apple's 9:41 status bar. The
 Debug build plays stage, so the round is staging's.
 
 Two things the API does not do, and the dashboard does: the App Privacy

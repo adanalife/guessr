@@ -50,8 +50,7 @@ for spec in "iPhone 17 Pro Max:iphone:10" "iPad Pro 13-inch (M5):ipad:16"; do
     # look at every frame before uploading, and rerun if one is still loading.
     shoot "$id" "$dir" 01-round 18 -tab Play
     shoot "$id" "$dir" 02-reveal "$reveal" -tab Play -autoplay 1
-    shoot "$id" "$dir" 03-boards 6 -owner 1 -tab Boards
-    shoot "$id" "$dir" 04-settings 6 -tab Settings
+    shoot "$id" "$dir" 03-settings 6 -tab Settings
     xcrun simctl terminate "$id" "$BUNDLE" 2>/dev/null || true
     xcrun simctl status_bar "$id" clear
 done
