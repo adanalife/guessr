@@ -105,6 +105,19 @@ async def players(db, who) -> tuple[int, dict, dict]:
     return 200, {"players": await db.fetchall(PLAYERS, PLAYER_ROWS)}, NO_STORE
 
 
+async def guess_heat(db, who) -> tuple[int, dict, dict]:
+    """GET /admin/guesses -- every recorded pin as a bare [lat, lng] pair, for the
+    day preview's heat layer. Coordinates only: no date, player or score, so the
+    layer says "here" and nothing else about anyone. The two columns are written
+    together, so one IS NOT NULL also skips every play from before they existed."""
+    if refused := refusal(who):
+        return refused
+    rows = await db.fetchall(
+        "SELECT guess_lat, guess_lng FROM plays WHERE guess_lat IS NOT NULL"
+    )
+    return 200, {"guesses": [[r["guess_lat"], r["guess_lng"]] for r in rows]}, NO_STORE
+
+
 async def note_player(db, who, body) -> tuple[int, dict, dict]:
     """POST /admin/players {player_id, note}"""
     if refused := refusal(who):

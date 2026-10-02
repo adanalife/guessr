@@ -14,6 +14,7 @@ from server.admin_players import (
     MAX_NOTE,
     board_note,
     group,
+    guess_heat,
     note_player,
     players,
     plays,
@@ -82,6 +83,7 @@ async def test_gate() -> None:
             players(d, who),
             note_player(d, who, {"player_id": REGULAR, "note": "leaked"}),
             plays(d, who, {"date": "nonsense"}),
+            guess_heat(d, who),
             board_note(d, who, {"rank": "1"}, NOW),
             set_board_note(d, who, {"rank": "1"}, {"note": "leaked"}, NOW),
         ]
@@ -278,8 +280,20 @@ async def test_board_note_refusals() -> None:
     )
 
 
+async def test_guess_heat() -> None:
+    # Bare pairs, and the pre-coordinate play skipped rather than served as null.
+    status, body, headers = await guess_heat(seeded(), OWNER)
+    assert (status, headers["cache-control"]) == (200, "no-store")
+    assert sorted(body["guesses"]) == [
+        [30.0, -121.0],
+        [41.5, -121.0],
+        [42.5, -121.0],
+    ], body
+
+
 async def main() -> None:
     await test_gate()
+    await test_guess_heat()
     await test_players()
     await test_alias_survives()
     await test_plays()
