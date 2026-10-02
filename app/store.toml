@@ -6,7 +6,7 @@
 
 # The release tag the store version is built from; the TestFlight build for
 # that tag is what the version is attached to.
-version = "1.25.1"
+version = "1.26.0"
 
 [app]
 # "Guessr" alone belongs to another developer's app; the home-screen
@@ -19,6 +19,7 @@ privacy_policy_url = "https://www.dana.lol/privacy/"
 primary_category = "GAMES"
 primary_subcategory_one = "GAMES_TRIVIA"
 primary_subcategory_two = "GAMES_PUZZLE"
+secondary_category = "TRAVEL"
 
 [listing]
 release_type = "MANUAL"
