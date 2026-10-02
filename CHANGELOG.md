@@ -4,6 +4,22 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.27.0 — 2026-10-02
+
+### Changed
+
+- The Pages Functions are gone: the Python Worker is the only backend, `task dev` serves the game under uvicorn from a sqlite file, and `task test:integration` runs the HTTP contract against that stack. The Worker's `workers.dev` hostname is switched off. ([#341](https://github.com/adanalife/guessr/pull/341))
+- Settings no longer has a Game Center section. Scores and achievements still reach Game Center as you play, and the achievement toast still shows up. ([#395](https://github.com/adanalife/guessr/pull/395))
+
+### Fixed
+
+- A round whose clip fails to load tries it again rather than staying a black panel. ([#392](https://github.com/adanalife/guessr/pull/392))
+- A round, score or leaderboard that hits a server instance that started up broken is tried again instead of failing. ([#393](https://github.com/adanalife/guessr/pull/393))
+
+### Behind the scenes
+
+- The App Store listing has Travel as its secondary category. ([#391](https://github.com/adanalife/guessr/pull/391))
+
 ## v1.26.0 — 2026-10-02
 
 ### Changed
