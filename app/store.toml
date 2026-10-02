@@ -64,6 +64,7 @@ CONTENT: all video is the developer's own footage. The web game at guessr.dana.l
 # the App Store build leaves out (see TWITCH in Guessr.xcconfig).
 [age_rating]
 advertising = false
+ageAssurance = false
 alcoholTobaccoOrDrugUseOrReferences = "NONE"
 contests = "NONE"
 gambling = false
@@ -80,6 +81,7 @@ profanityOrCrudeHumor = "NONE"
 sexualContentGraphicAndNudity = "NONE"
 sexualContentOrNudity = "NONE"
 socialMedia = false
+socialMediaAgeRestricted = false
 unrestrictedWebAccess = false
 userGeneratedContent = false
 violenceCartoonOrFantasy = "NONE"
