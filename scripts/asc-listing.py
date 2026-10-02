@@ -184,7 +184,14 @@ def wanted(fields: dict[str, str], table: dict) -> dict:
 
 
 def differences(want: dict, have: dict) -> dict:
-    return {k: v for k, v in want.items() if (have.get(k) or "") != (v or "")}
+    """What `want` sets that `have` doesn't. Unset (None) reads as an empty
+    string, so a blank field counts as set; False stays False, so a no answer
+    differs from a question App Store Connect has never had answered."""
+
+    def norm(v):
+        return "" if v is None else v
+
+    return {k: v for k, v in want.items() if norm(have.get(k)) != norm(v)}
 
 
 def shown(attrs: dict) -> str:
