@@ -6,7 +6,7 @@
 
 # The release tag the store version is built from; the TestFlight build for
 # that tag is what the version is attached to.
-version = "1.25.0"
+version = "1.25.1"
 
 [app]
 # "Guessr" alone belongs to another developer's app; the home-screen
@@ -36,7 +36,6 @@ The same five rounds for everyone, every day, so the leaderboard means something
 • Points by distance, and the answer shown on the map after every guess
 • Game Center leaderboards for lifetime and this week, with eight achievements
 • A daily reminder and an icon badge while today's rounds are waiting
-• Sign in with Twitch to read and join the stream's live chat
 • Link your phone to the web game at guessr.dana.lol and keep one name and one score
 • No account, no email, no ads. A random name is picked for you.
 • In English, French, Spanish, Russian and Czech
@@ -49,13 +48,9 @@ First release on the App Store.
 
 [review]
 contact_first_name = "Dana"
-demo_account_required = true
+demo_account_required = false
 notes = """
 Guessr is a daily geography game over the developer's own dashcam footage. It needs no account: a random player name is made on first launch and kept in the Keychain.
-
-TWITCH SIGN-IN (Settings > Twitch) is optional and exists only for the Chat tab, which is a client for one Twitch channel's live chat (reads and sends messages through Twitch's own API, under the user's own Twitch login). It does not create or authenticate an account with us, and nothing from Twitch reaches our servers, so we understand guideline 4.8's third-party-client exception to apply. The game is complete without signing in. A demo Twitch account is provided below; sign in at Settings > Sign in with Twitch, enter the code at twitch.tv/activate. Twitch may email a one-time verification code when the demo account signs in on a new device; if it asks, contact us at the review contact email or phone and we will send the code within minutes. Any Twitch account works as well, including your own: the app is a client for whichever account signs in.
-
-CHAT MODERATION: the chat is one channel, moderated by Twitch's AutoMod and the channel's moderators under Twitch's terms. Any user can long-press a line to hide that chatter on their device or report them on Twitch. Moderators of the channel additionally get delete, time out, warn and ban, through Twitch's moderation API; those appear only for an account Twitch lists as a moderator, and the demo account is a regular viewer. The channel is often quiet: send !location in the Chat tab and the channel's bot replies; long-press its line to hide or report it.
 
 GAME CENTER: scores and achievements are submitted by our server (App Store Connect API), never by the app, after each recorded guess.
 
@@ -65,8 +60,8 @@ CONTENT: all video is the developer's own footage. The web game at guessr.dana.l
 # The age-rating declaration, attribute for attribute as App Store Connect
 # names them (`task asc:listing` prints the current one). Content questions
 # take NONE, INFREQUENT_OR_MILD or FREQUENT_OR_INTENSE; the rest are yes/no.
-# The two trues are the Chat tab: a Twitch channel's live chat is user-generated
-# content and messaging between users.
+# messagingAndChat and userGeneratedContent turn true with the Chat tab, which
+# the App Store build leaves out (see TWITCH in Guessr.xcconfig).
 [age_rating]
 advertising = false
 alcoholTobaccoOrDrugUseOrReferences = "NONE"
@@ -79,14 +74,14 @@ horrorOrFearThemes = "NONE"
 lootBox = false
 matureOrSuggestiveThemes = "NONE"
 medicalOrTreatmentInformation = "NONE"
-messagingAndChat = true
+messagingAndChat = false
 parentalControls = false
 profanityOrCrudeHumor = "NONE"
 sexualContentGraphicAndNudity = "NONE"
 sexualContentOrNudity = "NONE"
 socialMedia = false
 unrestrictedWebAccess = false
-userGeneratedContent = true
+userGeneratedContent = false
 violenceCartoonOrFantasy = "NONE"
 violenceRealistic = "NONE"
 violenceRealisticProlongedGraphicOrSadistic = "NONE"
