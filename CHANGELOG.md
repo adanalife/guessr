@@ -4,6 +4,33 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.26.0 — 2026-10-02
+
+### Changed
+
+- Settings › Twitch lists the chatters you hid by name, so you can show one again without showing them all. ([#381](https://github.com/adanalife/guessr/pull/381))
+- The app's Settings no longer has a Language row that sent you out to iOS Settings; the app follows the device language, or the one picked under iOS Settings › Guessr. ([#385](https://github.com/adanalife/guessr/pull/385))
+- In the app's Settings, the imperial/metric choice sits under Appearance. ([#386](https://github.com/adanalife/guessr/pull/386))
+- The chat tab's "Connecting…" line sits centered and a little higher, clear of the message box. ([#387](https://github.com/adanalife/guessr/pull/387))
+- The Bullseye achievement asks for a pin within 5 miles of the van, and says so in miles. ([#389](https://github.com/adanalife/guessr/pull/389))
+- A green round lands with a bigger buzz that swells as the points count up, and a trophy round with a wild one. ([#390](https://github.com/adanalife/guessr/pull/390))
+
+### Fixed
+
+- `task asc:listing` sends an age-rating question answered no instead of leaving it unanswered. ([#374](https://github.com/adanalife/guessr/pull/374))
+- The app spells Alaska, Michigan and Emotes the Czech and Spanish way, and every French, Spanish and Czech string in its catalog is marked translated. ([#380](https://github.com/adanalife/guessr/pull/380))
+- Asking Siri to guess while signed out of Twitch offers to open Guessr on Settings instead of failing. ([#383](https://github.com/adanalife/guessr/pull/383))
+- A chat connect that fails partway closes its socket before retrying, instead of leaving it open and subscribed until Twitch refuses every reconnect after it. ([#388](https://github.com/adanalife/guessr/pull/388))
+
+### Behind the scenes
+
+- The App Store subtitle reads "Where was this clip filmed?". ([#376](https://github.com/adanalife/guessr/pull/376))
+- The age rating answers the contests question as a frequency, the type App Store Connect expects. ([#377](https://github.com/adanalife/guessr/pull/377))
+- The age rating answers age assurance and age-restricted social media, which App Store Connect now requires. ([#378](https://github.com/adanalife/guessr/pull/378))
+- The first App Store version goes out without release notes, which App Store Connect refuses on a first version. ([#379](https://github.com/adanalife/guessr/pull/379))
+- The App Store screenshots leave out the leaderboard, which a player without a login never sees. ([#382](https://github.com/adanalife/guessr/pull/382))
+- The app's chat socket loop — moving on a reconnect, resubscribing after a dead socket, the keepalive watchdog and the backoff — is covered by tests over a scripted socket. ([#384](https://github.com/adanalife/guessr/pull/384))
+
 ## v1.25.1 — 2026-10-02
 
 ### Changed
