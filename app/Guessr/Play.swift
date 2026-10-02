@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreHaptics
 import GuessrKit
 import MapKit
 import SwiftUI
@@ -145,15 +146,19 @@ struct PlayView: View {
         // A tick as a pin lands, and none as "Next round" clears it.
         .sensoryFeedback(.selection, trigger: pin?.latitude) { _, now in now != nil }
         .sensoryFeedback(trigger: revealed) { _, shown in
-            shown ? progress.played.last.map { Self.feedback(for: $0.score.points) } : nil
+            shown ? progress.played.last.flatMap { Self.feedback(for: $0.score.points) } : nil
+        }
+        .onChange(of: revealed) { _, shown in
+            if shown, let points = progress.played.last?.score.points { RevealHaptics.play(for: points) }
         }
     }
 
-    /// A reveal lands as hard as it scored: a success for a square the share
-    /// string turns green or better, a thud that softens down the bands below.
-    static func feedback(for points: Int) -> SensoryFeedback {
+    /// A reveal lands as hard as it scored: a thud that softens down the bands
+    /// below green, and from green up `RevealHaptics`' own patterns — or a
+    /// success, on hardware without them.
+    static func feedback(for points: Int) -> SensoryFeedback? {
         switch points {
-        case 4000...: .success
+        case 4000...: RevealHaptics.supported ? nil : .success
         case 2500...: .impact(weight: .heavy)
         case 1000...: .impact(weight: .medium)
         default: .impact(weight: .light)
@@ -851,4 +856,73 @@ private struct CountUp: View, Animatable {
     }
 
     var body: some View { Text(Int(value.rounded()).formatted()) }
+}
+
+/// The reveal's buzz for a green round and a trophy one, bigger than any stock
+/// `SensoryFeedback`: both play across the 0.8 s the points count up over and
+/// land a hit as the number does.
+@MainActor
+enum RevealHaptics {
+    static let supported = CHHapticEngine.capabilitiesForHardware().supportsHaptics
+    private static var engine: CHHapticEngine?
+
+    static func play(for points: Int) {
+        guard supported, let events = pattern(for: points) else { return }
+        do {
+            if engine == nil {
+                let fresh = try CHHapticEngine()
+                fresh.playsHapticsOnly = true
+                fresh.isAutoShutdownEnabled = true
+                engine = fresh
+            }
+            guard let engine else { return }
+            try engine.start()
+            try engine.makePlayer(with: CHHapticPattern(events: events, parameters: [])).start(atTime: CHHapticTimeImmediate)
+        } catch {
+            // A haptic that can't play is a reveal without one, nothing worse.
+            engine = nil
+        }
+    }
+
+    // ponytail: hand-tuned on paper, not on a device yet; the intensities and
+    // timings are the knobs.
+    static func pattern(for points: Int) -> [CHHapticEvent]? {
+        switch Share.square(for: points) {
+        case "🏆":
+            // Ticks that climb in strength and sharpness with the count, a
+            // rumble swelling under them, then three slams.
+            let ticks = stride(from: 0.0, to: 0.8, by: 0.05).map { t in
+                hit(at: t, intensity: Float(0.3 + 0.7 * t / 0.8), sharpness: Float(0.2 + 0.8 * t / 0.8))
+            }
+            let slams = [0.8, 0.92, 1.04].map { hit(at: $0, intensity: 1, sharpness: 1) }
+            return ticks + [rumble(at: 0, for: 0.8, intensity: 0.7, sharpness: 0.3)] + slams
+                + [rumble(at: 1.04, for: 0.5, intensity: 1, sharpness: 0.5)]
+        case "🟩":
+            // A thump, a swell through the count, and a hit as it lands.
+            return [
+                hit(at: 0, intensity: 0.8, sharpness: 0.4),
+                rumble(at: 0, for: 0.8, intensity: 0.5, sharpness: 0.2),
+                hit(at: 0.8, intensity: 1, sharpness: 0.7),
+            ]
+        default:
+            return nil
+        }
+    }
+
+    private static func hit(at time: Double, intensity: Float, sharpness: Float) -> CHHapticEvent {
+        CHHapticEvent(eventType: .hapticTransient, parameters: parameters(intensity, sharpness), relativeTime: time)
+    }
+
+    private static func rumble(at time: Double, for duration: Double, intensity: Float, sharpness: Float) -> CHHapticEvent {
+        CHHapticEvent(
+            eventType: .hapticContinuous, parameters: parameters(intensity, sharpness), relativeTime: time,
+            duration: duration)
+    }
+
+    private static func parameters(_ intensity: Float, _ sharpness: Float) -> [CHHapticEventParameter] {
+        [
+            CHHapticEventParameter(parameterID: .hapticIntensity, value: intensity),
+            CHHapticEventParameter(parameterID: .hapticSharpness, value: sharpness),
+        ]
+    }
 }
