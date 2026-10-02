@@ -4,6 +4,19 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.25.1 — 2026-10-02
+
+### Changed
+
+- The App Store build leaves out the Twitch sign-in, the Chat tab and the Siri guess; Debug builds keep them, and they return in a later release. ([#373](https://github.com/adanalife/guessr/pull/373))
+
+### Behind the scenes
+
+- The App Store screenshot script waits long enough for the iPad reveal. ([#368](https://github.com/adanalife/guessr/pull/368))
+- The App Review demo account is a plain Twitch viewer, not a channel moderator. ([#369](https://github.com/adanalife/guessr/pull/369))
+- The App Review notes explain Twitch's emailed sign-in code and that any Twitch account works. ([#371](https://github.com/adanalife/guessr/pull/371))
+- The App Store name is "A Dana Life: Guessr"; the icon still reads Guessr. ([#372](https://github.com/adanalife/guessr/pull/372))
+
 ## v1.25.0 — 2026-10-01
 
 ### New
