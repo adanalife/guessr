@@ -3178,30 +3178,58 @@
         }
       }
     },
-    "Sign in to Twitch in Guessr first." : {
+    "Sign in to Twitch in Guessr's Settings to guess in the stream's chat." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nejdřív se v aplikaci Guessr přihlaste k Twitchi."
+            "value" : "Přihlaste se k Twitchi v Nastavení Guessru, abyste mohli tipovat v chatu streamu."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Primero inicia sesión en Twitch desde Guessr."
+            "value" : "Inicia sesión en Twitch en los Ajustes de Guessr para adivinar en el chat del directo."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Connectez-vous d'abord à Twitch dans Guessr."
+            "value" : "Connectez-vous à Twitch dans les Réglages de Guessr pour deviner dans le chat du live."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Сначала войдите в Twitch в приложении Guessr."
+            "value" : "Войдите в Twitch в настройках Guessr, чтобы угадывать в чате трансляции."
+          }
+        }
+      }
+    },
+    "Sign in under Twitch, then guess again." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Přihlaste se v sekci Twitch a pak tipujte znovu."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inicia sesión en Twitch y vuelve a adivinar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connectez-vous dans la section Twitch, puis devinez à nouveau."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Войдите в разделе Twitch, затем угадайте снова."
           }
         }
       }
@@ -3502,6 +3530,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Код неизвестен или истёк. Получите новый на сайте."
+          }
+        }
+      }
+    },
+    "This build of Guessr can't guess in Twitch chat." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tato verze Guessru nemůže tipovat v chatu na Twitchi."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta versión de Guessr no puede adivinar en el chat de Twitch."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette version de Guessr ne peut pas deviner dans le chat Twitch."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта сборка Guessr не может отправлять догадки в чат Twitch."
           }
         }
       }
