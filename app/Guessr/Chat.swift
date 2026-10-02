@@ -62,8 +62,12 @@ struct ChatLog: View {
                 Text(status)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
                     .padding(.horizontal)
+                    // Clear of the composer, so it reads as the log's state
+                    // rather than a label on the text field.
+                    .padding(.vertical, 8)
             }
             if let stub = mentionInProgress(text) { mentions(matching: stub) }
             if mayModerate, let held = account.chat?.held, !held.isEmpty { heldBar(held) }
