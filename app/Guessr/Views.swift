@@ -199,12 +199,6 @@ struct HiddenChattersView: View {
 }
 
 struct SettingsView: View {
-    /// The language the app is showing, named in itself.
-    static var language: String {
-        let code = Bundle.main.preferredLocalizations.first ?? "en"
-        return Locale(identifier: code).localizedString(forLanguageCode: code)?.localizedCapitalized ?? code
-    }
-
     @Environment(Account.self) private var account
     @Environment(GameCenter.self) private var gameCenter
     @Binding var player: Player
@@ -239,18 +233,6 @@ struct SettingsView: View {
                     Text("Auto").tag("system")
                 }
                 .pickerStyle(.segmented)
-            }
-            Section {
-                // iOS keeps each app's language under its own page in Settings,
-                // and an app can only open that page, not set the language.
-                Button {
-                    if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
-                } label: {
-                    LabeledContent("Language", value: Self.language)
-                }
-                .foregroundStyle(Color.ink)
-            } footer: {
-                Text("Opens Settings, where iOS keeps the app's language.")
             }
             Section {
                 Link("Privacy Policy", destination: URL(string: "https://www.dana.lol/privacy/")!)
