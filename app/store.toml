@@ -19,6 +19,7 @@ privacy_policy_url = "https://www.dana.lol/privacy/"
 primary_category = "GAMES"
 primary_subcategory_one = "GAMES_TRIVIA"
 primary_subcategory_two = "GAMES_PUZZLE"
+secondary_category = "TRAVEL"
 
 [listing]
 release_type = "MANUAL"

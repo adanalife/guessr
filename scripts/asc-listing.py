@@ -272,12 +272,14 @@ def main() -> int:
             "primaryCategory",
             "primarySubcategoryOne",
             "primarySubcategoryTwo",
+            "secondaryCategory",
         )
     }
     want_cats = {
         "primaryCategory": conf["app"].get("primary_category"),
         "primarySubcategoryOne": conf["app"].get("primary_subcategory_one"),
         "primarySubcategoryTwo": conf["app"].get("primary_subcategory_two"),
+        "secondaryCategory": conf["app"].get("secondary_category"),
     }
     cat_diff = {k: v for k, v in want_cats.items() if v and cats.get(k) != v}
     if cat_diff:
