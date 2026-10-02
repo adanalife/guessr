@@ -53,7 +53,7 @@ Guessr is a daily geography game over the developer's own dashcam footage. It ne
 
 TWITCH SIGN-IN (Settings > Twitch) is optional and exists only for the Chat tab, which is a client for one Twitch channel's live chat (reads and sends messages through Twitch's own API, under the user's own Twitch login). It does not create or authenticate an account with us, and nothing from Twitch reaches our servers, so we understand guideline 4.8's third-party-client exception to apply. The game is complete without signing in. A demo Twitch account is provided below; sign in at Settings > Sign in with Twitch, enter the code at twitch.tv/activate.
 
-CHAT MODERATION: the chat is one channel, moderated by Twitch's AutoMod and the channel's moderators under Twitch's terms. Any user can long-press a line to hide that chatter on their device or report them on Twitch. Moderators of the channel additionally get delete, time out, warn and ban, through Twitch's moderation API; the demo account is a moderator, so you can see those too.
+CHAT MODERATION: the chat is one channel, moderated by Twitch's AutoMod and the channel's moderators under Twitch's terms. Any user can long-press a line to hide that chatter on their device or report them on Twitch. Moderators of the channel additionally get delete, time out, warn and ban, through Twitch's moderation API; those appear only for an account Twitch lists as a moderator, and the demo account is a regular viewer.
 
 GAME CENTER: scores and achievements are submitted by our server (App Store Connect API), never by the app, after each recorded guess.
 

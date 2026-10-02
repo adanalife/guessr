@@ -117,7 +117,7 @@ type. The review contact and the demo account are not public: they go in
 contact_last_name = "…"
 contact_phone = "+1 …"
 contact_email = "…"
-demo_account_name = "…"      # a Twitch login that moderates the channel
+demo_account_name = "…"      # a review-only Twitch login, a plain viewer
 demo_account_password = "…"
 ```
 
