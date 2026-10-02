@@ -68,7 +68,7 @@ wherever an achievement has none:
 | `lol.dana.guessr.lifetime` | classic leaderboard, best score, integer | every point ever |
 | `lol.dana.guessr.weekly` | recurring leaderboard, 7 days from Monday 00:00 UTC, best score, integer | the ISO week's points |
 | `lol.dana.guessr.first_pin` | achievement | a first round played |
-| `lol.dana.guessr.bullseye` | achievement | a guess inside 10 km |
+| `lol.dana.guessr.bullseye` | achievement | a guess inside 5 miles |
 | `lol.dana.guessr.golden_day` | achievement | five rounds in a day totaling 20,000 |
 | `lol.dana.guessr.week_streak` | achievement, progressive | seven days in a row |
 | `lol.dana.guessr.century` | achievement, progressive | a hundred rounds |
