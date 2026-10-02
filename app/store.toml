@@ -9,7 +9,9 @@
 version = "1.25.0"
 
 [app]
-name = "Guessr"
+# "Guessr" alone belongs to another developer's app; the home-screen
+# name is CFBundleDisplayName in project.yml.
+name = "A Dana Life: Guessr"
 # At most 30 characters.
 subtitle = "Where was this dashcam?"
 privacy_policy_url = "https://www.dana.lol/privacy/"
