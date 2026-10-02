@@ -65,7 +65,7 @@ CONTENT: all video is the developer's own footage. The web game at guessr.dana.l
 [age_rating]
 advertising = false
 alcoholTobaccoOrDrugUseOrReferences = "NONE"
-contests = false
+contests = "NONE"
 gambling = false
 gamblingSimulated = "NONE"
 gunsOrOtherWeapons = "NONE"
