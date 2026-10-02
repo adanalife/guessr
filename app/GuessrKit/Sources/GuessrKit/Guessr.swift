@@ -9,6 +9,14 @@ import Foundation
     import UIKit
 #endif
 
+// corelibs-Foundation has no `String(localized:bundle:)`, so on Linux, where
+// tempomat tests its core against GuessrKit, the English key is the string.
+#if !canImport(Darwin)
+    extension String {
+        init(localized key: String, bundle: Bundle) { self = key }
+    }
+#endif
+
 public struct Coordinate: Sendable, Equatable, Codable {
     public var lat: Double
     public var lng: Double
@@ -279,8 +287,8 @@ public struct GuessrClient: Sendable {
             let message =
                 (try? JSONDecoder().decode(Envelope.self, from: data))?.error
                 ?? (http.statusCode >= 500
-                    ? "The server is having trouble. Try again in a moment."
-                    : "The server refused that request (HTTP \(http.statusCode)).")
+                    ? String(localized: "The server is having trouble. Try again in a moment.", bundle: .module)
+                    : String(localized: "The server refused that request (HTTP \(http.statusCode)).", bundle: .module))
             throw GuessrError.http(status: http.statusCode, message: message)
         }
         return data

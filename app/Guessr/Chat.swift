@@ -11,7 +11,7 @@ struct ChatTab: View {
             Group {
                 if let session = account.session {
                     let mayModerate = account.isMod && session.canModerate
-                    let lines = account.chat?.lines ?? []
+                    let lines = (account.chat?.lines ?? []).filter { account.hiddenChatters[$0.userId] == nil }
                     ChatLog(lines: mayModerate ? lines : lines.filter { !$0.deleted }, mayModerate: mayModerate)
                     .task(id: session.userID) { await account.openChat() }
                     .onChange(of: lines.count) { Saved.chat = lines }
@@ -35,6 +35,7 @@ struct ChatLog: View {
     /// content growing under a reader who hasn't moved keeps them following.
     @State private var following = true
     @State private var hasNew = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The last send or moderation Twitch refused, until the next one.
     @State private var error: String?
     /// The last timeout or ban this mod made, offered back as an undo — a
@@ -61,8 +62,12 @@ struct ChatLog: View {
                 Text(status)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
                     .padding(.horizontal)
+                    // Clear of the composer, so it reads as the log's state
+                    // rather than a label on the text field.
+                    .padding(.vertical, 8)
             }
             if let stub = mentionInProgress(text) { mentions(matching: stub) }
             if mayModerate, let held = account.chat?.held, !held.isEmpty { heldBar(held) }
@@ -92,7 +97,7 @@ struct ChatLog: View {
                 ForEach(held) { message in
                     HStack(alignment: .firstTextBaseline) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("\(message.displayName): \(message.text)").font(.subheadline).lineLimit(3)
+                            Text(verbatim: "\(message.displayName): \(message.text)").font(.subheadline).lineLimit(3)
                             Text(message.why).font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
@@ -165,7 +170,7 @@ struct ChatLog: View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let wait = account.isMod ? 0 : mode.wait(since: lastSent, now: context.date)
             Label(
-                wait > 0 ? "\(summary) · wait \(wait)s" : summary,
+                wait > 0 ? String(localized: "\(summary) · wait \(wait)s") : summary,
                 systemImage: mode.slowSeconds > 0 ? "hourglass" : "lock")
         }
         .font(.caption)
@@ -190,7 +195,7 @@ struct ChatLog: View {
     /// empty log says so itself, in its middle.
     private var connectionStatus: String? {
         guard let chat = account.chat else { return nil }
-        return chat.isConnected ? chat.lastError : lines.isEmpty ? nil : "Connecting…"
+        return chat.isConnected ? chat.lastError : lines.isEmpty ? nil : String(localized: "Connecting…")
     }
 
     private func loadArt() async {
@@ -322,8 +327,11 @@ struct ChatLog: View {
                     }
                     .buttonStyle(.plain)
                     .padding(.bottom, 4)
+                    // Up off the composer it sits on, and back down into it.
+                    .transition(reduceMotion ? AnyTransition.opacity : .move(edge: .bottom).combined(with: .opacity))
                 }
             }
+            .animation(.smooth, value: hasNew)
         }
     }
 
@@ -392,7 +400,7 @@ struct ChatLog: View {
             Button { pickingEmote.toggle() } label: { Image(systemName: pickingEmote ? "keyboard" : "face.smiling") }
                 .accessibilityLabel(pickingEmote ? "Hide emotes" : "Emotes")
                 .disabled(emotes.isEmpty)
-            TextField("Say something as \(account.session?.login ?? "you")", text: $text)
+            TextField("Say something as \(account.session?.login ?? String(localized: "you"))", text: $text)
                 .textFieldStyle(.plain)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -443,6 +451,38 @@ struct ChatLineView: View {
     @State private var emotes: [String: Image] = [:]
 
     var body: some View {
+        // A button, so the row highlights under the finger, a slide off it
+        // cancels, and VoiceOver says it opens something.
+        Button { showingCard = true } label: { row }
+            .foregroundStyle(.primary)
+            .listRowBackground(tint)
+            .sheet(isPresented: $showingCard) {
+                UserCard(displayName: line.displayName, login: line.login, recent: recent()) {
+                    try? await account.chat?.helix.user(id: line.userId)
+                }
+                .presentationDetents([.medium])
+            }
+            .modifier(
+                ChatLineMenu(
+                    translatable: line.text.isEmpty ? nil : line.text,
+                    name: line.displayName,
+                    delete: mayModerate && !line.deleted ? { moderate { try await $0.delete(messageId: line.id) } } : nil,
+                    ban: mayModerate
+                        ? { seconds, reason in
+                            moderate {
+                                try await $0.ban(userId: line.userId, seconds: seconds, reason: reason)
+                                banned = Banned(userId: line.userId, name: line.displayName, seconds: seconds)
+                            }
+                        } : nil,
+                    reply: line.kind == nil && !line.deleted ? reply : nil,
+                    warn: mayModerate && !line.isBroadcaster
+                        ? { reason in moderate { try await $0.warn(userId: line.userId, reason: reason) } } : nil,
+                    // Not on your own lines: there is nobody to hide or report.
+                    hide: line.userId == account.session?.userID ? nil : { account.hiddenChatters[line.userId] = line.displayName },
+                    report: line.userId == account.session?.userID ? nil : URL(string: "https://www.twitch.tv/\(line.login)")))
+    }
+
+    private var row: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             VStack(alignment: .leading, spacing: 2) {
                 // A sub, gift, raid or announcement: Twitch's sentence about
@@ -480,30 +520,7 @@ struct ChatLineView: View {
                 .font(.caption.monospaced())
                 .foregroundStyle(.tertiary)
         }
-        .listRowBackground(tint)
         .contentShape(Rectangle())
-        .onTapGesture { showingCard = true }
-        .sheet(isPresented: $showingCard) {
-            UserCard(displayName: line.displayName, login: line.login, recent: recent()) {
-                try? await account.chat?.helix.user(id: line.userId)
-            }
-            .presentationDetents([.medium])
-        }
-        .modifier(
-            ChatLineMenu(
-                translatable: line.text.isEmpty ? nil : line.text,
-                name: line.displayName,
-                delete: mayModerate && !line.deleted ? { moderate { try await $0.delete(messageId: line.id) } } : nil,
-                ban: mayModerate
-                    ? { seconds, reason in
-                        moderate {
-                            try await $0.ban(userId: line.userId, seconds: seconds, reason: reason)
-                            banned = Banned(userId: line.userId, name: line.displayName, seconds: seconds)
-                        }
-                    } : nil,
-                reply: line.kind == nil && !line.deleted ? reply : nil,
-                warn: mayModerate && !line.isBroadcaster
-                    ? { reason in moderate { try await $0.warn(userId: line.userId, reason: reason) } } : nil))
     }
 
     /// Runs a moderation verb on a fresh token. Twitch checks the mod's
@@ -561,8 +578,8 @@ struct Banned {
     var seconds: Int
 
     var summary: String {
-        guard seconds > 0 else { return "Banned \(name)" }
-        return "Timed out \(name) for \(timeoutLength(seconds))"
+        guard seconds > 0 else { return String(localized: "Banned \(name)") }
+        return String(localized: "Timed out \(name) for \(timeoutLength(seconds))")
     }
 }
 
@@ -584,10 +601,10 @@ private func kindSymbol(_ kind: String) -> String {
 private func shortAge(_ then: Date, now: Date = .now) -> String {
     let s = max(Int(now.timeIntervalSince(then)), 0)
     switch s {
-    case ..<60: return "\(s)s"
-    case ..<3600: return "\(s / 60)m"
-    case ..<86400: return "\(s / 3600)h"
-    default: return "\(s / 86400)d"
+    case ..<60: return String(localized: "\(s)s")
+    case ..<3600: return String(localized: "\(s / 60)m")
+    case ..<86400: return String(localized: "\(s / 3600)h")
+    default: return String(localized: "\(s / 86400)d")
     }
 }
 

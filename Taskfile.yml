@@ -545,11 +545,13 @@ tasks:
     vars:
       SIM:
         sh: xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name|startswith("iPhone")) | .name] | last // empty'
+      # Build settings for xcodebuild's command line, e.g. from ios:screenshots.
+      SETTINGS: '{{.SETTINGS | default ""}}'
     preconditions:
       - sh: test -n "{{.SIM}}"
         msg: "No iPhone simulator available — run: xcodebuild -downloadPlatform iOS"
     cmds:
-      - xcodebuild -scheme Guessr -destination 'platform=iOS Simulator,name={{.SIM}}' -derivedDataPath .build/DerivedData -clonedSourcePackagesDirPath {{.SPM_CLONES}} -quiet build
+      - xcodebuild -scheme Guessr -destination 'platform=iOS Simulator,name={{.SIM}}' -derivedDataPath .build/DerivedData -clonedSourcePackagesDirPath {{.SPM_CLONES}} -quiet build {{.SETTINGS}}
 
   # Signs for distribution (the Release config in app/project.yml), so it needs
   # the "Apple Distribution" certificate in the login keychain.
@@ -679,6 +681,32 @@ tasks:
     desc: Ask App Store Connect whether the newest release tag has an installable build (-- --wait polls until it does)
     cmds:
       - ./scripts/asc-builds.py {{.CLI_ARGS}}
+
+  ios:screenshots:
+    desc: Build for the simulator and screenshot the store's screens on an iPhone and an iPad into app/.build/screenshots
+    cmds:
+      # The store build's compilation conditions, plus DEBUG for the launch
+      # arguments the script drives it with: no TWITCH, so no Twitch section
+      # in Settings (see Guessr.xcconfig).
+      - task: ios:build
+        vars:
+          SETTINGS: SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG
+      - ./scripts/ios-screenshots.sh
+
+  asc:listing:
+    desc: Write app/store.toml into App Store Connect's listing -- text, category, age rating, build, review details, screenshots (-- --apply to write; plans by default)
+    cmds:
+      - ./scripts/asc-listing.py {{.CLI_ARGS}}
+
+  gamecenter:images:
+    desc: Render the Game Center achievement images into app/.build/achievements for gamecenter:config to upload
+    cmds:
+      - ./scripts/make-achievement-images.sh
+
+  gamecenter:config:
+    desc: Create the Game Center leaderboards and achievements the server submits to in App Store Connect (-- --apply to write; plans by default)
+    cmds:
+      - ./scripts/gamecenter-config.py {{.CLI_ARGS}}
 
   # The same name as tempomat's, which fans out to iPhone, Apple TV and Mac;
   # the app here is one iPhone-and-iPad build, so it is ios:release.

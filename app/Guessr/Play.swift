@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreHaptics
 import GuessrKit
 import MapKit
 import SwiftUI
@@ -23,6 +24,8 @@ struct PlayView: View {
     /// Compact on a phone held on its side, the one shape with no room to
     /// stack the clip over the map.
     @Environment(\.verticalSizeClass) private var heightClass
+    @Environment(GameCenter.self) private var gameCenter
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let client = GuessrClient()
 
@@ -58,7 +61,9 @@ struct PlayView: View {
         }
         .paper()
         .navigationTitle("Guessr")
-        .task { await load() }
+        // Keyed on the player: a link to another device's player is a new
+        // record to resume from.
+        .task(id: player.id) { await load() }
     }
 
     private func round(_ day: GuessrDay, image: String, shown: PlayedRound?) -> some View {
@@ -138,17 +143,22 @@ struct PlayView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .sensoryFeedback(.selection, trigger: pin?.latitude)
+        // A tick as a pin lands, and none as "Next round" clears it.
+        .sensoryFeedback(.selection, trigger: pin?.latitude) { _, now in now != nil }
         .sensoryFeedback(trigger: revealed) { _, shown in
-            shown ? progress.played.last.map { Self.feedback(for: $0.score.points) } : nil
+            shown ? progress.played.last.flatMap { Self.feedback(for: $0.score.points) } : nil
+        }
+        .onChange(of: revealed) { _, shown in
+            if shown, let points = progress.played.last?.score.points { RevealHaptics.play(for: points) }
         }
     }
 
-    /// A reveal lands as hard as it scored: a success for a square the share
-    /// string turns green or better, a thud that softens down the bands below.
-    static func feedback(for points: Int) -> SensoryFeedback {
+    /// A reveal lands as hard as it scored: a thud that softens down the bands
+    /// below green, and from green up `RevealHaptics`' own patterns — or a
+    /// success, on hardware without them.
+    static func feedback(for points: Int) -> SensoryFeedback? {
         switch points {
-        case 4000...: .success
+        case 4000...: RevealHaptics.supported ? nil : .success
         case 2500...: .impact(weight: .heavy)
         case 1000...: .impact(weight: .medium)
         default: .impact(weight: .light)
@@ -164,7 +174,7 @@ struct PlayView: View {
                     Marker(shown.score.state, coordinate: shown.score.answer.location).tint(.green)
                         .annotationTitles(.hidden)
                     MapPolyline(coordinates: [shown.guess.location, shown.score.answer.location])
-                        .stroke(.green, style: StrokeStyle(lineWidth: 2, dash: [5, 6]))
+                        .stroke(.green, lineWidth: 1.5)
                 }
             }
             .onTapGesture { point in
@@ -222,11 +232,7 @@ struct PlayView: View {
                 (revealed, pin, message, camera) = (false, nil, nil, PlayView.lower48)
             }
         } else {
-            Button(
-                scoring ? "Scoring…" : pin == nil ? "Place a pin on the map to guess" : pinState.map { "Guess \($0)" } ?? "Guess"
-            ) {
-                Task { await guess(image) }
-            }
+            Button(guessTitle) { Task { await guess(image) } }
             .disabled(pin == nil || scoring)
             // A new pin cancels the last lookup; until one answers, or outside
             // the US, the button says plain "Guess". ponytail: CLGeocoder is
@@ -239,19 +245,37 @@ struct PlayView: View {
                     .reverseGeocodeLocation(CLLocation(latitude: pin.latitude, longitude: pin.longitude)).first
                 guard !Task.isCancelled, placemark?.isoCountryCode == "US", let area = placemark?.administrativeArea
                 else { return }
-                pinState = (USState.abbreviations[area] ?? USState(rawValue: area))?.rawValue
+                pinState = (USState.abbreviations[area] ?? USState(rawValue: area))?.localizedName
             }
         }
+    }
+
+    /// The guess button's label: what to do, then the state under the pin.
+    private var guessTitle: LocalizedStringKey {
+        if scoring { return "Scoring…" }
+        if pin == nil { return "Place a pin on the map to guess" }
+        if let pinState { return "Guess \(pinState)" }
+        return "Guess"
     }
 
     private func load() async {
         let date = GuessrClient.today()
         progress = DayProgress.resume(Saved.progress, on: date)
         do {
-            day = try await client.day(date)
+            let loaded = try await client.day(date)
+            day = loaded
+            // A day begun on another device, or under a player this one just
+            // joined, carries on from where it got to. Best effort: a miss here
+            // only means starting from what this device remembers.
+            if progress.played.count < loaded.rounds.count,
+                let recorded = try? await client.progress(on: date, for: player)
+            {
+                progress = progress.seeded(from: recorded, in: loaded)
+                Saved.progress = progress
+            }
         } catch {
             // The server says why — nothing scheduled, or a date not yet open.
-            message = (error as? GuessrError)?.errorDescription ?? "Could not reach the rounds"
+            message = (error as? GuessrError)?.errorDescription ?? String(localized: "Could not reach the rounds")
         }
         #if DEBUG
             await autoplay()
@@ -295,13 +319,20 @@ struct PlayView: View {
             progress.played.append(PlayedRound(image: image, guess: at, score: score))
             Saved.progress = progress
             if progress.played.count == 1 { await Reminder.refreshBadge() }
-            (revealed, message, camera) = (true, nil, .region(Self.fit(at, score.answer)))
+            // Off the reveal's path: the server reads the standing off its
+            // own table, so this carries nothing the reveal waits on.
+            if score.recorded { Task { await gameCenter.sync(player, with: client) } }
+            // The map travels from the guess out to the answer, and the reveal
+            // grows in around it, rather than cutting to both.
+            withAnimation(reduceMotion ? nil : .smooth(duration: 0.8)) {
+                (revealed, message, camera) = (true, nil, .region(Self.fit(at, score.answer)))
+            }
         } catch let error as GuessrError where error.isFinal {
             // Refused, so retrying gets the same answer: say what the server said.
             day = nil
             message = error.localizedDescription
         } catch {
-            message = "Could not reach the scorer. Try that guess again."
+            message = String(localized: "Could not reach the scorer. Try that guess again.")
         }
     }
 }
@@ -330,13 +361,13 @@ struct JoinView: View {
                 Button(joining ? "Joining…" : "Join") { Task { await look() } }
                     .disabled(code.isEmpty || joining)
             } footer: {
-                Text(message ?? "On the web, open About and tap Link a device to see a code.")
+                if let message { Text(message) } else { Text("On the web, open About and tap Link a device to see a code.") }
             }
         }
         .paper()
         .navigationTitle("Enter your code")
         .confirmationDialog(
-            preview.map { "Play as \($0.to.name)?" } ?? "", isPresented: Binding(get: { preview != nil }, set: { if !$0 { preview = nil } }),
+            preview.map { Text("Play as \($0.to.name)?") } ?? Text(verbatim: ""), isPresented: Binding(get: { preview != nil }, set: { if !$0 { preview = nil } }),
             titleVisibility: .visible, presenting: preview
         ) { _ in
             Button("Join") { Task { await join() } }
@@ -369,9 +400,9 @@ struct JoinView: View {
 
     private func fail(_ error: Error) {
         if let error = error as? GuessrError, error.isFinal {
-            message = "That code is unknown or has expired. Show a new one on the web."
+            message = String(localized: "That code is unknown or has expired. Show a new one on the web.")
         } else {
-            message = "Could not reach the server. Try the code again."
+            message = String(localized: "Could not reach the server. Try the code again.")
         }
     }
 }
@@ -383,6 +414,8 @@ struct DayResultView: View {
     /// The round whose clip is playing again, by image: a map pin's selection
     /// tag sets it.
     @State private var replaying: String?
+    /// The total's size, grown and shrunk with the reader's text size.
+    @ScaledMetric(relativeTo: .largeTitle) private var headline = 44.0
 
     static var nextDaily: Date {
         Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now)) ?? .now
@@ -392,7 +425,7 @@ struct DayResultView: View {
     static func playAgain(from now: Date) -> String {
         let left = Calendar.current.dateComponents([.hour, .minute], from: now, to: nextDaily)
         let (h, m) = (left.hour ?? 0, left.minute ?? 0)
-        return h > 0 ? "Play again in \(h) h, \(m) min" : "Play again in \(m) min"
+        return h > 0 ? String(localized: "Play again in \(h) h, \(m) min") : String(localized: "Play again in \(m) min")
     }
 
     var body: some View {
@@ -402,7 +435,7 @@ struct DayResultView: View {
                     ForEach(Array(progress.played.enumerated()), id: \.offset) { i, r in
                         Marker("\(i + 1)", coordinate: r.score.answer.location).tint(.green).tag(r.image)
                         MapPolyline(coordinates: [r.guess.location, r.score.answer.location])
-                            .stroke(.green, style: StrokeStyle(lineWidth: 2, dash: [5, 6]))
+                            .stroke(.green, lineWidth: 1.5)
                         Annotation("", coordinate: r.guess.location, anchor: .center) {
                             Circle().fill(Color.ink).frame(width: 8, height: 8)
                         }
@@ -418,7 +451,7 @@ struct DayResultView: View {
                     Text("You have completed today's game").font(.caption).foregroundStyle(.secondary)
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text(progress.total.formatted())
-                            .font(.system(size: 44, weight: .bold, design: .serif))
+                            .font(.system(size: headline, weight: .bold, design: .serif))
                             .monospacedDigit()
                         Text("/ \((progress.played.count * 5000).formatted())").foregroundStyle(.secondary)
                     }
@@ -449,7 +482,7 @@ struct DayResultView: View {
                 }
             }
         }
-        .readableWidth(title: "Guessr")
+        .readableWidth(title: "Guessr", logo: true)
         .paper()
         .sheet(isPresented: Binding(get: { replaying != nil }, set: { if !$0 { replaying = nil } })) {
             if let round = progress.played.first(where: { $0.image == replaying }) {
@@ -498,6 +531,8 @@ struct ClipView: View {
     var fills = false
     @State private var player = AVQueuePlayer()
     @State private var looper: AVPlayerLooper?
+    /// Where the loop was when the view last went away, for the next appearance.
+    @State private var resume: CMTime?
     @State private var paused = false
     @State private var hint = false
     /// The zoom between gestures, and the one a gesture in progress shows.
@@ -506,9 +541,12 @@ struct ClipView: View {
     /// Full screen is the same player and gestures on a cover of their own,
     /// so the loop carries on across the switch rather than restarting.
     @State private var full = false
+    /// Full screen grows out of the clip and shrinks back into it.
+    @Namespace private var cover
 
     var body: some View {
         surface(fills: fills)
+            .matchedTransitionSource(id: url, in: cover)
             .accessibilityElement()
             .accessibilityLabel(paused ? "Clip, paused" : "Clip")
             .accessibilityAction(named: paused ? "Play" : "Pause") { togglePause() }
@@ -531,14 +569,18 @@ struct ClipView: View {
                     .statusBarHidden()
                     .accessibilityElement(children: .contain)
                     .accessibilityAction(.escape) { full = false }
+                    .navigationTransition(.zoom(sourceID: url, in: cover))
+                    // The zoom's swipe down to close would take a zoomed
+                    // picture's downward pan.
+                    .interactiveDismissDisabled(zoom.scale > 1)
             }
-            // A tab switch runs this again on the way back, and a second looper on
-            // a player still holding the first one's items leaves it with nothing
-            // to play: the looper is built once, and each appearance only resumes.
+            // A tab switch runs this again on the way back, onto the player the
+            // disappearance emptied: a fresh looper picks up where the last one left.
             .onAppear {
                 if looper == nil {
                     player.isMuted = true
                     looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
+                    if let resume { player.seek(to: resume, toleranceBefore: .zero, toleranceAfter: .zero) }
                 }
                 if !paused { player.play() }
                 #if DEBUG
@@ -550,8 +592,17 @@ struct ClipView: View {
                     if scale > 1 { zoom = ClipZoom(scale: min(scale, ClipZoom.maxScale)) }
                 #endif
             }
-            // The cover hides this view without ending the clip.
-            .onDisappear { if !full { player.pause() } }
+            // The cover hides this view without ending the clip. Anything else
+            // empties the player: a paused player still holding its items keeps
+            // a video decoder, and iOS runs out of those after enough rounds and
+            // replays, when every clip after draws as a black rectangle.
+            .onDisappear {
+                guard !full else { return }
+                resume = player.currentTime()
+                looper?.disableLooping()
+                looper = nil
+                player.removeAllItems()
+            }
     }
 
     /// The clip and its gestures. `screen` is the full-screen cover's: the
@@ -612,31 +663,39 @@ struct ClipView: View {
         if paused { player.pause() } else { player.play() }
     }
 
+    /// A gesture stretches past the zoom's limits while the fingers are down,
+    /// and on release springs back inside them, the way Photos does.
     private func pinch(_ size: CGSize, aspect: Double?) -> some Gesture {
-        MagnifyGesture()
-            .onChanged { value in
-                live = zoom.zoomed(
-                    by: value.magnification,
-                    aboutX: value.startLocation.x - size.width / 2, y: value.startLocation.y - size.height / 2,
-                    width: size.width, height: size.height, aspect: aspect)
-            }
-            .onEnded { _ in
-                zoom = live ?? zoom
-                live = nil
-            }
+        func zoomed(_ value: MagnifyGesture.Value, elastic: Bool) -> ClipZoom {
+            zoom.zoomed(
+                by: value.magnification,
+                aboutX: value.startLocation.x - size.width / 2, y: value.startLocation.y - size.height / 2,
+                width: size.width, height: size.height, aspect: aspect, elastic: elastic)
+        }
+        return MagnifyGesture()
+            .onChanged { live = zoomed($0, elastic: true) }
+            .onEnded { value in settle(zoomed(value, elastic: false)) }
     }
 
+    /// A pan carries on past the finger's release to where its speed was taking
+    /// it, as a scroll view does, and stops at the picture's edge.
     private func pan(_ size: CGSize, aspect: Double?) -> some Gesture {
         DragGesture()
             .onChanged { value in
                 live = zoom.panned(
                     dx: value.translation.width, dy: value.translation.height, width: size.width, height: size.height,
-                    aspect: aspect)
+                    aspect: aspect, elastic: true)
             }
-            .onEnded { _ in
-                zoom = live ?? zoom
-                live = nil
+            .onEnded { value in
+                settle(
+                    zoom.panned(
+                        dx: value.predictedEndTranslation.width, dy: value.predictedEndTranslation.height,
+                        width: size.width, height: size.height, aspect: aspect))
             }
+    }
+
+    private func settle(_ to: ClipZoom) {
+        withAnimation(.smooth(duration: 0.4)) { (zoom, live) = (to, nil) }
     }
 }
 
@@ -717,10 +776,10 @@ struct ProgressSquares: View {
         Group {
             if progress.played.isEmpty {
                 Text("Where was this dashcam clip taken?")
-                    .font(.system(.title3, design: .serif, weight: .semibold))
+                    .font(.system(.headline, design: .serif, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity)
                     .transition(.opacity)
             } else {
                 HStack(spacing: 6) {
@@ -750,6 +809,7 @@ struct RevealCard: View {
     let round: PlayedRound
     /// The points roll up from zero as the reveal's haptic lands.
     @State private var counted = 0.0
+    @ScaledMetric(relativeTo: .largeTitle) private var headline = 44.0
     @AppStorage("kilometers") private var kilometers = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -757,14 +817,14 @@ struct RevealCard: View {
         let band = Share.square(for: round.score.points) == "⬜" ? nil : Color.band(for: round.score.points)
         VStack(spacing: 2) {
             CountUp(value: counted)
-                .font(.system(size: 44, weight: .bold, design: .serif))
+                .font(.system(size: headline, weight: .bold, design: .serif))
                 .monospacedDigit()
                 .accessibilityLabel(round.score.points.formatted())
             Text("points").font(.caption).textCase(.uppercase).foregroundStyle(.secondary)
             Text(round.score.state)
                 .font(.system(.title2, design: .serif, weight: .semibold))
                 .padding(.top, 6)
-            Text("\(round.score.distance(kilometers: kilometers)) away · \(round.score.filmed)")
+            Text("\(round.score.distance(kilometers: kilometers)) away")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -782,7 +842,7 @@ struct RevealCard: View {
 extension GuessrScore {
     /// How far off the guess was, in the unit Settings picks.
     func distance(kilometers: Bool) -> String {
-        kilometers ? "\(Int(km.rounded()).formatted()) km" : "\(miles.formatted()) mi"
+        kilometers ? String(localized: "\(Int(km.rounded()).formatted()) km") : String(localized: "\(miles.formatted()) mi")
     }
 }
 
@@ -796,4 +856,73 @@ private struct CountUp: View, Animatable {
     }
 
     var body: some View { Text(Int(value.rounded()).formatted()) }
+}
+
+/// The reveal's buzz for a green round and a trophy one, bigger than any stock
+/// `SensoryFeedback`: both play across the 0.8 s the points count up over and
+/// land a hit as the number does.
+@MainActor
+enum RevealHaptics {
+    static let supported = CHHapticEngine.capabilitiesForHardware().supportsHaptics
+    private static var engine: CHHapticEngine?
+
+    static func play(for points: Int) {
+        guard supported, let events = pattern(for: points) else { return }
+        do {
+            if engine == nil {
+                let fresh = try CHHapticEngine()
+                fresh.playsHapticsOnly = true
+                fresh.isAutoShutdownEnabled = true
+                engine = fresh
+            }
+            guard let engine else { return }
+            try engine.start()
+            try engine.makePlayer(with: CHHapticPattern(events: events, parameters: [])).start(atTime: CHHapticTimeImmediate)
+        } catch {
+            // A haptic that can't play is a reveal without one, nothing worse.
+            engine = nil
+        }
+    }
+
+    // ponytail: hand-tuned on paper, not on a device yet; the intensities and
+    // timings are the knobs.
+    static func pattern(for points: Int) -> [CHHapticEvent]? {
+        switch Share.square(for: points) {
+        case "🏆":
+            // Ticks that climb in strength and sharpness with the count, a
+            // rumble swelling under them, then three slams.
+            let ticks = stride(from: 0.0, to: 0.8, by: 0.05).map { t in
+                hit(at: t, intensity: Float(0.3 + 0.7 * t / 0.8), sharpness: Float(0.2 + 0.8 * t / 0.8))
+            }
+            let slams = [0.8, 0.92, 1.04].map { hit(at: $0, intensity: 1, sharpness: 1) }
+            return ticks + [rumble(at: 0, for: 0.8, intensity: 0.7, sharpness: 0.3)] + slams
+                + [rumble(at: 1.04, for: 0.5, intensity: 1, sharpness: 0.5)]
+        case "🟩":
+            // A thump, a swell through the count, and a hit as it lands.
+            return [
+                hit(at: 0, intensity: 0.8, sharpness: 0.4),
+                rumble(at: 0, for: 0.8, intensity: 0.5, sharpness: 0.2),
+                hit(at: 0.8, intensity: 1, sharpness: 0.7),
+            ]
+        default:
+            return nil
+        }
+    }
+
+    private static func hit(at time: Double, intensity: Float, sharpness: Float) -> CHHapticEvent {
+        CHHapticEvent(eventType: .hapticTransient, parameters: parameters(intensity, sharpness), relativeTime: time)
+    }
+
+    private static func rumble(at time: Double, for duration: Double, intensity: Float, sharpness: Float) -> CHHapticEvent {
+        CHHapticEvent(
+            eventType: .hapticContinuous, parameters: parameters(intensity, sharpness), relativeTime: time,
+            duration: duration)
+    }
+
+    private static func parameters(_ intensity: Float, _ sharpness: Float) -> [CHHapticEventParameter] {
+        [
+            CHHapticEventParameter(parameterID: .hapticIntensity, value: intensity),
+            CHHapticEventParameter(parameterID: .hapticSharpness, value: sharpness),
+        ]
+    }
 }

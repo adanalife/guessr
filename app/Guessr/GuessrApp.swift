@@ -4,11 +4,17 @@ import SwiftUI
 @main
 struct GuessrApp: App {
     @State private var account = Account()
+    @State private var gameCenter = GameCenter()
     private let players = KeychainPlayerStore()
+    private let client = GuessrClient()
     /// State rather than a constant because a link code swaps it for the player
     /// the code joined; every change goes back to the Keychain.
     @State private var player = KeychainPlayerStore().current()
     @State private var tab = GuessrApp.firstTab
+    /// A tab something outside the view asked for, such as the Siri guess
+    /// sending a signed-out player to Settings; taken once, then cleared.
+    @AppStorage(GuessrApp.openTabKey) private var openTab = ""
+    static let openTabKey = "open-tab"
     /// Settings' theme: "system" follows the device, else "light" or "dark".
     @AppStorage("appearance") private var appearance = "dark"
     @Environment(\.scenePhase) private var scenePhase
@@ -46,7 +52,10 @@ struct GuessrApp: App {
             }
             .foregroundStyle(Color.ink)
             .preferredColorScheme(appearance == "system" ? nil : appearance == "dark" ? .dark : .light)
+            .modifier(AchievementToast())
             .environment(account)
+            .environment(gameCenter)
+            .task { gameCenter.start { await gameCenter.sync(player, with: client) } }
             // A sign-in opens Chat, the tab it brings, on every device: left to
             // itself, the iPad's tab bar keeps Settings selected as Chat
             // appears ahead of it.
@@ -59,6 +68,11 @@ struct GuessrApp: App {
             }
             .onChange(of: account.seesBoards, initial: true) { _, sees in
                 if !sees, tab == "Boards" { tab = "Play" }
+            }
+            .onChange(of: openTab, initial: true) { _, named in
+                guard !named.isEmpty else { return }
+                tab = named
+                openTab = ""
             }
             .onChange(of: player) { _, joined in players.save(joined) }
             .task(id: account.session?.userID) { await account.checkModerates() }
@@ -102,9 +116,25 @@ final class Account {
     private var modLogin: Task<Void, Never>?
     /// The token exchange in flight; see `refreshIfNeeded()`.
     private var refreshing: Task<Void, Never>?
+    /// Chatters whose lines this device keeps off the Chat tab: Twitch user id
+    /// to the display name Settings lists them by. The viewer's own
+    /// moderation: it changes nothing on Twitch. A list from before names
+    /// were kept shows each chatter by id.
+    var hiddenChatters: [String: String] =
+        UserDefaults.standard.dictionary(forKey: "hidden-chatter-names") as? [String: String]
+        ?? Dictionary(uniqueKeysWithValues: (UserDefaults.standard.stringArray(forKey: "hidden-chatters") ?? []).map { ($0, $0) })
+    {
+        didSet { UserDefaults.standard.set(hiddenChatters, forKey: "hidden-chatter-names") }
+    }
 
     init(bundle: Bundle = .main, store: any SessionStore = KeychainSessionStore()) {
-        auth = TwitchAuth(clientID: bundle.object(forInfoDictionaryKey: "GuessrTwitchClientID") as? String ?? "")
+        #if TWITCH
+            auth = TwitchAuth(clientID: bundle.object(forInfoDictionaryKey: "GuessrTwitchClientID") as? String ?? "")
+        #else
+            // No client id is no Twitch login: Settings hides its Twitch
+            // section and the Chat tab never appears.
+            auth = TwitchAuth(clientID: "")
+        #endif
         ownerID = bundle.object(forInfoDictionaryKey: "GuessrOwnerTwitchID") as? String ?? ""
         channel = bundle.object(forInfoDictionaryKey: "GuessrTwitchChannel") as? String ?? ""
         self.store = store
@@ -199,7 +229,7 @@ final class Account {
     /// joining its chat, so the gates that hang off it hold before Chat opens.
     func checkModerates() async {
         await refreshIfNeeded()
-        guard let session, !channel.isEmpty, !moderates else { return }
+        guard auth.isConfigured, let session, !channel.isEmpty, !moderates else { return }
         let asker = chat?.helix ?? Helix(channel: channel, clientID: auth.clientID, session: session)
         let answer = await asker.moderates()
         // The login may have changed while Twitch answered.
@@ -208,7 +238,8 @@ final class Account {
 
     /// Connects the signed-in login to the channel's chat, or keeps the
     /// connection it already has, then asks whether it moderates there.
-    /// The package never refreshes a token, so this is where it happens.
+    /// The package never refreshes a token, so this is where it happens: on
+    /// opening, and before each reconnect.
     func openChat() async {
         await refreshIfNeeded()
         guard let session, !channel.isEmpty else { return }
@@ -220,6 +251,7 @@ final class Account {
             let earlier = Saved.chat
             fresh.seed(earlier)
             earlierChat = Set(earlier.map(\.id))
+            fresh.beforeConnect = { [weak self] in await self?.refreshIfNeeded() }
             fresh.start()
             chat = fresh
         }

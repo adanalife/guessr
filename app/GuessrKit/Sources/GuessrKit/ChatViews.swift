@@ -133,7 +133,7 @@
 
     /// What a warning says when the mod typed nothing: Twitch insists on a
     /// reason, and the viewer has to read one to chat again.
-    public let defaultWarning = "Please keep to the chat rules"
+    public var defaultWarning: String { String(localized: "Please keep to the chat rules", bundle: .module) }
 
     /// A chat line's context menu: Translate for a line with words to read,
     /// then the moderation verbs a nil closure leaves out. `ban` takes the
@@ -142,8 +142,10 @@
     /// item and the ban itself ask in an alert, where the reason is optional.
     /// The ban always asks first, the one verb that doesn't undo itself.
     /// `warn` takes the reason, asked for in an alert. Delete comes first: it
-    /// answers what was said rather than who said it. tvOS has no context
-    /// menus, so there it draws the line bare.
+    /// answers what was said rather than who said it. `hide` and `report` are
+    /// the viewer's verbs: hide keeps this chatter's lines off this device,
+    /// report opens their Twitch page, where Twitch's own report form lives.
+    /// tvOS has no context menus, so there it draws the line bare.
     public struct ChatLineMenu: ViewModifier {
         var translatable: String?
         var name: String
@@ -151,6 +153,9 @@
         var ban: ((Int, String?) -> Void)?
         var reply: (() -> Void)?
         var warn: ((String) -> Void)?
+        var hide: (() -> Void)?
+        var report: URL?
+        @Environment(\.openURL) private var openURL
         /// Whether the system translation sheet is up for this line.
         @State private var translating = false
         @State private var banning = false
@@ -163,7 +168,8 @@
         /// heads the menu.
         public init(
             translatable: String?, name: String, delete: (() -> Void)?, ban: ((Int, String?) -> Void)?,
-            reply: (() -> Void)? = nil, warn: ((String) -> Void)? = nil
+            reply: (() -> Void)? = nil, warn: ((String) -> Void)? = nil,
+            hide: (() -> Void)? = nil, report: URL? = nil
         ) {
             self.translatable = translatable
             self.name = name
@@ -171,6 +177,8 @@
             self.ban = ban
             self.reply = reply
             self.warn = warn
+            self.hide = hide
+            self.report = report
         }
 
         /// The typed reason, nil when the field was left blank.
@@ -189,56 +197,62 @@
                 content
                     .contextMenu {
                         if let reply {
-                            Button("Reply", systemImage: "arrowshape.turn.up.left", action: reply)
+                            Button(String(localized: "Reply", bundle: .module), systemImage: "arrowshape.turn.up.left", action: reply)
                         }
                         #if canImport(Translation)
                             if translatable != nil {
-                                Button("Translate", systemImage: "translate") { translating = true }
+                                Button(String(localized: "Translate", bundle: .module), systemImage: "translate") { translating = true }
                             }
                         #endif
+                        if let hide {
+                            Button(String(localized: "Hide messages from \(name)", bundle: .module), systemImage: "eye.slash", action: hide)
+                        }
+                        if let report {
+                            Button(String(localized: "Report on Twitch", bundle: .module), systemImage: "flag") { openURL(report) }
+                        }
                         if let delete {
-                            Button("Delete message", systemImage: "trash", role: .destructive, action: delete)
+                            Button(String(localized: "Delete message", bundle: .module), systemImage: "trash", role: .destructive, action: delete)
                         }
                         if warn != nil {
-                            Button("Warn", systemImage: "exclamationmark.bubble") { warning = true }
+                            Button(String(localized: "Warn", bundle: .module), systemImage: "exclamationmark.bubble") { warning = true }
                         }
                         if let ban {
-                            Menu("Time out", systemImage: "clock.badge.xmark") {
+                            Menu(String(localized: "Time out", bundle: .module), systemImage: "clock.badge.xmark") {
                                 ForEach(timeouts, id: \.self) { seconds in
                                     Button(timeoutLength(seconds)) { ban(seconds, nil) }
                                 }
                                 Divider()
-                                Button("With a reason…", systemImage: "text.bubble") {
+                                Button(String(localized: "With a reason…", bundle: .module), systemImage: "text.bubble") {
                                     reason = ""
                                     timingOut = true
                                 }
                             }
-                            Button("Ban", systemImage: "nosign", role: .destructive) {
+                            Button(String(localized: "Ban", bundle: .module), systemImage: "nosign", role: .destructive) {
                                 reason = ""
                                 banning = true
                             }
                         }
                     }
-                    .alert("Ban \(name) from the channel?", isPresented: $banning) {
-                        TextField("Reason (optional)", text: $reason)
-                        Button("Ban", role: .destructive) { ban?(0, why) }
-                        Button("Cancel", role: .cancel) {}
+                    .alert(String(localized: "Ban \(name) from the channel?", bundle: .module), isPresented: $banning) {
+                        TextField(String(localized: "Reason (optional)", bundle: .module), text: $reason)
+                        Button(String(localized: "Ban", bundle: .module), role: .destructive) { ban?(0, why) }
+                        Button(String(localized: "Cancel", bundle: .module), role: .cancel) {}
                     } message: {
-                        Text("Other mods see the reason, and so do they.")
+                        Text("Other mods see the reason, and so do they.", bundle: .module)
                     }
-                    .alert("Time out \(name)", isPresented: $timingOut) {
-                        TextField("Reason (optional)", text: $reason)
+                    .alert(String(localized: "Time out \(name)", bundle: .module), isPresented: $timingOut) {
+                        TextField(String(localized: "Reason (optional)", bundle: .module), text: $reason)
                         ForEach(timeouts, id: \.self) { seconds in
                             Button(timeoutLength(seconds)) { ban?(seconds, why) }
                         }
-                        Button("Cancel", role: .cancel) {}
+                        Button(String(localized: "Cancel", bundle: .module), role: .cancel) {}
                     }
-                    .alert("Warn \(name)", isPresented: $warning) {
-                        TextField("Reason", text: $reason)
-                        Button("Warn") { warn?(reason.isEmpty ? defaultWarning : reason) }
-                        Button("Cancel", role: .cancel) {}
+                    .alert(String(localized: "Warn \(name)", bundle: .module), isPresented: $warning) {
+                        TextField(String(localized: "Reason", bundle: .module), text: $reason)
+                        Button(String(localized: "Warn", bundle: .module)) { warn?(reason.isEmpty ? defaultWarning : reason) }
+                        Button(String(localized: "Cancel", bundle: .module), role: .cancel) {}
                     } message: {
-                        Text("They can't chat again until they've read it.")
+                        Text("They can't chat again until they've read it.", bundle: .module)
                     }
                     #if canImport(Translation)
                         .translationPresentation(isPresented: $translating, text: translatable ?? "")
@@ -280,7 +294,7 @@
                     VStack(alignment: .leading, spacing: 2) {
                         Text(user?.displayName ?? displayName).font(.headline)
                         if let user {
-                            Text("On Twitch since \(user.createdAt.formatted(.dateTime.month(.wide).year()))")
+                            Text("On Twitch since \(user.createdAt.formatted(.dateTime.month(.wide).year()))", bundle: .module)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -288,12 +302,12 @@
                     Spacer()
                     if let url = URL(string: "https://www.twitch.tv/\(login)") {
                         Link(destination: url) { Image(systemName: "arrow.up.right.square") }
-                            .accessibilityLabel("Open \(displayName) on Twitch")
+                            .accessibilityLabel(String(localized: "Open \(displayName) on Twitch", bundle: .module))
                     }
                 }
                 if !recent.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Recent messages").font(.caption.bold()).foregroundStyle(.secondary)
+                        Text("Recent messages", bundle: .module).font(.caption.bold()).foregroundStyle(.secondary)
                         // ponytail: the last five; a scrolling list if a
                         // chatty viewer's card needs the whole session.
                         ForEach(Array(recent.suffix(5).enumerated()), id: \.offset) { _, text in

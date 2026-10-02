@@ -19,7 +19,7 @@ from types import SimpleNamespace
 sent = []
 
 
-async def js_fetch(url, headers=None, **extra):
+async def js_fetch(url, method="GET", headers=None, **extra):
     sent.append((url, headers, extra))
 
     async def text():

@@ -58,13 +58,13 @@ public struct ChatMode: Sendable, Equatable {
     /// The modes in force, as the composer lists them; nil when chat is open.
     public var summary: String? {
         var parts: [String] = []
-        if slowSeconds > 0 { parts.append("Slow mode, \(compactDuration(slowSeconds))") }
+        if slowSeconds > 0 { parts.append(String(localized: "Slow mode, \(compactDuration(slowSeconds))", bundle: .module)) }
         if let m = followerMinutes {
-            parts.append(m > 0 ? "Followers of \(compactDuration(m * 60)) only" : "Followers only")
+            parts.append(m > 0 ? String(localized: "Followers of \(compactDuration(m * 60)) only", bundle: .module) : String(localized: "Followers only", bundle: .module))
         }
-        if subscribersOnly { parts.append("Subscribers only") }
-        if emoteOnly { parts.append("Emotes only") }
-        if uniqueOnly { parts.append("Unique messages only") }
+        if subscribersOnly { parts.append(String(localized: "Subscribers only", bundle: .module)) }
+        if emoteOnly { parts.append(String(localized: "Emotes only", bundle: .module)) }
+        if uniqueOnly { parts.append(String(localized: "Unique messages only", bundle: .module)) }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
@@ -192,12 +192,22 @@ public enum TwitchChatError: Error, LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .unknownChannel(let login): "Twitch has no channel called \(login)"
-        case .http(let status, let message): "Twitch answered \(status): \(message)"
-        case .dropped(let why): "Twitch didn't send the message: \(why)"
+        case .unknownChannel(let login): String(localized: "Twitch has no channel called \(login)", bundle: .module)
+        case .http(let status, let message): String(localized: "Twitch answered \(status): \(message)", bundle: .module)
+        case .dropped(let why): String(localized: "Twitch didn't send the message: \(why)", bundle: .module)
         }
     }
 }
+
+/// The three calls the chat's socket loop makes, so a test can script the
+/// frames a `URLSessionWebSocketTask` would deliver.
+protocol ChatSocket: AnyObject, Sendable {
+    func resume()
+    func receive() async throws -> URLSessionWebSocketTask.Message
+    func cancel(with closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?)
+}
+
+extension URLSessionWebSocketTask: ChatSocket {}
 
 /// A live Twitch channel's chat, read over EventSub's WebSocket transport on
 /// the viewer's own token. Writing and moderating go through `helix`, which a
@@ -231,16 +241,23 @@ public final class TwitchChat {
         get { helix.session }
         set { helix.session = newValue }
     }
+    /// Runs before each connect, so a reconnect hours into a session
+    /// subscribes on a live token: the package never refreshes one itself,
+    /// so the host does it here and sets `session` with the result.
+    @ObservationIgnored public var beforeConnect: (() async -> Void)?
     @ObservationIgnored let eventSubURL: URL
     // ponytail: 300 lines, a screenful many times over; raise it or page to
     // disk if scrollback ever matters.
     @ObservationIgnored let capacity: Int
 
     @ObservationIgnored private var runner: Task<Void, Never>?
-    @ObservationIgnored private var socket: URLSessionWebSocketTask?
+    @ObservationIgnored private var socket: (any ChatSocket)?
+    /// Opens the socket for an EventSub URL.
+    @ObservationIgnored var makeSocket: (URL) -> any ChatSocket
     /// Seconds of silence after which the socket counts as dead: the welcome's
-    /// `keepalive_timeout_seconds`, plus slack for the network.
+    /// `keepalive_timeout_seconds`, plus `keepaliveSlack` for the network.
     @ObservationIgnored private var keepalive = 10
+    @ObservationIgnored var keepaliveSlack = 5
 
     public init(
         channel: String,
@@ -255,6 +272,7 @@ public final class TwitchChat {
             channel: channel, clientID: clientID, session: session, urlSession: urlSession, base: helixBase)
         self.eventSubURL = eventSubURL
         self.capacity = capacity
+        self.makeSocket = { urlSession.webSocketTask(with: $0) }
     }
 
     // MARK: Reading
@@ -285,12 +303,13 @@ public final class TwitchChat {
     private func run() async {
         var url = eventSubURL
         var subscribe = true
-        var retiring: URLSessionWebSocketTask?
+        var retiring: (any ChatSocket)?
         var attempt = 0
         while !Task.isCancelled {
             do {
+                if subscribe { await beforeConnect?() }
                 _ = try await helix.resolveBroadcaster()
-                let ws = helix.urlSession.webSocketTask(with: url)
+                let ws = makeSocket(url)
                 socket = ws
                 ws.resume()
                 if let moved = try await read(ws, subscribe: subscribe, retiring: &retiring, attempt: &attempt) {
@@ -306,22 +325,31 @@ public final class TwitchChat {
                 lastError = error.localizedDescription
             }
             isConnected = false
+            // A connect that failed after the socket opened — a refused
+            // subscribe, say — leaves it open with whatever did subscribe, and
+            // Twitch caps a login's subscribed sockets, so a few left behind
+            // would refuse every reconnect after them.
+            socket?.cancel(with: .goingAway, reason: nil)
+            socket = nil
             retiring?.cancel(with: .goingAway, reason: nil)
             retiring = nil
             url = eventSubURL
             subscribe = true
-            // ponytail: plain doubling capped at a minute, no jitter; one
-            // client per phone doesn't stampede anything.
-            let delay = min(1 << min(attempt, 6), 60)
+            let delay = Self.backoff(attempt)
             attempt += 1
             try? await Task.sleep(for: .seconds(delay))
         }
     }
 
+    /// Seconds to wait before reconnect number `attempt`, counted from zero.
+    // ponytail: plain doubling capped at a minute, no jitter; one client per
+    // phone doesn't stampede anything.
+    nonisolated static func backoff(_ attempt: Int) -> Int { min(1 << min(attempt, 6), 60) }
+
     /// Reads `ws` until it dies (throws) or Twitch asks to move (returns the
     /// new URL).
     private func read(
-        _ ws: URLSessionWebSocketTask, subscribe: Bool, retiring: inout URLSessionWebSocketTask?, attempt: inout Int
+        _ ws: any ChatSocket, subscribe: Bool, retiring: inout (any ChatSocket)?, attempt: inout Int
     ) async throws -> URL? {
         while true {
             let data: Data
@@ -332,7 +360,7 @@ public final class TwitchChat {
             }
             switch handle(data) {
             case .welcome(let sessionID, let timeout):
-                keepalive = timeout + 5
+                keepalive = timeout + keepaliveSlack
                 if subscribe {
                     try await subscribeAll(sessionID)
                     // After subscribing, so no change can slip between the
@@ -357,7 +385,7 @@ public final class TwitchChat {
     /// One frame, or an error once `keepalive` seconds pass without one —
     /// Twitch promises a keepalive inside that window, so silence means the
     /// socket is gone even if the OS hasn't noticed.
-    private func receive(_ ws: URLSessionWebSocketTask) async throws -> URLSessionWebSocketTask.Message {
+    private func receive(_ ws: any ChatSocket) async throws -> URLSessionWebSocketTask.Message {
         let watchdog = Task { [keepalive] in
             try await Task.sleep(for: .seconds(keepalive))
             ws.cancel(with: .goingAway, reason: nil)
@@ -820,7 +848,7 @@ struct Frame: Decodable {
             guard let messageId, let userId, let message else { return nil }
             let why =
                 if let automod { "AutoMod: \(automod.category) \(automod.level)" } else if reason == "blocked_term" {
-                    "Blocked term"
+                    String(localized: "Blocked term", bundle: .module)
                 } else { reason ?? "AutoMod" }
             return HeldMessage(
                 id: messageId, userId: userId, login: userLogin ?? "", displayName: userName ?? userLogin ?? "",

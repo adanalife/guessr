@@ -20,8 +20,10 @@ extension View {
     /// only: an iPad row the full width of the screen strands a toggle far from
     /// its label. The large title moves over the column with it, so it doesn't
     /// float at the screen's edge. Goes inside `paper()`, so the page color still
-    /// fills the screen.
-    func readableWidth(title: String) -> some View { modifier(ReadableWidth(title: title)) }
+    /// fills the screen. `logo` sets the A Dana Life mark before the title.
+    func readableWidth(title: LocalizedStringKey, logo: Bool = false) -> some View {
+        modifier(ReadableWidth(title: title, logo: logo))
+    }
 
     /// The web game's play button: an ink fill under a paper label, the
     /// highest-contrast thing on screen in either theme. The accent is a text
@@ -57,8 +59,10 @@ extension View {
 }
 
 private struct ReadableWidth: ViewModifier {
-    let title: String
+    let title: LocalizedStringKey
+    let logo: Bool
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @ScaledMetric(relativeTo: .largeTitle) private var mark = 34
 
     func body(content: Content) -> some View {
         if sizeClass == .regular {
@@ -69,8 +73,7 @@ private struct ReadableWidth: ViewModifier {
                     // lined up with its cards' edge, where a full-width list
                     // puts it. The serif matches the appearance proxy's.
                     ToolbarItem(placement: .largeTitle) {
-                        Text(title)
-                            .font(.system(.largeTitle, design: .serif, weight: .bold))
+                        largeTitle
                             // ponytail: 20 is the inset-grouped list's regular-width
                             // margin, measured, not read; a system margin change
                             // drifts it, a readable-content guide fixes that.
@@ -79,8 +82,27 @@ private struct ReadableWidth: ViewModifier {
                             .frame(maxWidth: .infinity)
                     }
                 }
+        } else if logo {
+            content.navigationTitle(title)
+                .toolbar {
+                    ToolbarItem(placement: .largeTitle) {
+                        // ponytail: 16 is the compact large title's margin, measured
+                        // like the regular one above.
+                        largeTitle.padding(.leading, 16).frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
         } else {
             content.navigationTitle(title)
+        }
+    }
+
+    private var largeTitle: some View {
+        HStack(spacing: 10) {
+            if logo {
+                Image("Logo").resizable().scaledToFit().frame(width: mark, height: mark)
+                    .accessibilityLabel(Text(verbatim: "A Dana Life"))
+            }
+            Text(title).font(.system(.largeTitle, design: .serif, weight: .bold))
         }
     }
 }
@@ -122,18 +144,18 @@ struct TodayView: View {
                 .pickerStyle(.segmented)
                 ForEach(Array((board?.rows ?? []).enumerated()), id: \.offset) { rank, row in
                     let mine = isMine(row)
-                    LabeledContent("\(rank + 1). \(row.name)\(mine ? " (you)" : "")", value: "\(row.points)")
+                    LabeledContent(mine ? "\(rank + 1). \(row.name) (you)" : "\(rank + 1). \(row.name)", value: "\(row.points)")
                         .fontWeight(mine ? .bold : nil)
                         .listRowBackground(mine ? Color.accentColor.opacity(0.15) : nil)
                 }
             } header: {
-                Text(board.map { "Leaderboard · \($0.period)" } ?? "Leaderboard")
+                if let board { Text("Leaderboard · \(board.period)") } else { Text("Leaderboard") }
             }
             if let error {
                 Text(error).foregroundStyle(.secondary)
             }
         }
-        .readableWidth(title: "Guessr")
+        .readableWidth(title: "Leaderboard")
         .paper()
         .task(id: boardName) { await load() }
         .refreshable { await load() }
@@ -157,8 +179,28 @@ struct TodayView: View {
     }
 }
 
+/// The chatters this device hides, each shown again on its own.
+struct HiddenChattersView: View {
+    @Environment(Account.self) private var account
+
+    var body: some View {
+        List {
+            ForEach(account.hiddenChatters.sorted { $0.value.localizedCaseInsensitiveCompare($1.value) == .orderedAscending }, id: \.key) { id, name in
+                LabeledContent(name) {
+                    Button("Show") { account.hiddenChatters[id] = nil }
+                }
+            }
+            if account.hiddenChatters.count > 1 {
+                Button("Show everyone") { account.hiddenChatters = [:] }
+            }
+        }
+        .navigationTitle("Hidden chatters")
+    }
+}
+
 struct SettingsView: View {
     @Environment(Account.self) private var account
+    @Environment(GameCenter.self) private var gameCenter
     @Binding var player: Player
     @State private var playedToday = false
     @AppStorage("kilometers") private var kilometers = false
@@ -168,17 +210,31 @@ struct SettingsView: View {
         Form {
             NameSection(player: $player, playedToday: playedToday)
             ReminderSection()
-            Section {
-                Toggle("Distances in kilometers", isOn: $kilometers)
-                    .toggleStyle(.switch)
+            if gameCenter.signedIn {
+                Section {
+                    Button("Leaderboards and achievements") { gameCenter.showDashboard() }
+                } header: {
+                    Text("Game Center")
+                } footer: {
+                    Text("Your lifetime and weekly points and your achievements reach Game Center from the server as you play.")
+                }
             }
             Section("Appearance") {
                 Picker("Appearance", selection: $appearance) {
                     Text("Light").tag("light")
                     Text("Dark").tag("dark")
-                    Text("System").tag("system")
+                    Text("Auto").tag("system")
                 }
                 .pickerStyle(.segmented)
+                Picker("Units", selection: $kilometers) {
+                    Text("Imperial").tag(false)
+                    Text("Metric").tag(true)
+                }
+                .pickerStyle(.segmented)
+            }
+            Section {
+                Link("Privacy Policy", destination: URL(string: "https://www.dana.lol/privacy/")!)
+                    .foregroundStyle(Color.ink)
             }
             if account.auth.isConfigured {
                 Section("Twitch") {
@@ -192,6 +248,9 @@ struct SettingsView: View {
                             } else {
                                 Button("Access your mod tools") { account.startModLogin() }
                             }
+                        }
+                        if !account.hiddenChatters.isEmpty {
+                            NavigationLink("Hidden chatters (\(account.hiddenChatters.count))") { HiddenChattersView() }
                         }
                         Button("Sign out", role: .destructive) { account.signOut() }
                     } else {
@@ -262,34 +321,67 @@ struct NameSection: View {
     }
 }
 
-/// A code the web types in to join this device's player, live ten minutes.
-/// Once a code is showing, the other direction is offered too: entering a code
-/// the web drew.
+/// Linking devices, so one player's name and points follow them: a code this
+/// device shows for the other one to enter, or a code the other one shows,
+/// entered here. The row explains itself before it issues anything, since
+/// "link" alone doesn't say what moves where.
 struct LinkCodeRows: View {
     @Binding var player: Player
     let playedToday: Bool
     @State private var code: LinkCode?
     @State private var asking = false
     @State private var error: String?
+    @State private var explaining = false
+    @State private var copied = false
 
     private let client = GuessrClient()
 
     var body: some View {
         if let code {
-            LabeledContent("Temporary code") { Text(code.code).font(.title3.monospaced()) }
+            Button {
+                UIPasteboard.general.string = code.code
+                copied = true
+                Task {
+                    try? await Task.sleep(for: .seconds(1.5))
+                    copied = false
+                }
+            } label: {
+                LabeledContent(copied ? "Copied" : "Temporary code") { Text(code.code).font(.title3.monospaced()) }
+            }
+            .foregroundStyle(Color.ink)
+            .accessibilityHint("Copies the code")
             // A markdown link opens in Safari, where the web game keeps its save.
             Text("Visit [guessr.dana.lol](https://guessr.dana.lol), tap About, and enter this code under \"Link a device\".")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
-        Button(asking ? "Asking…" : code == nil ? "Link a device" : "Show a new code") { Task { await issue() } }
+        HStack {
+            Button(asking ? "Asking…" : code == nil ? "Playing on another device?" : "Show a new code") {
+                if code == nil { explaining = true } else { Task { await issue() } }
+            }
             .disabled(asking)
+            // Borderless, both of them: two buttons in one form row otherwise
+            // share the row's tap and fire together.
+            .buttonStyle(.borderless)
+            if code != nil {
+                Spacer()
+                Button("How linking works", systemImage: "questionmark.circle") { explaining = true }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+            }
+        }
+        .alert("Playing on another device?", isPresented: $explaining) {
+            if code == nil { Button("Show a code") { Task { await issue() } } }
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("If you play on multiple devices (like the web version), you can use a temporary code to connect the devices and keep playing under your other username.")
+        }
         if let error {
             Text(error).foregroundStyle(.secondary)
         }
         // Only before the first guess: joining after it would leave the day's
         // progress on this device belonging to the player it left.
-        if code != nil, !playedToday {
+        if !playedToday {
             NavigationLink("Enter your code") { JoinView(player: $player) }
         }
     }
@@ -300,7 +392,7 @@ struct LinkCodeRows: View {
         do {
             (code, error) = (try await client.issueLinkCode(for: player), nil)
         } catch {
-            self.error = "Could not reach the server. Try again."
+            self.error = String(localized: "Could not reach the server. Try again.")
         }
     }
 }
@@ -344,6 +436,9 @@ struct TwitchSignIn: View {
             let started = try await account.auth.start()
             code = started
             try await account.signIn(started)
+        } catch is CancellationError {
+            // An abandoned login: nothing went wrong to explain.
+        } catch let error as URLError where error.code == .cancelled {
         } catch {
             self.error = error.localizedDescription
         }

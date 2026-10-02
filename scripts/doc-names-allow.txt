@@ -14,3 +14,7 @@ version.json
 
 # A naming template in the migrations section of the README, not a file.
 NNNN_snake_case_description.sql
+
+# The App Store listing's review contact and demo account, merged over
+# app/store.toml by scripts/asc-listing.py. Gitignored: it holds a password.
+store.local.toml

@@ -35,11 +35,32 @@ final class StubHelix: URLProtocol {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func stopLoading() {}
 
+    /// A request's body: Apple's URL loading hands a protocol the body as a
+    /// stream, corelibs Foundation as `httpBody`.
+    static func body(of request: URLRequest) -> String {
+        if let body = request.httpBody { return String(decoding: body, as: UTF8.self) }
+        guard let stream = request.httpBodyStream else { return "" }
+        stream.open()
+        defer { stream.close() }
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        let read = stream.read(&buffer, maxLength: buffer.count)
+        return read > 0 ? String(decoding: buffer[..<read], as: UTF8.self) : ""
+    }
+
     override func startLoading() {
         let url = request.url!
         let query = Dictionary(
             (URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []).map { ($0.name, $0.value ?? "") },
             uniquingKeysWith: { a, _ in a })
+        // A subscribe onto session "refused" is turned away, as Twitch does
+        // a login over its socket cap.
+        if url.path == "/helix/eventsub/subscriptions", Self.body(of: request).contains(#""session_id":"refused""#) {
+            let response = HTTPURLResponse(url: url, statusCode: 429, httpVersion: "HTTP/1.1", headerFields: nil)!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: Data(#"{"message":"websocket transports limit exceeded"}"#.utf8))
+            client?.urlProtocolDidFinishLoading(self)
+            return
+        }
         let reply: String
         switch url.path {
         case "/helix/users" where query["id"] == "11":
@@ -382,4 +403,163 @@ private func chat(userID: String = "2914196", capacity: Int = 300) -> TwitchChat
         try json(ChatMode(slowSeconds: 30, followerMinutes: 0, emoteOnly: true))
             == #"{"emote_mode":true,"follower_mode":true,"follower_mode_duration":0,"slow_mode":true,"slow_mode_wait_time":30,"subscriber_mode":false,"unique_chat_mode":false}"#
     )
+}
+
+/// The host's token refresh runs before a connect subscribes, so a reconnect
+/// hours in doesn't subscribe on an expired token.
+@MainActor @Test func aConnectRunsTheHostsRefreshFirst() async throws {
+    let chat = chat()
+    var refreshed = false
+    chat.beforeConnect = { refreshed = true }
+    chat.start()
+    defer { chat.stop() }
+    for _ in 0..<50 where !refreshed { try await Task.sleep(for: .milliseconds(100)) }
+    #expect(refreshed)
+}
+
+// MARK: The socket loop
+
+/// A socket that plays a script: each `receive()` takes the next step, and a
+/// socket past its script waits silently until it is cancelled, as a live one
+/// between keepalives does.
+final class ScriptedSocket: ChatSocket, @unchecked Sendable {
+    enum Step { case frame(String), fail }
+
+    let url: URL
+    private let lock = NSLock()
+    private var steps: [Step]
+    private var waiting: CheckedContinuation<URLSessionWebSocketTask.Message, any Error>?
+    private var closed: URLSessionWebSocketTask.CloseCode?
+
+    init(_ url: URL, _ steps: [Step]) {
+        self.url = url
+        self.steps = steps
+    }
+
+    var closeCode: URLSessionWebSocketTask.CloseCode? { lock.withLock { closed } }
+
+    func resume() {}
+
+    func receive() async throws -> URLSessionWebSocketTask.Message {
+        try await withCheckedThrowingContinuation { continuation in
+            lock.lock()
+            if closed != nil {
+                lock.unlock()
+                continuation.resume(throwing: URLError(.cancelled))
+            } else if steps.isEmpty {
+                waiting = continuation
+                lock.unlock()
+            } else {
+                let step = steps.removeFirst()
+                lock.unlock()
+                switch step {
+                case .frame(let text): continuation.resume(returning: .string(text))
+                case .fail: continuation.resume(throwing: URLError(.networkConnectionLost))
+                }
+            }
+        }
+    }
+
+    func cancel(with closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+        let pending = lock.withLock {
+            if closed == nil { closed = closeCode }
+            defer { waiting = nil }
+            return waiting
+        }
+        pending?.resume(throwing: URLError(.cancelled))
+    }
+}
+
+private func welcome(_ id: String, keepalive: Int = 10) -> ScriptedSocket.Step {
+    .frame(
+        #"{"metadata":{"message_type":"session_welcome"},"payload":{"session":{"id":"\#(id)","keepalive_timeout_seconds":\#(keepalive)}}}"#
+    )
+}
+
+private func reconnect(to url: String) -> ScriptedSocket.Step {
+    .frame(
+        #"{"metadata":{"message_type":"session_reconnect"},"payload":{"session":{"id":"s1","reconnect_url":"\#(url)"}}}"#
+    )
+}
+
+/// A chat whose sockets play `scripts` in order, one per connect; the
+/// sockets it opened, and how many connects subscribed, are read back.
+@MainActor
+private final class Rig {
+    let twitch = chat()
+    var opened: [ScriptedSocket] = []
+    var subscribes = 0
+
+    init(_ scripts: [[ScriptedSocket.Step]]) {
+        var scripts = scripts
+        twitch.makeSocket = { [unowned self] url in
+            let socket = ScriptedSocket(url, scripts.isEmpty ? [] : scripts.removeFirst())
+            opened.append(socket)
+            return socket
+        }
+        // Runs only before a connect that subscribes.
+        twitch.beforeConnect = { [unowned self] in subscribes += 1 }
+    }
+
+    /// Polls `done` for up to five seconds: a time limit can't cancel an
+    /// awaited continuation that never resumes, but it can stop a poll.
+    func wait(until done: () -> Bool) async throws {
+        for _ in 0..<100 where !done() { try await Task.sleep(for: .milliseconds(50)) }
+    }
+}
+
+/// `session_reconnect` moves the session, subscriptions and all: the new
+/// socket opens on Twitch's URL without subscribing, and the old one closes
+/// only once the new one is welcomed.
+@MainActor @Test func aSessionReconnectMovesWithoutResubscribing() async throws {
+    let rig = Rig([[welcome("s1"), reconnect(to: "wss://moved.test/ws")], [welcome("s1")]])
+    rig.twitch.start()
+    defer { rig.twitch.stop() }
+    try await rig.wait { rig.opened.count == 2 && rig.opened[0].closeCode != nil }
+    #expect(rig.opened.map(\.url.absoluteString) == ["wss://eventsub.wss.twitch.tv/ws", "wss://moved.test/ws"])
+    #expect(rig.subscribes == 1)
+    #expect(rig.opened[0].closeCode == .normalClosure)
+    #expect(rig.twitch.isConnected)
+}
+
+/// A socket that dies starts over at Twitch's URL and subscribes again,
+/// since the subscriptions went with the session.
+@MainActor @Test func aDeadSocketReconnectsAndResubscribes() async throws {
+    let rig = Rig([[welcome("s1"), .fail], [welcome("s2")]])
+    rig.twitch.start()
+    defer { rig.twitch.stop() }
+    try await rig.wait { rig.opened.count == 2 && rig.twitch.isConnected }
+    #expect(rig.opened.map(\.url.absoluteString) == Array(repeating: "wss://eventsub.wss.twitch.tv/ws", count: 2))
+    #expect(rig.subscribes == 2)
+    #expect(rig.twitch.isConnected)
+}
+
+/// Silence past the welcome's keepalive counts as a dead socket even though
+/// nothing errored: the watchdog closes it and the loop reconnects.
+@MainActor @Test func silencePastTheKeepaliveClosesTheSocket() async throws {
+    let rig = Rig([[welcome("s1", keepalive: 1)], [welcome("s2")]])
+    rig.twitch.keepaliveSlack = 0
+    rig.twitch.start()
+    defer { rig.twitch.stop() }
+    try await rig.wait { rig.opened.count == 2 }
+    #expect(rig.opened[0].closeCode == .goingAway)
+    #expect(rig.subscribes == 2)
+}
+
+/// A connect that fails after its socket opened closes that socket before
+/// retrying, so what did subscribe on it doesn't hold one of the login's
+/// few subscribed sockets.
+@MainActor @Test func aRefusedSubscribeClosesItsSocket() async throws {
+    let rig = Rig([[welcome("refused")], [welcome("s2")]])
+    rig.twitch.start()
+    defer { rig.twitch.stop() }
+    try await rig.wait { rig.opened.count == 2 && rig.twitch.isConnected }
+    try #require(rig.opened.count == 2)
+    #expect(rig.opened[0].closeCode == .goingAway)
+    #expect(rig.opened[1].closeCode == nil)
+    #expect(rig.twitch.isConnected)
+}
+
+@Test func reconnectsBackOffByDoublingUpToAMinute() {
+    #expect((0..<8).map(TwitchChat.backoff) == [1, 2, 4, 8, 16, 32, 60, 60])
 }

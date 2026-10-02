@@ -8,10 +8,15 @@ import PackageDescription
 // A target added there goes here too.
 let package = Package(
     name: "Guessr",
+    defaultLocalization: "en",
     platforms: [.iOS(.v26), .macOS(.v15)],
     products: [.library(name: "GuessrKit", targets: ["GuessrKit"])],
     targets: [
-        .target(name: "GuessrKit", path: "app/GuessrKit/Sources/GuessrKit"),
+        .target(
+            name: "GuessrKit",
+            path: "app/GuessrKit/Sources/GuessrKit",
+            resources: [.process("Localizable.xcstrings")]
+        ),
         .testTarget(
             name: "GuessrKitTests",
             dependencies: ["GuessrKit"],
