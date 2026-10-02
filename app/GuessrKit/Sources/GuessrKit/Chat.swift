@@ -199,6 +199,16 @@ public enum TwitchChatError: Error, LocalizedError, Equatable {
     }
 }
 
+/// The three calls the chat's socket loop makes, so a test can script the
+/// frames a `URLSessionWebSocketTask` would deliver.
+protocol ChatSocket: AnyObject, Sendable {
+    func resume()
+    func receive() async throws -> URLSessionWebSocketTask.Message
+    func cancel(with closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?)
+}
+
+extension URLSessionWebSocketTask: ChatSocket {}
+
 /// A live Twitch channel's chat, read over EventSub's WebSocket transport on
 /// the viewer's own token. Writing and moderating go through `helix`, which a
 /// host with no socket can build on its own.
@@ -241,10 +251,13 @@ public final class TwitchChat {
     @ObservationIgnored let capacity: Int
 
     @ObservationIgnored private var runner: Task<Void, Never>?
-    @ObservationIgnored private var socket: URLSessionWebSocketTask?
+    @ObservationIgnored private var socket: (any ChatSocket)?
+    /// Opens the socket for an EventSub URL.
+    @ObservationIgnored var makeSocket: (URL) -> any ChatSocket
     /// Seconds of silence after which the socket counts as dead: the welcome's
-    /// `keepalive_timeout_seconds`, plus slack for the network.
+    /// `keepalive_timeout_seconds`, plus `keepaliveSlack` for the network.
     @ObservationIgnored private var keepalive = 10
+    @ObservationIgnored var keepaliveSlack = 5
 
     public init(
         channel: String,
@@ -259,6 +272,7 @@ public final class TwitchChat {
             channel: channel, clientID: clientID, session: session, urlSession: urlSession, base: helixBase)
         self.eventSubURL = eventSubURL
         self.capacity = capacity
+        self.makeSocket = { urlSession.webSocketTask(with: $0) }
     }
 
     // MARK: Reading
@@ -289,13 +303,13 @@ public final class TwitchChat {
     private func run() async {
         var url = eventSubURL
         var subscribe = true
-        var retiring: URLSessionWebSocketTask?
+        var retiring: (any ChatSocket)?
         var attempt = 0
         while !Task.isCancelled {
             do {
                 if subscribe { await beforeConnect?() }
                 _ = try await helix.resolveBroadcaster()
-                let ws = helix.urlSession.webSocketTask(with: url)
+                let ws = makeSocket(url)
                 socket = ws
                 ws.resume()
                 if let moved = try await read(ws, subscribe: subscribe, retiring: &retiring, attempt: &attempt) {
@@ -315,18 +329,21 @@ public final class TwitchChat {
             retiring = nil
             url = eventSubURL
             subscribe = true
-            // ponytail: plain doubling capped at a minute, no jitter; one
-            // client per phone doesn't stampede anything.
-            let delay = min(1 << min(attempt, 6), 60)
+            let delay = Self.backoff(attempt)
             attempt += 1
             try? await Task.sleep(for: .seconds(delay))
         }
     }
 
+    /// Seconds to wait before reconnect number `attempt`, counted from zero.
+    // ponytail: plain doubling capped at a minute, no jitter; one client per
+    // phone doesn't stampede anything.
+    nonisolated static func backoff(_ attempt: Int) -> Int { min(1 << min(attempt, 6), 60) }
+
     /// Reads `ws` until it dies (throws) or Twitch asks to move (returns the
     /// new URL).
     private func read(
-        _ ws: URLSessionWebSocketTask, subscribe: Bool, retiring: inout URLSessionWebSocketTask?, attempt: inout Int
+        _ ws: any ChatSocket, subscribe: Bool, retiring: inout (any ChatSocket)?, attempt: inout Int
     ) async throws -> URL? {
         while true {
             let data: Data
@@ -337,7 +354,7 @@ public final class TwitchChat {
             }
             switch handle(data) {
             case .welcome(let sessionID, let timeout):
-                keepalive = timeout + 5
+                keepalive = timeout + keepaliveSlack
                 if subscribe {
                     try await subscribeAll(sessionID)
                     // After subscribing, so no change can slip between the
@@ -362,7 +379,7 @@ public final class TwitchChat {
     /// One frame, or an error once `keepalive` seconds pass without one —
     /// Twitch promises a keepalive inside that window, so silence means the
     /// socket is gone even if the OS hasn't noticed.
-    private func receive(_ ws: URLSessionWebSocketTask) async throws -> URLSessionWebSocketTask.Message {
+    private func receive(_ ws: any ChatSocket) async throws -> URLSessionWebSocketTask.Message {
         let watchdog = Task { [keepalive] in
             try await Task.sleep(for: .seconds(keepalive))
             ws.cancel(with: .goingAway, reason: nil)
