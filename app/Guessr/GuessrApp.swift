@@ -11,6 +11,10 @@ struct GuessrApp: App {
     /// the code joined; every change goes back to the Keychain.
     @State private var player = KeychainPlayerStore().current()
     @State private var tab = GuessrApp.firstTab
+    /// A tab something outside the view asked for, such as the Siri guess
+    /// sending a signed-out player to Settings; taken once, then cleared.
+    @AppStorage(GuessrApp.openTabKey) private var openTab = ""
+    static let openTabKey = "open-tab"
     /// Settings' theme: "system" follows the device, else "light" or "dark".
     @AppStorage("appearance") private var appearance = "dark"
     @Environment(\.scenePhase) private var scenePhase
@@ -64,6 +68,11 @@ struct GuessrApp: App {
             }
             .onChange(of: account.seesBoards, initial: true) { _, sees in
                 if !sees, tab == "Boards" { tab = "Play" }
+            }
+            .onChange(of: openTab, initial: true) { _, named in
+                guard !named.isEmpty else { return }
+                tab = named
+                openTab = ""
             }
             .onChange(of: player) { _, joined in players.save(joined) }
             .task(id: account.session?.userID) { await account.checkModerates() }
