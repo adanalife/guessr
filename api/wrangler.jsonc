@@ -25,6 +25,9 @@
   // Reached through the Pages project's `API` service binding and nowhere else:
   // the workers.dev hostname would answer the whole API on a name nothing uses.
   "workers_dev": false,
+  // The tier server/sentry.py tags an exception with. Vars do not inherit
+  // across wrangler environments either, so production sets its own.
+  "vars": { "SENTRY_ENVIRONMENT": "stage-1" },
   // Every request's log and trace, kept in Workers Logs, with Issues grouping
   // the exceptions. Without it, an invocation that dies over the CPU or memory
   // limit, or throws past the ASGI app (a client sees a bare 1101), leaves
@@ -60,6 +63,7 @@
     "production": {
       "name": "adanalife-guessr-api",
       "workers_dev": false,
+      "vars": { "SENTRY_ENVIRONMENT": "prod-1" },
       "d1_databases": [
         {
           "binding": "DB",

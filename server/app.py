@@ -11,6 +11,9 @@ not at import. Anywhere they are fixed it is a lambda returning the same three.
 `fetch` is the outbound-HTTP seam /api/live, the admin gate and the Game Center
 submission share. `asc(request)` is the App Store Connect client for the tier's
 secrets, or None where there are none, which switches /api/gamecenter off.
+`report(request, exc)` hears every exception no handler caught, before the 500
+goes out; a failure inside it is swallowed, so reporting can never change the
+answer a caller gets.
 
 Everything under /admin is gated before routing, so a caller who is not the
 owner learns nothing about which admin paths exist or which methods they take:
@@ -27,7 +30,12 @@ from types import SimpleNamespace
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response, StreamingResponse
+from starlette.responses import (
+    JSONResponse,
+    PlainTextResponse,
+    Response,
+    StreamingResponse,
+)
 from starlette.routing import Route
 
 from server import (
@@ -125,7 +133,7 @@ ROUTES = [
 EVERY_METHOD = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 
 
-def make_app(context, fetch, asc=lambda request: None) -> Starlette:
+def make_app(context, fetch, asc=lambda request: None, report=None) -> Starlette:
     def route(path: str, method: str, handler) -> Route:
         async def endpoint(request):
             db, get_clip, _ = context(request)
@@ -154,7 +162,16 @@ def make_app(context, fetch, asc=lambda request: None) -> Starlette:
             )
         )
 
+    async def server_error(request, exc):
+        if report is not None:
+            try:
+                await report(request, exc)
+            except Exception:  # noqa: BLE001 -- see the module docstring
+                pass
+        return PlainTextResponse("Internal Server Error", 500)
+
     return Starlette(
+        exception_handlers={Exception: server_error},
         routes=[
             *(route(*r) for r in ROUTES),
             Route("/clips/{name:path}", clip, methods=EVERY_METHOD),
