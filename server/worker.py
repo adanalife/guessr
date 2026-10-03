@@ -13,6 +13,9 @@ One left unset admits nobody, since no validated token matches an empty id.
 Game Center comes from three more -- ASC_KEY_ID, ASC_ISSUER_ID and
 ASC_PRIVATE_KEY -- and any one unset switches /api/gamecenter off; stage
 leaves them unset.
+
+Unhandled exceptions go to Sentry tagged with the SENTRY_ENVIRONMENT var
+(`prod-1` / `stage-1`, plain vars in wrangler.jsonc); unset sends nothing.
 """
 
 import base64
@@ -21,7 +24,7 @@ from dataclasses import replace
 
 from workers import asgi, fetch as js_fetch
 
-from server import asc, live
+from server import asc, live, sentry
 from server.admin_auth import admins
 from server.app import make_app
 from server.d1 import D1
@@ -102,6 +105,11 @@ async def fetch(url, headers=None, method="GET", body=None):
     return res.status, await res.text()
 
 
-app = make_app(context, fetch, app_store_connect)
+async def report(request, exc):
+    environment = getattr(request.scope["env"], "SENTRY_ENVIRONMENT", "")
+    await sentry.report(fetch, exc, environment, request.method, str(request.url))
+
+
+app = make_app(context, fetch, app_store_connect, report)
 
 Default = asgi.entrypoint(app)
