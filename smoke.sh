@@ -196,7 +196,7 @@ post() { call -X POST "$BASE/api/score" \
 image=$(printf '%s' "$day" | jq -r '.rounds[0].image')
 
 # The media, which is the half no deploy carries: each clip is streamed out of R2
-# by the Worker's /clips/ route at request time, so a schedule naming clips that
+# by the Pages /clips/ route at request time, so a schedule naming clips that
 # were never pushed produces a game of black panes even though the deploy itself
 # had nothing to get wrong.
 #

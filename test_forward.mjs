@@ -15,16 +15,17 @@ async function route(path) {
   return { res, seen, request };
 }
 
-for (const path of ['/api/day?date=2026-09-23', '/admin/', '/admin/day', '/clips/a.mp4']) {
+for (const path of ['/api/day?date=2026-09-23', '/admin/', '/admin/day']) {
   const { res, seen, request } = await route(path);
   assert.equal(res, WORKER, `${path} was not forwarded to the Worker`);
   assert.equal(seen.length, 1);
   assert.equal(seen[0].url, request.url, `${path} reached the Worker as a different request`);
 }
 
-// A path the Worker does not own: the site and its assets. `/apix` and `/admin`
+// A path the Worker does not own: the site, its assets and the clips (served
+// from R2 by `functions/clips/`). `/apix` and `/admin`
 // are the prefix-without-slash cases.
-for (const path of ['/', '/index.html', '/version.json', '/daily.js', '/apix', '/admin']) {
+for (const path of ['/', '/index.html', '/version.json', '/daily.js', '/apix', '/admin', '/clips/a.mp4']) {
   const { res, seen } = await route(path);
   assert.equal(res, NEXT, `${path} was forwarded but belongs to Pages`);
   assert.equal(seen.length, 0);

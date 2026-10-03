@@ -3,10 +3,14 @@
 //
 // `API` is a Pages service binding, set by hand in the dashboard (terraform
 // ignores both projects' deployment_configs). It is the only thing that answers
-// /api/, /admin/ and /clips/, so a project without it fails those requests here,
+// /api/ and /admin/, so a project without it fails those requests here,
 // loudly, which is what smoke.sh reads -- rather than falling through to Pages,
 // which serves the site's HTML with a 200 for any path that has no file.
-const FORWARDED = ['/api/', '/admin/', '/clips/'];
+//
+// /clips/ is not forwarded: `clips/[[path]].js` streams it from R2 in JS. A
+// clip needs no Python, and a broken Python isolate (below) fails every range
+// request a video player makes, which reads as a grey pane on a phone.
+const FORWARDED = ['/api/', '/admin/'];
 
 // A Python Worker isolate can come up broken: Pyodide's startup throws
 // `NoGilError` before any of the app runs (cloudflare/workerd#6624), and that

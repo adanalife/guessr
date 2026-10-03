@@ -6,7 +6,8 @@ things that already ship assume this exists:
 
 - `clip_name()` puts the moment in the filename specifically so a re-cut can land
   at the URL players already hold.
-- the Worker's `/clips/` route (`server/clips.py`) serves clips with a year-long
+- the `/clips/` route (`functions/clips/[[path]].js`, and `server/clips.py`
+  under `task dev`) serves clips with a year-long
   `immutable` cache header, which is only safe because a rebuild cannot put *different* footage at a
   name someone has cached.
 - two closed TODO items name it as the recovery step for a stale `clip_ts_sec` and
