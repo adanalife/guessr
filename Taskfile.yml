@@ -67,7 +67,7 @@ tasks:
 
   # The media half of a round set. web/clips/ is gitignored -- a set is ~150 MB
   # and this repo is public -- so the bucket is where the served game reads it
-  # from: the Worker's /clips/ route streams each clip out of R2 at request
+  # from: the Pages /clips/ route streams each clip out of R2 at request
   # time. No deploy is involved, which is what lets a round set change without
   # one. See clips.sh for why it is one object per clip rather than a tarball.
   #

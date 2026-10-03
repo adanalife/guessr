@@ -1,4 +1,5 @@
-// The Python Worker serving server/app.py -- /api/*, /admin/* and /clips/*.
+// The Python Worker serving server/app.py -- /api/* and /admin/*. Its /clips/*
+// route is local-dev only: Pages serves clips straight from R2.
 // The top level is the staging tier; `env.production` is the production one,
 // deployed by release.yml with `--env production`. `task api:dev` runs it
 // locally.

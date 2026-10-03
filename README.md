@@ -59,7 +59,7 @@ deployed. Being HTTP only, the contract says nothing about what language the
 handlers are written in, which is what keeps the game portable off Cloudflare.
 
 `task serve` is a plain `http.server`, and it does not serve a playable game:
-the rounds come from `/api/day` and the clips from the Worker, neither of which a
+the rounds come from `/api/day` and the clips from R2 through Pages, neither of which a
 static server has. It is still the quickest way to work on anything that is not
 the game itself — the About panel, the changelog, layout above the fold.
 Both bind all interfaces, so a phone on the tailnet can reach them at
@@ -195,7 +195,7 @@ is a round set that needs a pull request and a deploy to change, which is the
 thing moving it into D1 undid.
 
 So `web/clips/` is gitignored and is a build directory, not a deployed one:
-`clips.sh push` sends its contents to R2 and the Worker's `/clips/` route
+`clips.sh push` sends its contents to R2 and the Pages `/clips/` route
 streams each object back at request time, with `Range` support so the video
 element can seek. A deploy is a few hundred KB of HTML and JS, and a regeneration
 changes nothing about it at all.
