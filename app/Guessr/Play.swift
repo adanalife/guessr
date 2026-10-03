@@ -4,9 +4,11 @@ import GuessrKit
 import MapKit
 import SwiftUI
 
-/// Today's rounds: watch the clip, drop a pin, see how close it was.
+/// Today's rounds: watch the clip, drop a pin, see how close it was. With
+/// `practice`, five from finished dates instead, scored and never recorded.
 struct PlayView: View {
     @Binding var player: Player
+    var practice = false
 
     @State private var day: GuessrDay?
     @State private var progress = DayProgress(date: "")
@@ -18,6 +20,8 @@ struct PlayView: View {
     @State private var scoring = false
     @State private var message: String?
     @State private var camera = PlayView.lower48
+    /// Bumped for another practice draw.
+    @State private var draw = 0
     /// Where the map is looking, whoever moved it last: the zoom buttons scale it.
     @State private var region: MKCoordinateRegion?
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -43,8 +47,10 @@ struct PlayView: View {
                 let shown = revealed ? progress.played.last : nil
                 if let image = shown?.image ?? progress.next(in: day)?.image {
                     round(day, image: image, shown: shown)
+                } else if practice {
+                    practiceDone
                 } else {
-                    DayResultView(progress: progress)
+                    DayResultView(progress: progress, player: player)
                 }
             } else if let message {
                 ContentUnavailableView {
@@ -60,10 +66,22 @@ struct PlayView: View {
             }
         }
         .paper()
-        .navigationTitle("Guessr")
-        // Keyed on the player: a link to another device's player is a new
-        // record to resume from.
-        .task(id: player.id) { await load() }
+        .navigationTitle(practice ? "Practice" : "Guessr")
+        // Keyed on the player, since a link to another device's player is a
+        // new record to resume from, and on the draw, for five more practice.
+        .task(id: "\(player.id) \(draw)") { await load() }
+    }
+
+    private var practiceDone: some View {
+        ContentUnavailableView {
+            Label(
+                "\(progress.total.formatted()) / \((progress.played.count * Share.maxRoundScore).formatted())",
+                systemImage: "car")
+        } description: {
+            Text("Practice doesn't count toward the boards.")
+        } actions: {
+            Button("Five more") { draw += 1 }.buttonStyle(.borderedProminent)
+        }
     }
 
     private func round(_ day: GuessrDay, image: String, shown: PlayedRound?) -> some View {
@@ -266,19 +284,27 @@ struct PlayView: View {
     }
 
     private func load() async {
-        let date = GuessrClient.today()
-        progress = DayProgress.resume(Saved.progress, on: date)
+        if practice {
+            (day, progress, message) = (nil, DayProgress(date: ""), nil)
+        } else {
+            progress = DayProgress.resume(Saved.progress, on: GuessrClient.today())
+        }
         do {
-            let loaded = try await client.day(date)
-            day = loaded
-            // A day begun on another device, or under a player this one just
-            // joined, carries on from where it got to. Best effort: a miss here
-            // only means starting from what this device remembers.
-            if progress.played.count < loaded.rounds.count,
-                let recorded = try? await client.progress(on: date, for: player)
-            {
-                progress = progress.seeded(from: recorded, in: loaded)
-                Saved.progress = progress
+            if practice {
+                day = try await client.practiceDay()
+            } else {
+                let date = progress.date
+                let loaded = try await client.day(date)
+                day = loaded
+                // A day begun on another device, or under a player this one just
+                // joined, carries on from where it got to. Best effort: a miss here
+                // only means starting from what this device remembers.
+                if progress.played.count < loaded.rounds.count,
+                    let recorded = try? await client.progress(on: date, for: player)
+                {
+                    progress = progress.seeded(from: recorded, in: loaded)
+                    Saved.progress = progress
+                }
             }
         } catch {
             // The server says why — nothing scheduled, or a date not yet open.
@@ -322,10 +348,13 @@ struct PlayView: View {
         do {
             // A round this player already guessed comes back with the score on
             // record, so a lost save cannot buy a better one.
-            let score = try await client.score(image: image, guess: at, date: progress.date, player: player)
+            let score = try await client.score(
+                image: image, guess: at, date: practice ? nil : progress.date, player: player)
             progress.played.append(PlayedRound(image: image, guess: at, score: score))
-            Saved.progress = progress
-            if progress.played.count == 1 { await Reminder.refreshBadge() }
+            if !practice {
+                Saved.progress = progress
+                if progress.played.count == 1 { await Reminder.refreshBadge() }
+            }
             // Off the reveal's path: the server reads the standing off its
             // own table, so this carries nothing the reveal waits on.
             if score.recorded { Task { await gameCenter.sync(player, with: client) } }
@@ -417,6 +446,7 @@ struct JoinView: View {
 /// The finished day: every round on the map, the total, and the text to share it.
 struct DayResultView: View {
     let progress: DayProgress
+    let player: Player
     @State private var copied = false
     /// The round whose clip is playing again, by image: a map pin's selection
     /// tag sets it.
@@ -487,6 +517,11 @@ struct DayResultView: View {
                 TimelineView(.everyMinute) { context in
                     Text(Self.playAgain(from: context.date)).foregroundStyle(.secondary)
                 }
+            }
+            Section {
+                NavigationLink("Practice rounds") { PlayView(player: .constant(player), practice: true) }
+            } footer: {
+                Text("Five rounds from days that are over, as many times as you like. They don't count.")
             }
         }
         .readableWidth(title: "Guessr", logo: true)
