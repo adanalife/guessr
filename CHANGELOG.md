@@ -4,6 +4,12 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.28.1 — 2026-10-03
+
+### Fixed
+
+- The guess button keeps naming the last state while the pin moves, rather than flashing a plain "Guess" before it names the new one. ([#402](https://github.com/adanalife/guessr/pull/402))
+
 ## v1.28.0 — 2026-10-03
 
 ### Behind the scenes
