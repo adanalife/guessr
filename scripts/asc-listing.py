@@ -340,6 +340,8 @@ def main() -> int:
         vdiff["versionString"] = version_string
     if vattrs.get("releaseType") != listing["release_type"]:
         vdiff["releaseType"] = listing["release_type"]
+    if listing.get("copyright") and vattrs.get("copyright") != listing["copyright"]:
+        vdiff["copyright"] = listing["copyright"]
     if vdiff:
         plan(
             f"set version {shown(vdiff)}",
