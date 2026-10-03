@@ -54,11 +54,17 @@ whats_new = ""
 contact_first_name = "Dana"
 demo_account_required = false
 notes = """
-Guessr is a daily geography game over the developer's own dashcam footage. It needs no account: a random player name is made on first launch and kept in the Keychain.
+A Dana Life: Guessr is a daily geography guessing game for casual players and fans of geography puzzles (GeoGuessr-style). Every day it serves the same five short dashcam clips to every player, all filmed by the developer on a road trip across the United States. The player drops a pin where they think each clip was filmed and scores up to 5,000 points based on distance. It also works as a companion to the A Dana Life livestream, whose regular viewers play the same daily rounds.
 
-GAME CENTER: scores and achievements are submitted by our server (App Store Connect API), never by the app, after each recorded guess.
+SETUP: no login, credentials or setup are needed. On first launch the app picks a random leaderboard name and keeps it in the Keychain; there is no sign-up, so there is no account to create or delete. Play tab: watch the clip, tap the map to place a pin, submit the guess, and the answer and points appear on the map. Five rounds a day, with new rounds at midnight UTC. Settings tab: Generate new name, daily reminders (icon badge and notification), appearance, imperial/metric units, Privacy Policy, and "Playing on another device?". That option shows a temporary code that links the app to the web version at guessr.dana.lol, so a player keeps one name and score. It is optional.
 
-CONTENT: all video is the developer's own footage. The web game at guessr.dana.lol is the same game and the same daily rounds.
+GAME CENTER: if the device is signed in to Game Center, the app signs in automatically. Scores and achievements are submitted by our server (App Store Connect API), never by the app, after each recorded guess.
+
+EXTERNAL SERVICES: our own API on Cloudflare Workers, with Cloudflare D1 (rounds and scores) and Cloudflare R2 (the video clips); Apple Game Center; Apple MapKit (the guessing map); Sentry (crash and error diagnostics; session replays have text and images masked). The app has no payments, ads, AI services or third-party sign-in.
+
+REGIONS: the app works the same in every region. Everyone gets the same five daily rounds. The interface is available in English, French, Spanish, Russian and Czech.
+
+CONTENT: all video is the developer's own footage, and the app is not in a regulated industry.
 """
 
 # The age-rating declaration, attribute for attribute as App Store Connect
