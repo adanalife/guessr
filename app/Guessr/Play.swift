@@ -234,17 +234,24 @@ struct PlayView: View {
         } else {
             Button(guessTitle) { Task { await guess(image) } }
             .disabled(pin == nil || scoring)
-            // A new pin cancels the last lookup; until one answers, or outside
-            // the US, the button says plain "Guess". ponytail: CLGeocoder is
-            // deprecated in iOS 26, but MKReverseGeocodingRequest's addresses
-            // carry a city and a country and no state field to read.
+            // A new pin cancels the last lookup, and the label keeps the last
+            // state until the new one answers, so moving the pin doesn't flash
+            // plain "Guess" between states. Outside the US, or when the lookup
+            // fails, it says plain "Guess". ponytail: CLGeocoder is deprecated
+            // in iOS 26, but MKReverseGeocodingRequest's addresses carry a city
+            // and a country and no state field to read.
             .task(id: pin.map { [$0.latitude, $0.longitude] }) {
-                pinState = nil
-                guard let pin else { return }
+                guard let pin else {
+                    pinState = nil
+                    return
+                }
                 let placemark = try? await CLGeocoder()
                     .reverseGeocodeLocation(CLLocation(latitude: pin.latitude, longitude: pin.longitude)).first
-                guard !Task.isCancelled, placemark?.isoCountryCode == "US", let area = placemark?.administrativeArea
-                else { return }
+                guard !Task.isCancelled else { return }
+                guard placemark?.isoCountryCode == "US", let area = placemark?.administrativeArea else {
+                    pinState = nil
+                    return
+                }
                 pinState = (USState.abbreviations[area] ?? USState(rawValue: area))?.localizedName
             }
         }
