@@ -25,7 +25,7 @@ secondary_category = "TRAVEL"
 release_type = "MANUAL"
 # The year the rights were obtained, then who holds them; shown on the store
 # page, and required before a version can go to review.
-copyright = "2026 A Dana Life"
+copyright = "2026 A Dana Life, LLC"
 support_url = "https://www.dana.lol/contact/"
 marketing_url = "https://guessr.dana.lol"
 # At most 100 characters, comma-separated, no spaces after commas.
