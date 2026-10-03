@@ -4,6 +4,17 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.27.1 — 2026-10-03
+
+### Fixed
+
+- Clips stream from R2 through Pages again rather than through the Python Worker, so a broken Python isolate can no longer leave a round's video blank. ([#399](https://github.com/adanalife/guessr/pull/399))
+
+### Behind the scenes
+
+- The App Store listing submits 1.27.0. ([#396](https://github.com/adanalife/guessr/pull/396))
+- The App Store listing carries its copyright line, which App Store Connect requires before review. ([#398](https://github.com/adanalife/guessr/pull/398))
+
 ## v1.27.0 — 2026-10-02
 
 ### Changed
