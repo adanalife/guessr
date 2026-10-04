@@ -213,6 +213,15 @@ extension Guessr {
         return "Guessr/\(version) (\(await platform()) \(os.majorVersion).\(os.minorVersion))"
     }
 
+    /// The Sentry grouping for a failed request: one issue per status and
+    /// endpoint. An HTTP-client event's stack is all URLSession frames, so
+    /// without this every 500 from every endpoint lands in the same issue.
+    /// The query string is left out, so a date or a player id in it doesn't
+    /// split one endpoint into many.
+    public static func httpErrorFingerprint(status: Int, url: URL) -> [String] {
+        ["http-client-error", String(status), url.path()]
+    }
+
     private static func platform() async -> String {
         #if os(iOS)
             if ProcessInfo.processInfo.isiOSAppOnMac { return "macOS" }

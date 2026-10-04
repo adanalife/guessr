@@ -107,3 +107,10 @@ final class CrashingGuessr: URLProtocol {
     let lateEvening = Calendar(identifier: .gregorian).date(from: parts)!
     #expect(GuessrClient.today(lateEvening) == "2026-09-23")
 }
+
+@Test func httpErrorFingerprintSplitsByStatusAndPathWithoutTheQuery() throws {
+    let url = try #require(URL(string: "https://guessr.dana.lol/api/day?date=2026-09-23&player=abc"))
+    #expect(Guessr.httpErrorFingerprint(status: 500, url: url) == ["http-client-error", "500", "/api/day"])
+    let other = try #require(URL(string: "https://guessr.dana.lol/api/gamecenter"))
+    #expect(Guessr.httpErrorFingerprint(status: 500, url: other) != Guessr.httpErrorFingerprint(status: 500, url: url))
+}
