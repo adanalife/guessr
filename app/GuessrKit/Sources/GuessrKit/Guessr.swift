@@ -131,6 +131,10 @@ public enum Guessr {
         (Bundle.main.object(forInfoDictionaryKey: "GuessrAPIBase") as? String).flatMap { URL(string: $0) }
         ?? URL(string: "https://guessr.dana.lol")!
 
+    /// Every clip's shape: 1280 wide with the dashcam HUD cropped off the
+    /// bottom. A frame of this shape leaves nothing to letterbox.
+    public static let clipAspect = 1280.0 / 674.0
+
     /// The server's keys are snake_case.
     static let decoder: JSONDecoder = {
         let d = JSONDecoder()
