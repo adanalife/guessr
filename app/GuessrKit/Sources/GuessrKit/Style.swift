@@ -39,7 +39,11 @@
     extension View {
         /// The web game's page color behind a screen, lists and forms included.
         public func paper() -> some View {
-            scrollContentBackground(.hidden).background(Color.paper)
+            #if os(tvOS)
+                background(Color.paper)
+            #else
+                scrollContentBackground(.hidden).background(Color.paper)
+            #endif
         }
     }
 #endif
