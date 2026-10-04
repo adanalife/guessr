@@ -17,12 +17,19 @@ public struct GuessrScore: Sendable, Equatable, Codable {
     /// Whether this counted toward a board. A replayed round comes back with
     /// the score already on record, not a fresh one.
     public var recorded: Bool
+    /// On a daily play: how many consecutive days the player has finished, and
+    /// the date that run ends on. Nil on practice, and on a round rebuilt from
+    /// `/api/progress`.
+    public var streak: Int?
+    public var streakDate: String?
 
     public init(
-        km: Double, points: Int, lat: Double, lng: Double, state: String, filmed: String, recorded: Bool
+        km: Double, points: Int, lat: Double, lng: Double, state: String, filmed: String, recorded: Bool,
+        streak: Int? = nil, streakDate: String? = nil
     ) {
         (self.km, self.points, self.lat, self.lng) = (km, points, lat, lng)
         (self.state, self.filmed, self.recorded) = (state, filmed, recorded)
+        (self.streak, self.streakDate) = (streak, streakDate)
     }
 
     public var answer: Coordinate { Coordinate(lat: lat, lng: lng) }
@@ -168,6 +175,16 @@ public struct DayProgress: Sendable, Equatable, Codable {
     }
 
     public var total: Int { played.reduce(0) { $0 + $1.score.points } }
+
+    /// The run of finished days worth celebrating, read off the last round's
+    /// score: two or more, ending today or yesterday. One day is just a day
+    /// played, and a run that ended before yesterday is already broken.
+    public func streak(now: Date = Date()) -> Int? {
+        guard let score = played.last?.score, let days = score.streak, days >= 2 else { return nil }
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: now) ?? now
+        let live = [GuessrClient.today(now), GuessrClient.today(yesterday)]
+        return live.contains(score.streakDate ?? "") ? days : nil
+    }
 
     /// The next round of `day` to play, or nil once every round is played.
     public func next(in day: GuessrDay) -> GuessrDay.Round? {
