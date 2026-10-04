@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 #if canImport(FoundationNetworking)
     import FoundationNetworking
@@ -96,14 +97,13 @@ extension PlayerStore {
     }
 }
 
-public final class MemoryPlayerStore: PlayerStore, @unchecked Sendable {
-    private let lock = NSLock()
-    private var player: Player?
+public final class MemoryPlayerStore: PlayerStore {
+    private let player: Mutex<Player?>
 
-    public init(_ player: Player? = nil) { self.player = player }
+    public init(_ player: Player? = nil) { self.player = Mutex(player) }
 
-    public func load() -> Player? { lock.withLock { player } }
-    public func save(_ player: Player) { lock.withLock { self.player = player } }
+    public func load() -> Player? { player.withLock { $0 } }
+    public func save(_ player: Player) { self.player.withLock { $0 = player } }
 }
 
 #if canImport(Security)

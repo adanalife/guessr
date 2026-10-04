@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 #if canImport(FoundationNetworking)
     import FoundationNetworking
@@ -56,15 +57,14 @@ public protocol SessionStore: Sendable {
 }
 
 /// A store that forgets on relaunch: tests, previews, and platforms with no Keychain.
-public final class MemorySessionStore: SessionStore, @unchecked Sendable {
-    private let lock = NSLock()
-    private var session: TwitchSession?
+public final class MemorySessionStore: SessionStore {
+    private let session: Mutex<TwitchSession?>
 
-    public init(_ session: TwitchSession? = nil) { self.session = session }
+    public init(_ session: TwitchSession? = nil) { self.session = Mutex(session) }
 
-    public func load() -> TwitchSession? { lock.withLock { session } }
-    public func save(_ session: TwitchSession) { lock.withLock { self.session = session } }
-    public func clear() { lock.withLock { session = nil } }
+    public func load() -> TwitchSession? { session.withLock { $0 } }
+    public func save(_ session: TwitchSession) { self.session.withLock { $0 = session } }
+    public func clear() { session.withLock { $0 = nil } }
 }
 
 #if canImport(Security)
