@@ -302,6 +302,18 @@ public struct GuessrClient: Sendable {
         }
         return data
     }
+
+    /// `body` as JSON, POSTed to `path` and answered as `data(_:)` answers.
+    func post(
+        _ path: String, _ body: some Encodable, encoder: JSONEncoder = JSONEncoder(), headers: [String: String] = [:]
+    ) async throws -> Data {
+        var req = URLRequest(url: baseURL.appending(path: path))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        for (field, value) in headers { req.setValue(value, forHTTPHeaderField: field) }
+        req.httpBody = try encoder.encode(body)
+        return try await data(req)
+    }
 }
 
 extension URLSession {

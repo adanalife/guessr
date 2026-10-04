@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 #if canImport(FoundationNetworking)
     import FoundationNetworking
@@ -96,14 +97,13 @@ extension PlayerStore {
     }
 }
 
-public final class MemoryPlayerStore: PlayerStore, @unchecked Sendable {
-    private let lock = NSLock()
-    private var player: Player?
+public final class MemoryPlayerStore: PlayerStore {
+    private let player: Mutex<Player?>
 
-    public init(_ player: Player? = nil) { self.player = player }
+    public init(_ player: Player? = nil) { self.player = Mutex(player) }
 
-    public func load() -> Player? { lock.withLock { player } }
-    public func save(_ player: Player) { lock.withLock { self.player = player } }
+    public func load() -> Player? { player.withLock { $0 } }
+    public func save(_ player: Player) { self.player.withLock { $0 = player } }
 }
 
 #if canImport(Security)
@@ -192,17 +192,14 @@ extension GuessrClient {
         }
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
-        var req = URLRequest(url: baseURL.appending(path: "api/score"))
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body = Body(
+            image: image, lat: guess.lat, lng: guess.lng, date: date, playerId: player.id, handle: player.alias)
         // The server files the play under a coarse platform bucket read off
-        // this; the system default names CFNetwork and Darwin, not the device.
-        req.setValue(await Guessr.userAgent(), forHTTPHeaderField: "User-Agent")
-        req.httpBody = try encoder.encode(
-            Body(
-                image: image, lat: guess.lat, lng: guess.lng, date: date,
-                playerId: player.id, handle: player.alias))
-        return try Guessr.decoder.decode(GuessrScore.self, from: try await data(req))
+        // the user agent; the system default names CFNetwork and Darwin, not
+        // the device.
+        let answer = try await post(
+            "api/score", body, encoder: encoder, headers: ["User-Agent": await Guessr.userAgent()])
+        return try Guessr.decoder.decode(GuessrScore.self, from: answer)
     }
 }
 
@@ -223,11 +220,8 @@ extension GuessrClient {
             var filmed: String
         }
         struct Answer: Decodable { var rounds: [Row] }
-        var req = URLRequest(url: baseURL.appending(path: "api/progress"))
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(["date": date, "player_id": player.id])
-        return try Guessr.decoder.decode(Answer.self, from: try await data(req)).rounds.map { r in
+        let answer = try await post("api/progress", ["date": date, "player_id": player.id])
+        return try Guessr.decoder.decode(Answer.self, from: answer).rounds.map { r in
             PlayedRound(
                 image: r.image,
                 guess: Coordinate(lat: r.guessLat ?? r.lat, lng: r.guessLng ?? r.lng),
@@ -244,11 +238,7 @@ extension GuessrClient {
     /// monthly totals and the achievements. No score travels in either
     /// direction: a client cannot name one.
     public func syncGameCenter(player: Player, gamePlayerID: String) async throws {
-        var req = URLRequest(url: baseURL.appending(path: "api/gamecenter"))
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(["player_id": player.id, "game_player_id": gamePlayerID])
-        _ = try await data(req)
+        _ = try await post("api/gamecenter", ["player_id": player.id, "game_player_id": gamePlayerID])
     }
 }
 
@@ -270,11 +260,8 @@ extension GuessrClient {
     /// code is single-use and lasts ten minutes; an unknown, used or expired one
     /// is a 404.
     public func claimLink(code: String, from player: Player) async throws -> LinkClaim {
-        var req = URLRequest(url: baseURL.appending(path: "api/link/claim"))
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(["code": code, "from": player.id])
-        return try Guessr.decoder.decode(LinkClaim.self, from: try await data(req))
+        try Guessr.decoder.decode(
+            LinkClaim.self, from: try await post("api/link/claim", ["code": code, "from": player.id]))
     }
 }
 
@@ -305,11 +292,8 @@ extension GuessrClient {
     /// `claimLink` replaces its player. Same 404 as a claim for a code that is
     /// unknown, used or expired.
     public func previewLink(code: String, from player: Player) async throws -> LinkPreview {
-        var req = URLRequest(url: baseURL.appending(path: "api/link/preview"))
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(["code": code, "from": player.id])
-        return try Guessr.decoder.decode(LinkPreview.self, from: try await data(req))
+        try Guessr.decoder.decode(
+            LinkPreview.self, from: try await post("api/link/preview", ["code": code, "from": player.id]))
     }
 }
 
@@ -328,10 +312,6 @@ extension GuessrClient {
     /// A fresh code for `player`, live ten minutes; asking again retires the
     /// previous one.
     public func issueLinkCode(for player: Player) async throws -> LinkCode {
-        var req = URLRequest(url: baseURL.appending(path: "api/link/code"))
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(["player_id": player.id])
-        return try Guessr.decoder.decode(LinkCode.self, from: try await data(req))
+        try Guessr.decoder.decode(LinkCode.self, from: try await post("api/link/code", ["player_id": player.id]))
     }
 }
