@@ -62,6 +62,18 @@ enum Telemetry {
         }
     }
 
+    /// A request to the API that never got an answer: offline, timed out, DNS.
+    /// A 5xx already reaches Sentry as the SDK's `HTTPClientError` and a 4xx is
+    /// the server's answer, so a `GuessrError` is left out, as is a request
+    /// the player walked away from.
+    static func requestFailed(_ endpoint: String, error: any Error) {
+        if error is GuessrError || error is CancellationError { return }
+        if (error as? URLError)?.code == .cancelled { return }
+        report("Request failed", fingerprint: "request-failed-\(endpoint)", error: error) {
+            $0.setTag(value: endpoint, key: "endpoint")
+        }
+    }
+
     /// A captured message rather than the error itself: the domain and code
     /// are what group and filter, and an error's own description or user info
     /// can carry the URL it failed on.

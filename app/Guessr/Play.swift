@@ -281,6 +281,7 @@ struct PlayView: View {
                 Saved.progress = progress
             }
         } catch {
+            Telemetry.requestFailed("day", error: error)
             // The server says why — nothing scheduled, or a date not yet open.
             message = (error as? GuessrError)?.errorDescription ?? String(localized: "Could not reach the rounds")
         }
@@ -339,6 +340,7 @@ struct PlayView: View {
             day = nil
             message = error.localizedDescription
         } catch {
+            Telemetry.requestFailed("score", error: error)
             message = String(localized: "Could not reach the scorer. Try that guess again.")
         }
     }
