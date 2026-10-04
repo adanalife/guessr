@@ -4,18 +4,7 @@
 import GuessrKit
 import SwiftUI
 
-extension Color {
-    /// The web game's page and text colors, light and dark, from the asset catalog.
-    static let paper = Color("Paper")
-    static let ink = Color("Ink")
-}
-
 extension View {
-    /// The web game's page color behind a screen, lists and forms included.
-    func paper() -> some View {
-        scrollContentBackground(.hidden).background(Color.paper)
-    }
-
     /// A list or form at a readable width, centred on the page, on regular width
     /// only: an iPad row the full width of the screen strands a toggle far from
     /// its label. The large title moves over the column with it, so it doesn't
