@@ -49,6 +49,7 @@ enum Telemetry {
                 options.enabled = false
             #endif
         }
+        ClipView.failed = clipFailed
     }
 
     /// The fleet's deploy-env ids, read off the server the build plays
