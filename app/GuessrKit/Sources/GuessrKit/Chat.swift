@@ -465,7 +465,6 @@ public final class TwitchChat {
     }
 
     private func subscribeAll(_ sessionID: String) async throws {
-        let broadcaster = try await helix.resolveBroadcaster()
         for type in [
             "channel.chat.message", "channel.chat.notification", "channel.chat.message_delete",
             "channel.chat.clear_user_messages", "channel.chat_settings.update",
