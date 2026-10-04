@@ -618,6 +618,8 @@ struct ClipView: View {
                     if status == .ready { failures = 0 }
                     guard status == .failed else { continue }
                     failures += 1
+                    Telemetry.clipFailed(
+                        url: url, attempt: failures, error: player.currentItem?.error ?? looper.error)
                     guard (try? await Task.sleep(for: .seconds(1 << min(failures, 4)))) != nil else { return }
                     looper.disableLooping()
                     player.removeAllItems()
