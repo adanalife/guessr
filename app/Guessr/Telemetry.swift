@@ -32,6 +32,17 @@ enum Telemetry {
             // by default.
             options.sessionReplay.sessionSampleRate = 0
             options.sessionReplay.onErrorSampleRate = 1.0
+            // A failed request groups by status and endpoint rather than by
+            // its URLSession stack, which is the same for every request.
+            options.beforeSend = { event in
+                if event.exceptions?.first?.mechanism?.type == "HTTPClientError",
+                    let status = event.context?["response"]?["status_code"] as? Int,
+                    let url = event.request?.url.flatMap(URL.init(string:))
+                {
+                    event.fingerprint = Guessr.httpErrorFingerprint(status: status, url: url)
+                }
+                return event
+            }
             // Simulator runs are development against stage, and the free tier
             // is shared with the whole fleet.
             #if targetEnvironment(simulator)
