@@ -56,7 +56,9 @@ struct PlayView: View {
                     }
                 }
             } else {
-                ProgressView()
+                // Stands in for the clip and the map alike: neither exists until
+                // the day does, and MapKit says nothing about its first frame.
+                LoadingMark()
             }
         }
         .paper()
@@ -543,6 +545,8 @@ struct ClipView: View {
     /// Loads in a row that failed, for the backoff before the next; above zero
     /// the clip says it is trying again.
     @State private var failures = 0
+    /// The looper has the clip in hand; until then the slot rolls the mark.
+    @State private var ready = false
     @State private var paused = false
     @State private var hint = false
     /// The zoom between gestures, and the one a gesture in progress shows.
@@ -615,6 +619,7 @@ struct ClipView: View {
             .task(id: looper.map(ObjectIdentifier.init)) {
                 guard let looper else { return }
                 for await status in looper.publisher(for: \.status).values {
+                    withAnimation { ready = status == .ready }
                     if status == .ready { failures = 0 }
                     guard status == .failed else { continue }
                     failures += 1
@@ -666,6 +671,9 @@ struct ClipView: View {
                         .padding(.horizontal, 12).padding(.vertical, 8)
                         .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
                         .allowsHitTesting(false)
+                    } else if !ready {
+                        LoadingMark(size: 48)
+                            .allowsHitTesting(false)
                     } else if paused {
                         Image(systemName: "pause.circle.fill")
                             .font(.largeTitle)
