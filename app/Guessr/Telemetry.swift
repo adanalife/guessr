@@ -50,4 +50,47 @@ enum Telemetry {
         default: "development"
         }
     }
+
+    /// A clip that failed to load. AVPlayer fetches outside URLSession, so the
+    /// SDK's failed-request capture never sees it; this is the only report.
+    /// One fingerprint for every clip, so a bad deploy reads as one issue with
+    /// many events. The path names the clip and nothing about the player.
+    static func clipFailed(url: URL, attempt: Int, error: (any Error)?) {
+        report("Clip failed to load", fingerprint: "clip-failed", error: error) {
+            $0.setTag(value: url.path(), key: "clip")
+            $0.setTag(value: String(attempt), key: "attempt")
+        }
+    }
+
+    /// A request to the API that never got an answer: offline, timed out, DNS.
+    /// A 5xx already reaches Sentry as the SDK's `HTTPClientError` and a 4xx is
+    /// the server's answer, so a `GuessrError` is left out, as is a request
+    /// the player walked away from.
+    static func requestFailed(_ endpoint: String, error: any Error) {
+        if error is GuessrError || error is CancellationError { return }
+        if (error as? URLError)?.code == .cancelled { return }
+        report("Request failed", fingerprint: "request-failed-\(endpoint)", error: error) {
+            $0.setTag(value: endpoint, key: "endpoint")
+        }
+    }
+
+    /// A captured message rather than the error itself: the domain and code
+    /// are what group and filter, and an error's own description or user info
+    /// can carry the URL it failed on.
+    private static func report(
+        _ message: String, fingerprint: String, error: (any Error)?, tags: @escaping (Scope) -> Void
+    ) {
+        SentrySDK.capture(message: message) { scope in
+            scope.setLevel(.error)
+            scope.setFingerprint([fingerprint])
+            tags(scope)
+            guard let error = error as NSError? else { return }
+            scope.setTag(value: error.domain, key: "error.domain")
+            scope.setTag(value: String(error.code), key: "error.code")
+            if let under = error.userInfo[NSUnderlyingErrorKey] as? NSError {
+                scope.setTag(value: under.domain, key: "error.underlying_domain")
+                scope.setTag(value: String(under.code), key: "error.underlying_code")
+            }
+        }
+    }
 }
