@@ -9,6 +9,13 @@ name: release
 # first, and the Pages project's `API` service binding (set by hand in the
 # dashboard) decides whether the site's /api/, /admin/ and /clips/ reach it.
 # Without the binding the Worker sits idle and the JS Functions keep answering.
+#
+# Unlike staging, the Worker never takes players' traffic until it has proved
+# itself: `worker` uploads the new version and deploys it at 0% beside the one
+# serving, `colos` reads it from a spread of runners (which land in several
+# Cloudflare colos), and only then does `deploy` move it to 100%. A version that
+# fails either gate never serves anyone; `restore` takes the 0% version back
+# out, so production is left exactly as it was, and the run goes red.
 on:
   push:
     tags:
@@ -21,20 +28,25 @@ on:
 permissions:
   contents: read
 
+# Two runs at once would each take the other's version for the serving one.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  WORKER: adanalife-guessr-api
+
 jobs:
-  deploy:
+  worker:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      serving: ${{ steps.stage.outputs.serving }}
+      staged: ${{ steps.stage.outputs.staged }}
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      # web/version.json is what the page's About panel reads to say which
-      # build it is. The panel links the changelog on GitHub rather than
-      # shipping a copy, so there is nothing else to stamp.
-      - name: Stamp the build
-        run: |
-          printf '{"label":"%s","tier":"production"}\n' "$GITHUB_REF_NAME" > web/version.json
       # A deploy whose migrations are not applied serves handlers that read
       # tables the database lacks, and every such route 500s until someone runs
       # the apply. The ledger already knows -- this is the same read
@@ -71,28 +83,100 @@ jobs:
       - uses: astral-sh/setup-uv@v10.2.0 # no floating major tag published
         with:
           enable-cache: false
-      - name: Deploy the Python Worker (production)
+      # pywrangler vendors the Python packages (its `sync`) before handing the
+      # upload to wrangler; the bundle is the server package it uploads. The
+      # memory snapshot a Python Worker's isolates restore from is taken at
+      # upload, so the 0% version starts exactly the way it will at 100%.
+      #
+      # `serving` is written before anything changes, so `restore` has it even
+      # when the upload is what failed.
+      - name: Stage the Python Worker at 0% (production)
+        id: stage
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        # pywrangler vendors the Python packages (its `sync`) before handing the
-        # deploy to wrangler; the bundle is the server package it uploads.
         run: |
+          serving=$(npx --yes wrangler deployments status --name "$WORKER" --json |
+            jq -r '.versions[] | select(.percentage == 100) | .version_id')
+          [ -n "$serving" ] || { echo "::error::no version of $WORKER serves 100% -- settle the split by hand first"; exit 1; }
+          echo "serving=$serving" >> "$GITHUB_OUTPUT"
           ./scripts/api-bundle.sh
           cd api
           uv sync
-          uv run pywrangler deploy --env production
-      # The same guard staging.yml runs: a version whose memory snapshot came up
-      # bad answers 500 from every cold isolate until it is redeployed, and on
-      # prod that is players' scores failing to post. The action says the rest.
+          uv run pywrangler versions upload --env production --message "$GITHUB_REF_NAME" | tee /tmp/upload.txt
+          staged=$(sed -n 's/^Worker Version ID: //p' /tmp/upload.txt)
+          [ -n "$staged" ] || { echo "::error::the upload printed no version id"; exit 1; }
+          echo "staged=$staged" >> "$GITHUB_OUTPUT"
+          npx --yes wrangler versions deploy "$staged@0%" "$serving@100%" --name "$WORKER" \
+            --message "$GITHUB_REF_NAME staged" -y
+      # The same guard staging.yml runs, aimed at the staged version: one whose
+      # memory snapshot came up bad answers 500 from every cold isolate, and on
+      # prod that would be players' scores failing to post. The action says the
+      # rest.
       - name: Prove the Worker's cold isolates start
         uses: ./.github/actions/worker-cold-start
+        with:
+          base: https://adanalife-guessr.pages.dev
+          override: ${{ env.WORKER }}="${{ steps.stage.outputs.staged }}"
+
+  # The bad version of 2026-10-02 failed ~40% of requests in Boston's colo while
+  # the single runner's colo, and three synthetic probes elsewhere, read it
+  # fine. A GitHub-hosted job lands in whichever Azure region has room, so six
+  # of them spread over several colos; the notice each prints names its colo.
+  colos:
+    needs: worker
+    strategy:
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm, windows-latest]
+        n: [1, 2]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/worker-cold-start
+        with:
+          base: https://adanalife-guessr.pages.dev
+          override: ${{ env.WORKER }}="${{ needs.worker.outputs.staged }}"
+
+  deploy:
+    needs: [worker, colos]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      promoted: ${{ steps.promote.outputs.promoted }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .tool-versions
+          package-manager-cache: false
+      # Cloudflare answers an override for a version outside the deployment
+      # with the serving version, so the gates above only count if the split
+      # they read is still the one `worker` made.
+      - name: Promote the staged Worker to 100% (production)
+        id: promote
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        with:
-          base: https://adanalife-guessr.pages.dev
-          deploy-args: --env production
+          SERVING: ${{ needs.worker.outputs.serving }}
+          STAGED: ${{ needs.worker.outputs.staged }}
+        run: |
+          split=$(npx --yes wrangler deployments status --name "$WORKER" --json |
+            jq -c '[.versions[] | [.version_id, .percentage]] | sort')
+          want=$(jq -nc --arg s "$SERVING" --arg n "$STAGED" '[[$n, 0], [$s, 100]] | sort')
+          [ "$split" = "$want" ] || { echo "::error::the deployment changed under the gates: $split"; exit 1; }
+          npx --yes wrangler versions deploy "$STAGED@100%" --name "$WORKER" --message "$GITHUB_REF_NAME" -y
+          echo "promoted=true" >> "$GITHUB_OUTPUT"
+      # web/version.json is what the page's About panel reads to say which
+      # build it is. The panel links the changelog on GitHub rather than
+      # shipping a copy, so there is nothing else to stamp.
+      - name: Stamp the build
+        run: |
+          printf '{"label":"%s","tier":"production"}\n' "$GITHUB_REF_NAME" > web/version.json
       - name: Deploy to Cloudflare Pages (production)
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -157,14 +241,41 @@ jobs:
           # fragments are written for players (towncrier.toml says so) and the
           # game's About panel already links CHANGELOG.md.
           args: 'New release for [{{ EVENT_PAYLOAD.repository.full_name }}]({{ EVENT_PAYLOAD.repository.html_url }}): [{{ VERSION_TAG }}]({{ EVENT_PAYLOAD.repository.html_url }}/blob/{{ VERSION_TAG }}/CHANGELOG.md)'
+
+  # Whatever went red, in any job above. A version that never reached 100% is
+  # taken back out of the deployment, leaving the one that was serving alone at
+  # 100%; one that did reach it stays, since the failure then came after the
+  # Worker had proved itself (a smoke test, the Pages deploy).
+  restore:
+    needs: [worker, colos, deploy]
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@v7
+        if: needs.worker.outputs.serving != '' && needs.deploy.outputs.promoted != 'true'
+        with:
+          node-version: lts/*
+          package-manager-cache: false
+      - name: Take the staged Worker back out (production)
+        if: needs.worker.outputs.serving != '' && needs.deploy.outputs.promoted != 'true'
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          SERVING: ${{ needs.worker.outputs.serving }}
+        run: |
+          npx --yes wrangler versions deploy "$SERVING@100%" --name "$WORKER" \
+            --message "$GITHUB_REF_NAME restored" -y
+          echo "::error::the release did not reach players; $SERVING still serves. Re-run all jobs to upload afresh, which is the cure for a poisoned snapshot"
       # Nothing else says a production deploy went red. The release PR merges
       # green long before the tag runs, so the only record is this run's own
       # entry in a list nobody is watching at 04:00.
       #
-      # Last, so it is the catch-all: the announcement above cannot trip it,
-      # since continue-on-error keeps a dead webhook out of the job's status.
+      # Its own job, so it is the catch-all: a red in any job above reaches it,
+      # and the announcement cannot trip it, since continue-on-error keeps a
+      # dead webhook out of the job's status.
       - name: Alert Discord on failure
-        if: failure()
+        if: always()
         continue-on-error: true
         uses: Ilshidur/action-discord@0.4.0
         env:
@@ -172,8 +283,8 @@ jobs:
           VERSION_TAG: ${{ github.ref_name }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
-          # The deploy and the smoke test both live in this job and either can
-          # be what failed, so the message points at the log rather than
+          # The gates, the deploy and the smoke test can each be what failed,
+          # so the message points at the log rather than
           # claiming which -- and claims nothing about what the site is serving.
           # That distinction is not academic here: v1.0.0's run went red on a
           # smoke test racing its own deploy, while the site was fine.
