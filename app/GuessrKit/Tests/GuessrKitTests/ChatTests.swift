@@ -560,6 +560,19 @@ private final class Rig {
     #expect(rig.twitch.isConnected)
 }
 
+/// A stop that lands while a connect waits on the host's token refresh finds
+/// no socket to close, so the loop must not open one once the wait ends.
+@MainActor @Test func aStopDuringTheRefreshOpensNoSocket() async throws {
+    let rig = Rig([[welcome("s1")]])
+    // Resolved already, as on any reconnect, so nothing after the refresh
+    // waits on the network and notices the cancellation for us.
+    try await rig.twitch.helix.resolveBroadcaster()
+    rig.twitch.beforeConnect = { [unowned rig] in rig.twitch.stop() }
+    rig.twitch.start()
+    try await Task.sleep(for: .milliseconds(200))
+    #expect(rig.opened.isEmpty)
+}
+
 @Test func reconnectsBackOffByDoublingUpToAMinute() {
     #expect((0..<8).map(TwitchChat.backoff) == [1, 2, 4, 8, 16, 32, 60, 60])
 }

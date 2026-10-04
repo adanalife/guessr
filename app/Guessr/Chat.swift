@@ -14,7 +14,9 @@ struct ChatTab: View {
                     let lines = (account.chat?.lines ?? []).filter { account.hiddenChatters[$0.userId] == nil }
                     ChatLog(lines: mayModerate ? lines : lines.filter { !$0.deleted }, mayModerate: mayModerate)
                     .task(id: session.userID) { await account.openChat() }
-                    .onChange(of: lines.count) { Saved.chat = lines }
+                    // The lines, not their count: a full ring and a mod's
+                    // delete both change what's saved and leave the count be.
+                    .onChange(of: lines) { Saved.chat = lines }
                 }
             }
             .viewingAsBanner()

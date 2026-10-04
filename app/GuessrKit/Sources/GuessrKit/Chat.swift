@@ -309,6 +309,9 @@ public final class TwitchChat {
             do {
                 if subscribe { await beforeConnect?() }
                 _ = try await helix.resolveBroadcaster()
+                // A `stop()` during either wait found no socket to close, so a
+                // stopped loop must not open one now.
+                try Task.checkCancellation()
                 let ws = makeSocket(url)
                 socket = ws
                 ws.resume()
@@ -321,7 +324,12 @@ public final class TwitchChat {
                     continue
                 }
             } catch {
-                if Task.isCancelled { break }
+                if Task.isCancelled {
+                    // `stop()` closed `socket`; a moved session's old one is
+                    // known only here.
+                    retiring?.cancel(with: .goingAway, reason: nil)
+                    break
+                }
                 lastError = error.localizedDescription
             }
             isConnected = false
@@ -457,7 +465,6 @@ public final class TwitchChat {
     }
 
     private func subscribeAll(_ sessionID: String) async throws {
-        let broadcaster = try await helix.resolveBroadcaster()
         for type in [
             "channel.chat.message", "channel.chat.notification", "channel.chat.message_delete",
             "channel.chat.clear_user_messages", "channel.chat_settings.update",
