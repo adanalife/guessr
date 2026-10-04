@@ -1,7 +1,8 @@
 name: Prove the Worker's cold isolates start
 description: >-
   Read the Python Worker twenty times through its Pages hostname, redeploy it
-  once if any read answers 500, and fail if the redeploy did not cure it.
+  once if any read answers 500, and fail if the redeploy did not cure it. Given
+  an override, read that version instead and fail on the first bad round.
 # A Python Worker restores its deploy-time memory snapshot on every cold start.
 # Now and then a deployed version comes up with a bad one: each cold isolate
 # then re-runs the whole import inside its first request, blows the startup CPU
@@ -18,15 +19,31 @@ description: >-
 # names the service, so the previous site build still forwards to the version
 # just deployed.
 #
-# ponytail: one runner sees one colo's isolates, so a version that is poisoned
-# only elsewhere still passes; a probe from several regions is the upgrade if
-# that ever bites.
+# With `override`, every read carries Cloudflare's version-override header, so
+# it reaches a version deployed at 0% beside the one serving players. The header
+# survives the Pages binding. Cloudflare ignores an override naming a version
+# outside the current deployment and serves the 100% one instead, so these
+# reads prove nothing unless that deployment still holds it; release.yml checks
+# it does before promoting. A failed read there gets no redeploy: nobody is on
+# the version yet, so release.yml restores the serving one and a re-run of the
+# release uploads afresh, which is the same cure.
+#
+# ponytail: one runner sees one colo's isolates. release.yml runs this from a
+# matrix of GitHub-hosted runners, which land in a handful of US colos (IAD,
+# ORD, MSP, DFW, SJC measured) and never BOS or anywhere outside the US, so a
+# version poisoned only there still passes; a probe from those places (a
+# Grafana synthetic check or a home runner) is the upgrade if that bites.
 inputs:
   base:
     description: The tier's pages.dev origin, through which the Worker's /api/day is read
     required: true
   deploy-args:
     description: Extra arguments for the `pywrangler deploy` that redeploys it (`--env production` on prod)
+    default: ""
+  override:
+    description: >-
+      `<worker>="<version id>"` to read that version through the
+      Cloudflare-Workers-Version-Overrides header rather than the deployed one
     default: ""
 runs:
   using: composite
@@ -35,16 +52,25 @@ runs:
       env:
         BASE: ${{ inputs.base }}
         DEPLOY_ARGS: ${{ inputs.deploy-args }}
+        OVERRIDE: ${{ inputs.override }}
       run: |
         cd api
         url="$BASE/api/day?date=$(date -u +%F)"
+        header="Cloudflare-Workers-Version-Overrides: $OVERRIDE"
+        [ -n "$OVERRIDE" ] || header="X-No-Override: 1"
+        colo=$(curl -sI -H "$header" "$url" | tr -d '\r' | sed -n 's/^cf-ray: .*-//Ip')
+        echo "::notice::reading ${OVERRIDE:-the deployed version} from colo $colo"
         for attempt in 1 2; do
           sleep 15
           failed=0
           for _ in $(seq 1 20); do
-            [ "$(curl -s -o /dev/null -w '%{http_code}' "$url")" = 500 ] && failed=$((failed + 1))
+            [ "$(curl -s -o /dev/null -w '%{http_code}' -H "$header" "$url")" = 500 ] && failed=$((failed + 1))
           done
           [ "$failed" = 0 ] && exit 0
+          if [ -n "$OVERRIDE" ]; then
+            echo "::error::$failed of 20 reads of $OVERRIDE answered 500 from $colo -- the version is poisoned there"
+            exit 1
+          fi
           if [ "$attempt" = 2 ]; then
             echo "::error::$failed of 20 reads still answer 500 after a redeploy -- the Worker's version is poisoned; deploy again by hand or wait for Cloudflare"
             exit 1
