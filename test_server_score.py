@@ -193,6 +193,9 @@ async def handler() -> None:
     status, body = await guess(mine, today, handle="Amber Arroyo")
     assert status == 200 and body["recorded"] and body["points"] == 5000, body
     assert "client" not in body, "the client bucket is stored, never served"
+    assert (body["streak"], body["streak_date"]) == (0, None), (
+        "one round is no finished day"
+    )
     assert (body["lat"], body["lng"], body["state"], body["filmed"]) == (
         40,
         -100,

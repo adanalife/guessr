@@ -269,6 +269,24 @@ private let image = "clips/2018_1015_183219_002_opt-026000.mp4"
     #expect(done.next(in: day) == nil)
 }
 
+@Test func aStreakShowsWhileItCouldStillGrow() throws {
+    let score = try snake.decode(GuessrScore.self, from: fixture("score"))
+    #expect(score.streak == 3 && score.streakDate == "2026-09-23")
+    func streak(_ days: Int?, endingOn end: String?, today: String) throws -> Int? {
+        var s = score
+        (s.streak, s.streakDate) = (days, end)
+        let noon = try #require(ISO8601DateFormatter().date(from: "\(today)T12:00:00Z"))
+        let progress = DayProgress(date: today, played: [PlayedRound(image: image, guess: s.answer, score: s)])
+        return progress.streak(now: noon)
+    }
+    #expect(try streak(3, endingOn: "2026-09-23", today: "2026-09-23") == 3)
+    #expect(try streak(3, endingOn: "2026-09-30", today: "2026-10-01") == 3, "yesterday, across a month")
+    #expect(try streak(3, endingOn: "2026-09-21", today: "2026-09-23") == nil, "a broken run")
+    #expect(try streak(1, endingOn: "2026-09-23", today: "2026-09-23") == nil, "one day is no streak")
+    #expect(try streak(nil, endingOn: nil, today: "2026-09-23") == nil, "practice carries none")
+    #expect(DayProgress(date: "2026-09-23").streak() == nil)
+}
+
 @Test func aPlayerIsMintedOnceAndKept() {
     let store = MemoryPlayerStore()
     let first = store.current()

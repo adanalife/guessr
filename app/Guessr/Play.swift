@@ -472,6 +472,9 @@ struct DayResultView: View {
                                 .frame(width: 16, height: 16)
                         }
                     }
+                    if let streak = progress.streak() {
+                        Text("🔥 \(streak)-day streak").font(.headline)
+                    }
                 }
             }
             Section {
