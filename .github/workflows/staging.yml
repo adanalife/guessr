@@ -8,8 +8,9 @@ name: staging
 # especially — before players see it.
 #
 # Staging also runs the Python API. The site stays a Pages project, and its
-# root middleware (functions/_middleware.js) hands /api/, /admin/ and /clips/ to
-# the Worker through the project's `API` service binding. The Worker deploys
+# root middleware (functions/_middleware.js) hands /api/ and /admin/ to the
+# Worker through the project's `API` service binding; /clips/ stays on Pages,
+# streamed from R2 by functions/clips/. The Worker deploys
 # first, so the forwarder never points at a Worker running older code than the
 # Pages build in front of it. A failed Worker deploy stops the job, so the
 # Pages site never ships ahead of the API it calls.
@@ -106,8 +107,8 @@ jobs:
           base: https://adanalife-guessr-staging.pages.dev
 
       # No build step, and no media either: web/ is the site, and the round
-      # clips are served from R2 by the Worker's /clips/ route rather than
-      # deployed alongside it. So what goes up is a few hundred KB of HTML and
+      # clips are streamed from R2 by a Pages Function (functions/clips/) rather
+      # than deployed alongside it. So what goes up is a few hundred KB of HTML and
       # JS, and a regeneration changes nothing here.
       - name: Deploy to Cloudflare Pages (staging)
         env:
