@@ -27,7 +27,7 @@
         /// Loads in a row that failed, for the backoff before the next; above zero
         /// the clip says it is trying again.
         @State private var failures = 0
-        /// The looper has the clip in hand; until then the slot rolls the mark.
+        /// The clip's item can play; until then the slot rolls the mark.
         @State private var ready = false
         @State private var paused = false
         @State private var hint = false
@@ -105,9 +105,7 @@
                 // again, backing off to every 16 seconds, for as long as it's on screen.
                 .task(id: looper.map(ObjectIdentifier.init)) {
                     guard let looper else { return }
-                    for await status in looper.publisher(for: \.status).values {
-                        withAnimation { ready = status == .ready }
-                        if status == .ready { failures = 0 }
+                    for await status in changes(of: looper, \.status) {
                         guard status == .failed else { continue }
                         failures += 1
                         Self.failed(url, failures, player.currentItem?.error ?? looper.error)
@@ -119,9 +117,20 @@
                         return
                     }
                 }
+                // The looper reads `.ready` as soon as it is set up, before the clip
+                // has arrived; the item playing is the clip in hand.
+                .task(id: looper.map(ObjectIdentifier.init)) {
+                    guard looper != nil else { return }
+                    for await status in changes(of: player, \.currentItem?.status) where status == .readyToPlay {
+                        failures = 0
+                        withAnimation { ready = true }
+                        return
+                    }
+                }
         }
 
         private func load() {
+            ready = false
             player.isMuted = true
             looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
             if let resume { player.seek(to: resume, toleranceBefore: .zero, toleranceAfter: .zero) }
@@ -259,6 +268,22 @@
 
         func updateUIView(_ view: View, context: Context) {
             view.playerLayer.videoGravity = gravity
+        }
+    }
+
+    /// A key path's values, the first one included. `publisher(for:).values`
+    /// would be the obvious spelling, but it hands over that first value and
+    /// then nothing: AVFoundation's later changes never arrive through it.
+    @MainActor private func changes<Object: NSObject, Value: Sendable>(
+        of object: Object, _ keyPath: KeyPath<Object, Value> & Sendable
+    )
+        -> AsyncStream<Value>
+    {
+        AsyncStream { continuation in
+            let observation = object.observe(keyPath, options: [.initial, .new]) { object, _ in
+                continuation.yield(object[keyPath: keyPath])
+            }
+            continuation.onTermination = { _ in observation.invalidate() }
         }
     }
 
