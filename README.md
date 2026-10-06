@@ -771,6 +771,13 @@ reading as reviewed with a round nobody has seen in it is exactly the state the
 mark exists to rule out. The day given up to pay for a replacement loses its
 mark too, since it is no longer scheduled at all.
 
+`/admin/upcoming` reads across dates instead: every round the schedule still has
+ahead of it, ranked by `mean_cos` rather than by the day it lands on, from the
+last closed date on (a date stays playable until noon UTC the day after it).
+`mean_cos` says a clip has no near-twins in the corpus; whether that reads as an
+*interesting* round is a judgement no number makes, so the console shows the
+ranking as tiles of the footage. The question comes back every regeneration.
+
 It gates nothing. Generation keeps its three-day lead precisely so that review
 stays possible and never required, and a rule that refused to publish an
 unreviewed day would turn a missed evening into a date with no game.

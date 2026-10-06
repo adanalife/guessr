@@ -110,6 +110,7 @@ ROUTES = [
         ),
     ),
     ("/admin/review", "POST", lambda r: admin_day.review(r.db, r.who, r.body)),
+    ("/admin/upcoming", "GET", lambda r: admin_day.upcoming(r.db, r.who)),
     ("/admin/players", "GET", lambda r: admin_players.players(r.db, r.who)),
     (
         "/admin/players",

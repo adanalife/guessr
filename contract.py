@@ -166,6 +166,7 @@ ADMIN = [
     ("GET", f"/admin/day?date={d(2)}"),
     ("POST", "/admin/day"),
     ("POST", "/admin/review"),
+    ("GET", "/admin/upcoming"),
     ("GET", f"/admin/plays?date={TODAY}"),
     ("GET", "/admin/players"),
     ("POST", "/admin/players"),
@@ -683,6 +684,14 @@ def admin_reads():
         get("today previews as open", 200, f"/admin/day?date={TODAY}").json["open"]
         is True
     )
+
+    up = get("the upcoming rounds read, most distinctive first", 200, "/admin/upcoming")
+    assert up.header("cache-control") == "no-store", up.header("cache-control")
+    rounds = up.json["rounds"]
+    assert rounds and all(x["date"] > up.json["since"] for x in rounds), up.json
+    assert [x["mean_cos"] for x in rounds] == sorted(
+        (x["mean_cos"] for x in rounds), reverse=True
+    ), rounds[:3]
 
     error(get("a score lookup with no date is refused", 400, "/admin/plays"))
     r = get("a day's plays read", 200, f"/admin/plays?date={FIRST}")
