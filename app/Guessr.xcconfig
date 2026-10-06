@@ -23,7 +23,13 @@ GUESSR_TWITCH_CHANNEL[config=Debug] = adanalife_staging
 // TWITCH compiles in the Twitch login, and with it the Chat tab and the Siri
 // guess. Debug only: the App Store build ships without chat until it has been
 // through review on its own.
-SWIFT_ACTIVE_COMPILATION_CONDITIONS[config=Debug] = $(inherited) TWITCH
+// WATCH compiles in the Watch tab, the live stream in a web view. On in every
+// configuration while it is being tried out on TestFlight; drop it from the
+// unconditional line to keep the embedded players, and the ads they carry,
+// out of a store submission. A conditional line replaces the unconditional
+// one rather than adding to it, so Debug names both.
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) WATCH
+SWIFT_ACTIVE_COMPILATION_CONDITIONS[config=Debug] = $(inherited) TWITCH WATCH
 
 // Real values go in Local.xcconfig beside this file (gitignored), or on the
 // xcodebuild command line.
