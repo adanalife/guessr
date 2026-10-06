@@ -20,17 +20,20 @@ struct WatchTab: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Group {
-                    if let page { WebView(page) } else { Color.black }
-                }
-                .aspectRatio(16 / 9, contentMode: .fit)
-                .frame(maxWidth: .infinity)
+                // Above the player, not below: a scrolling view against the
+                // top safe-area edge gets stretched up under the bars, and
+                // the web view counts as one.
                 Picker("Platform", selection: $platform) {
                     Text(verbatim: "Twitch").tag("twitch")
                     Text(verbatim: "YouTube").tag("youtube")
                 }
                 .pickerStyle(.segmented)
                 .padding()
+                Group {
+                    if let page { WebView(page) } else { Color.black }
+                }
+                .aspectRatio(16 / 9, contentMode: .fit)
+                .frame(maxWidth: .infinity)
                 if account.showsChat { ChatPane() } else { Spacer() }
             }
             .toolbar {
@@ -51,7 +54,8 @@ struct WatchTab: View {
     }
 
     private var url: URL {
-        var url = Guessr.baseURL.appending(path: "watch.html")
+        // Pages serves `watch.html` at `/watch`, and redirects the long form.
+        var url = Guessr.baseURL.appending(path: "watch")
         url.append(queryItems: [
             URLQueryItem(name: "platform", value: platform),
             URLQueryItem(name: "channel", value: account.channel),
