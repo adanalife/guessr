@@ -676,6 +676,22 @@ tasks:
       # Apple takes 5-15 minutes to process an upload; this ends the release
       # with the verdict instead of a reminder to come back and check.
       - ./scripts/asc-builds.py --wait
+      # Last, so a missing token can't hold up the build Apple already has;
+      # a failure here is retried alone with `task ios:dsyms`.
+      - task: ios:dsyms
+
+  ios:dsyms:
+    desc: Upload the last iPhone archive's dSYMs to Sentry, so a native crash names our frames (needs SENTRY_AUTH_TOKEN)
+    dir: app
+    preconditions:
+      - sh: test -n "$SENTRY_AUTH_TOKEN"
+        msg: "Set SENTRY_AUTH_TOKEN to an org token with project:releases + project:write — see app/README.md's TestFlight section"
+      - sh: test -d .build/Guessr.xcarchive/dSYMs
+        msg: "No archive at app/.build/Guessr.xcarchive — run ios:archive (or ios:release) first"
+    cmds:
+      # Apple's upload keeps the dSYMs to itself, so without this Sentry can
+      # only symbolicate the SDK's own frames.
+      - uvx sentry-cli debug-files upload --org a-dana-life --project guessr-app --include-sources .build/Guessr.xcarchive/dSYMs
 
   ios:verify:
     desc: Ask App Store Connect whether the newest release tag has an installable build (-- --wait polls until it does)
