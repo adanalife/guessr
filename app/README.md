@@ -30,7 +30,7 @@ git fetch --tags && git checkout vX.Y.Z
 task ios:release
 ```
 
-It reads five variables from the environment:
+It reads four variables from the environment:
 
 | Variable | What |
 | --- | --- |
@@ -38,7 +38,16 @@ It reads five variables from the environment:
 | `ASC_KEY_PATH` | the App Store Connect API key (`.p8`), kept outside the repo |
 | `ASC_KEY_ID` | that key's id |
 | `ASC_ISSUER_ID` | the key's issuer id |
-| `SENTRY_AUTH_TOKEN` | a Sentry org token with `project:releases` and `project:write`, for `task ios:dsyms` |
+
+The dSYM upload (`task ios:dsyms`, the release's last step) authenticates with
+a Sentry org token (scope `org:ci`). It reads `SENTRY_AUTH_TOKEN` if set, and
+otherwise fetches `/release/sentry-org-token` from the prod account's SSM
+through `aws-vault`. Seed that once with:
+
+```sh
+aws-vault exec adanalife-prod -- aws ssm put-parameter \
+  --name /release/sentry-org-token --type SecureString --overwrite --value '<token>'
+```
 
 Signing needs the team's *Apple Distribution* certificate in the keychain and an
 App Store profile for `lol.dana.guessr` named `Guessr App Store`.
