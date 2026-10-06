@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A Dana Life, live</title>
+<meta name="robots" content="noindex">
+<!-- The stream on the platform it goes out on, in a page of its own, so the
+     iOS app can show it: Twitch's player renders only inside a page whose
+     hostname it was told (`parent`), and an app has no hostname of its own.
+     `?platform=twitch|youtube`, `?channel=<twitch login>`. -->
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  iframe { display: block; width: 100%; height: 100%; border: 0; }
+  p { margin: 0; padding: 2em; color: #ddd; font: 16px system-ui, sans-serif; text-align: center; }
+  a { color: #fff; }
+</style>
+</head>
+<body>
+<script type="module">
+const q = new URLSearchParams(location.search);
+const platform = q.get('platform') === 'youtube' ? 'youtube' : 'twitch';
+// Validated because it goes into a URL: a Twitch login is 25 characters of
+// these, and anything else is the channel.
+const channel = /^[a-z0-9_]{1,25}$/i.test(q.get('channel') ?? '') ? q.get('channel') : 'adanalife_';
+
+function player(src, title) {
+  const frame = document.createElement('iframe');
+  frame.src = src;
+  frame.title = title;
+  frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+  frame.referrerPolicy = 'strict-origin-when-cross-origin';
+  frame.allowFullscreen = true;
+  document.body.replaceChildren(frame);
+}
+
+function line(html) {
+  const p = document.createElement('p');
+  p.innerHTML = html;
+  document.body.replaceChildren(p);
+}
+
+if (platform === 'twitch') {
+  // `parent` is this page's own host, so the same page serves every alias,
+  // the staging tier, a per-PR preview and localhost.
+  player(
+    `https://player.twitch.tv/?channel=${channel}&parent=${location.hostname}&autoplay=true`,
+    `${channel}, live on Twitch`,
+  );
+} else {
+  // A video id and not the channel: see fillLiveTile() in index.html for why
+  // `/embed/live_stream?channel=` is no use, and server/live.py for where the
+  // id comes from. No id is a quiet channel, or a read that never landed.
+  let videoId = null;
+  try {
+    ({ videoId } = await (await fetch('/api/live')).json());
+  } catch { /* the line below is the fallback either way */ }
+  if (videoId && /^[\w-]{11}$/.test(videoId)) {
+    player(
+      `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&playsinline=1`,
+      'A Dana Life, live on YouTube',
+    );
+  } else {
+    line('<a href="https://youtube.com/@adanalife_/live" target="_blank" rel="noopener">Watch live on YouTube →</a>');
+  }
+}
+</script>
+</body>
+</html>

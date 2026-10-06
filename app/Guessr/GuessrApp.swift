@@ -33,6 +33,7 @@ struct GuessrApp: App {
                 if account.seesBoards {
                     Tab("Boards", systemImage: "list.number", value: "Boards") { NavigationStack { TodayView(alias: player.alias).viewingAsBanner() } }
                 }
+                Tab("Watch", systemImage: "play.rectangle", value: "Watch") { WatchTab() }
                 // Chat hangs off the Twitch login, so the tab shows only while
                 // a login is signed in; Settings is where a player signs in.
                 // Settings always has the reminder, and hides only its Twitch
