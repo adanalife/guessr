@@ -98,6 +98,7 @@ struct TodayView: View {
     @State private var board: GuessrLeaderboard?
     @State private var boardName = "monthly"
     @State private var error: String?
+    @Environment(\.scenePhase) private var scenePhase
 
     private let client = GuessrClient()
 
@@ -126,6 +127,10 @@ struct TodayView: View {
         .paper()
         .task(id: boardName) { await load() }
         .refreshable { await load() }
+        // Coming back, perhaps on a new day or month, reads the board again.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await load() } }
+        }
     }
 
     // ponytail: matched by name, since no public response may carry a player
@@ -169,6 +174,7 @@ struct SettingsView: View {
     @Environment(Account.self) private var account
     @Binding var player: Player
     @State private var playedToday = false
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("kilometers") private var kilometers = false
     @AppStorage("appearance") private var appearance = "dark"
 
@@ -241,9 +247,17 @@ struct SettingsView: View {
         }
         .readableWidth(title: "Settings")
         .paper()
-        // Read on every visit rather than once: the Play tab saves as it goes.
-        .onAppear { playedToday = !DayProgress.resume(Saved.progress, on: GuessrClient.today()).played.isEmpty }
+        // Read on every visit and every return rather than once: the Play tab
+        // saves as it goes, and a return can be on a new day.
+        .onAppear(perform: readPlayedToday)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { readPlayedToday() }
+        }
         .task { await account.refreshIfNeeded() }
+    }
+
+    private func readPlayedToday() {
+        playedToday = !DayProgress.resume(Saved.progress, on: GuessrClient.today()).played.isEmpty
     }
 }
 
