@@ -22,14 +22,15 @@ simulator build from the repo root.
 The app's version is the repo's release tag: the `vX.Y.Z` release-please cuts
 for the web game is the version TestFlight shows, and the build number is the
 commit count. `task ios:release` builds only from a clean checkout of a tag,
-then archives, uploads and waits for Apple to finish processing:
+then archives, uploads, waits for Apple to finish processing, and sends the
+build's dSYMs to Sentry:
 
 ```sh
 git fetch --tags && git checkout vX.Y.Z
 task ios:release
 ```
 
-It reads four variables from the environment:
+It reads five variables from the environment:
 
 | Variable | What |
 | --- | --- |
@@ -37,6 +38,7 @@ It reads four variables from the environment:
 | `ASC_KEY_PATH` | the App Store Connect API key (`.p8`), kept outside the repo |
 | `ASC_KEY_ID` | that key's id |
 | `ASC_ISSUER_ID` | the key's issuer id |
+| `SENTRY_AUTH_TOKEN` | a Sentry org token with `project:releases` and `project:write`, for `task ios:dsyms` |
 
 Signing needs the team's *Apple Distribution* certificate in the keychain and an
 App Store profile for `lol.dana.guessr` named `Guessr App Store`.
