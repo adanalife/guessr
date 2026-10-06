@@ -1,0 +1,1 @@
+The iPhone app moves on to the new day when it comes back the next day: the Play tab shows the new rounds rather than the day before's score until it is force quit, the boards and Settings read today's state again, and the icon badge returns at midnight while the app is open.

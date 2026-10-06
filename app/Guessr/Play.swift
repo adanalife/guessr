@@ -7,6 +7,9 @@ import SwiftUI
 struct PlayView: View {
     @Binding var player: Player
 
+    /// The date the rounds on screen belong to, rechecked whenever the app
+    /// comes back and at midnight, since iOS can resume it days later.
+    @State private var date = GuessrClient.today()
     @State private var day: GuessrDay?
     @State private var progress = DayProgress(date: "")
     @State private var pin: CLLocationCoordinate2D?
@@ -25,6 +28,7 @@ struct PlayView: View {
     @Environment(\.verticalSizeClass) private var heightClass
     @Environment(GameCenter.self) private var gameCenter
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     private let client = GuessrClient()
 
@@ -62,9 +66,24 @@ struct PlayView: View {
         }
         .paper()
         .navigationTitle("Guessr")
-        // Keyed on the player: a link to another device's player is a new
-        // record to resume from.
-        .task(id: player.id) { await load() }
+        // Keyed on the player and the date: a link to another device's player
+        // is a new record to resume from, and a new day is new rounds.
+        .task(id: [player.id, date]) { await load() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { turnOver() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
+            turnOver()
+        }
+    }
+
+    /// Moves to today's rounds once the date has changed, clearing the old
+    /// day so none of its rounds show while the new one loads.
+    private func turnOver() {
+        let today = GuessrClient.today()
+        guard today != date else { return }
+        (day, message, revealed, pin, camera) = (nil, nil, false, nil, PlayView.lower48)
+        date = today
     }
 
     private func round(_ day: GuessrDay, image: String, shown: PlayedRound?) -> some View {
@@ -267,7 +286,6 @@ struct PlayView: View {
     }
 
     private func load() async {
-        let date = GuessrClient.today()
         progress = DayProgress.resume(Saved.progress, on: date)
         do {
             let loaded = try await client.day(date)

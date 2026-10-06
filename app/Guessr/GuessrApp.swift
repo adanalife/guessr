@@ -73,6 +73,10 @@ struct GuessrApp: App {
             .onChange(of: scenePhase, initial: true) { _, phase in
                 if phase == .active { Task { await Reminder.refreshBadge() } }
             }
+            // Midnight with the app open: the new day is unplayed.
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
+                Task { await Reminder.refreshBadge() }
+            }
         }
     }
 
