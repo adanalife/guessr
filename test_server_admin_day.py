@@ -10,7 +10,7 @@ import asyncio
 import datetime as dt
 
 from server.admin_auth import Caller
-from server.admin_day import preview, reject, review
+from server.admin_day import preview, reject, review, upcoming
 from server.db import Sqlite
 
 NOW = dt.datetime(2026, 8, 5, 12, tzinfo=dt.UTC)
@@ -92,6 +92,8 @@ async def test_gate() -> None:
             await reject(d, who, {"date": DAY1, "image": img(DAY1, 1)}, everywhere, NOW)
         )[0] == code
         assert (await review(d, who, {"date": DAY1, "reviewed": True}, NOW))[0] == code
+        status, body, _ = await upcoming(d, who, NOW)
+        assert status == code and "rounds" not in body
     assert (
         schedule(d, DAY1)[0] == img(DAY1, 1)
         and status_of(d, img(DAY1, 1)) == "scheduled"
@@ -270,11 +272,42 @@ async def test_review() -> None:
     )
 
 
+async def test_upcoming() -> None:
+    # Yesterday is still mid-game until noon UTC today, so before noon it is
+    # upcoming and after noon it is not; anything older never is.
+    yesterday = "2026-08-04"
+    d = seeded((PAST, yesterday, DAY1), answered=(PAST, yesterday))
+    d.conn.execute("UPDATE rounds SET mean_cos = 0.5 WHERE image = ?", (img(DAY1, 3),))
+    d.conn.execute(
+        "UPDATE rounds SET mean_cos = 0.3 WHERE image = ?", (img(yesterday, 2),)
+    )
+
+    morning = dt.datetime(2026, 8, 5, 6, tzinfo=dt.UTC)
+    status, body, headers = await upcoming(d, OWNER, morning)
+    assert (status, headers["cache-control"]) == (200, "no-store")
+    assert body["since"] == "2026-08-03"
+    rounds = body["rounds"]
+    assert {r["date"] for r in rounds} == {yesterday, DAY1}, "the window is wrong"
+    assert [r["image"] for r in rounds[:2]] == [img(DAY1, 3), img(yesterday, 2)], (
+        "not ranked most distinctive first"
+    )
+    # Ties fall back to the schedule's own order.
+    rest = [(r["date"], r["position"]) for r in rounds[2:]]
+    assert rest == sorted(rest)
+    # A round with no answer row is still listed, state-less.
+    assert all(r["state"] is None for r in rounds if r["date"] == DAY1)
+    assert all(r["state"] == "Indiana" for r in rounds if r["date"] == yesterday)
+
+    _, body, _ = await upcoming(d, OWNER, NOW)
+    assert {r["date"] for r in body["rounds"]} == {DAY1}, "a closed date is upcoming"
+
+
 async def main() -> None:
     await test_gate()
     await test_preview()
     await test_reject()
     await test_review()
+    await test_upcoming()
 
 
 asyncio.run(main())

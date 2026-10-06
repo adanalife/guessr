@@ -225,3 +225,41 @@ async def review(db, who, body, now=None) -> tuple[int, dict, dict]:
         {"date": date, "reviewed_at": row["reviewed_at"] if row else None},
         NO_STORE,
     )
+
+
+# Every round the schedule still has ahead of it, most distinctive first.
+# `mean_cos` says a clip has no near-twins in the corpus; whether that reads as
+# an interesting round is a judgement only the footage answers, so this feeds a
+# page of tiles rather than a verdict. Across dates and refusing none of them,
+# which is why it is its own route rather than a flag on /admin/day.
+#
+# The lower bound is the last closed date, not today: a date stays playable
+# until noon UTC the day after it, so between midnight and noon `date('now')`
+# would drop the date players are still mid-game on. LEFT JOIN on answers for
+# the day preview's reason -- a round with no answer row shows as one.
+UPCOMING = """SELECT d.date, d.position, d.image, r.mean_cos, r.median_km,
+                     r.slug, a.state
+                FROM round_days d
+                JOIN rounds r ON r.image = d.image
+                LEFT JOIN answers a ON a.image = d.image
+               WHERE d.date > ?
+               ORDER BY r.mean_cos DESC, d.date, d.position
+               LIMIT ?"""
+
+# A fortnight of five is the horizon; the cap bounds a generation run that
+# overshoots, not a page somebody scrolls. Rounds rather than days, so it does
+# not depend on the schedule being full.
+UPCOMING_ROWS = 200
+
+
+async def upcoming(db, who, now=None) -> tuple[int, dict, dict]:
+    """GET /admin/upcoming: `{since, rounds}`, `since` being the last closed
+    date, so a reader can tell why the oldest round is yesterday's."""
+    if refused := refusal(who):
+        return refused
+    since = rules.last_closed_date(now)
+    return (
+        200,
+        {"since": since, "rounds": await db.fetchall(UPCOMING, since, UPCOMING_ROWS)},
+        NO_STORE,
+    )
