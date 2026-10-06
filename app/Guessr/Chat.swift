@@ -8,20 +8,28 @@ struct ChatTab: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if let session = account.session {
-                    let mayModerate = account.isMod && session.canModerate
-                    let lines = (account.chat?.lines ?? []).filter { account.hiddenChatters[$0.userId] == nil }
-                    ChatLog(lines: mayModerate ? lines : lines.filter { !$0.deleted }, mayModerate: mayModerate)
-                    .task(id: session.userID) { await account.openChat() }
-                    // The lines, not their count: a full ring and a mod's
-                    // delete both change what's saved and leave the count be.
-                    .onChange(of: lines) { Saved.chat = lines }
-                }
-            }
-            .viewingAsBanner()
-            .paper()
-            .navigationTitle("Chat")
+            ChatPane()
+                .viewingAsBanner()
+                .paper()
+                .navigationTitle("Chat")
+        }
+    }
+}
+
+/// The signed-in login's chat with the channel: the Chat tab, and the pane
+/// under the Watch tab's player. Nothing while signed out.
+struct ChatPane: View {
+    @Environment(Account.self) private var account
+
+    var body: some View {
+        if let session = account.session {
+            let mayModerate = account.isMod && session.canModerate
+            let lines = (account.chat?.lines ?? []).filter { account.hiddenChatters[$0.userId] == nil }
+            ChatLog(lines: mayModerate ? lines : lines.filter { !$0.deleted }, mayModerate: mayModerate)
+                .task(id: session.userID) { await account.openChat() }
+                // The lines, not their count: a full ring and a mod's
+                // delete both change what's saved and leave the count be.
+                .onChange(of: lines) { Saved.chat = lines }
         }
     }
 }
