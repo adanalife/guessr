@@ -681,17 +681,27 @@ tasks:
       - task: ios:dsyms
 
   ios:dsyms:
-    desc: Upload the last iPhone archive's dSYMs to Sentry, so a native crash names our frames (needs SENTRY_AUTH_TOKEN)
+    desc: Upload the last iPhone archive's dSYMs to Sentry, so a native crash names our frames
     dir: app
     preconditions:
-      - sh: test -n "$SENTRY_AUTH_TOKEN"
-        msg: "Set SENTRY_AUTH_TOKEN to an org token with project:releases + project:write — see app/README.md's TestFlight section"
       - sh: test -d .build/Guessr.xcarchive/dSYMs
         msg: "No archive at app/.build/Guessr.xcarchive — run ios:archive (or ios:release) first"
     cmds:
       # Apple's upload keeps the dSYMs to itself, so without this Sentry can
-      # only symbolicate the SDK's own frames.
-      - uvx sentry-cli debug-files upload --org a-dana-life --project guessr-app --include-sources .build/Guessr.xcarchive/dSYMs
+      # only symbolicate the SDK's own frames. The token is an org token
+      # (`org:ci`): SENTRY_AUTH_TOKEN when set, else the prod account's SSM.
+      - |
+        set -euo pipefail
+        token=${SENTRY_AUTH_TOKEN:-}
+        if [ -z "$token" ]; then
+          token=$(aws-vault exec adanalife-prod -- aws ssm get-parameter \
+            --name /release/sentry-org-token --with-decryption --query Parameter.Value --output text)
+        fi
+        case "$token" in
+          '{"placeholder"'*) echo "/release/sentry-org-token still holds terraform's placeholder — seed it (app/README.md's TestFlight section)" >&2; exit 1 ;;
+        esac
+        SENTRY_AUTH_TOKEN="$token" uvx sentry-cli debug-files upload --org a-dana-life --project guessr-app \
+          --include-sources .build/Guessr.xcarchive/dSYMs
 
   ios:verify:
     desc: Ask App Store Connect whether the newest release tag has an installable build (-- --wait polls until it does)
