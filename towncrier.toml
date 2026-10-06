@@ -4,11 +4,12 @@
 # know the PR number when branching, so scaffold a "+" placeholder (towncrier's
 # issue-less convention) and let CI number it:
 #
-#   task changelog:add TYPE=new          # writes changelog.d/+new.new.md
+#   task changelog:add TYPE=new          # writes changelog.d/+<branch>-<hex>.<type>.md
 #   task changelog:preview               # see the pending notes
 #   task changelog:build VERSION=0.9.0   # collate into CHANGELOG.md
 #
-# On push, changelog-number.yml renames +<slug>.<type>.md -> <PR#>.<type>.md so
+# Placeholders stay unnumbered on main. At release, scripts/number-fragments.sh
+# renames each to <PR#>.<type>.md from the squash commit that added it, so
 # each entry links to its PR.
 #
 # WRITE THESE FOR PLAYERS, NOT FOR US. The About panel links here, so the

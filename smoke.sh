@@ -19,16 +19,15 @@ set -euo pipefail
 BASE="${1:?usage: smoke.sh <base-url>}"
 
 # Every request goes through here, and it retries only while the answer is the
-# *site* rather than a Function -- a body starting `<` is the game's HTML, which
+# *site* rather than the Worker -- a body starting `<` is the game's HTML, which
 # is what Pages serves for a path no Worker claims. That is the propagation
 # signature: a deployment serves static assets from the edge before its Worker
 # routing is live, so a request lands on the site and 404s. Retrying a
-# not-the-Function answer costs a couple of seconds; retrying a real JSON answer
+# not-the-Worker answer costs a couple of seconds; retrying a real JSON answer
 # would hide exactly the failures this exists to catch, so it never does.
 #
-# A redirect returns immediately, HTML body and all: a 3xx is Access answering
-# at the edge before Pages is asked, and its body is boilerplate that would
-# otherwise read as the propagation signature and burn every retry.
+# A redirect returns immediately, HTML body and all: its body is boilerplate
+# that would otherwise read as the propagation signature and burn every retry.
 call() {
   local out status
   for _ in $(seq 1 20); do
@@ -85,12 +84,11 @@ else
   echo "note: no local web/version.json, so nothing pins which build answers"
 fi
 
-# The page, which every assertion in this script was silent about until now. They
-# all read endpoints, and an endpoint answers perfectly while the page in front
-# of it is dead: the game lives in an inline module, so a named import the
-# deployed module does not export is a load-time SyntaxError and nothing in the
-# script runs -- markup and no game, on every browser at once. That is how a
-# blank game shipped past four green PR checks.
+# The page. Every other assertion here reads an endpoint, and an endpoint answers
+# perfectly while the page in front of it is dead: the game lives in an inline
+# module, so a named import the deployed module does not export is a load-time
+# SyntaxError and nothing in the script runs -- markup and no game, on every
+# browser at once.
 #
 # deployed_imports.mjs fetches the served index.html and walks its module graph
 # out of this deployment. test_page.mjs asks the same of the working tree, which
@@ -166,6 +164,29 @@ check() { # name, expected status, actual status, body
   echo "ok: $1 -> $3"
 }
 
+# name, expected status, then the request: a command that prints call()'s shape.
+# Leaves the last answer in $out for the caller to read further.
+#
+# Retried on a wrong status, which the other waits in this script never do, because
+# of what the version pin cannot see. version.json is a static asset and the
+# handlers are Functions, and one deployment's two halves become visible a few
+# seconds apart, so a smoke can match the marker and still reach the previous
+# build's handlers. Six tries 5 s apart outlast that cutover (measured near 47 s), and a behavior
+# that is really wrong still goes red, just ~25 s later, with each retry logged.
+expect() {
+  local name=$1 want=$2 attempt
+  shift 2
+  for attempt in 1 2 3 4 5 6; do
+    out=$("$@")
+    [ "$(tail -1 <<<"$out")" = "$want" ] && break
+    if [ "$attempt" -lt 6 ]; then
+      echo "retry: $name got HTTP $(tail -1 <<<"$out"), not $want -- waiting 5s for the Functions to catch up"
+      sleep 5
+    fi
+  done
+  check "$name" "$want" "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
+}
+
 post() { call -X POST "$BASE/api/score" \
   -H 'content-type: application/json' -d "$1"; }
 
@@ -175,7 +196,7 @@ post() { call -X POST "$BASE/api/score" \
 image=$(printf '%s' "$day" | jq -r '.rounds[0].image')
 
 # The media, which is the half no deploy carries: each clip is streamed out of R2
-# by functions/clips/[[path]].js at request time, so a schedule naming clips that
+# by the Pages /clips/ route at request time, so a schedule naming clips that
 # were never pushed produces a game of black panes even though the deploy itself
 # had nothing to get wrong.
 #
@@ -282,162 +303,67 @@ echo "ok: round media is HUD-cropped -> ${dim}"
 # A practice guess: scored, never recorded, and only at a round practice deals --
 # one from a day that is over. Fails if the answers table has never heard of the
 # round set that just deployed.
-out=$(call "$BASE/api/day?practice")
-check "practice draws a game" 200 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
+expect "practice draws a game" 200 call "$BASE/api/day?practice"
 drawn=$(head -1 <<<"$out" | jq -r '.rounds[0].image')
-out=$(post "{\"image\":\"$drawn\",\"lat\":40,\"lng\":-100}")
-check "practice guess scores" 200 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
+expect "practice guess scores" 200 post "{\"image\":\"$drawn\",\"lat\":40,\"lng\":-100}"
 grep -q '"recorded":false' <<<"$out" || { echo "::error::practice guess was recorded"; exit 1; }
 
 # Today's round with no date: the answer would come back before any daily guess
 # was committed, so undated is refused for any round whose day is not over.
-out=$(post "{\"image\":\"$image\",\"lat\":40,\"lng\":-100}")
-check "an undated guess at today's round is refused" 403 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
+expect "an undated guess at today's round is refused" 403 post "{\"image\":\"$image\",\"lat\":40,\"lng\":-100}"
 
 # A round nobody has answers for.
-out=$(post '{"image":"clips/not-a-real-round.mp4","lat":40,"lng":-100}')
-check "unknown round is refused" 404 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
+expect "unknown round is refused" 404 post '{"image":"clips/not-a-real-round.mp4","lat":40,"lng":-100}'
 
 # A date far enough out that no clock skew makes it open, so the window check is
 # what refuses it.
-out=$(post "{\"image\":\"$image\",\"lat\":40,\"lng\":-100,\"date\":\"2099-01-01\",\"player_id\":\"ci-smoke\"}")
-check "a closed date is refused" 403 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
+expect "a closed date is refused" 403 post "{\"image\":\"$image\",\"lat\":40,\"lng\":-100,\"date\":\"2099-01-01\",\"player_id\":\"ci-smoke\"}"
 
 # The one property /api/day adds. The server is the only thing that knows next
 # month's rounds, so refusing to say is the whole of the protection.
-out=$(call "$BASE/api/day?date=2099-01-01")
-check "an unopened date is refused" 403 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
+expect "an unopened date is refused" 403 call "$BASE/api/day?date=2099-01-01"
 
 # And the admin surface, which is the same date served the opposite way --
 # answers attached, window ignored. This script carries no credential of any
 # kind, so it is exactly the anonymous visitor the login exists to turn away, and
 # both the page and the endpoint under it have to say no.
 #
-# Two gates can stand here, depending on which runtime answers /admin/. The JS
-# Functions sit behind Cloudflare Access: reachable through the Access-fronted
-# pages.dev hostname and nowhere else, with functions/admin/_middleware.js
-# checking the Access JWT. The Python Worker, which answers when the project
-# carries an `API` service binding, checks a Twitch bearer token instead and
-# answers on any hostname. Either way, a hostname answering anything but a
-# refusal is the leak.
-#
-# Four answers count as a refusal, and each one names a different state.
-# 302 is Access itself, standing in front of the deployment and turning the
-# visitor toward its login before Pages is ever asked -- the resting state on a
-# hostname the Access application fronts. Only a redirect into the team's login
-# counts: any other destination means the surface answered with something, and
-# that something is the leak. 401 is the Worker refusing a request that carries
-# no bearer token. 403 is the Functions middleware refusing a request that
-# reached it without an Access token -- the custom domains, which Access cannot
-# front -- or the Worker refusing a signed-in caller of the wrong tier.
-# 503 is the Functions middleware finding no Access application to check a login
-# against, which is the state every tier sits in until the values are typed onto
-# its Pages project. That is a refusal, so the surface is not leaking -- but on a
-# tier with an operator behind it, it is also the page not working for the
-# operator, so which tier this is decides whether it passes.
+# The Worker gates everything under /admin/ on a Twitch bearer token and answers
+# on any hostname alike: 401 is a request carrying no token, 403 a signed-in
+# caller of the wrong tier. Anything else is the leak -- a 200 is tomorrow's
+# answers, and a 5xx is the forwarder finding no `API` binding on the Pages
+# project, which is set by hand in the dashboard and is the one thing a deploy
+# cannot carry with it.
 #
 # 2099-01-01 has no schedule, so nothing here reads a real day to find out.
 #
-# What this does not cover is `env.ASSETS`: the tier read fails closed into the
-# same 403 as being signed out, so a version.json the Functions cannot see is
-# invisible from out here. test_admin_day.mjs carries that case instead.
-
-# Which tier this is, as the workflow that deployed it declared -- the same
-# version.json the pin above already matched to the build under test, and the
-# same file functions/admin/_tier.js reads to decide the gate. Empty for a
-# deployment too old to stamp one, which reads as the tolerant side.
-tier=$(curl -s "$BASE/version.json" | jq -r '.tier // empty' 2>/dev/null || true)
-
-for path in "/admin/" "/admin/day?date=2099-01-01"; do
-  out=$(call "$BASE$path")
-  status=$(tail -1 <<<"$out")
-  case "$status" in
-    401|403) echo "ok: $path refuses an unauthenticated request -> $status" ;;
-    # Tolerated only where no Access application is meant to exist. A preview
-    # alias is deployed to a project whose bindings nobody sets per branch, so
-    # holding it to a login would turn every PR red; staging and production are
-    # the two Dana actually signs in to, and there a 503 means the login is
-    # broken for him as surely as it is closed to a stranger.
-    503)
-      case "$tier" in
-        staging|production)
-          echo "::error::$BASE$path answered 503 on the $tier tier, which is its"
-          echo "::error::middleware saying it has no Access application to check a"
-          echo "::error::login against. Nobody can reach the admin surface here,"
-          echo "::error::Dana included. ACCESS_TEAM_DOMAIN and ACCESS_AUD are typed"
-          echo "::error::by hand onto the Pages project -- terraform cannot write"
-          echo "::error::deployment_configs -- so a value left blank, dropped by a"
-          echo "::error::rollback, or mistyped reads exactly like this. Check them"
-          echo "::error::against the Access application in the Cloudflare dashboard."
-          head -1 <<<"$out"
-          exit 1 ;;
-        *) echo "ok: $path is closed -> 503, no Access application configured here" ;;
-      esac ;;
-    302)
-      login=$(curl -s -o /dev/null -w '%{redirect_url}' "$BASE$path")
-      if [[ "$login" == https://*.cloudflareaccess.com/cdn-cgi/access/login/* ]]; then
-        echo "ok: $path sends an unauthenticated request to the Access login -> 302"
-      else
-        echo "::error::$BASE$path answered 302 toward $login, which is not an"
-        echo "::error::Access login. A redirect is only a refusal when Access issued it."
-        exit 1
-      fi ;;
-    *)   echo "::error::$BASE$path answered $status to a request carrying no Access"
-         echo "::error::token. Anyone with the URL can read tomorrow's answers."
-         head -1 <<<"$out"
-         exit 1 ;;
-  esac
-done
-
-# And the same two paths on the tier's custom domain, which is the only vantage
-# point the login's own configuration is visible from. On a pages.dev hostname
-# Access answers ahead of the deployment, so the 302 above is issued whatever the
-# middleware would have said -- ACCESS_TEAM_DOMAIN can name a host that does not
-# exist and every check still passes. That is 2026-08-07, where a trailing dot on
-# production's binding shut the review page to its operator for a day, green all
-# the way. The custom domains resolve through Route53 and Access cannot front
-# them, so the middleware is what answers, and it distinguishes the two: 403 is
-# it refusing an anonymous request with a configuration it can check a login
-# against, 503 is it unable to run the check at all and naming the value that is
-# wrong. Where the Python Worker answers instead, its refusal is a 401.
-#
-# Keyed off the hostname being smoked, because only these two have a custom
-# domain to probe -- a preview is a per-branch alias on the staging project and
-# falls through to no second pass. 302 is tolerated for the same reason as above,
-# should the zone ever move and Access come to front these too.
+# Both hostnames, where the tier has two: the pages.dev one and the custom
+# domain, which resolves through Route53. Nothing fronts either, so the refusal
+# is the Worker's to make on both. A preview is a per-branch alias on the
+# staging project and has only the one.
 case "$BASE" in
-  https://adanalife-guessr.pages.dev) custom=https://guessr.dana.lol ;;
-  https://adanalife-guessr-staging.pages.dev) custom=https://stage.guessr.dana.lol ;;
-  *) custom="" ;;
+  https://adanalife-guessr.pages.dev) hosts="$BASE https://guessr.dana.lol" ;;
+  https://adanalife-guessr-staging.pages.dev) hosts="$BASE https://stage.guessr.dana.lol" ;;
+  *) hosts="$BASE" ;;
 esac
-if [ -n "$custom" ]; then
+for host in $hosts; do
   for path in "/admin/" "/admin/day?date=2099-01-01"; do
-    out=$(call "$custom$path")
+    out=$(call "$host$path")
     status=$(tail -1 <<<"$out")
     case "$status" in
-      401|403|302) echo "ok: $custom$path refuses an unauthenticated request -> $status" ;;
-      503) echo "::error::$custom$path answered 503, so the middleware could not run"
-           echo "::error::the login check at all -- and this is the only hostname that"
-           echo "::error::would say so, since Access answers the pages.dev one first."
-           echo "::error::ACCESS_TEAM_DOMAIN and ACCESS_AUD are typed by hand onto each"
-           echo "::error::Pages project (terraform cannot write deployment_configs), so"
-           echo "::error::a blank, mistyped or dot-terminated value reads exactly like"
-           echo "::error::this, and nobody can reach /admin/ until it is fixed:"
-           head -1 <<<"$out"
-           exit 1 ;;
-      *)   echo "::error::$custom$path answered $status to a request carrying no Access"
-           echo "::error::token. Nothing fronts this hostname, so the refusal was the"
-           echo "::error::middleware's to make and it did not make one."
-           head -1 <<<"$out"
-           exit 1 ;;
+      401|403) echo "ok: $host$path refuses an unauthenticated request -> $status" ;;
+      *) echo "::error::$host$path answered $status to a request carrying no token."
+         echo "::error::Anyone with the URL can read tomorrow's answers."
+         head -1 <<<"$out"
+         exit 1 ;;
     esac
   done
-fi
+done
 
 # Both boards read. A 500 here is an unapplied migration.
 #
 # The shape assertion is not belt-and-braces: Pages serves the static site for a
-# path no Function claims, so a missing endpoint answers 200 with the game's HTML
+# path no Worker claims, so a missing endpoint answers 200 with the game's HTML
 # and a status-only check sails past it.
 for board in daily monthly; do
   out=$(call "$BASE/api/leaderboard?board=$board")

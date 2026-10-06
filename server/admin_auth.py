@@ -6,7 +6,8 @@ guessr asks Twitch about it. Nothing is stored here: no principals file, no
 session, no secret.
 
 - `/oauth2/validate` says whose token it is and which app minted it.
-- Owner is one Twitch user id. A mod is anyone Helix lists as moderating the
+- Owner is a Twitch user id, one per account that runs this tier (stage
+  answers to the staging account as well). A mod is anyone Helix lists as moderating the
   channel, asked on the caller's own token (scope user:read:moderated_channels),
   so guessr never needs the broadcaster's credential to know who the mods are.
 
@@ -33,9 +34,28 @@ class Admins:
     console's). Without it any app Dana ever signed into could replay his
     token here: a token proves who, not where it was meant to be spent."""
 
-    owner_id: str
+    owner_ids: frozenset[str]
     channel_id: str
     client_ids: frozenset[str]
+
+
+def admins(env) -> Admins:
+    """Admins from TWITCH_OWNER_ID, TWITCH_CHANNEL_ID and TWITCH_CLIENT_IDS
+    (the ids comma-separated), read as attributes of `env`: the Worker's bindings, or
+    the process environment off Cloudflare."""
+
+    def var(name):
+        # A secret never set reads as absent, and absent is no admin.
+        return str(getattr(env, name, None) or "").strip()
+
+    def ids(name):
+        return frozenset(c.strip() for c in var(name).split(",") if c.strip())
+
+    return Admins(
+        owner_ids=ids("TWITCH_OWNER_ID"),
+        channel_id=var("TWITCH_CHANNEL_ID"),
+        client_ids=ids("TWITCH_CLIENT_IDS"),
+    )
 
 
 @dataclass(frozen=True)
@@ -74,7 +94,7 @@ async def caller(authorization: str | None, fetch, admins: Admins) -> Caller | N
     user_id, login = str(who.get("user_id") or ""), str(who.get("login") or "")
     if not user_id:
         return None
-    if user_id == admins.owner_id:
+    if user_id in admins.owner_ids:
         return Caller("owner", user_id, login)
 
     if MOD_SCOPE not in (who.get("scopes") or []):

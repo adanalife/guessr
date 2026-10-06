@@ -28,9 +28,17 @@ vars:
   # because a regenerated set diverges the moment one tier has it and the other
   # doesn't.
   BUCKET: 'adanalife-guessr-clips'
-  # The local D1 wrangler keeps under .wrangler/, migrated then seeded from the
-  # two generated files. Not the deployed databases — those are targeted by name.
-  LOCAL_DB: 'guessr-answers-local'
+
+  # Where xcodebuild keeps the resolved packages (clones and binary artifacts):
+  # one copy per machine rather than one per worktree. Build products stay
+  # per-worktree under .build/DerivedData; only the packages are shared. The
+  # largest is sentry-cocoa's 2.9 GB xcframework, so a per-worktree copy fills
+  # a disk, and a worktree that has never built finds the packages already
+  # present, so its first build needs no network (the tool sandbox has none).
+  SPM_CLONES: '$HOME/Library/Caches/adanalife/SourcePackages/guessr'
+  # The sqlite file `dev` serves from, migrated then seeded from the two
+  # generated files. Gitignored, and rebuilt on every run.
+  LOCAL_DB: 'answers.db'
 
 tasks:
   default:
@@ -59,7 +67,7 @@ tasks:
 
   # The media half of a round set. web/clips/ is gitignored -- a set is ~150 MB
   # and this repo is public -- so the bucket is where the served game reads it
-  # from: functions/clips/[[path]].js streams each clip out of R2 at request
+  # from: the Pages /clips/ route streams each clip out of R2 at request
   # time. No deploy is involved, which is what lets a round set change without
   # one. See clips.sh for why it is one object per clip rather than a tarball.
   #
@@ -119,26 +127,24 @@ tasks:
       - python3 -m http.server -d web {{.PORT}}
 
   dev:
-    desc: Run the game with scoring, against a local D1 seeded from answers.sql
-    # Sequenced through cmds rather than listed as deps, because deps run in
-    # parallel and these two write the same SQLite file: concurrently they take
-    # it out with SQLITE_BUSY or SQLITE_READONLY, and the runtime then refuses to
-    # start on a database that reads as broken rather than unseeded. Ordinarily
-    # survivable only because a `.wrangler/` that already has the tables makes
-    # both a no-op -- so it bites hardest on a fresh checkout.
+    desc: Run the game with scoring, under uvicorn against a sqlite file seeded from answers.sql and rounds.sql
+    # A fresh database every run: the migrations replay from scratch and the
+    # seed SQL upserts, so the cheapest way to pick up a regenerated set is to
+    # rebuild from the two files rather than reconcile. Answers before rounds --
+    # the schedule's foreign keys point at the answers.
+    #
+    # The clips come from web/clips/, which `task rounds` writes and `clips:pull`
+    # fetches. Nobody is admitted to /admin/ unless TWITCH_OWNER_ID,
+    # TWITCH_CHANNEL_ID and TWITCH_CLIENT_IDS are in the environment
+    # (server/local.py's docstring).
     cmds:
-      - task: schema:local:apply
-      - task: answers:local:push
-      - task: rounds:local:push
-      # A tier for the admin surface to read, and it gates that surface
-      # twice: the day preview treats "no idea" as production, and the Access
-      # login treats it as "sign in", which nothing can do against localhost. So
-      # without this the one surface where a round set can be changed and looked
-      # at in the same minute locks itself out. Gitignored, like every other copy
-      # of this file, and it fills the About panel's empty version line as a side
-      # effect.
+      - rm -f {{.LOCAL_DB}}
+      - uv run --project api python -c "from server.db import Sqlite; db = Sqlite('{{.LOCAL_DB}}').migrate(); [db.conn.executescript(open(f).read()) for f in ('answers.sql', 'rounds.sql')]"
+      # A tier for the page to read: it gates the Place-random and Reset buttons,
+      # which a local game wants. Gitignored, like every other copy of this
+      # file, and it fills the About panel's empty version line as a side effect.
       - printf '{"label":"local","tier":"local"}\n' > web/version.json
-      - npx wrangler pages dev web/ --port {{.PORT}} --d1 ANSWERS={{.LOCAL_DB}}
+      - GUESSR_DB={{.LOCAL_DB}} GUESSR_CLIPS=web/clips PORT={{.PORT}} uv run --project api python -m server.local
 
   # What the Python Worker ships, staged apart from the repo (the script says
   # why). staging.yml runs the same script before its deploy.
@@ -146,6 +152,13 @@ tasks:
     desc: Stage server/ and the alias wordlist into api/bundle/ for the Python Worker
     cmds:
       - ./scripts/api-bundle.sh
+
+  # The whole site off Cloudflare, one process: server/local.py's docstring
+  # names the env it reads (sqlite file, clip directory, admin ids, host/port).
+  api:serve:
+    desc: Serve guessr under uvicorn from a sqlite file and a clip directory (no Workers runtime)
+    cmds:
+      - uv run --project api python -m server.local
 
   # The Python Worker under workerd, against a local D1 and R2 keyed like the
   # staging ones (`npx wrangler d1 migrations apply adanalife-guessr-answers-staging
@@ -159,20 +172,6 @@ tasks:
     cmds:
       - uv run pywrangler dev {{.CLI_ARGS}}
 
-  answers:local:push:
-    desc: Seed answers.sql into the local D1 that `dev` binds
-    cmds:
-      - npx wrangler d1 execute {{.LOCAL_DB}} --local --config wrangler.d1.jsonc --file answers.sql --yes
-
-  # Without this a local `dev` serves a game with no rounds in it: /api/day reads
-  # the schedule, and an unseeded database has none. It is the one seed step the
-  # page cannot start without, where a missing answers push only shows up on the
-  # first guess.
-  rounds:local:push:
-    desc: Seed rounds.sql (the pool and the schedule) into the local D1 that `dev` binds
-    cmds:
-      - npx wrangler d1 execute {{.LOCAL_DB}} --local --config wrangler.d1.jsonc --file rounds.sql --yes
-
   # The tables, as opposed to the rows a round set fills in. Numbered migrations
   # under migrations/, applied in order and recorded in each database's own
   # `d1_migrations` ledger — so "which tier is at which version" is a question
@@ -185,11 +184,6 @@ tasks:
   #
   # `apply` auto-confirms its prompt when stdout is not a terminal, so these are
   # safe from a script; run by hand you get the confirmation.
-  schema:local:apply:
-    desc: Apply pending migrations to the local D1 that `dev` binds
-    cmds:
-      - npx wrangler d1 migrations apply {{.LOCAL_DB}} --local --config wrangler.d1.jsonc
-
   # An apply is not atomic across migrations: each one is recorded in the
   # `d1_migrations` ledger as it lands, so a remote apply that dies partway (D1's
   # `storage operation exceeded timeout ... [code: 7429]`, which has followed a
@@ -467,12 +461,20 @@ tasks:
   # The About panel links to that file, so the entries are written for players;
   # towncrier.toml says what that means.
   changelog:add:
-    desc: 'Scaffold a changelog fragment (TYPE=new, optional SLUG=my-thing; CI numbers it on push). Pass PR=123 to name it directly. Types: new changed fixed behind summary'
+    desc: 'Scaffold a changelog fragment (TYPE=new, optional SLUG=my-thing; the release numbers it). Types: new changed fixed behind summary'
     vars:
       TYPE: '{{.TYPE | default "new"}}'
-      # No PR yet? Drop a "+" placeholder (towncrier's issue-less convention) —
-      # changelog-number.yml renames it to <PR#>.<type>.md once the PR is open.
-      NAME: '{{if .PR}}{{.PR}}{{else}}+{{.SLUG | default .TYPE}}{{end}}'
+      # The branch is the fallback slug because it is unique per PR. Defaulting
+      # to the type instead gives every no-SLUG entry the same +<type>.<type>.md.
+      BRANCH:
+        sh: git rev-parse --abbrev-ref HEAD | tr -c '[:alnum:]' '-' | sed 's/-\{1,\}/-/g; s/^-//; s/-$//'
+      # Placeholders wait on main until a release numbers them, so a slug has to
+      # stay unique across every open PR and every unreleased one — a reused
+      # SLUG or branch name would otherwise land on the same file. Four hex
+      # digits make that a 1-in-65536 accident rather than a habit.
+      SUFFIX:
+        sh: openssl rand -hex 2
+      NAME: '+{{.SLUG | default .BRANCH}}-{{.SUFFIX}}'
     cmds:
       - uvx towncrier create --config towncrier.toml {{.NAME}}.{{.TYPE}}.md
 
@@ -486,6 +488,7 @@ tasks:
     requires:
       vars: [VERSION]
     cmds:
+      - scripts/number-fragments.sh
       - uvx towncrier build --yes --config towncrier.toml --version {{trimPrefix "v" .VERSION}}
 
   # Vendored third-party frontend assets (Leaflet, the et-book fonts). vendor.txt
@@ -527,24 +530,14 @@ tasks:
       # uv, for the one dependency the server tests need: Starlette.
       - for f in test_*.py; do echo "== $f"; uv run --project api python "$f" || exit 1; done
 
-  # The tier between `test` and `smoke`: a real D1 and a real workerd, both
-  # disposable. `test` proves handler logic against a stub of the binding;
-  # `smoke` proves a deployed tier; this proves the two ends meet -- migrations
-  # apply, Pages routes, the bindings are wired, and every route answers the
-  # HTTP contract in contract.py. It writes rounds.sql and answers.sql, and
-  # refuses to run if those hold a real set.
+  # The tier between `test` and `smoke`: the whole app under uvicorn over a
+  # throwaway sqlite file and clip directory, with Twitch stubbed at the fetch
+  # seam, held to every route's HTTP contract in contract.py. `test` proves
+  # handler logic; `smoke` proves a deployed tier; this proves the two ends meet
+  # -- migrations apply, routes resolve, every answer has the promised shape.
+  # Touches nothing in the repo; its world is a temp dir.
   test:integration:
-    desc: Assert every route's HTTP contract against a throwaway local D1 and R2
-      (no corpus needed)
-    cmds:
-      - ./integration.sh
-
-  # The same contract against the other runtime: the Python app under uvicorn,
-  # over a sqlite file and a clip directory, with Twitch stubbed at the fetch
-  # seam. Both passing is what keeps guessr portable off Cloudflare. Touches
-  # nothing in the repo; its world is a temp dir.
-  test:integration:py:
-    desc: Assert the same HTTP contract against the Python app under uvicorn
+    desc: Assert every route's HTTP contract against the app under uvicorn (no corpus needed)
     cmds:
       - uv run --project api python integration_uvicorn.py
 
@@ -559,42 +552,51 @@ tasks:
   # the web game and the app, so a TestFlight build and a GitHub release mean
   # the same thing. Signing reads DEVELOPMENT_TEAM and the App Store Connect
   # API key (ASC_KEY_PATH, ASC_KEY_ID, ASC_ISSUER_ID) from the environment.
-  app:gen:
+  ios:gen:
     desc: Write app/Guessr.xcodeproj from app/project.yml (export DEVELOPMENT_TEAM=<id> for signing)
     dir: app
     cmds:
       - xcodegen generate --spec project.yml
+      # The generated project is gitignored, so its resolved package versions
+      # can't be committed in place. The checked-in app/Package.resolved is the
+      # source of truth; seeding it here keeps every checkout on the same
+      # revisions. To move a pin, edit project.yml, build, then copy it back:
+      #   cp Guessr.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved Package.resolved
+      - mkdir -p Guessr.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+      - cp Package.resolved Guessr.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
   # SIM is the newest available iPhone simulator unless overridden
   # (SIM='iPhone 17 Pro'). None listed means the iOS platform isn't
   # downloaded: `xcodebuild -downloadPlatform iOS`.
-  app:build:
+  ios:build:
     desc: Build the app for the simulator (needs Xcode)
     dir: app
-    deps: [app:gen]
+    deps: [ios:gen]
     vars:
       SIM:
         sh: xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name|startswith("iPhone")) | .name] | last // empty'
+      # Build settings for xcodebuild's command line, e.g. from ios:screenshots.
+      SETTINGS: '{{.SETTINGS | default ""}}'
     preconditions:
       - sh: test -n "{{.SIM}}"
         msg: "No iPhone simulator available — run: xcodebuild -downloadPlatform iOS"
     cmds:
-      - xcodebuild -scheme Guessr -destination 'platform=iOS Simulator,name={{.SIM}}' -derivedDataPath .build/DerivedData -quiet build
+      - xcodebuild -scheme Guessr -destination 'platform=iOS Simulator,name={{.SIM}}' -derivedDataPath .build/DerivedData -clonedSourcePackagesDirPath {{.SPM_CLONES}} -quiet build {{.SETTINGS}}
 
   # Signs for distribution (the Release config in app/project.yml), so it needs
   # the "Apple Distribution" certificate in the login keychain.
-  app:icon:
+  ios:icon:
     desc: Re-render the app icon's light/dark/tinted variants from web/favicon.svg
     cmds:
       - ./scripts/make-app-icon.sh
 
-  app:archive:
+  ios:archive:
     desc: Archive a signed iPhone build (needs DEVELOPMENT_TEAM)
     dir: app
-    deps: [app:gen]
+    deps: [ios:gen]
     vars:
       # The newest release tag. Off a tag this is the last release, so only
-      # app:release promises the build is that version.
+      # ios:release promises the build is that version.
       TAG:
         sh: git describe --tags --abbrev=0 --match 'v*'
       # Monotonic and unique per commit, which is all App Store Connect asks
@@ -610,21 +612,45 @@ tasks:
       # download the distribution profile the project names.
       - |
         xcodebuild -scheme Guessr -destination 'generic/platform=iOS' \
-          -archivePath .build/Guessr.xcarchive -allowProvisioningUpdates \
+          -archivePath .build/Guessr.xcarchive -clonedSourcePackagesDirPath {{.SPM_CLONES}} -allowProvisioningUpdates \
           ${ASC_KEY_PATH:+-authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"} \
           MARKETING_VERSION={{trimPrefix "v" .TAG}} CURRENT_PROJECT_VERSION={{.BUILD}} -quiet archive
       - 'echo "archived {{trimPrefix "v" .TAG}} ({{.BUILD}}) to app/.build/Guessr.xcarchive"'
 
-  # Uploads whatever app:archive last produced rather than archiving itself: an
+  # Uploads whatever ios:archive last produced rather than archiving itself: an
   # upload can fail for reasons the build has no part in (no App Store Connect
   # app record, an expired session, the network), and a retry should cost
   # seconds, not a fresh signed archive.
-  app:upload:
+  ios:upload:
     desc: Upload the last iPhone archive to App Store Connect for TestFlight
+    cmds:
+      - task: ios:export
+        vars: { DESTINATION: upload }
+      - 'echo "uploaded — the build appears in TestFlight once Apple finishes processing (usually 5-15 min)"'
+
+  # The same export with the IPA kept on disk instead of sent: it signs and
+  # checks the archive the way App Store Connect would (a missing icon, a
+  # missing CFBundleIconName), so a refusal costs a minute here rather than an
+  # upload round trip. Leaves the IPA in app/.build/export.
+  ios:validate:
+    desc: Run the App Store export checks on the last iPhone archive without uploading
+    cmds:
+      - task: ios:export
+        vars: { DESTINATION: export }
+
+  ios:export:
+    internal: true
     dir: app
+    requires:
+      vars: [DESTINATION]
     preconditions:
       - sh: test -d .build/Guessr.xcarchive
-        msg: "No archive at app/.build/Guessr.xcarchive — run: task app:archive"
+        msg: "No archive at app/.build/Guessr.xcarchive — run: task ios:archive"
+      # Read off the archive, not the xcconfig: an empty client id builds fine
+      # and ships an app with the Twitch login and the Chat tab hidden, which is
+      # right for a fork and never for an upload to this app's TestFlight.
+      - sh: test -n "$(plutil -extract GuessrTwitchClientID raw .build/Guessr.xcarchive/Products/Applications/Guessr.app/Info.plist 2>/dev/null)"
+        msg: "The archive has no GUESSR_TWITCH_CLIENT_ID, so its Twitch login is off — set it in app/Local.xcconfig (see app/README.md) and re-archive"
     cmds:
       # Written per run rather than committed, so the team id stays out of the
       # repo and the plist can never drift from DEVELOPMENT_TEAM.
@@ -635,7 +661,7 @@ tasks:
         <plist version="1.0">
         <dict>
           <key>method</key><string>app-store-connect</string>
-          <key>destination</key><string>upload</string>
+          <key>destination</key><string>{{.DESTINATION}}</string>
           <key>teamID</key><string>$DEVELOPMENT_TEAM</string>
           <key>signingStyle</key><string>automatic</string>
           <key>uploadSymbols</key><true/>
@@ -654,37 +680,70 @@ tasks:
           -exportOptionsPlist .build/ExportOptions.plist \
           -allowProvisioningUpdates \
           ${ASC_KEY_PATH:+-authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"}
-      - 'echo "uploaded — the build appears in TestFlight once Apple finishes processing (usually 5-15 min)"'
 
   # The two above, behind the rule that keeps TestFlight's versions honest. The
   # build number is the commit count, so archiving off an untagged commit ships
   # a second "1.12.1" that isn't 1.12.1, and TestFlight lists the two side by
   # side with nothing to tell them apart. Building only at a tag is what makes
   # the version in TestFlight mean the same thing as the version on GitHub.
-  app:release:
-    desc: Cut a TestFlight build from the release tag at HEAD (archive + upload, then wait for Apple)
+  ios:release:
+    desc: Cut a TestFlight build from the release tag at HEAD (archive, validate, upload, then wait for Apple)
     preconditions:
       - sh: git describe --exact-match --match 'v*' --tags HEAD >/dev/null 2>&1
         msg: >-
           HEAD is not a release tag. The app's version is the repo's
           release-please tag, so build from one (fetch the tags, then check out
-          vX.Y.Z). For a deliberate off-tag build, run app:archive and
-          app:upload.
+          vX.Y.Z). For a deliberate off-tag build, run ios:archive and
+          ios:upload.
       # The archive is built from the working tree, not from the tag object, so
       # a dirty tree at a tag uploads something that is not what the tag names.
       - sh: test -z "$(git status --porcelain)"
         msg: "Working tree is dirty — the archive would not be the tagged commit"
     cmds:
-      - task: app:archive
-      - task: app:upload
+      - task: ios:archive
+      - task: ios:validate
+      - task: ios:upload
       # Apple takes 5-15 minutes to process an upload; this ends the release
       # with the verdict instead of a reminder to come back and check.
       - ./scripts/asc-builds.py --wait
 
-  app:verify:
+  ios:verify:
     desc: Ask App Store Connect whether the newest release tag has an installable build (-- --wait polls until it does)
     cmds:
       - ./scripts/asc-builds.py {{.CLI_ARGS}}
+
+  ios:screenshots:
+    desc: Build for the simulator and screenshot the store's screens on an iPhone and an iPad into app/.build/screenshots
+    cmds:
+      # The store build's compilation conditions, plus DEBUG for the launch
+      # arguments the script drives it with: no TWITCH, so no Twitch section
+      # in Settings (see Guessr.xcconfig).
+      - task: ios:build
+        vars:
+          SETTINGS: SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG
+      - ./scripts/ios-screenshots.sh
+
+  asc:listing:
+    desc: Write app/store.toml into App Store Connect's listing -- text, category, age rating, build, review details, screenshots (-- --apply to write; plans by default)
+    cmds:
+      - ./scripts/asc-listing.py {{.CLI_ARGS}}
+
+  gamecenter:images:
+    desc: Render the Game Center achievement images into app/.build/achievements for gamecenter:config to upload
+    cmds:
+      - ./scripts/make-achievement-images.sh
+
+  gamecenter:config:
+    desc: Create the Game Center leaderboards and achievements the server submits to in App Store Connect (-- --apply to write; plans by default)
+    cmds:
+      - ./scripts/gamecenter-config.py {{.CLI_ARGS}}
+
+  # The same name as tempomat's, which fans out to iPhone, Apple TV and Mac;
+  # the app here is one iPhone-and-iPad build, so it is ios:release.
+  release:all:
+    desc: Cut TestFlight builds for every platform from the release tag at HEAD
+    cmds:
+      - task: ios:release
 
   # "Did 1.12.1 go out?" has three answers — the GitHub release, the production
   # deploy and the TestFlight build — so the honest answer reads all three.

@@ -1,0 +1,107 @@
+# What the App Store listing says. `task asc:listing` reads App Store Connect
+# back and plans the difference; `-- --apply` writes it. Contact details, the
+# demo account and anything else that must not be public go in
+# app/store.local.toml (gitignored), with the same tables; it is merged over
+# this file.
+
+# The release tag the store version is built from; the TestFlight build for
+# that tag is what the version is attached to.
+version = "1.27.0"
+
+[app]
+# "Guessr" alone belongs to another developer's app; the home-screen
+# name is CFBundleDisplayName in project.yml.
+name = "A Dana Life: Guessr"
+# At most 30 characters.
+subtitle = "Where was this clip filmed?"
+privacy_policy_url = "https://www.dana.lol/privacy/"
+# App Store Connect's category ids.
+primary_category = "GAMES"
+primary_subcategory_one = "GAMES_TRIVIA"
+primary_subcategory_two = "GAMES_PUZZLE"
+secondary_category = "TRAVEL"
+
+[listing]
+release_type = "MANUAL"
+# The year the rights were obtained, then who holds them; shown on the store
+# page, and required before a version can go to review.
+copyright = "2026 A Dana Life, LLC"
+support_url = "https://www.dana.lol/contact/"
+marketing_url = "https://guessr.dana.lol"
+# At most 100 characters, comma-separated, no spaces after commas.
+keywords = "dashcam,geography,guess,map,daily,puzzle,road trip,travel,geoguess,trivia"
+promotional_text = ""
+description = """
+Five dashcam clips a day from one long road trip across the United States. Watch each clip, drop a pin on the map where you think it was filmed, and score up to 5,000 points for a guess on the spot.
+
+The same five rounds for everyone, every day, so the leaderboard means something. Play against the regulars of the A Dana Life livestream, or just against yesterday's you.
+
+• A new day of rounds every midnight UTC
+• Points by distance, and the answer shown on the map after every guess
+• Game Center leaderboards for lifetime and this week, with eight achievements
+• A daily reminder and an icon badge while today's rounds are waiting
+• Link your phone to the web game at guessr.dana.lol and keep one name and one score
+• No account, no email, no ads. A random name is picked for you.
+• In English, French, Spanish, Russian and Czech
+
+Footage is the developer's own, recorded while living on the road.
+"""
+# The release notes. App Store Connect refuses them on an app's first
+# version; empty sends nothing.
+whats_new = ""
+
+[review]
+contact_first_name = "Dana"
+demo_account_required = false
+notes = """
+A Dana Life: Guessr is a daily geography guessing game for casual players and fans of geography puzzles (GeoGuessr-style). Every day it serves the same five short dashcam clips to every player, all filmed by the developer on a road trip across the United States. The player drops a pin where they think each clip was filmed and scores up to 5,000 points based on distance. It also works as a companion to the A Dana Life livestream, whose regular viewers play the same daily rounds.
+
+SETUP: no login, credentials or setup are needed. On first launch the app picks a random leaderboard name and keeps it in the Keychain; there is no sign-up, so there is no account to create or delete. Play tab: watch the clip, tap the map to place a pin, submit the guess, and the answer and points appear on the map. Five rounds a day, with new rounds at midnight UTC. Settings tab: Generate new name, daily reminders (icon badge and notification), appearance, imperial/metric units, Privacy Policy, and "Playing on another device?". That option shows a temporary code that links the app to the web version at guessr.dana.lol, so a player keeps one name and score. It is optional.
+
+GAME CENTER: if the device is signed in to Game Center, the app signs in automatically. Scores and achievements are submitted by our server (App Store Connect API), never by the app, after each recorded guess.
+
+EXTERNAL SERVICES: our own API on Cloudflare Workers, with Cloudflare D1 (rounds and scores) and Cloudflare R2 (the video clips); Apple Game Center; Apple MapKit (the guessing map); Sentry (crash and error diagnostics; session replays have text and images masked). The app has no payments, ads, AI services or third-party sign-in.
+
+REGIONS: the app works the same in every region. Everyone gets the same five daily rounds. The interface is available in English, French, Spanish, Russian and Czech.
+
+CONTENT: all video is the developer's own footage, and the app is not in a regulated industry.
+"""
+
+# The age-rating declaration, attribute for attribute as App Store Connect
+# names them (`task asc:listing` prints the current one). Content questions
+# take NONE, INFREQUENT_OR_MILD or FREQUENT_OR_INTENSE; the rest are yes/no.
+# messagingAndChat and userGeneratedContent turn true with the Chat tab, which
+# the App Store build leaves out (see TWITCH in Guessr.xcconfig).
+[age_rating]
+advertising = false
+ageAssurance = false
+alcoholTobaccoOrDrugUseOrReferences = "NONE"
+contests = "NONE"
+gambling = false
+gamblingSimulated = "NONE"
+gunsOrOtherWeapons = "NONE"
+healthOrWellnessTopics = false
+horrorOrFearThemes = "NONE"
+lootBox = false
+matureOrSuggestiveThemes = "NONE"
+medicalOrTreatmentInformation = "NONE"
+messagingAndChat = false
+parentalControls = false
+profanityOrCrudeHumor = "NONE"
+sexualContentGraphicAndNudity = "NONE"
+sexualContentOrNudity = "NONE"
+socialMedia = false
+socialMediaAgeRestricted = false
+unrestrictedWebAccess = false
+userGeneratedContent = false
+violenceCartoonOrFantasy = "NONE"
+violenceRealistic = "NONE"
+violenceRealisticProlongedGraphicOrSadistic = "NONE"
+ageRatingOverrideV2 = "NONE"
+
+[screenshots]
+# Directory of PNGs per display type; `task ios:screenshots` fills it.
+dir = "app/.build/screenshots"
+# App Store Connect display type -> subdirectory.
+APP_IPHONE_67 = "iphone"
+APP_IPAD_PRO_3GEN_129 = "ipad"

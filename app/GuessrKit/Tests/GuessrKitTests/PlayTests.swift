@@ -15,6 +15,7 @@ private func fixture(_ name: String) throws -> Data {
 final class ScoringGuessr: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var lastBody: [String: Any] = [:]
     nonisolated(unsafe) static var lastMethod: String?
+    nonisolated(unsafe) static var lastUserAgent: String?
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -22,6 +23,7 @@ final class ScoringGuessr: URLProtocol, @unchecked Sendable {
 
     override func startLoading() {
         Self.lastMethod = request.httpMethod
+        Self.lastUserAgent = request.value(forHTTPHeaderField: "User-Agent")
         Self.lastBody = jsonBody(of: request)
         answer(self, with: "score")
     }
@@ -40,6 +42,75 @@ final class ClaimingGuessr: URLProtocol, @unchecked Sendable {
         Self.lastPath = request.url?.path
         Self.lastBody = jsonBody(of: request)
         answer(self, with: "link-claim")
+    }
+}
+
+/// Answers every request with the link-preview fixture and keeps the last request.
+final class PreviewingGuessr: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var lastBody: [String: Any] = [:]
+    nonisolated(unsafe) static var lastPath: String?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+
+    override func startLoading() {
+        Self.lastPath = request.url?.path
+        Self.lastBody = jsonBody(of: request)
+        answer(self, with: "link-preview")
+    }
+}
+
+/// Answers every request with the progress fixture and keeps the last request.
+final class RecordingGuessr: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var lastBody: [String: Any] = [:]
+    nonisolated(unsafe) static var lastPath: String?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+
+    override func startLoading() {
+        Self.lastPath = request.url?.path
+        Self.lastBody = jsonBody(of: request)
+        answer(self, with: "progress")
+    }
+}
+
+/// Accepts a Game Center sync with an empty body and keeps the request. Its
+/// own class rather than RecordingGuessr: tests run in parallel, and the
+/// statics are per class.
+final class SyncingGuessr: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var lastBody: [String: Any] = [:]
+    nonisolated(unsafe) static var lastPath: String?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+
+    override func startLoading() {
+        Self.lastPath = request.url?.path
+        Self.lastBody = jsonBody(of: request)
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(#"{"submitted":[]}"#.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+}
+
+/// Answers every request with the link-code fixture and keeps the last request.
+final class IssuingGuessr: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var lastBody: [String: Any] = [:]
+    nonisolated(unsafe) static var lastPath: String?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+
+    override func startLoading() {
+        Self.lastPath = request.url?.path
+        Self.lastBody = jsonBody(of: request)
+        answer(self, with: "link-code")
     }
 }
 
@@ -103,6 +174,7 @@ private let image = "clips/2018_1015_183219_002_opt-026000.mp4"
     #expect(scored.answer == Coordinate(lat: 33.913757, lng: -117.324235))
     #expect(scored.miles == 56)
     #expect(ScoringGuessr.lastMethod == "POST")
+    #expect(ScoringGuessr.lastUserAgent?.hasPrefix("Guessr/") == true)
     let body = ScoringGuessr.lastBody
     #expect(body["image"] as? String == image)
     #expect(body["date"] as? String == "2026-09-23")
@@ -131,6 +203,56 @@ private let image = "clips/2018_1015_183219_002_opt-026000.mp4"
     #expect(ClaimingGuessr.lastBody["from"] as? String == player.id)
 }
 
+@Test func aGameCenterSyncNamesBothPlayersAndNoScore() async throws {
+    try await client(SyncingGuessr.self).syncGameCenter(player: player, gamePlayerID: "A:_5f21e308073d18f9b3afdc37f646e851")
+    #expect(SyncingGuessr.lastPath == "/api/gamecenter")
+    #expect(SyncingGuessr.lastBody["player_id"] as? String == player.id)
+    #expect(SyncingGuessr.lastBody["game_player_id"] as? String == "A:_5f21e308073d18f9b3afdc37f646e851")
+    // The server computes the standing; a body carrying a score would be the cheat.
+    #expect(SyncingGuessr.lastBody.count == 2)
+}
+
+@Test func aPreviewedCodeNamesBothPlayers() async throws {
+    let preview = try await client(PreviewingGuessr.self).previewLink(code: "ABCD2345", from: player)
+    #expect(preview.to == LinkPreview.Standing(name: "Patient Delta", points: 12345))
+    #expect(preview.from == LinkPreview.Standing(name: "Lucky Overpass", points: 500))
+    #expect(PreviewingGuessr.lastPath == "/api/link/preview")
+    #expect(PreviewingGuessr.lastBody["code"] as? String == "ABCD2345")
+    #expect(PreviewingGuessr.lastBody["from"] as? String == player.id)
+}
+
+@Test func anIssuedCodeIsForThisPlayer() async throws {
+    let code = try await client(IssuingGuessr.self).issueLinkCode(for: player)
+    #expect(code == LinkCode(code: "K7QM2XPB", expiresAt: "2026-09-28T23:59:00Z"))
+    #expect(IssuingGuessr.lastPath == "/api/link/code")
+    #expect(IssuingGuessr.lastBody["player_id"] as? String == player.id)
+}
+
+@Test func recordedRoundsComeBackInDealtOrderWithTheAnswerStandingInForALostPin() async throws {
+    let rounds = try await client(RecordingGuessr.self).progress(on: "2026-09-23", for: player)
+    #expect(RecordingGuessr.lastPath == "/api/progress")
+    #expect(RecordingGuessr.lastBody["date"] as? String == "2026-09-23")
+    #expect(RecordingGuessr.lastBody["player_id"] as? String == player.id)
+    #expect(rounds.count == 2)
+    #expect(rounds[0].guess == Coordinate(lat: 33.76, lng: -118.28))
+    #expect(rounds[0].score.points == 4091)
+    #expect(rounds[0].score.recorded)
+    #expect(rounds[1].guess == rounds[1].score.answer)
+}
+
+@Test func aDayStartedElsewhereSeedsThisDeviceUpToTheFirstGap() throws {
+    let day = try snake.decode(GuessrDay.self, from: fixture("day"))
+    let score = try snake.decode(GuessrScore.self, from: fixture("score"))
+    func played(_ i: Int) -> PlayedRound { PlayedRound(image: day.rounds[i].image, guess: Coordinate(lat: 0, lng: 0), score: score) }
+    let fresh = DayProgress(date: day.date!)
+    #expect(fresh.seeded(from: [played(0), played(1)], in: day).played.count == 2)
+    #expect(fresh.seeded(from: [played(1), played(0)], in: day).played.map(\.image) == [day.rounds[0].image, day.rounds[1].image])
+    #expect(fresh.seeded(from: [played(0), played(2)], in: day).played.count == 1, "a gap ends the resume")
+    #expect(fresh.seeded(from: [played(1)], in: day).played.isEmpty, "nothing without the first round")
+    let local = DayProgress(date: day.date!, played: [played(0), played(1), played(2)])
+    #expect(local.seeded(from: [played(0)], in: day) == local, "the server never shortens a day")
+}
+
 @Test func progressResumesItsOwnDateOnly() throws {
     let day = try snake.decode(GuessrDay.self, from: fixture("day"))
     let score = try snake.decode(GuessrScore.self, from: fixture("score"))
@@ -145,6 +267,24 @@ private let image = "clips/2018_1015_183219_002_opt-026000.mp4"
 
     let done = DayProgress(date: "2026-09-23", played: Array(repeating: one, count: day.rounds.count))
     #expect(done.next(in: day) == nil)
+}
+
+@Test func aStreakShowsWhileItCouldStillGrow() throws {
+    let score = try snake.decode(GuessrScore.self, from: fixture("score"))
+    #expect(score.streak == 3 && score.streakDate == "2026-09-23")
+    func streak(_ days: Int?, endingOn end: String?, today: String) throws -> Int? {
+        var s = score
+        (s.streak, s.streakDate) = (days, end)
+        let noon = try #require(ISO8601DateFormatter().date(from: "\(today)T12:00:00Z"))
+        let progress = DayProgress(date: today, played: [PlayedRound(image: image, guess: s.answer, score: s)])
+        return progress.streak(now: noon)
+    }
+    #expect(try streak(3, endingOn: "2026-09-23", today: "2026-09-23") == 3)
+    #expect(try streak(3, endingOn: "2026-09-30", today: "2026-10-01") == 3, "yesterday, across a month")
+    #expect(try streak(3, endingOn: "2026-09-21", today: "2026-09-23") == nil, "a broken run")
+    #expect(try streak(1, endingOn: "2026-09-23", today: "2026-09-23") == nil, "one day is no streak")
+    #expect(try streak(nil, endingOn: nil, today: "2026-09-23") == nil, "practice carries none")
+    #expect(DayProgress(date: "2026-09-23").streak() == nil)
 }
 
 @Test func aPlayerIsMintedOnceAndKept() {

@@ -4,78 +4,215 @@
 import GuessrKit
 import SwiftUI
 
-/// Today's rounds and the boards, read from the public API.
+extension View {
+    /// A list or form at a readable width, centred on the page, on regular width
+    /// only: an iPad row the full width of the screen strands a toggle far from
+    /// its label. The large title moves over the column with it, so it doesn't
+    /// float at the screen's edge. Goes inside `paper()`, so the page color still
+    /// fills the screen. `logo` sets the A Dana Life mark before the title.
+    func readableWidth(title: LocalizedStringKey, logo: Bool = false) -> some View {
+        modifier(ReadableWidth(title: title, logo: logo))
+    }
+}
+
+extension View {
+    /// The owner's "Viewing as" band, on each tab's root inside its navigation stack.
+    /// Inside the stack it sits below the navigation bar and clear of the tab bar on
+    /// both devices: iPadOS floats the tab bar over the top of the window and iOS
+    /// floats it over the bottom, so an inset on the tab view collides with one or
+    /// the other. Solid yellow with black text reads in light and dark; the fill stays
+    /// out of the safe area, where it would flood the transparent navigation bar.
+    func viewingAsBanner() -> some View { modifier(ViewingAsBanner()) }
+}
+
+private struct ReadableWidth: ViewModifier {
+    let title: LocalizedStringKey
+    let logo: Bool
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @ScaledMetric(relativeTo: .largeTitle) private var mark = 34
+
+    func body(content: Content) -> some View {
+        if sizeClass == .regular {
+            content.frame(maxWidth: 640).frame(maxWidth: .infinity)
+                .navigationTitle(title)
+                .toolbar {
+                    // The bar's own large title, drawn over the column and
+                    // lined up with its cards' edge, where a full-width list
+                    // puts it. The serif matches the appearance proxy's.
+                    ToolbarItem(placement: .largeTitle) {
+                        largeTitle
+                            // ponytail: 20 is the inset-grouped list's regular-width
+                            // margin, measured, not read; a system margin change
+                            // drifts it, a readable-content guide fixes that.
+                            .padding(.leading, 20)
+                            .frame(maxWidth: 640, alignment: .leading)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+        } else if logo {
+            content.navigationTitle(title)
+                .toolbar {
+                    ToolbarItem(placement: .largeTitle) {
+                        // ponytail: 16 is the compact large title's margin, measured
+                        // like the regular one above.
+                        largeTitle.padding(.leading, 16).frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+        } else {
+            content.navigationTitle(title)
+        }
+    }
+
+    private var largeTitle: some View {
+        HStack(spacing: 10) {
+            if logo {
+                Image("Logo").resizable().scaledToFit().frame(width: mark, height: mark)
+                    .accessibilityLabel(Text(verbatim: "A Dana Life"))
+            }
+            Text(title).font(.system(.largeTitle, design: .serif, weight: .bold))
+        }
+    }
+}
+
+private struct ViewingAsBanner: ViewModifier {
+    @Environment(Account.self) private var account
+
+    func body(content: Content) -> some View {
+        content.safeAreaInset(edge: .top) {
+            if let tier = account.viewingAs {
+                Text("Viewing as \(tier)")
+                    .font(.caption.bold())
+                    .foregroundStyle(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .background(.yellow, ignoresSafeAreaEdges: [])
+            }
+        }
+    }
+}
+
+/// The boards, read from the public API, the running month first.
 struct TodayView: View {
-    @State private var day: GuessrDay?
+    /// The player's own name, whose row is picked out when it makes the board.
+    var alias: String?
     @State private var board: GuessrLeaderboard?
-    @State private var boardName = "daily"
+    @State private var boardName = "monthly"
     @State private var error: String?
 
     private let client = GuessrClient()
 
     var body: some View {
         List {
-            Section("Today") {
-                if let day {
-                    LabeledContent(day.date ?? "Practice", value: "\(day.rounds.count) rounds")
-                }
-                Link("Play on the web", destination: Guessr.baseURL)
-            }
             Section {
                 Picker("Board", selection: $boardName) {
-                    Text("Yesterday").tag("daily")
                     Text("This month").tag("monthly")
+                    Text("Daily").tag("daily")
                 }
                 .pickerStyle(.segmented)
                 ForEach(Array((board?.rows ?? []).enumerated()), id: \.offset) { rank, row in
-                    LabeledContent("\(rank + 1). \(row.name)", value: "\(row.points)")
+                    let mine = isMine(row)
+                    LabeledContent(mine ? "\(rank + 1). \(row.name) (you)" : "\(rank + 1). \(row.name)", value: "\(row.points)")
+                        .fontWeight(mine ? .bold : nil)
+                        .listRowBackground(mine ? Color.accentColor.opacity(0.15) : nil)
                 }
             } header: {
-                Text(board.map { "Leaderboard · \($0.period)" } ?? "Leaderboard")
+                if let board { Text("Leaderboard · \(board.period)") } else { Text("Leaderboard") }
             }
             if let error {
                 Text(error).foregroundStyle(.secondary)
             }
         }
-        .navigationTitle("Guessr")
+        .readableWidth(title: "Leaderboard")
+        .paper()
         .task(id: boardName) { await load() }
         .refreshable { await load() }
     }
 
+    // ponytail: matched by name, since no public response may carry a player
+    // id. Another player drawing the same two words lights up too (the board
+    // numbers them "(2)"), and an operator-set alias does not; a board that
+    // marks the caller's row server-side is the upgrade.
+    private func isMine(_ row: GuessrLeaderboard.Row) -> Bool {
+        guard let alias else { return false }
+        return row.name == alias || row.name.hasPrefix("\(alias) (")
+    }
+
     private func load() async {
         do {
-            async let d = client.day()
-            async let b = client.leaderboard(board: boardName)
-            (day, board, error) = (try await d, try await b, nil)
+            (board, error) = (try await client.leaderboard(board: boardName), nil)
         } catch {
             self.error = error.localizedDescription
         }
     }
 }
 
+/// The chatters this device hides, each shown again on its own.
+struct HiddenChattersView: View {
+    @Environment(Account.self) private var account
+
+    var body: some View {
+        List {
+            ForEach(account.hiddenChatters.sorted { $0.value.localizedCaseInsensitiveCompare($1.value) == .orderedAscending }, id: \.key) { id, name in
+                LabeledContent(name) {
+                    Button("Show") { account.hiddenChatters[id] = nil }
+                }
+            }
+            if account.hiddenChatters.count > 1 {
+                Button("Show everyone") { account.hiddenChatters = [:] }
+            }
+        }
+        .navigationTitle("Hidden chatters")
+    }
+}
+
 struct SettingsView: View {
     @Environment(Account.self) private var account
-    @State private var code: DeviceCode?
-    @State private var error: String?
+    @Binding var player: Player
+    @State private var playedToday = false
+    @AppStorage("kilometers") private var kilometers = false
+    @AppStorage("appearance") private var appearance = "dark"
 
     var body: some View {
         Form {
-            Section("Twitch") {
-                if let session = account.session {
-                    LabeledContent("Signed in as", value: session.login)
-                    Button("Sign out", role: .destructive) { account.signOut() }
-                } else if let code {
-                    LabeledContent("Code", value: code.userCode)
-                    if let url = URL(string: code.verificationUri) {
-                        Link("Enter it at Twitch", destination: url)
-                    }
-                    ProgressView()
-                } else {
-                    Button("Sign in with Twitch") { Task { await signIn() } }
-                        .disabled(!account.auth.isConfigured)
+            NameSection(player: $player, playedToday: playedToday)
+            ReminderSection()
+            Section("Appearance") {
+                Picker("Appearance", selection: $appearance) {
+                    Text("Light").tag("light")
+                    Text("Dark").tag("dark")
+                    Text("Auto").tag("system")
                 }
-                if let error {
-                    Text(error).foregroundStyle(.secondary)
+                .pickerStyle(.segmented)
+                Picker("Units", selection: $kilometers) {
+                    Text("Imperial").tag(false)
+                    Text("Metric").tag(true)
+                }
+                .pickerStyle(.segmented)
+            }
+            Section {
+                Link("Privacy Policy", destination: URL(string: "https://www.dana.lol/privacy/")!)
+                    .foregroundStyle(Color.ink)
+            }
+            if account.auth.isConfigured {
+                Section("Twitch") {
+                    if let session = account.session {
+                        LabeledContent("Signed in as", value: session.login)
+                        // A mod's second login, for the scopes that delete,
+                        // time out and ban.
+                        if account.needsModLogin {
+                            if let code = account.modCode {
+                                TwitchCodeRows(code: code, prominentLabel: .paper).tint(Color.ink)
+                            } else {
+                                Button("Access your mod tools") { account.startModLogin() }
+                            }
+                        }
+                        if !account.hiddenChatters.isEmpty {
+                            NavigationLink("Hidden chatters (\(account.hiddenChatters.count))") { HiddenChattersView() }
+                        }
+                        Button("Sign out", role: .destructive) { account.signOut() }
+                    } else {
+                        TwitchSignIn()
+                    }
                 }
             }
             #if canImport(TempomatConsole)
@@ -83,9 +220,171 @@ struct SettingsView: View {
                     ConsoleTierSection(token: token)
                 }
             #endif
+            if account.isRealOwner {
+                Section {
+                    Picker(
+                        "View as",
+                        selection: Binding(
+                            get: { account.previewTier ?? "me" },
+                            set: { account.previewTier = $0 == "me" ? nil : $0 }
+                        )
+                    ) {
+                        Text("Me").tag("me")
+                        Text("Mod").tag("mod")
+                        Text("Viewer").tag("viewer")
+                    }
+                    .pickerStyle(.segmented)
+                } footer: {
+                    Text("Shows the app the way a mod or a viewer sees it. Anything you press still runs as you.")
+                }
+            }
         }
-        .navigationTitle("Settings")
+        .readableWidth(title: "Settings")
+        .paper()
+        // Read on every visit rather than once: the Play tab saves as it goes.
+        .onAppear { playedToday = !DayProgress.resume(Saved.progress, on: GuessrClient.today()).played.isEmpty }
         .task { await account.refreshIfNeeded() }
+    }
+}
+
+/// The name the boards show, and a reroll that keeps the one name before it,
+/// as the web's About panel does. The server records whatever name the next
+/// play carries, so a new one shows from the next round on. Below them, the
+/// ways another device plays as this same name.
+struct NameSection: View {
+    @Binding var player: Player
+    let playedToday: Bool
+    @AppStorage("alias-prev") private var previous = ""
+
+    var body: some View {
+        Section("Leaderboard name") {
+            // Serif, after the web's ET Book, so the name reads as the name.
+            Text(player.alias).font(.system(.title2, design: .serif, weight: .semibold))
+            Button("Generate new name") {
+                var next = Alias.random()
+                while next == player.alias { next = Alias.random() }
+                previous = player.alias
+                player.alias = next
+            }
+            if !previous.isEmpty {
+                Button("Undo, back to \(previous)") {
+                    player.alias = previous
+                    previous = ""
+                }
+            }
+            // Beside the name: a linked device plays as this same name.
+            LinkCodeRows(player: $player, playedToday: playedToday)
+        }
+    }
+}
+
+/// Linking devices, so one player's name and points follow them: a code this
+/// device shows for the other one to enter, or a code the other one shows,
+/// entered here. The row explains itself before it issues anything, since
+/// "link" alone doesn't say what moves where.
+struct LinkCodeRows: View {
+    @Binding var player: Player
+    let playedToday: Bool
+    @State private var code: LinkCode?
+    @State private var asking = false
+    @State private var error: String?
+    @State private var explaining = false
+    @State private var copied = false
+
+    private let client = GuessrClient()
+
+    var body: some View {
+        if let code {
+            Button {
+                UIPasteboard.general.string = code.code
+                copied = true
+                Task {
+                    try? await Task.sleep(for: .seconds(1.5))
+                    copied = false
+                }
+            } label: {
+                LabeledContent(copied ? "Copied" : "Temporary code") { Text(code.code).font(.title3.monospaced()) }
+            }
+            .foregroundStyle(Color.ink)
+            .accessibilityHint("Copies the code")
+            // A markdown link opens in Safari, where the web game keeps its save.
+            Text("Visit [guessr.dana.lol](https://guessr.dana.lol), tap About, and enter this code under \"Link a device\".")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        HStack {
+            Button(asking ? "Asking…" : code == nil ? "Playing on another device?" : "Show a new code") {
+                if code == nil { explaining = true } else { Task { await issue() } }
+            }
+            .disabled(asking)
+            // Borderless, both of them: two buttons in one form row otherwise
+            // share the row's tap and fire together.
+            .buttonStyle(.borderless)
+            if code != nil {
+                Spacer()
+                Button("How linking works", systemImage: "questionmark.circle") { explaining = true }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+            }
+        }
+        .alert("Playing on another device?", isPresented: $explaining) {
+            if code == nil { Button("Show a code") { Task { await issue() } } }
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("If you play on multiple devices (like the web version), you can use a temporary code to connect the devices and keep playing under your other username.")
+        }
+        if let error {
+            Text(error).foregroundStyle(.secondary)
+        }
+        // Only before the first guess: joining after it would leave the day's
+        // progress on this device belonging to the player it left.
+        if !playedToday {
+            NavigationLink("Enter your code") { JoinView(player: $player) }
+        }
+    }
+
+    private func issue() async {
+        asking = true
+        defer { asking = false }
+        do {
+            (code, error) = (try await client.issueLinkCode(for: player), nil)
+        } catch {
+            self.error = String(localized: "Could not reach the server. Try again.")
+        }
+    }
+}
+
+/// The Twitch device-code sign-in as form rows: a button, then the code to
+/// enter at Twitch until the login lands.
+struct TwitchSignIn: View {
+    @Environment(Account.self) private var account
+    @State private var code: DeviceCode?
+    @State private var error: String?
+    #if DEBUG
+        @State private var pressedForLaunchArgument = false
+    #endif
+
+    var body: some View {
+        if let code {
+            TwitchCodeRows(code: code, prominentLabel: .paper).tint(Color.ink)
+        } else {
+            Button("Sign in with Twitch") { Task { await signIn() } }
+                .disabled(!account.auth.isConfigured)
+                #if DEBUG
+                    // `-signin 1` presses the button once on appear, so the
+                    // code screen can be screenshotted from the shell. A task
+                    // of its own, as the press is: the button leaves when the
+                    // code arrives, which would cancel `.task`'s.
+                    .onAppear {
+                        guard UserDefaults.standard.bool(forKey: "signin"), !pressedForLaunchArgument else { return }
+                        pressedForLaunchArgument = true
+                        Task { await signIn() }
+                    }
+                #endif
+        }
+        if let error {
+            Text(error).foregroundStyle(.secondary)
+        }
     }
 
     private func signIn() async {
@@ -94,6 +393,9 @@ struct SettingsView: View {
             let started = try await account.auth.start()
             code = started
             try await account.signIn(started)
+        } catch is CancellationError {
+            // An abandoned login: nothing went wrong to explain.
+        } catch let error as URLError where error.code == .cancelled {
         } catch {
             self.error = error.localizedDescription
         }

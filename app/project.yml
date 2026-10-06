@@ -13,9 +13,16 @@ settings:
     SWIFT_VERSION: "6.0"
     SWIFT_APPROACHABLE_CONCURRENCY: YES
     SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    # A build writes every localizable literal it finds into the string
+    # catalogs, so a new string shows up there needing translation.
+    SWIFT_EMIT_LOC_STRINGS: YES
 packages:
   GuessrKit:
     path: GuessrKit
+  # Crash reports, hangs, request spans and logs — see Guessr/Telemetry.swift.
+  Sentry:
+    url: https://github.com/getsentry/sentry-cocoa
+    from: 9.29.0
   # Private: the owner's console controls. A build without access to it (a
   # fork, say) deletes this block and the matching dependency below, and the
   # console tier compiles out.
@@ -31,6 +38,12 @@ targets:
     configFiles:
       Debug: Guessr.xcconfig
       Release: Guessr.xcconfig
+    # Game Center: the sign-in and the dashboard. Scores and achievements reach
+    # Apple from the server, not from GameKit -- see server/gamecenter.py.
+    entitlements:
+      path: Guessr/Guessr.entitlements
+      properties:
+        com.apple.developer.game-center: true
     info:
       path: Guessr/Info.plist
       properties:
@@ -43,9 +56,15 @@ targets:
         GuessrOwnerTwitchID: $(GUESSR_OWNER_TWITCH_ID)
         # Read by GuessrKit's Guessr.baseURL; set per configuration.
         GuessrAPIBase: $(GUESSR_API_BASE)
-        # The play screen stacks clip over map, so a phone holds it upright. An
-        # iPad window takes any shape, which iPad multitasking requires.
-        UISupportedInterfaceOrientations~iphone: [UIInterfaceOrientationPortrait]
+        # The channel the Chat tab talks in; set per configuration.
+        GuessrTwitchChannel: $(GUESSR_TWITCH_CHANNEL)
+        # A phone plays upright (clip over map) or on its side (clip beside
+        # map), never upside down. An iPad window takes any shape, which iPad
+        # multitasking requires.
+        UISupportedInterfaceOrientations~iphone:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         UISupportedInterfaceOrientations~ipad:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
@@ -53,11 +72,16 @@ targets:
           - UIInterfaceOrientationLandscapeRight
     dependencies:
       - package: GuessrKit
+      # Sentry-Dynamic rather than the static `Sentry`: only the dynamic
+      # xcframework ships dSYMs, so the SDK's own frames symbolicate
+      # (getsentry/sentry-cocoa#4068).
+      - package: Sentry
+        product: Sentry-Dynamic
       # - package: TempomatConsole
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: lol.dana.guessr
-        # Both overridden per archive by `task app:archive`: the version with the
+        # Both overridden per archive by `task ios:archive`: the version with the
         # repo's release tag, the build number with the commit count.
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 1
@@ -65,6 +89,8 @@ targets:
         # The game's mark from web/favicon.svg on the dark ground of its
         # apple-touch-icon, one 1024 px image Xcode scales for every slot.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # The web game's link color, light and dark, as every control's tint.
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CODE_SIGN_STYLE: Automatic
         # Export DEVELOPMENT_TEAM=<id> before `xcodegen`, or pick the team in
         # Xcode (lost on the next regen).

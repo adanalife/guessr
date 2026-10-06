@@ -12,16 +12,16 @@ them); `web/` is then a plain directory of HTML and JS. The map is Leaflet over
 OpenStreetMap tiles.
 
 **A round set is data, not a deploy artifact.** The pool, the day-by-day schedule
-and the answers are rows in D1; the clips are objects in R2, streamed back by a
-Pages Function. So changing what the game plays is three pushes and no deploy —
+and the answers are rows in D1; the clips are objects in R2, streamed back by the
+Worker. So changing what the game plays is three pushes and no deploy —
 and cutting a release went back to being purely about code.
 
 A round plays on a loop and can be paused — the button in the frame's corner, or
 the space bar. Motion is what places a scene; a still is what lets you read the
 sign in it.
 
-The endpoints are Cloudflare Pages Functions, and they exist because the answers
-can't ship to the browser. `GET /api/day` hands out a date's five rounds by name
+The endpoints are a Python Worker — `server/`, deployed from `api/` — and they
+exist because the answers can't ship to the browser. `GET /api/day` hands out a date's five rounds by name
 and nothing else; `POST /api/score` is the only thing that ever reads a
 coordinate. They are two tables in the same database, so the endpoint that serves
 a game physically cannot leak the answer to it — a player learns where a clip was
@@ -36,29 +36,31 @@ task clips:push  # uploads the media to R2, which is where the game reads it fro
 task rounds:rebuild IMAGE=clips/<slug>-<ms>.mp4  # restore one lost or corrupt clip
 task reveals  # cut the "where you guessed" stills; then reveals:push, reveals:{stage,prod}:rows
 task test     # scheduling, scoring, the endpoints, the swap; needs neither
-task test:integration  # the whole game against a throwaway local D1
+task test:integration  # every route's HTTP contract, against the app under uvicorn
 task dev      # http://localhost:8000, with scoring
 task serve    # http://localhost:8000, static only — no rounds, no scoring
 ```
 
-`task dev` runs `wrangler pages dev` against a local D1 — migrations applied,
-then `rounds.sql` and `answers.sql` seeded — so a game loads and guessing works
-end to end, including the record a daily play leaves behind.
+`task dev` serves the game under uvicorn (`server/local.py`) from a local sqlite
+file — migrations applied, then `rounds.sql` and `answers.sql` seeded, rebuilt on
+every run — so a game loads and guessing works end to end, including the record
+a daily play leaves behind. The clips come from `web/clips/`, which `task rounds`
+writes and `task clips:pull` fetches.
 
 `task test:integration` is the same stack without a corpus: it fabricates a round
-set through the *real* SQL generators, applies the migrations to a throwaway
-local D1, seeds one clip into a throwaway local R2, starts `wrangler pages dev`,
-and runs `contract.py` against it: every route — the game's API, the clip
-endpoint and the admin surface, both locked down and under the `local` tier —
-held to its statuses, shapes and guards over plain HTTP. It runs in CI, and it
-is the tier that catches what the other two cannot — `task test` runs handlers
-against a stub of the D1 binding, so it proves logic and says nothing about
-routing, bindings, or how a real database answers, while `smoke.sh` needs
-something already deployed. Being HTTP only, the contract says nothing about
-what language the handlers are written in.
+set through the *real* SQL generators, migrates a throwaway sqlite file, puts one
+clip in a directory standing in for the bucket, starts the app under uvicorn with
+Twitch stubbed at the fetch seam, and runs `contract.py` against it: every route —
+the game's API, the clip endpoint and the admin surface, both refused and as the
+owner — held to its statuses, shapes and guards over plain HTTP. It runs in CI,
+and it is the tier that catches what the other two cannot — `task test` runs the
+handlers against sqlite in memory, so it proves logic and says nothing about
+routing or how the whole app answers, while `smoke.sh` needs something already
+deployed. Being HTTP only, the contract says nothing about what language the
+handlers are written in, which is what keeps the game portable off Cloudflare.
 
 `task serve` is a plain `http.server`, and it does not serve a playable game:
-the rounds come from `/api/day` and the clips from a Function, neither of which a
+the rounds come from `/api/day` and the clips from R2 through Pages, neither of which a
 static server has. It is still the quickest way to work on anything that is not
 the game itself — the About panel, the changelog, layout above the fold.
 Both bind all interfaces, so a phone on the tailnet can reach them at
@@ -106,10 +108,9 @@ run either way — `check.py` before anything leaves the machine, `verify_days.s
 over what actually landed, and a depth check that fails the run if production
 comes out of it scheduled less than a week ahead.
 
-No git, no deploy, no pull request. This used to open a PR to commit
-`web/rounds.json`, because the round set was a file and a deploy was the only way
-it could reach anyone — which meant a scheduled job would have needed a token with
-write access to a public repo's default branch. Rows in D1 need none of that.
+No git, no deploy, no pull request. The round set is rows in D1 rather than a
+committed file, so a scheduled job needs no token with write access to a public
+repo's default branch.
 
 The trade, stated plainly rather than discovered later: with round sets
 uncommitted, there is no PR for a gate to run `check.py` over a manifest on.
@@ -142,6 +143,14 @@ to look at, and the game people play only moves when a release goes out.
 Cutting one means merging the standing `chore(main): release X.Y.Z` PR —
 release-please tags it and dispatches `release.yml` at the tag. Nothing else
 promotes to production.
+
+Each deploy ships the Worker first — `api/`, through pywrangler, with `--env
+production` at a tag — and the Pages site after it, so the forwarder in
+`functions/_middleware.js` never points at a Worker running older code than the
+site in front of it. The `API` service binding that joins them is set by hand in
+the Cloudflare dashboard (terraform ignores both projects' `deployment_configs`):
+on the production project, on the staging project, and on the staging project's
+*preview* environment, which is what gives a PR preview its API.
 
 Previews share the staging Pages project, on a per-branch alias that leaves its
 production alias (`stage.guessr.dana.lol`) alone. A PR from a fork or from
@@ -177,8 +186,7 @@ The Pages projects and the DNS records are terraform, in the `infra` repo under
 `web/` holds `index.html`, its scripts (`daily.js`, `zoom.js`, `alias.js`,
 `link.js`, `share.js`, `theme.js`), `base.css`, `manifest.json`, the icon and
 share-card assets (`favicon.svg`, `apple-touch-icon.png`, `icon-512.png`,
-`og.jpg`), the admin page under `admin/`, and the ET Book faces under
-`et-book/`.
+`og.jpg`), and the ET Book faces under `et-book/`.
 
 **No part of a round set is committed, and none of it is deployed.** The clips
 could never be — a set is ~150 MB of mp4 and this repo is public, so committing
@@ -188,7 +196,7 @@ is a round set that needs a pull request and a deploy to change, which is the
 thing moving it into D1 undid.
 
 So `web/clips/` is gitignored and is a build directory, not a deployed one:
-`clips.sh push` sends its contents to R2 and `functions/clips/[[path]].js`
+`clips.sh push` sends its contents to R2 and the Pages `/clips/` route
 streams each object back at request time, with `Range` support so the video
 element can seek. A deploy is a few hundred KB of HTML and JS, and a regeneration
 changes nothing about it at all.
@@ -218,20 +226,20 @@ purpose, each with a note where it is set: the zoom controls copy Leaflet's,
 and the badges, the minimap frame and the legend swatches sit on photographs or
 map tiles rather than on the page.
 
-`functions/` holds the endpoints. It is not served: Pages routes
-`functions/api/score.js` to `/api/score`, `functions/api/day.js` to `/api/day`,
-`functions/admin/day.js` to `/admin/day`, `functions/admin/players.js` to
-`/admin/players`, `functions/admin/board-note.js` to `/admin/board-note` and
-`functions/clips/[[path]].js` to everything under `/clips/`. The underscore-prefixed files — `_scoring.mjs`, `_json.mjs`,
-`_names.mjs` — are skipped by the router, so the handlers can import them.
+`server/` holds the endpoints, as one Starlette app (`server/app.py`) that the
+Python Worker in `api/` serves: `/api/day`, `/api/score`, `/api/leaderboard`,
+`/api/guesses`, `/api/live`, `/api/link`, everything under `/admin/`, and the
+clips under `/clips/`. The Pages project in front of it keeps one Function,
+`functions/_middleware.js`, which hands those three prefixes to the Worker
+through the project's `API` service binding and leaves the static site to Pages.
+The same app runs off Cloudflare under uvicorn (`task api:serve`), over a sqlite
+file and a clip directory.
 
 `/api/day` is what a date's game *is*: five rounds by name, in the order they
 play. `/api/score` checks a posted round against the same rows before it will
 record anything. That property — the rounds scored against are provably the
-rounds the page handed out — used to hold because both sides imported the same
-draw and the same pool from the same commit, so a half-finished deploy could
-break it. There is one row set now and both read it, so a deploy cannot come into
-it at all.
+rounds the page handed out — holds because there is one row set and both read
+it, so no deploy can come between them.
 
 `daily.js` is still shared, and still an ES module for that reason (which is also
 why the page's inline script is `type="module"`) — but only for the play window
@@ -268,7 +276,7 @@ IMAGE=clips/<slug>-<ms>.mp4` puts it back: it reads the round's provenance out o
 D1, re-cuts from the corpus with the same ffmpeg invocation that made it, and
 replaces the object under the same key. The moment being in the filename is what
 makes that land the same footage at the same URL, which is also what makes the
-year-long `immutable` cache header on `functions/clips/[[path]].js` safe — so the
+year-long `immutable` cache header on the `/clips/` route safe — so the
 command refuses rather than guesses whenever the key and the round disagree.
 
 There is deliberately no `rounds:prod:push`. Production is reached only through
@@ -352,6 +360,17 @@ play would read as a replay of the first's) and deliberately not the IP address
 (NAT makes a household one player, CGNAT makes one phone several, and an address
 stored beside a typed name is personal data this doesn't need).
 
+### Resuming a day elsewhere
+
+`POST /api/progress {date, player_id}` answers the rounds that player has on
+record for the date, in dealt order, each with its score and the answer —
+`{date, rounds: [{image, km, points, guess_lat, guess_lng, lat, lng, state, filmed}]}`.
+A device that remembers fewer rounds than the server adopts the server's list
+up to the first round not played, so a day begun on one device, or under a
+player just linked to, carries on from there. The id is a credential, so it
+travels in a POST body rather than a query string; the answers come back
+because the player already saw them at the reveal.
+
 ### Linking a second device
 
 An id per browser means a player who plays on a phone and a desktop is two
@@ -396,8 +415,11 @@ against the id for ten minutes and answers `{code, expires_at}`; the About panel
 shows it beside the QR code. `POST /api/link/claim {code, from}` takes the code
 (single-use: it is deleted as it is read), runs the same merge with `from` as
 the mover, and answers `{player_id, moved}` — the id the claiming device plays as
-from then on. This is the one place a player id leaves the server, and only to
-the device holding a code its owner just drew. The `link_codes` table holds
+from then on. `POST /api/link/preview {code, from}` is the same lookup without
+the merge — `{to: {name, points}, from: {name, points}}`, all-time — so a device
+can say whose player it is about to become before it claims. This is the one
+place a player id leaves the server, and only to the device holding a code its
+owner just drew. The `link_codes` table holds
 nothing else, and a row is gone once claimed or once the next issue or claim
 sweeps it past its expiry.
 
@@ -490,8 +512,8 @@ pin in the same wrong Portland.
 player id, which is every caller outside this repo: an id is a write credential
 here, so the console that renders these boards addresses a player the only way
 it can, as the row it is looking at. Being under `/admin/` it takes the same
-Access login as everything else there, which from outside a browser means a
-service token.
+Twitch login as everything else there: a bearer token the console and tempomat
+already hold.
 
 One thing this does *not* buy outright: the round sets published before scoring
 moved server-side carried their coordinates in `rounds.json`, and that file is in
@@ -612,14 +634,14 @@ The native iOS app lives in [`app/`](app/README.md), with its own build notes.
 from one fragment per PR, so every PR adds one:
 
 ```sh
-task changelog:add TYPE=new     # writes changelog.d/+new.new.md — open it and write the line
+task changelog:add TYPE=new     # writes changelog.d/+<branch>-<hex>.new.md — open it and write the line
 task changelog:preview          # what the next release will say
 ```
 
 Types are `new`, `changed`, `fixed`, `behind` (behind the scenes) and `summary`
 (a lead paragraph for the release, when one is warranted). You don't need the PR
-number: `changelog-number.yml` renames the `+` placeholder to `<PR#>.<type>.md`
-on push, which is what puts a PR link on each entry. A PR that genuinely
+number: the release renames the `+` placeholder to `<PR#>.<type>.md` from the
+squash commit that added it, which is what puts a PR link on each entry. A PR that genuinely
 warrants no entry — a dependabot bump, a round-set regeneration, a revert —
 carries the `skip-changelog` label instead, and `gates` fails without one.
 
@@ -702,53 +724,35 @@ assume there is a single "today".
 Both endpoints enforce the window, for different reasons. `/api/score` refuses a
 play outside it — the close is what lets a board be final. `/api/day` refuses to
 *name* the rounds of a date that has not opened, which is the whole protection on
-a schedule now the browser cannot derive it: while the draw was a seeded shuffle
-over a committed pool, anyone could work out next month's five and there was
-nothing to withhold. A refusal comes back as a 403 with a distinct message, and
+the schedule: the browser cannot derive a date's rounds, so refusing to name them
+is what keeps next month's five unknown. A refusal comes back as a 403 with a distinct message, and
 the page treats a 4xx as final rather than inviting a retry that cannot work.
 
 ### Previewing a day
 
-`/admin/` is the deliberate exception to that refusal: pick a date, watch its
-five clips in order, and check each answer on a street-zoom map. It reads
-`/admin/day`, which serves any date at all — unopened ones included — with the
-coordinates joined on, so a dud clip or a pin in the wrong place is caught before
-a real day is made of it. Past dates read the same way, which is how a finished
-day gets looked at again.
+`/admin/day` is the deliberate exception to that refusal: it serves any date at
+all — unopened ones included — with the coordinates joined on, so a dud clip or
+a pin in the wrong place is caught before a real day is made of it. Past dates
+read the same way, which is how a finished day gets looked at again. The page
+that shows it is not in this repo: the tripbot console and tempomat render the
+day — five clips in order, each answer on a street-zoom map — and call this
+route for it.
 
-**It is behind a login.** `functions/admin/_middleware.js` gates everything under
-`/admin/` — Pages runs Functions ahead of static assets, so that covers the
-review page itself and not only the endpoints beneath it. The login is Cloudflare
-Access, which fronts the project's `pages.dev` hostname and its per-branch
-aliases: on those, an unauthenticated request never reaches the code, and what
-does arrive carries a JWT that Access signed, which the middleware verifies
-(right team, right application, unexpired) before letting anything through.
-
-The custom domains are the reason the check is in the Function and not only at
-the edge. `guessr.dana.lol` and `stage.guessr.dana.lol` resolve through Route53,
-so Cloudflare cannot put an Access application in front of them without the zone
-moving — no Access means no JWT, and no JWT is a refusal. **So the review page is
-reachable at the `pages.dev` URL and nowhere else.** Two values off the Access
-application, `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`, are set on the Pages project;
-a deployment missing them answers `503` and serves nothing, which is the state
-every tier is in until the Access application exists. `task dev` is the one
-exemption — a `local` tier skips the login, since nothing fronts localhost.
-
-**Production is one of the tiers it answers on**, and the tier check that says
-so is a second question from the login: the login says who is asking, the tier
-says which deployment may answer at all. The Function reads the same
-`web/version.json` the About panel does, through the static-asset binding, and
-answers `403` unless the deployment declares itself `production`, `staging`,
-`preview` or `local`. Every other answer — no `version.json`, one that will not
-parse, a tier nobody has taught it about — refuses, since a deployment this code
-cannot name is one whose Access application it cannot vouch for, and the cost of
-a false refusal is a line in an allowlist while the cost of a false answer is
-tomorrow's five and where they are.
-
-Production is where a wrong coordinate actually reaches players, so it gets its
-own Access application over `adanalife-guessr.pages.dev/admin` — the staging one
-covers only the staging project's hostnames. Both live in the infra repo,
-alongside the Pages projects they front.
+**It is behind a login.** The Worker gates everything under `/admin/` before
+routing, so a caller who is not admitted learns nothing about which admin paths
+exist or which methods they take: `401` with no token, `403` for the wrong
+caller, for the whole directory. The login is Twitch's. The caller sends
+`Authorization: Bearer <token>` — the user token tempomat's device-code login
+and the console's web login already hold — and the Worker asks Twitch whose it
+is. Who may administer is three Worker secrets: the owner is a Twitch user id
+(`TWITCH_OWNER_ID`, a comma list on stage so the staging account counts too); a
+mod is anyone Helix lists as moderating the channel (`TWITCH_CHANNEL_ID`), asked
+on the caller's own token; and only tokens minted by the apps in
+`TWITCH_CLIENT_IDS` are accepted, so a token Dana signed into some other app
+with cannot be replayed here. Nothing is stored — no session, no cookie, no
+principals file — and the gate works on every hostname alike, the custom domains
+included. `task dev` admits nobody unless the three ids are in its environment;
+`task test:integration` stubs Twitch to vouch for one token.
 
 Rejecting a round is built (a button per round, replaced from the queue's tail);
 reordering a day is not. Looking is most of the value and it is what makes the

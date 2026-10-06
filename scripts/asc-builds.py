@@ -135,7 +135,7 @@ def verdict(found: list[dict], tag: str) -> tuple[bool, str]:
             False,
             f"✗ {tag} has a build ({ours[0]['build']}) but it is {ours[0]['state']}",
         )
-    return False, f"✗ {tag} has no build in App Store Connect — run: task app:release"
+    return False, f"✗ {tag} has no build in App Store Connect — run: task ios:release"
 
 
 def main() -> int:

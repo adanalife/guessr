@@ -8,8 +8,9 @@ name: staging
 # especially — before players see it.
 #
 # Staging also runs the Python API. The site stays a Pages project, and its
-# root middleware (functions/_middleware.js) hands /api/, /admin/ and /clips/ to
-# the Worker through the project's `API` service binding. The Worker deploys
+# root middleware (functions/_middleware.js) hands /api/ and /admin/ to the
+# Worker through the project's `API` service binding; /clips/ stays on Pages,
+# streamed from R2 by functions/clips/. The Worker deploys
 # first, so the forwarder never points at a Worker running older code than the
 # Pages build in front of it. A failed Worker deploy stops the job, so the
 # Pages site never ships ahead of the API it calls.
@@ -44,13 +45,10 @@ jobs:
       - name: Stamp the build
         run: |
           printf '{"label":"main@%s","tier":"staging"}\n' "${GITHUB_SHA::7}" > web/version.json
-      # A deploy whose migrations are not applied is the outage this step
-      # exists to stop, and it is not hypothetical: #205 shipped a handler
-      # reading `day_reviews`, the table was never created on production, and
-      # every load of the day preview 500ed until somebody ran the apply by
-      # hand. The ledger knew the whole time -- this is the same read
-      # `task schema:stage:status` runs -- so the only thing missing was
-      # anything that failed on it.
+      # A deploy whose migrations are not applied serves handlers that read
+      # tables the database lacks, and every such route 500s until someone runs
+      # the apply. The ledger already knows -- this is the same read
+      # `task schema:stage:status` runs -- so this step fails on it.
       #
       # Before the deploy, not after: applying is a laptop command by design
       # (the README says why migrations are never automated), so the useful
@@ -71,9 +69,9 @@ jobs:
             echo "::error::the staging database is behind — run 'task schema:stage:apply', then re-run this job"
             exit 1
           }
-      # The Worker behind the `API` binding (see the top of this file). Skipped
-      # while the repo carries no Worker config, which leaves this job exactly
-      # the Pages deploy it has always been.
+      # The Worker behind the `API` binding (see the top of this file). Every
+      # step here is conditional on api/wrangler.jsonc, so a checkout without it
+      # deploys only the Pages site.
       #
       # Node from .tool-versions rather than the runner's: pywrangler builds its
       # Pyodide environment with a node flag that Node 26 dropped.
@@ -98,10 +96,19 @@ jobs:
           cd api
           uv sync
           uv run pywrangler deploy
+      # The step says why; the two tiers share it.
+      - name: Prove the Worker's cold isolates start
+        if: hashFiles('api/wrangler.jsonc') != ''
+        uses: ./.github/actions/worker-cold-start
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        with:
+          base: https://adanalife-guessr-staging.pages.dev
 
       # No build step, and no media either: web/ is the site, and the round
-      # clips are served from R2 by functions/clips/[[path]].js rather than
-      # deployed alongside it. So what goes up is a few hundred KB of HTML and
+      # clips are streamed from R2 by a Pages Function (functions/clips/) rather
+      # than deployed alongside it. So what goes up is a few hundred KB of HTML and
       # JS, and a regeneration changes nothing here.
       - name: Deploy to Cloudflare Pages (staging)
         env:

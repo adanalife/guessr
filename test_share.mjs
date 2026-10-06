@@ -14,7 +14,6 @@ import assert from 'node:assert/strict';
 import {
   BANDS, HOME_URL, MAX_ROUND_SCORE, bandFor, scoreLine, shareText, squareFor,
 } from './web/share.js';
-import { scoreFor } from './functions/_scoring.mjs';
 
 // The table is a first-match lookup, so descending order is what makes it a
 // lookup at all. Sorted any other way -- by colour, alphabetically, or reversed
@@ -50,20 +49,6 @@ for (const { min, square } of BANDS) {
 assert.equal(squareFor(MAX_ROUND_SCORE), BANDS[0].square, 'a perfect round is not the top band');
 assert.equal(squareFor(0), BANDS.at(-1).square, 'a zero is not the bottom band');
 
-// The top band's cutoff is a distance written in points, and nothing in
-// share.js can tell that it stopped being one. Widen MAP_SIZE_KM or reshape the
-// curve and 4989 quietly becomes some other radius -- a trophy for eight km,
-// or one nobody can reach -- while every assertion above still passes, because
-// they only check that the table is internally consistent.
-{
-  const trophy = BANDS[0].min;
-  assert.ok(scoreFor(1) >= trophy, `a guess 1 km out scores ${scoreFor(1)}, under the ${trophy} bar`);
-  assert.ok(scoreFor(1.05) < trophy, 'the bar is looser than the kilometre it claims');
-  // And it has to stay the exceptional case it was measured to be: 5 km was the
-  // next candidate and covers twice as many guesses, so a bar that has drifted
-  // out that far is the wrong bar even if it is still a round number.
-  assert.ok(scoreFor(5) < trophy, 'a guess 5 km out earns the trophy');
-}
 
 // Never undefined across the whole range a server-side score can take. bandFor
 // returns from Array.find, so a gap in the table throws on `.square` rather than

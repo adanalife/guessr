@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 #if canImport(FoundationNetworking)
     import FoundationNetworking
@@ -56,15 +57,14 @@ public protocol SessionStore: Sendable {
 }
 
 /// A store that forgets on relaunch: tests, previews, and platforms with no Keychain.
-public final class MemorySessionStore: SessionStore, @unchecked Sendable {
-    private let lock = NSLock()
-    private var session: TwitchSession?
+public final class MemorySessionStore: SessionStore {
+    private let session: Mutex<TwitchSession?>
 
-    public init(_ session: TwitchSession? = nil) { self.session = session }
+    public init(_ session: TwitchSession? = nil) { self.session = Mutex(session) }
 
-    public func load() -> TwitchSession? { lock.withLock { session } }
-    public func save(_ session: TwitchSession) { lock.withLock { self.session = session } }
-    public func clear() { lock.withLock { session = nil } }
+    public func load() -> TwitchSession? { session.withLock { $0 } }
+    public func save(_ session: TwitchSession) { self.session.withLock { $0 = session } }
+    public func clear() { session.withLock { $0 = nil } }
 }
 
 #if canImport(Security)
@@ -136,9 +136,9 @@ public enum TwitchAuthError: Error, LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .notConfigured: "Twitch login isn't configured in this build"
-        case .expired: "The code expired before it was entered — try again"
-        case .refused(let why): "Twitch refused the login: \(why)"
+        case .notConfigured: String(localized: "Twitch login isn't configured in this build", bundle: .module)
+        case .expired: String(localized: "The code expired before it was entered. Try again.", bundle: .module)
+        case .refused(let why): String(localized: "Twitch refused the login: \(why)", bundle: .module)
         }
     }
 }
@@ -151,10 +151,15 @@ public struct TwitchAuth: Sendable {
     /// that read, on your own token, is how a channel mod is recognized without
     /// anyone keeping a list.
     public static let scopes = ["user:read:chat", "user:write:chat", "user:read:moderated_channels"]
-    /// The same, plus deleting messages and banning — asked for only once the
-    /// login turns out to moderate the channel, so a viewer's consent screen
-    /// never lists powers they don't have.
-    public static let modScopes = scopes + ["moderator:manage:chat_messages", "moderator:manage:banned_users"]
+    /// The same, plus the moderation verbs — asked for only once the login
+    /// turns out to moderate the channel, so a viewer's consent screen never
+    /// lists powers they don't have. Adding a scope here asks every mod for a
+    /// second login again: `canModerate` wants all of them.
+    public static let modScopes =
+        scopes + [
+            "moderator:manage:chat_messages", "moderator:manage:banned_users", "moderator:manage:automod",
+            "moderator:manage:warnings", "moderator:manage:chat_settings",
+        ]
 
     /// The Twitch application's client id, registered as a Public client. Not a
     /// secret; empty leaves login switched off.

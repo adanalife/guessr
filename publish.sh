@@ -213,7 +213,7 @@ npx wrangler d1 execute "$DB" --remote --file answers.sql --yes
 echo "== 3/3 pool and schedule to the $TIER D1"
 npx wrangler d1 execute "$DB" --remote --file rounds.sql --yes
 
-# What a reviewer needs, and what a Discord notification will carry: how much was
+# What a reviewer needs, and what the Discord post below carries: how much was
 # generated, how far ahead the game is now covered, and what is left over. Read
 # back out of the database rather than out of the local files, so it describes
 # what actually landed.
@@ -250,4 +250,17 @@ if [ "$MODE" = "topup" ]; then
   fi
 else
   echo "production is unchanged -- top it up with \`task rounds:topup\` after a review pass, or let the cron."
+fi
+
+# The post, last, so it describes a run every guard above has passed: the same
+# line the log carries, to the channel the infra alerts go to. Only a run that
+# published something posts -- the healthy exit above stays quiet, so a weekly
+# message means rounds moved. Opt-in by the webhook being set; a failed post is
+# a warning, never a failed publish, since the rounds are already live.
+if [ -n "${DISCORD_WEBHOOK:-}" ]; then
+  if ! jq -n --arg content "guessr: published to $TIER -- $scheduled" '{content: $content}' |
+    curl -sS --fail --max-time 10 -o /dev/null -H 'content-type: application/json' \
+      --data @- "$DISCORD_WEBHOOK"; then
+    echo "::warning::the Discord post failed; the rounds are published regardless" >&2
+  fi
 fi

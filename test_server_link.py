@@ -10,7 +10,7 @@ import datetime as dt
 import sqlite3
 
 from server.db import Sqlite
-from server.link import ALPHABET, LENGTH, claim, issue_code, link, new_code
+from server.link import ALPHABET, LENGTH, claim, issue_code, link, new_code, preview
 
 PHONE, DESKTOP, STRANGER = "phone-id", "desktop-id", "stranger-id"
 
@@ -172,7 +172,43 @@ async def test_link_codes() -> None:
     assert len(await owned(db, PHONE)) == 2, "a self-claim deleted its own plays"
 
 
+async def test_preview() -> None:
+    """A preview says what a claim would do and consumes nothing."""
+    rows = [(PHONE, "a.jpg", 100), (DESKTOP, "b.jpg", 300), (DESKTOP, "c.jpg", 50)]
+    db = await plays(rows)
+    await db.execute(
+        "INSERT INTO players (player_id, alias) VALUES (?, 'Patient Delta')", DESKTOP
+    )
+    _, issued = await issue_code(db, {"player_id": DESKTOP})
+    for bad in (
+        None,
+        {},
+        {"code": issued["code"]},
+        {"code": "ABCDEFG0", "from": PHONE},
+    ):
+        assert (await preview(db, bad))[0] == 400, bad
+    assert await preview(db, {"code": issued["code"].lower(), "from": PHONE}) == (
+        200,
+        {
+            "to": {"name": "Patient Delta", "points": 350},
+            "from": {"name": "anonymous", "points": 100},
+        },
+    )
+    assert await codes(db) == 1, "a preview consumed the code"
+    assert len(await owned(db, PHONE)) == 1, "a preview merged"
+    assert (await preview(db, {"code": "ABCDEFGH", "from": PHONE}))[0] == 404
+    assert await preview(db, {"code": issued["code"], "from": "nobody"}) == (
+        200,
+        {
+            "to": {"name": "Patient Delta", "points": 350},
+            "from": {"name": "anonymous", "points": 0},
+        },
+    ), "a device with no plays has no standing"
+    assert (await claim(db, {"code": issued["code"], "from": PHONE}))[0] == 200
+
+
 asyncio.run(test_link())
+asyncio.run(test_preview())
 asyncio.run(test_batch_is_one_transaction())
 asyncio.run(test_link_codes())
 print("ok: the Python /api/link and link codes match the contract the .mjs tests hold")

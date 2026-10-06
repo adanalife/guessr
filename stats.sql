@@ -80,7 +80,7 @@ LIMIT 10;
 -- leader. `rounds` is here to read the total honestly -- a day short of five is
 -- an unfinished game, not a bad one.
 --
--- `player` follows the same rule the boards do (functions/_names.mjs): the name
+-- `player` follows the same rule the boards do (server/leaderboard.py): the name
 -- an operator gave them, else the last one they drew for themselves. `note` is
 -- the half no endpoint serves, and this is the only place it is ever read.
 --

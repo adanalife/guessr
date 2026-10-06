@@ -4,7 +4,7 @@
 # replacing the directory wholesale from the tarball should produce no
 # incidental diff. (The round-set media needs no entry -- web/clips/ is
 # gitignored, so it is never staged for a hook to see.)
-exclude: '^web/(et-book|leaflet)/'
+exclude: '^web/(et-book|leaflet|sentry)/'
 
 # Install the pre-commit (file-content) hooks, the commit-msg hook (the
 # Conventional Commits check below) and the pre-push hook (the changelog-fragment
@@ -62,10 +62,8 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  # JavaScript: biome, the same linter the weekly super-linter sweep runs. Until
-  # this hook existed, ruff gated every Python file on every commit and nothing
-  # gated a .js or .mjs at all — the Pages functions and the game front-end were
-  # linted only by that weekly sweep, which reports to nobody when it goes red.
+  # JavaScript: biome, the same linter the weekly super-linter sweep runs. Here
+  # it gates every commit; the weekly sweep reports to nobody when it goes red.
   #
   # lint only, never `biome check`: the format half wants to reformat
   # release-please's own manifest and config JSON, which release-please then
@@ -75,13 +73,13 @@ repos:
     hooks:
       - id: biome-lint
         # --error-on-warnings is what the weekly sweep runs with, and without it
-        # the two gates disagree: a warning exits 0 here and 1 there, which is
-        # how a real finding sat red in the sweep for three weeks looking flaky.
+        # the two gates disagree: a warning exits 0 here and 1 there, so a real
+        # finding reads as a flaky sweep.
         args: [--error-on-warnings]
         # The upstream hook's file list stops at js/ts/json/css. biome also
         # lints the CSS inside an HTML <style> block, which is where this
         # repo's stylesheet actually lives, so extend it — without html the
-        # gate would miss the one diagnostic that had the sweep red.
+        # gate misses every finding in that stylesheet.
         files: "\\.(jsx?|tsx?|c(js|ts)|m(js|ts)|jsonc?|css|html)$"
         additional_dependencies: ["@biomejs/biome@2.5.13"]
 

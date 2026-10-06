@@ -4,9 +4,21 @@ import Foundation
 // badge labels, and Twitch's badge art. A viewer with no Twitch colour is the
 // same colour here as in the browser.
 
-/// Username palette: a login is hashed, stably, to one of these.
-private let palette = [
-    "#b694ff", "#9b7bff", "#7fd1ff", "#5ad1c4", "#f2a3ff", "#7fb0ff", "#8ad4ff", "#9ee493",
+/// Per-platform username palettes: a login is hashed, stably, to one of its
+/// platform's slots. They lean different ways, so a twitch name and a youtube
+/// name that hash to the same slot still read apart.
+private let userPalettes = [
+    "twitch": [
+        "#b694ff", "#9b7bff", "#7fd1ff", "#5ad1c4", "#f2a3ff", "#7fb0ff", "#8ad4ff", "#9ee493",
+    ],
+    "youtube": [
+        "#ff9e80", "#ff8a65", "#ffb74d", "#ffd54f", "#ff7eb3", "#ffab91", "#f48fb1", "#ffcc80",
+    ],
+]
+
+/// The palette for a platform with none of its own, or no platform at all.
+private let defaultPalette = [
+    "#7fd1ff", "#5ad1c4", "#b694ff", "#f2a3ff", "#9ee493", "#ffd54f", "#ff9e80", "#ff7eb3",
 ]
 
 /// The channel owner gets one distinct, never-hashed colour — a warm gold,
@@ -24,10 +36,13 @@ private let builtinBots: Set<String> = [
 /// Stable colour for a username as `#rrggbb`, or nil for a bot, which reads
 /// muted. The broadcaster takes the gold; everyone else takes a palette slot
 /// keyed by a SHA-1 of the lowercased login — the web console's derivation.
-public func usernameColorHex(_ username: String, isBroadcaster: Bool = false) -> String? {
+public func usernameColorHex(_ username: String, platform: String? = "twitch", isBroadcaster: Bool = false)
+    -> String?
+{
     let login = username.lowercased()
     if isBroadcaster { return broadcasterColor }
     if builtinBots.contains(login) { return nil }
+    let palette = platform.flatMap { userPalettes[$0] } ?? defaultPalette
     // The palette is a power of two long, so the digest's last byte decides
     // the slot — the same answer as hashing the whole digest as one integer.
     let last = Int(sha1(Array(login.utf8)).last ?? 0)
@@ -46,6 +61,20 @@ extension ChatLine {
         if !color.isEmpty { return color }
         return usernameColorHex(login, isBroadcaster: isBroadcaster)
     }
+
+    /// Whether the line names `login` — as `@login` or bare, in any case —
+    /// and someone else sent it. What a reader's own highlight keys on.
+    public func mentions(_ login: String) -> Bool {
+        let me = login.lowercased()
+        guard !me.isEmpty, self.login.lowercased() != me else { return false }
+        return text.lowercased().split { !($0.isLetter || $0.isNumber || $0 == "_") }.contains { $0 == me }
+    }
+
+    /// A chatter's first message in the channel.
+    public var isFirstMessage: Bool { messageType == "user_intro" }
+
+    /// A message the chatter spent channel points to highlight.
+    public var isPointsHighlight: Bool { messageType == "channel_points_highlighted" }
 
     /// The sender's badges as chips — `mod`, `sub 12`, `founder` — sorted by
     /// set id, with the version kept so the art table can be keyed by it.
@@ -71,6 +100,12 @@ public struct BadgeTag: Sendable, Hashable, Identifiable {
     public let version: String
     public let label: String
     public var id: String { "\(name)/\(version)" }
+
+    public init(name: String, version: String, label: String) {
+        self.name = name
+        self.version = version
+        self.label = label
+    }
 }
 
 /// Badge art: set id → version id → size key (`url_1x`, `url_2x`, `url_4x`)
@@ -123,16 +158,60 @@ private struct HelixBadges: Decodable {
     var data: [Set]
 }
 
-extension TwitchChat {
+extension Helix {
     /// Twitch's badge art: the global sets with the channel's own on top,
     /// since a channel's subscriber badges replace the stock ones. Read once
     /// and hold.
     public func badgeArt() async throws -> BadgeSets {
         let broadcaster = try await resolveBroadcaster()
-        let global = try BadgeSets.helix(try await helix("GET", "chat/global_badges"))
-        let channel = try BadgeSets.helix(try await helix("GET", "chat/badges", query: ["broadcaster_id": broadcaster]))
+        let global = try BadgeSets.helix(try await request("GET", "chat/global_badges"))
+        let channel = try BadgeSets.helix(try await request("GET", "chat/badges", query: ["broadcaster_id": broadcaster]))
         return global.overlaid(with: channel)
     }
+}
+
+/// An emote a composer can offer: Twitch's id, which names its art, and the
+/// word that summons it.
+public struct ChatEmote: Sendable, Hashable, Identifiable, Decodable {
+    public let id: String
+    public let name: String
+    public init(id: String, name: String) {
+        self.id = id
+        self.name = name
+    }
+}
+
+extension Helix {
+    /// The channel's own emotes, then Twitch's global set. Read once and hold.
+    // ponytail: every emote the channel has, whether or not this viewer may
+    // use one (a sub emote sent by a non-sub goes out as its name). The exact
+    // usable set is GET chat/emotes/user, behind the user:read:emotes scope.
+    public func emotes() async throws -> [ChatEmote] {
+        struct Page: Decodable { var data: [ChatEmote] }
+        let broadcaster = try await resolveBroadcaster()
+        let channel = try await request("GET", "chat/emotes", query: ["broadcaster_id": broadcaster])
+        let global = try await request("GET", "chat/emotes/global")
+        return try Guessr.decoder.decode(Page.self, from: channel).data
+            + Guessr.decoder.decode(Page.self, from: global).data
+    }
+}
+
+/// The `@name` a composer is in the middle of typing — its last word, when
+/// that starts with `@` — as the part after the `@`. Nil otherwise, and after a
+/// trailing space, which ends the word.
+public func mentionInProgress(_ text: String) -> String? {
+    guard let word = text.split(separator: " ", omittingEmptySubsequences: false).last, word.hasPrefix("@")
+    else { return nil }
+    return String(word.dropFirst())
+}
+
+/// `text` with the word being typed swapped for `word`, and a space after it
+/// so the next word starts fresh.
+public func completingLastWord(_ text: String, with word: String) -> String {
+    var words = text.split(separator: " ", omittingEmptySubsequences: false)
+    if words.isEmpty { return word + " " }
+    words[words.count - 1] = Substring(word)
+    return words.joined(separator: " ") + " "
 }
 
 /// SHA-1 of `message`, as its 20 digest bytes. Hand-rolled because the

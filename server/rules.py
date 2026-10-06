@@ -31,8 +31,7 @@ MONTH = re.compile(r"[0-9]{4}-(0[1-9]|1[0-2])")
 MAX_HANDLE = 24
 
 # The two lists a player's alias is drawn from, loaded from web/alias.json, the
-# file the page and the Pages Functions import too. This copy is the boundary
-# /api/score enforces. A Python Worker bundles only its own modules, so a deploy
+# file the page imports too. This copy is the boundary /api/score enforces. A Python Worker bundles only its own modules, so a deploy
 # of this package has to ship that file beside them.
 _WORDS = json.loads(
     (Path(__file__).resolve().parent.parent / "web" / "alias.json").read_text()
@@ -136,6 +135,22 @@ def parse_play(body) -> dict | None:
         "player_id": player_id,
         "handle": label if is_alias(label) else None,
     }
+
+
+def client_of(user_agent) -> str | None:
+    """The coarse kind of client behind a User-Agent, for the play row: the native
+    app announces itself as `Guessr/<version> (<platform> <os version>)`, and
+    anything else that sends a User-Agent is a browser. None for no header.
+    Deliberately no finer than a platform bucket -- the browser, the model and
+    the screen are fingerprinting, not analytics."""
+    if not isinstance(user_agent, str) or not user_agent:
+        return None
+    if not user_agent.startswith("Guessr/"):
+        return "web"
+    for platform, bucket in (("iPadOS", "ipados"), ("iOS", "ios"), ("macOS", "mac")):
+        if f"({platform} " in user_agent:
+            return bucket
+    return "app"
 
 
 def play_window(date: str) -> tuple[dt.datetime, dt.datetime]:

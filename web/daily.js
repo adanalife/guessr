@@ -9,7 +9,7 @@
 // data -- the page and the scorer have to agree on when a date is open, or one
 // accepts plays the other refuses.
 //
-// An ES module, imported by the page and by functions/api/{day,score}.js alike.
+// An ES module, imported by the page; server/rules.py carries the same window.
 // Dependency-free, so `node test_daily.mjs` runs it with no bundler.
 
 // Day 1. Everyone playing on the same calendar day draws the same five rounds,
