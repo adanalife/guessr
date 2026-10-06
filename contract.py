@@ -270,8 +270,8 @@ def score(images, first_images):
     km = haversine_km((40, -100), (s["lat"], s["lng"]))
     assert abs(s["km"] - km) < 0.01, (s, km)
     assert s["points"] == round(5000 * math.exp(-10 * s["km"] / 4500)), s
-    # The seeded still beside the pin, through the real query planner rather than
-    # node:sqlite's: the lookup binds nine parameters into one ORDER BY.
+    # The seeded still beside the pin, through a migrated database rather than a
+    # unit test's: the lookup binds nine parameters into one ORDER BY.
     assert (s.get("reveal") or {}).get("image") == REVEAL, s
 
     # Undated is not a way round the window: today's round, and one not yet open,
