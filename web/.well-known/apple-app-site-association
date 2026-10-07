@@ -1,0 +1,16 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["Z6H2786XG4.lol.dana.guessr"],
+        "components": [
+          {
+            "/": "/",
+            "#": "link=*",
+            "comment": "The link-a-device QR code: the site root carrying a player id in its fragment. Any other page stays in the browser."
+          }
+        ]
+      }
+    ]
+  }
+}
