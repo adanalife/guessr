@@ -118,7 +118,7 @@ echo "$out"
 # extensionless file, and the kind of thing that stops working without a line
 # in any diff saying so. A deploy that drops it leaves every QR scan in Safari.
 aasa=$(curl -s -o /tmp/smoke-aasa.json -w '%{http_code} %{content_type}' "$BASE/.well-known/apple-app-site-association")
-if [ "$aasa" != "200 application/json" ] || ! jq -e '.applinks.details[0].appIDs[0] | endswith(".lol.dana.guessr")' /tmp/smoke-aasa.json >/dev/null 2>&1; then
+if [ "$aasa" != "200 application/json" ] || ! jq -e '(.applinks.details[0].appIDs[0] | endswith(".lol.dana.guessr")) and (.appclips.apps[0] | endswith(".lol.dana.guessr.Clip"))' /tmp/smoke-aasa.json >/dev/null 2>&1; then
   echo "::error::$BASE/.well-known/apple-app-site-association answered '$aasa' rather than the app's JSON, so the QR code opens Safari, not the app."
   exit 1
 fi
