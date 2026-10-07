@@ -94,9 +94,11 @@ public protocol PlayerStore: Sendable {
 
 extension PlayerStore {
     /// The saved player, or a new one minted and saved on first launch.
-    public func current() -> Player {
+    /// `handed` is a player from somewhere else to take up instead of minting,
+    /// the App Clip's: it never replaces a player this store already holds.
+    public func current(orAdopt handed: Player? = nil) -> Player {
         if let player = load() { return player }
-        let player = Player.mint()
+        let player = handed ?? Player.mint()
         // ponytail: a failed save means a new id next launch and this launch's
         // plays stranded on the old one; link codes are the recovery path.
         save(player)
@@ -130,6 +132,30 @@ public final class MemoryPlayerStore: PlayerStore {
         }
     }
 #endif
+
+/// The player in the app group's defaults: where the App Clip keeps its own, and
+/// what the full app reads on first launch, since iOS moves the clip's group
+/// container to the full app when it is installed. The clip has no Keychain the
+/// full app can see; the group is the only thing that crosses.
+public struct GroupPlayerStore: PlayerStore {
+    public static let group = "group.lol.dana.guessr"
+    private let key = "player"
+    /// The suite's name rather than the `UserDefaults` itself, which is not
+    /// Sendable; it is opened on each read and write.
+    private let suite: String
+
+    public init(suite: String = GroupPlayerStore.group) {
+        self.suite = suite
+    }
+
+    public func load() -> Player? {
+        UserDefaults(suiteName: suite)?.data(forKey: key).flatMap { try? JSONDecoder().decode(Player.self, from: $0) }
+    }
+
+    public func save(_ player: Player) {
+        UserDefaults(suiteName: suite)?.set(try? JSONEncoder().encode(player), forKey: key)
+    }
+}
 
 /// One round as this device played it, kept so a relaunch resumes the day.
 public struct PlayedRound: Sendable, Equatable, Codable {
