@@ -11,6 +11,9 @@ struct GuessrApp: App {
     /// the code joined; every change goes back to the Keychain.
     @State private var player = KeychainPlayerStore().current()
     @State private var tab = GuessrApp.firstTab
+    /// A link-a-device QR code scanned into the app, held while it asks.
+    @State private var link: DeviceLink?
+    @State private var linkFailed = false
     /// A tab something outside the view asked for, such as the Siri guess
     /// sending a signed-out player to Settings; taken once, then cleared.
     @AppStorage(GuessrApp.openTabKey) private var openTab = ""
@@ -72,6 +75,26 @@ struct GuessrApp: App {
                 openTab = ""
             }
             .onChange(of: player) { _, joined in players.save(joined) }
+            // The website's QR code, which iOS hands here instead of Safari when
+            // the app is installed. Behind a question, never on arrival alone:
+            // a URL that silently rewrites who you are is a URL anyone can send.
+            .onOpenURL { url in
+                if let opened = DeviceLink(url), opened.id != player.id { link = opened }
+            }
+            .alert(
+                link.map { Text("Play as \($0.name ?? String(localized: "your other device"))?") } ?? Text(verbatim: ""),
+                isPresented: Binding(get: { link != nil }, set: { if !$0 { link = nil } }), presenting: link
+            ) { opened in
+                Button("Join") { Task { await join(opened) } }
+                Button("Cancel", role: .cancel) {}
+            } message: { _ in
+                Text("This device's plays move to that player, and both devices play as one from now on.")
+            }
+            .alert("Could not link the devices just now.", isPresented: $linkFailed) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Scan the code again to retry.")
+            }
             .task(id: account.session?.userID) { await account.checkModerates() }
             .onChange(of: scenePhase, initial: true) { _, phase in
                 if phase == .active { Task { await Reminder.refreshBadge() } }
@@ -80,6 +103,19 @@ struct GuessrApp: App {
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
                 Task { await Reminder.refreshBadge() }
             }
+        }
+    }
+
+    /// Joins the website's player: the merge runs first, and the id is adopted
+    /// only once it has, so a failure leaves this device's plays where they are.
+    private func join(_ link: DeviceLink) async {
+        do {
+            _ = try await client.link(link, from: player)
+            player = Player(id: link.id, alias: player.alias)
+            tab = "Play"
+        } catch {
+            Telemetry.requestFailed("link", error: error)
+            linkFailed = true
         }
     }
 

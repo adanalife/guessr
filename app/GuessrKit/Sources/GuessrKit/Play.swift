@@ -282,6 +282,42 @@ extension GuessrClient {
     }
 }
 
+/// The link-a-device QR code on the website, opened on this device: the player
+/// to join and the name they go by. The id rides in the URL's fragment, which
+/// never reaches a server (see web/link.js); the name is a label for the
+/// question, and the id is what links.
+///
+/// Shared with any App Clip, which opens from a URL the same way.
+public struct DeviceLink: Sendable, Equatable {
+    public var id: String
+    public var name: String?
+
+    public init(id: String, name: String? = nil) {
+        self.id = id
+        self.name = name
+    }
+
+    /// Reads the fragment `URLSearchParams` wrote: `link=<id>&name=<alias>`,
+    /// with `+` for a space. Any other URL is nil.
+    public init?(_ url: URL) {
+        guard let fragment = url.fragment(percentEncoded: true),
+            let items = URLComponents(string: "?" + fragment.replacingOccurrences(of: "+", with: "%20"))?.queryItems,
+            let id = items.first(where: { $0.name == "link" })?.value, !id.isEmpty, id.count <= 64
+        else { return nil }
+        self.init(id: id, name: items.first(where: { $0.name == "name" })?.value)
+    }
+}
+
+extension GuessrClient {
+    /// Folds `player`'s plays onto `link`'s player, the merge the website runs
+    /// when it opens the same QR code. Answers how many plays moved; the caller
+    /// then plays as `link.id`.
+    public func link(_ link: DeviceLink, from player: Player) async throws -> Int {
+        struct Moved: Decodable { var moved: Int }
+        return try Guessr.decoder.decode(Moved.self, from: try await post("api/link", ["from": player.id, "to": link.id])).moved
+    }
+}
+
 /// What a claim would do: the player a code names and the player this device
 /// plays as today, each with their all-time points.
 public struct LinkPreview: Sendable, Equatable, Codable {

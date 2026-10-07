@@ -137,6 +137,22 @@ private func answer(_ proto: URLProtocol, with name: String) {
     proto.client?.urlProtocolDidFinishLoading(proto)
 }
 
+/// Answers the website's merge, /api/link, as the server does.
+final class LinkingGuessr: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var lastBody: [String: Any] = [:]
+    nonisolated(unsafe) static var lastPath: String?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+
+    override func startLoading() {
+        Self.lastPath = request.url?.path
+        Self.lastBody = jsonBody(of: request)
+        answer(self, with: "link")
+    }
+}
+
 /// Refuses every play the way /api/score refuses one against a closed date.
 final class ClosedGuessr: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool { true }
@@ -210,6 +226,24 @@ private let image = "clips/2018_1015_183219_002_opt-026000.mp4"
     #expect(SyncingGuessr.lastBody["game_player_id"] as? String == "A:_5f21e308073d18f9b3afdc37f646e851")
     // The server computes the standing; a body carrying a score would be the cheat.
     #expect(SyncingGuessr.lastBody.count == 2)
+}
+
+@Test func theWebsitesLinkCodeNamesThePlayerAndTheirName() {
+    // What web/link.js writes: URLSearchParams, so a space is a `+`.
+    let link = DeviceLink(URL(string: "https://guessr.dana.lol/#link=5d2c8e1a-9b3f-4c7d-a6e0-1f2b3c4d5e6f&name=Patient+Delta")!)
+    #expect(link == DeviceLink(id: "5d2c8e1a-9b3f-4c7d-a6e0-1f2b3c4d5e6f", name: "Patient Delta"))
+    #expect(DeviceLink(URL(string: "https://guessr.dana.lol/#link=abc")!) == DeviceLink(id: "abc"))
+    #expect(DeviceLink(URL(string: "https://guessr.dana.lol/")!) == nil)
+    #expect(DeviceLink(URL(string: "https://guessr.dana.lol/?link=abc")!) == nil)
+    #expect(DeviceLink(URL(string: "https://guessr.dana.lol/#name=Nobody")!) == nil)
+}
+
+@Test func aDeviceLinkMovesThisPlayersPlays() async throws {
+    let moved = try await client(LinkingGuessr.self).link(DeviceLink(id: "5d2c8e1a-9b3f-4c7d-a6e0-1f2b3c4d5e6f"), from: player)
+    #expect(moved == 3)
+    #expect(LinkingGuessr.lastPath == "/api/link")
+    #expect(LinkingGuessr.lastBody["from"] as? String == player.id)
+    #expect(LinkingGuessr.lastBody["to"] as? String == "5d2c8e1a-9b3f-4c7d-a6e0-1f2b3c4d5e6f")
 }
 
 @Test func aPreviewedCodeNamesBothPlayers() async throws {

@@ -57,6 +57,30 @@ between them, puts the last archive through the App Store export checks
 without uploading it; `task ios:verify` asks App Store Connect
 whether the newest tag has an installable build.
 
+## Universal links
+
+The website's *Link a device* QR code (`web/link.js`) opens the app when it is
+installed, and Safari otherwise. Three parts agree on it: the site serves
+`web/.well-known/apple-app-site-association`, which names the team and bundle
+id and matches only the site root carrying `#link=` (the `_headers` rule beside
+it gives the extensionless file its JSON content type); the app's entitlements
+in `project.yml` name `guessr.dana.lol` and its stage; and `GuessrApp`'s
+`onOpenURL` reads the player out of the fragment (`DeviceLink` in GuessrKit)
+and runs the same `POST /api/link` merge the website does, behind a question.
+
+The App ID in the developer portal needs the *Associated Domains* capability,
+and the `Guessr App Store` profile has to be regenerated after it is added; a
+build signed with a profile that lacks it installs, and iOS quietly never hands
+it a link. Apple's CDN fetches the file on install, not on every scan, so after
+a change check what it holds:
+
+```sh
+curl https://app-site-association.cdn-apple.com/a/v1/guessr.dana.lol
+```
+
+A fresh install, or Settings → Developer → *Associated Domains Development* →
+*Diagnostics* on a device, says what iOS resolved the domain to.
+
 ## Game Center
 
 The app signs its player into Game Center and shows the dashboard from
