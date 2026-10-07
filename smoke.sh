@@ -112,6 +112,18 @@ if [ -z "$imports_ok" ]; then
 fi
 echo "$out"
 
+# The universal-link association, which makes the site's link-a-device QR code
+# open the iOS app. Apple's CDN reads it from here, and it accepts nothing but a
+# JSON content type with no redirect -- which is a _headers rule on an
+# extensionless file, and the kind of thing that stops working without a line
+# in any diff saying so. A deploy that drops it leaves every QR scan in Safari.
+aasa=$(curl -s -o /tmp/smoke-aasa.json -w '%{http_code} %{content_type}' "$BASE/.well-known/apple-app-site-association")
+if [ "$aasa" != "200 application/json" ] || ! jq -e '.applinks.details[0].appIDs[0] | endswith(".lol.dana.guessr")' /tmp/smoke-aasa.json >/dev/null 2>&1; then
+  echo "::error::$BASE/.well-known/apple-app-site-association answered '$aasa' rather than the app's JSON, so the QR code opens Safari, not the app."
+  exit 1
+fi
+echo "ok: apple-app-site-association names the app"
+
 # And the round set, separately, because version.json moving does not mean the
 # game is playable. No part of a set is deployed, so the only useful question is
 # the one a player asks -- does this tier have a game for today?

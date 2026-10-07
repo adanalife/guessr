@@ -44,6 +44,12 @@ targets:
       path: Guessr/Guessr.entitlements
       properties:
         com.apple.developer.game-center: true
+        # Universal links: the site's link-a-device QR code opens the app when
+        # it is installed, by way of web/.well-known/apple-app-site-association.
+        # Stage too, which is where a Debug build plays.
+        com.apple.developer.associated-domains:
+          - applinks:guessr.dana.lol
+          - applinks:stage.guessr.dana.lol
     info:
       path: Guessr/Info.plist
       properties:
