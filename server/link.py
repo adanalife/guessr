@@ -41,8 +41,8 @@ async def link(db, body) -> tuple[int, dict]:
 # mover.
 #
 # /api/link needs both ids in one hand, which a URL fragment can only deliver to
-# a browser that opens links: a Home Screen install keeps its own storage, and
-# the native app has no way to receive one at all. A code goes the other way
+# something that opens links: a browser, or the iOS app by way of a universal
+# link (web/.well-known/apple-app-site-association). A code goes the other way
 # round -- this device asks, a person carries eight letters to the other screen,
 # and the server is the only party that ever holds both ids. Anyone can ask for
 # a code against any id, which gives them nothing: a code only ever makes its
