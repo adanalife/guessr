@@ -26,7 +26,9 @@ struct PlayView: View {
     /// Compact on a phone held on its side, the one shape with no room to
     /// stack the clip over the map.
     @Environment(\.verticalSizeClass) private var heightClass
-    @Environment(GameCenter.self) private var gameCenter
+    /// Each score as it lands, with the day so far. The app hangs the Game
+    /// Center sync and the badge off it; the App Clip hangs nothing.
+    var scored: (GuessrScore, DayProgress) -> Void = { _, _ in }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
@@ -345,10 +347,7 @@ struct PlayView: View {
             let score = try await client.score(image: image, guess: at, date: progress.date, player: player)
             progress.played.append(PlayedRound(image: image, guess: at, score: score))
             Saved.progress = progress
-            if progress.played.count == 1 { await Reminder.refreshBadge() }
-            // Off the reveal's path: the server reads the standing off its
-            // own table, so this carries nothing the reveal waits on.
-            if score.recorded { Task { await gameCenter.sync(player, with: client) } }
+            scored(score, progress)
             // The map travels from the guess out to the answer, and the reveal
             // grows in around it, rather than cutting to both.
             withAnimation(reduceMotion ? nil : .smooth(duration: 0.8)) {

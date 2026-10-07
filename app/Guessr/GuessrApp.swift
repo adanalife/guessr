@@ -31,7 +31,16 @@ struct GuessrApp: App {
         WindowGroup {
             TabView(selection: $tab) {
                 Tab("Play", systemImage: "mappin.and.ellipse", value: "Play") {
-                    NavigationStack { PlayView(player: $player).viewingAsBanner() }
+                    NavigationStack {
+                        PlayView(player: $player) { score, progress in
+                            if progress.played.count == 1 { Task { await Reminder.refreshBadge() } }
+                            // Off the reveal's path: the server reads the standing
+                            // off its own table, so this carries nothing the reveal
+                            // waits on.
+                            if score.recorded { Task { await gameCenter.sync(player, with: client) } }
+                        }
+                        .viewingAsBanner()
+                    }
                 }
                 if account.seesBoards {
                     Tab("Boards", systemImage: "list.number", value: "Boards") { NavigationStack { TodayView(alias: player.alias).viewingAsBanner() } }
