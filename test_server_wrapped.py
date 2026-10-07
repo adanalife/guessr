@@ -9,7 +9,7 @@ import asyncio
 from server.db import Sqlite
 from server.wrapped import wrapped
 
-ME, RIVAL, TIED = "me-id", "rival-id", "aaa-id"
+ME, RIVAL, TIED, SOLO = "me-id", "rival-id", "aaa-id", "solo-id"
 
 # image -> answer state
 ANSWERS = {"ca1": "CA", "ca2": "CA", "nv1": "NV", "nv2": "NV", "ut1": "UT"}
@@ -25,6 +25,8 @@ PLAYS = [
     (RIVAL, "2026-03-01", "ca1", 0.5, 9000),
     (TIED, "2026-03-01", "ca1", 0.5, 4000),  # 10600 for March, level with ME
     (TIED, "2026-03-02", "nv1", 0.5, 6600),
+    (SOLO, "2026-05-01", "ca1", 3.0, 4500),  # one state with two rounds: it qualifies
+    (SOLO, "2026-05-01", "ca2", 4.0, 4400),  # alone, so still no best or worst
 ]
 
 
@@ -82,6 +84,9 @@ async def test_wrapped() -> None:
 
     _, april = await wrapped(db, {"player_id": ME, "period": "2026-04"})
     assert april["best_state"] is None, "one state cannot be both best and worst"
+    _, solo = await wrapped(db, {"player_id": SOLO, "period": "2026-05"})
+    assert solo["rounds"] == 2 and solo["best_state"] is None, solo
+    assert solo["worst_state"] is None, solo
 
     _, empty = await wrapped(db, {"player_id": ME, "period": "2025-12"})
     assert (empty["rounds"], empty["points"], empty["avg_km"]) == (0, 0, None), empty
