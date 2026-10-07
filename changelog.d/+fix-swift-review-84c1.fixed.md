@@ -1,1 +1,0 @@
-The app's Chat tab keeps saving its last lines once a busy chat fills it, so a message a mod deleted no longer comes back after a relaunch, and signing out mid-connect no longer leaves a chat socket open.

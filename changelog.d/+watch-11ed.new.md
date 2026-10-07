@@ -1,1 +1,0 @@
-The iOS app gets a Watch tab: the stream live on Twitch or YouTube, with the channel's chat under it for a signed-in login. Served by a new `watch.html` on the site, which is also where any page that wants the live stream can embed it from.

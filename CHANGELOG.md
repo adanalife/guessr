@@ -4,6 +4,39 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.29.0 — 2026-10-07
+
+### New
+
+- The app's finished-day screen counts a streak of consecutive days played to the end, from two days on, kept on the server so it follows the player across a reinstall. ([#409](https://github.com/adanalife/guessr/pull/409))
+- The iOS app rolls the A Dana Life mark across the clip while it loads, and across the screen while the day's rounds load, in place of a blank grey slot. ([#413](https://github.com/adanalife/guessr/pull/413))
+- The iOS app gets a Watch tab: the stream live on Twitch or YouTube, with the channel's chat under it for a signed-in login. Served by a new `watch.html` on the site, which is also where any page that wants the live stream can embed it from. ([#422](https://github.com/adanalife/guessr/pull/422))
+- The website's Link a device QR code opens the iOS app when it is installed, and links the two devices from there, rather than opening Safari. ([#424](https://github.com/adanalife/guessr/pull/424))
+- A link to guessr.dana.lol, or the site's QR code, plays today's rounds as an App Clip on an iPhone with no app installed; installing the app afterwards keeps the clip's player and plays. ([#425](https://github.com/adanalife/guessr/pull/425))
+
+### Changed
+
+- The loading mark rolls along a new lane each time it crosses, passing under the "Loading…" text rather than following the same line every time. ([#418](https://github.com/adanalife/guessr/pull/418))
+
+### Fixed
+
+- The guess button keeps naming the last state while the pin moves, rather than flashing a plain "Guess" before it names the new one. ([#402](https://github.com/adanalife/guessr/pull/402))
+- A clip that fails to load in the app, or a round or a guess that never reaches the server, is reported to Sentry, so an outage players see shows up as an issue. ([#405](https://github.com/adanalife/guessr/pull/405))
+- The app reports a failed request to Sentry as its own issue per status and endpoint, so one endpoint's 500s don't hide another's. ([#406](https://github.com/adanalife/guessr/pull/406))
+- The API forwarder retries a broken Worker isolate for the iOS app too: Cloudflare answers a JSON request's 1101 as a JSON problem object, which the retry recognizes alongside the text page. ([#408](https://github.com/adanalife/guessr/pull/408))
+- The app's Chat tab keeps saving its last lines once a busy chat fills it, so a message a mod deleted no longer comes back after a relaunch, and signing out mid-connect no longer leaves a chat socket open. ([#411](https://github.com/adanalife/guessr/pull/411))
+- The loading mark leaves the clip once it starts playing, rather than rolling over it for the rest of the round, and a clip that fails to load is retried again as intended. ([#414](https://github.com/adanalife/guessr/pull/414))
+- The iPhone app moves on to the new day when it comes back the next day: the Play tab shows the new rounds rather than the day before's score until it is force quit, the boards and Settings read today's state again, and the icon badge returns at midnight while the app is open. ([#417](https://github.com/adanalife/guessr/pull/417))
+
+### Behind the scenes
+
+- The App Store review notes answer App Review's request for the app's purpose, setup, external services and regional behavior. ([#404](https://github.com/adanalife/guessr/pull/404))
+- GuessrKit's in-memory login and player stores are guarded by a compiler-checked Mutex, and its API calls build their JSON POSTs in one place. ([#412](https://github.com/adanalife/guessr/pull/412))
+- The clip player, the loading mark and the page colors live in GuessrKit, so tempomat's round previews draw clips the same way the app does. ([#413](https://github.com/adanalife/guessr/pull/413))
+- The accent color, the serif navigation titles and the ink play button live in GuessrKit beside the page colors, so tempomat can draw in the same style as the app. ([#415](https://github.com/adanalife/guessr/pull/415))
+- Releasing the app now sends its debug symbols to Sentry, so a crash report names the app's own code instead of raw addresses. ([#419](https://github.com/adanalife/guessr/pull/419))
+- The Watch tab is behind a `WATCH` compilation condition, on in every build for now, so a store submission can leave it out with one line in `app/Guessr.xcconfig`. ([#423](https://github.com/adanalife/guessr/pull/423))
+
 ## v1.28.0 — 2026-10-03
 
 ### Behind the scenes
