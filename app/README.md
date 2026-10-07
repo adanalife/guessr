@@ -81,6 +81,31 @@ curl https://app-site-association.cdn-apple.com/a/v1/guessr.dana.lol
 A fresh install, or Settings → Developer → *Associated Domains Development* →
 *Diagnostics* on a device, says what iOS resolved the domain to.
 
+## App Clip
+
+`GuessrClip` in `project.yml` is a second app target: the Play screen and what
+it needs from the app (`Play.swift`, `Layout.swift`, `USState.swift`,
+`Telemetry.swift`, the asset catalog and string catalog), compiled again into
+the bundle iOS downloads and launches from a link with no install. Chat,
+Settings, Game Center and Siri stay in the full app. The clip plays the day
+and posts scores through the normal `/api/score`; the player it mints lives in
+the `group.lol.dana.guessr` app group (`GroupPlayerStore` in GuessrKit), which
+iOS moves to the full app on install, and the full app adopts it on its first
+launch if its Keychain holds no player yet. Any link into the clip plays
+today; the invocation URL is not read.
+
+What launches it: the site's `apple-itunes-app` meta tag (Safari's banner on
+`guessr.dana.lol`), a `guessr.dana.lol` link in Messages, and the site's QR
+codes, all through the `appclips` entry in the association file above.
+
+Portal and App Store Connect, once per team: an App ID `lol.dana.guessr.Clip`
+with *App Groups* and *Associated Domains*; the `group.lol.dana.guessr` group
+on it and on `lol.dana.guessr` (so the full app's profile needs regenerating
+too); a `Guessr Clip App Store` distribution profile; and under the app's App
+Clip section in App Store Connect, the default App Clip experience (header
+image, subtitle, the *Play* action). The archive already carries the clip;
+nothing in `task ios:release` changes.
+
 ## Game Center
 
 The app signs its player into Game Center and shows the dashboard from

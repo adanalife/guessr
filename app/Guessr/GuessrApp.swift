@@ -9,7 +9,7 @@ struct GuessrApp: App {
     private let client = GuessrClient()
     /// State rather than a constant because a link code swaps it for the player
     /// the code joined; every change goes back to the Keychain.
-    @State private var player = KeychainPlayerStore().current()
+    @State private var player = KeychainPlayerStore().current(orAdopt: GroupPlayerStore().load())
     @State private var tab = GuessrApp.firstTab
     /// A link-a-device QR code scanned into the app, held while it asks.
     @State private var link: DeviceLink?

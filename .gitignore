@@ -54,6 +54,8 @@ __pycache__/
 app/Guessr.xcodeproj/
 app/Guessr/Info.plist
 app/Guessr/Guessr.entitlements
+app/GuessrClip/Info.plist
+app/GuessrClip/GuessrClip.entitlements
 app/Local.xcconfig
 .build/
 .swiftpm/

@@ -50,6 +50,9 @@ targets:
         com.apple.developer.associated-domains:
           - applinks:guessr.dana.lol
           - applinks:stage.guessr.dana.lol
+        # Shared with the App Clip: the player it minted, read on first launch.
+        com.apple.security.application-groups:
+          - group.lol.dana.guessr
     info:
       path: Guessr/Info.plist
       properties:
@@ -84,6 +87,7 @@ targets:
       - package: Sentry
         product: Sentry-Dynamic
       # - package: TempomatConsole
+      - target: GuessrClip
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: lol.dana.guessr
@@ -114,6 +118,79 @@ targets:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: Apple Distribution
           PROVISIONING_PROFILE_SPECIFIER: Guessr App Store
+  # The App Clip: the Play screen and what it needs from the app, compiled
+  # again into a bundle iOS downloads and launches from a link with no
+  # install. Everything else -- chat, settings, Game Center, Siri -- stays
+  # out, which is what keeps it under the size limit.
+  GuessrClip:
+    type: application.on-demand-install-capable
+    supportedDestinations: [iOS]
+    sources:
+      - GuessrClip
+      - Guessr/Play.swift
+      - Guessr/Layout.swift
+      - Guessr/USState.swift
+      - Guessr/Telemetry.swift
+      - Guessr/Assets.xcassets
+      - Guessr/Localizable.xcstrings
+      - Guessr/PrivacyInfo.xcprivacy
+    configFiles:
+      Debug: Guessr.xcconfig
+      Release: Guessr.xcconfig
+    entitlements:
+      path: GuessrClip/GuessrClip.entitlements
+      properties:
+        com.apple.developer.on-demand-install-capable: true
+        com.apple.developer.parent-application-identifiers:
+          - $(AppIdentifierPrefix)lol.dana.guessr
+        com.apple.developer.associated-domains:
+          - appclips:guessr.dana.lol
+          - appclips:stage.guessr.dana.lol
+        com.apple.security.application-groups:
+          - group.lol.dana.guessr
+    info:
+      path: GuessrClip/Info.plist
+      properties:
+        CFBundleDisplayName: Guessr
+        CFBundleIconName: AppIcon
+        GuessrAPIBase: $(GUESSR_API_BASE)
+        NSAppClip:
+          NSAppClipRequestEphemeralUserNotification: false
+          NSAppClipRequestLocationConfirmation: false
+        UISupportedInterfaceOrientations~iphone:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    dependencies:
+      - package: GuessrKit
+      - package: Sentry
+        product: Sentry-Dynamic
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: lol.dana.guessr.Clip
+        # Apple requires the clip's version to match its parent's; the archive
+        # overrides both on the command line, which reaches every target.
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER: Guessr Clip App Store
 schemes:
   Guessr:
     build:
