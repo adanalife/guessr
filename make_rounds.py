@@ -73,9 +73,11 @@ DEFAULT_CORPUS = "s1"
 WEB = Path(__file__).parent / "web"
 STAGING = WEB / ".staging"
 
-# The HUD burns "49 MPH W71.606763 N42.822437" and the date across the bottom of
-# every frame -- i.e. the answer. Crop it off. Measured against a 1920x1080 clip:
-# the text baseline sits around y=1075, so 70px clears it with room to spare.
+# The HUD burns the coordinates and the date across the bottom of every frame --
+# i.e. the answer. Crop it off. Measured on 1920x1080 clips, the glyphs span
+# y=1033-1061 in s1 ("49 MPH W71.606763 N42.822437 ... 2018/07/31 19:15:07") and
+# y=1046-1064 in s2 and s2fast ("N34.505916 W97.171533 HDR 19/02/2026 18:46:44"),
+# so 70px (everything from y=1010 down) clears both corpora by 23px or more.
 HUD_STRIP_PX = 70
 
 # The encode. Settled by measurement (see extract_clip) and constants rather than
