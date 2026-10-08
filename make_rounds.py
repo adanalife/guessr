@@ -394,7 +394,12 @@ def score_sql(seed: int | None) -> str:
 
 
 def psql_invocation(
-    namespace: str, pool: int, k: int, per_clip: int, min_conf: float, corpus: str
+    namespace: str,
+    pool: int,
+    k: int,
+    per_clip: int,
+    min_conf: float,
+    corpus: str = DEFAULT_CORPUS,
 ) -> tuple[list[str], dict[str, str]]:
     """How to run the scoring query: straight at Postgres, or via kubectl exec.
 
