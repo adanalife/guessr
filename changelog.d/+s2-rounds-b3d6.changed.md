@@ -1,0 +1,1 @@
+**Round generation draws from one trip's corpus and says what it drops.** `make_rounds.py --corpus s1|s2|s2fast` (default `s1`) filters the scored pool on `videos.corpus`, so a season-2 row can't eat a `--pool` draw while its clip is parked elsewhere, and a scored clip missing from the corpus directory is reported instead of silently shrinking the set.

@@ -17,7 +17,7 @@ the two ways it breaks are both silent:
 
 import re
 
-from make_rounds import SCORE_COLUMNS, SCORE_SQL, parse_scored
+from make_rounds import SCORE_COLUMNS, SCORE_SQL, parse_scored, psql_invocation
 
 # One well-formed row, in SCORE_SQL's column order, with values far enough from
 # every threshold that each case below fails for the reason it is testing.
@@ -111,3 +111,10 @@ assert [r["slug"] for r in parse_scored(two, k=10)] == ["tight", "loose"]
 print(
     "ok: the scored pool is read in SCORE_SQL's column order, and the quality filters hold"
 )
+
+
+# The pool draws from one corpus, bound the way the other knobs are: a psql
+# variable the query names. Dropping either half would quietly mix trips.
+assert "corpus = :'corpus'" in SCORE_SQL
+argv, _ = psql_invocation("stage-1", 400, 25, 4, 0.8, "s2fast")
+assert "corpus=s2fast" in argv, argv

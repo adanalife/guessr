@@ -65,6 +65,11 @@ from check import (
 # The laptop mounts the corpus over SMB at this path; in the cluster it is an NFS
 # mount at whatever path the pod spec picks. The default is the laptop's.
 CORPUS = Path(os.environ.get("GUESSR_CORPUS", "/Volumes/ADanaLife/dashcam/_opt/clips"))
+# Which trip the rounds draw from: `videos.corpus` — s1 is the 2018 footage the
+# default CORPUS dir holds, s2 / s2fast the 2026 trip once it is parked. A run
+# draws from one corpus and one directory, so a set never mixes trips and a
+# season-2 row can't eat a `--pool` draw while its clip lives elsewhere.
+DEFAULT_CORPUS = "s1"
 WEB = Path(__file__).parent / "web"
 STAGING = WEB / ".staging"
 
@@ -208,6 +213,7 @@ WITH picked AS (
   SELECT id, slug, state, date_filmed
   FROM videos
   WHERE state IS NOT NULL AND NOT flagged
+    AND corpus = :'corpus'
     -- A clip whose track is not worth believing is not worth a round. This is
     -- strictly stronger than the old `lat <> 0` gate: a confidence means the
     -- coords stage read the clip and its reads agreed with each other.
@@ -388,7 +394,12 @@ def score_sql(seed: int | None) -> str:
 
 
 def psql_invocation(
-    namespace: str, pool: int, k: int, per_clip: int, min_conf: float
+    namespace: str,
+    pool: int,
+    k: int,
+    per_clip: int,
+    min_conf: float,
+    corpus: str = DEFAULT_CORPUS,
 ) -> tuple[list[str], dict[str, str]]:
     """How to run the scoring query: straight at Postgres, or via kubectl exec.
 
@@ -425,6 +436,8 @@ def psql_invocation(
         f"per_clip={per_clip}",
         "-v",
         f"min_conf={min_conf}",
+        "-v",
+        f"corpus={corpus}",
         # The encode's own clip length, so the query can measure how far the van
         # travels over exactly the seconds a player will watch.
         "-v",
@@ -524,6 +537,7 @@ def score_candidates(
     seed: int | None = None,
     min_conf: float = MIN_CONFIDENCE,
     max_radius_m: float = MAX_RADIUS_M,
+    corpus: str = DEFAULT_CORPUS,
 ) -> list[dict]:
     """Score a random pool of clips for locatability. Best (tightest) first.
 
@@ -536,7 +550,7 @@ def score_candidates(
     alone), and the radius the answer needs because the van keeps moving while the
     round plays.
     """
-    argv, env = psql_invocation(namespace, pool, k, per_clip, min_conf)
+    argv, env = psql_invocation(namespace, pool, k, per_clip, min_conf, corpus)
     try:
         out = subprocess.run(
             argv,
@@ -558,13 +572,17 @@ def score_candidates(
     return parse_scored(out, k, max_radius_m)
 
 
-def available(scored: list[dict]) -> list[dict]:
-    """Drop candidates whose source clip isn't in the corpus, in one directory read.
+def available(scored: list[dict]) -> tuple[list[dict], list[str]]:
+    """Split candidates by whether their source clip is in the corpus dir, in one
+    directory read: (present, the slugs that aren't).
 
     `videos` is derived from the corpus, so the two agreeing is the normal case
     and this drops nothing -- but when it does drop something, doing it here is
     what lets select() below return exactly the count it was asked for instead
-    of discovering the gap one encode at a time.
+    of discovering the gap one encode at a time. The missing slugs come back
+    rather than vanishing, because a row whose clip lives in another directory
+    (a trip parked elsewhere, a corpus row the DB has and the mount doesn't) is
+    a pool that silently shrank, and the caller should say so.
 
     One listdir rather than a stat() per candidate: the corpus is an SMB mount,
     where a stat costs ~4ms and a pool of a couple of thousand would spend
@@ -573,7 +591,9 @@ def available(scored: list[dict]) -> list[dict]:
     before anything under web/ has been touched.
     """
     present = set(os.listdir(CORPUS))
-    return [r for r in scored if f"{r['slug']}.MP4" in present]
+    kept = [r for r in scored if f"{r['slug']}.MP4" in present]
+    missing = sorted({r["slug"] for r in scored if f"{r['slug']}.MP4" not in present})
+    return kept, missing
 
 
 def rank(scored: list[dict], weight: float) -> list[dict]:
@@ -1051,6 +1071,12 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("-n", "--count", type=int, default=60, help="rounds to keep")
     ap.add_argument("--pool", type=int, default=400, help="clips to score")
+    ap.add_argument(
+        "--corpus",
+        default=DEFAULT_CORPUS,
+        help="videos.corpus to draw from (s1, s2, s2fast); GUESSR_CORPUS must be "
+        "the directory that trip's clips live in",
+    )
     ap.add_argument("-k", "--neighbours", type=int, default=25)
     ap.add_argument(
         "--per-clip",
@@ -1169,7 +1195,7 @@ def main() -> int:
     # a wall of missing-clip failures.
     (STAGING if args.dry_run else clips).mkdir(parents=True)
 
-    scored = available(
+    scored, missing = available(
         score_candidates(
             args.namespace,
             args.pool,
@@ -1178,8 +1204,14 @@ def main() -> int:
             args.seed,
             args.min_confidence,
             args.max_radius,
+            args.corpus,
         )
     )
+    if missing:
+        print(
+            f"{len(missing)} scored clip(s) are not in {CORPUS} and were dropped "
+            f"(first: {missing[0]}) -- the {args.corpus} rows and the mount disagree"
+        )
     if args.exclude:
         scored, dropped = drop_burned(scored, burned_slugs(Path(args.exclude)))
         print(f"excluded {dropped} scored moments whose clip is burned")
