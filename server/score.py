@@ -16,7 +16,7 @@ from server import rules
 
 async def score(db, body, now=None, client=None) -> tuple[int, dict]:
     """`client` is rules.client_of's bucket for the caller, stored on the play
-    and never returned."""
+    and never returned. So is the body's optional `elapsed_ms`."""
     guess = rules.parse_guess(body)
     if not guess:
         return 400, {"error": "expected {image, lat, lng}"}
@@ -113,8 +113,9 @@ async def _record(db, play: dict, guess: dict, scored: dict, client) -> dict:
     re-scoring a round cannot improve what the board sees. The pin is stored beside
     its distance because a radius cannot be turned back into a point."""
     changed = await db.execute(
-        """INSERT INTO plays (date, player_id, image, km, points, handle, guess_lat, guess_lng, client)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """INSERT INTO plays (date, player_id, image, km, points, handle, guess_lat, guess_lng, client,
+                              elapsed_ms)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (date, player_id, image) DO NOTHING""",
         play["date"],
         play["player_id"],
@@ -125,6 +126,7 @@ async def _record(db, play: dict, guess: dict, scored: dict, client) -> dict:
         guess["lat"],
         guess["lng"],
         client,
+        play["elapsed_ms"],
     )
     if changed:
         return scored

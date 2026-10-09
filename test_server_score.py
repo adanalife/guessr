@@ -82,6 +82,7 @@ assert rules.parse_play(play) == {
     "date": play["date"],
     "player_id": play["player_id"],
     "handle": None,
+    "elapsed_ms": None,
 }
 assert not rules.is_play(good)
 assert rules.is_play(play)
@@ -133,6 +134,24 @@ for bad in [
 ]:
     assert rules.parse_play(bad) is None, bad
 assert rules.parse_play({**play, "date": "2028-02-29"})
+
+# Think time is client-reported, so a bad one is dropped, never a 400: a wrong
+# clock must not cost a player the round.
+for sent, kept in [
+    (12345, 12345),
+    (0, 0),
+    (1500.7, 1500),
+    (rules.MAX_ELAPSED_MS, rules.MAX_ELAPSED_MS),
+    (rules.MAX_ELAPSED_MS + 1, None),
+    (-1, None),
+    (True, None),  # an int to Python, not a duration
+    ("12345", None),
+    (math.nan, None),
+    (math.inf, None),
+    (None, None),
+]:
+    parsed = rules.parse_play({**play, "elapsed_ms": sent})
+    assert parsed and parsed["elapsed_ms"] == kept, (sent, parsed)
 
 
 # The window's edges, in UTC: opens 10:00 the day before, closes 12:00 the day
@@ -190,9 +209,10 @@ async def handler() -> None:
     assert (await guess("clips/none.mp4"))[0] == 404
     assert (await guess(mine, other))[0] == 403, "a closed date took a play"
 
-    status, body = await guess(mine, today, handle="Amber Arroyo")
+    status, body = await guess(mine, today, handle="Amber Arroyo", elapsed_ms=8200)
     assert status == 200 and body["recorded"] and body["points"] == 5000, body
     assert "client" not in body, "the client bucket is stored, never served"
+    assert "elapsed_ms" not in body, "think time is stored, never served"
     assert (body["streak"], body["streak_date"]) == (0, None), (
         "one round is no finished day"
     )
@@ -210,9 +230,17 @@ async def handler() -> None:
     # First write wins: a worse replay reports the stored score and writes nothing.
     status, replay = await guess(mine, today, lat=45.0)
     assert status == 200 and replay["points"] == 5000 and replay["km"] == 0, replay
-    rows = await db.fetchall("SELECT handle, guess_lat, guess_lng, client FROM plays")
+    rows = await db.fetchall(
+        "SELECT handle, guess_lat, guess_lng, client, elapsed_ms FROM plays"
+    )
     assert rows == [
-        {"handle": "Amber Arroyo", "guess_lat": 40, "guess_lng": -100, "client": None}
+        {
+            "handle": "Amber Arroyo",
+            "guess_lat": 40,
+            "guess_lng": -100,
+            "client": None,
+            "elapsed_ms": 8200,
+        }
     ], rows
 
     # The caller's platform bucket rides on the row; a replay keeps the first.
@@ -222,9 +250,9 @@ async def handler() -> None:
     )
     assert (await score(db, body, client="ipados"))[0] == 200
     assert (await score(db, body, client="web"))[0] == 200
-    assert (await db.fetchone("SELECT client FROM plays WHERE image = ?", loose))[
-        "client"
-    ] == "ipados"
+    assert await db.fetchone(
+        "SELECT client, elapsed_ms FROM plays WHERE image = ?", loose
+    ) == {"client": "ipados", "elapsed_ms": None}, "an absent think time is NULL"
     for ua, bucket in [
         (None, None),
         ("", None),
