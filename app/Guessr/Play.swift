@@ -18,6 +18,9 @@ struct PlayView: View {
     /// The round just scored stays on screen until the player moves on.
     @State private var revealed = false
     @State private var scoring = false
+    /// When the current round's clip went up, for the think time sent with the
+    /// guess. In memory only, so a relaunch mid-round starts the clock again.
+    @State private var roundShown = ContinuousClock.now
     @State private var message: String?
     @State private var camera = PlayView.lower48
     /// Where the map is looking, whoever moved it last: the zoom buttons scale it.
@@ -165,6 +168,9 @@ struct PlayView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        // The image holds through the reveal and changes with the next round, so
+        // this starts the clock once per clip.
+        .onChange(of: image, initial: true) { roundShown = .now }
         // A tick as a pin lands, and none as "Next round" clears it.
         .sensoryFeedback(.selection, trigger: pin?.latitude) { _, now in now != nil }
         .sensoryFeedback(trigger: revealed) { _, shown in
@@ -344,7 +350,8 @@ struct PlayView: View {
         do {
             // A round this player already guessed comes back with the score on
             // record, so a lost save cannot buy a better one.
-            let score = try await client.score(image: image, guess: at, date: progress.date, player: player)
+            let score = try await client.score(
+                image: image, guess: at, date: progress.date, player: player, elapsed: .now - roundShown)
             progress.played.append(PlayedRound(image: image, guess: at, score: score))
             Saved.progress = progress
             scored(score, progress)

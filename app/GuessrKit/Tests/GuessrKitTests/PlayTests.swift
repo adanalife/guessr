@@ -184,7 +184,8 @@ private let image = "clips/2018_1015_183219_002_opt-026000.mp4"
 
 @Test func aGuessPostsAPlayAndDecodesTheReveal() async throws {
     let scored = try await client(ScoringGuessr.self).score(
-        image: image, guess: Coordinate(lat: 33.76, lng: -118.28), date: "2026-09-23", player: player)
+        image: image, guess: Coordinate(lat: 33.76, lng: -118.28), date: "2026-09-23", player: player,
+        elapsed: .milliseconds(8200))
     #expect(scored.points == 4091)
     #expect(scored.state == "California")
     #expect(scored.answer == Coordinate(lat: 33.913757, lng: -117.324235))
@@ -197,6 +198,7 @@ private let image = "clips/2018_1015_183219_002_opt-026000.mp4"
     #expect(body["player_id"] as? String == player.id)
     #expect(body["handle"] as? String == "Patient Delta")
     #expect(body["lat"] as? Double == 33.76)
+    #expect(body["elapsed_ms"] as? Int == 8200)
 }
 
 @Test func aClosedDayIsARefusalNotARetry() async throws {
