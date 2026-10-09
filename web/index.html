@@ -550,7 +550,10 @@ function alias(next = null) {
 // one, the server records the result and a re-guess gets the score already on
 // record; without one, nothing is stored. So practice can be replayed freely and
 // the daily cannot, which is the difference the board depends on.
-async function scoreGuess(image, latlng, date) {
+//
+// `elapsedMs` is how long the round was on screen before the guess, stored with
+// a daily play for statistics and never shown back.
+async function scoreGuess(image, latlng, date, elapsedMs) {
   const id = date && playerId();
   const res = await request('api/score', {
     method: 'POST',
@@ -560,7 +563,7 @@ async function scoreGuess(image, latlng, date) {
       // The handle rides with every play rather than being set once, so a
       // reroll takes effect from the next round without needing a way to
       // rewrite what is already recorded.
-      ...(id ? { date, player_id: id, handle: alias() } : {}),
+      ...(id ? { date, player_id: id, handle: alias(), elapsed_ms: elapsedMs } : {}),
     }),
   });
   if (!res.ok) {
@@ -818,9 +821,14 @@ map.on('click', e => {
   go.textContent = t('Guess');
 });
 
+// When the current round's clip went up, for the think time sent with the guess.
+// Held in memory only, so a reload mid-round starts the clock again.
+let roundStart = 0;
+
 function startRound() {
   const r = game[idx];
   setFrame(r.image);
+  roundStart = performance.now();
   el('roundnum').textContent = idx + 1;
   clearMarks();
   if (guess) { map.removeLayer(guess); guess = null; }
@@ -849,10 +857,11 @@ async function reveal() {
   // the pin out from under the answer being scored.
   go.dataset.phase = 'scoring';
   const at = guess.getLatLng();
+  const elapsedMs = Math.round(performance.now() - roundStart);
 
   let scored;
   try {
-    scored = await scoreGuess(r.image, at, mode === 'daily' ? dateForDay(gameDay) : null);
+    scored = await scoreGuess(r.image, at, mode === 'daily' ? dateForDay(gameDay) : null, elapsedMs);
   } catch (e) {
     // A refused play is not a failed request: retrying it changes nothing, so
     // say what the server said and offer practice, which is never refused.
