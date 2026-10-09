@@ -221,10 +221,12 @@ public struct DayProgress: Sendable, Equatable, Codable {
 extension GuessrClient {
     /// Scores a guess against a date's round and records it for `player`.
     /// First write wins on the server, so a round guessed twice comes back with
-    /// the score from the first time.
-    public func score(image: String, guess: Coordinate, date: String, player: Player) async throws
-        -> GuessrScore
-    {
+    /// the score from the first time. `elapsed` is how long the round was on
+    /// screen before the guess, stored with the play for statistics and never
+    /// returned.
+    public func score(
+        image: String, guess: Coordinate, date: String, player: Player, elapsed: Duration? = nil
+    ) async throws -> GuessrScore {
         struct Body: Encodable {
             var image: String
             var lat: Double
@@ -232,11 +234,13 @@ extension GuessrClient {
             var date: String
             var playerId: String
             var handle: String
+            var elapsedMs: Int?
         }
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
         let body = Body(
-            image: image, lat: guess.lat, lng: guess.lng, date: date, playerId: player.id, handle: player.alias)
+            image: image, lat: guess.lat, lng: guess.lng, date: date, playerId: player.id, handle: player.alias,
+            elapsedMs: elapsed.map { Int(($0 / .milliseconds(1)).rounded()) })
         // The server files the play under a coarse platform bucket read off
         // the user agent; the system default names CFNetwork and Darwin, not
         // the device.
