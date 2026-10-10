@@ -1,0 +1,1 @@
+The app no longer reports a clip or request that failed because the device has no connection (airplane mode, Wi-Fi off, cellular data off) to Sentry, so being offline stops filing errors that aren't bugs.

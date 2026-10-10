@@ -74,7 +74,8 @@ enum Telemetry {
         }
     }
 
-    /// A request to the API that never got an answer: offline, timed out, DNS.
+    /// A request to the API that never got an answer: timed out, DNS, a
+    /// dropped connection.
     /// A 5xx already reaches Sentry as the SDK's `HTTPClientError` and a 4xx is
     /// the server's answer, so a `GuessrError` is left out, as is a request
     /// the player walked away from.
@@ -88,10 +89,12 @@ enum Telemetry {
 
     /// A captured message rather than the error itself: the domain and code
     /// are what group and filter, and an error's own description or user info
-    /// can carry the URL it failed on.
+    /// can carry the URL it failed on. A device with no connection is left
+    /// out: every clip and request fails on it, and none of that is a bug.
     private static func report(
         _ message: String, fingerprint: String, error: (any Error)?, tags: @escaping (Scope) -> Void
     ) {
+        if let error, Guessr.isOffline(error) { return }
         SentrySDK.capture(message: message) { scope in
             scope.setLevel(.error)
             scope.setFingerprint([fingerprint])
