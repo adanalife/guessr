@@ -1,1 +1,0 @@
-**A daily guess records how long the player took over the round.** The page and the app send `elapsed_ms` with each daily play, stored in a new `plays.elapsed_ms` column for statistics (`stats.sql` reads it) and never returned by any route.
