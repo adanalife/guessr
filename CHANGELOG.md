@@ -4,6 +4,21 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.30.0 — 2026-10-10
+
+### New
+
+- **A daily guess records how long the player took over the round.** The page and the app send `elapsed_ms` with each daily play, stored in a new `plays.elapsed_ms` column for statistics (`stats.sql` reads it) and never returned by any route. ([#431](https://github.com/adanalife/guessr/pull/431))
+- The app's loading mark opens by spinning in place — once, then twice — before it rolls off and into its lanes, so a short wait shows the whole gesture instead of a wheel already mid-roll. ([#432](https://github.com/adanalife/guessr/pull/432))
+
+### Changed
+
+- **Round generation draws from one trip's corpus and says what it drops.** `make_rounds.py --corpus s1|s2|s2fast` (default `s1`) filters the scored pool on `videos.corpus`, so a season-2 row can't eat a `--pool` draw while its clip is parked elsewhere, and a scored clip missing from the corpus directory is reported instead of silently shrinking the set. ([#428](https://github.com/adanalife/guessr/pull/428))
+
+### Fixed
+
+- The app no longer reports a clip or request that failed because the device has no connection (airplane mode, Wi-Fi off, cellular data off) to Sentry, so being offline stops filing errors that aren't bugs. ([#433](https://github.com/adanalife/guessr/pull/433))
+
 ## v1.29.0 — 2026-10-07
 
 ### New
