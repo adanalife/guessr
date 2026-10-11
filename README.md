@@ -434,6 +434,21 @@ that history. That's the exposure the id already carried — knowing it lets you
 post plays as that player — and the mitigation is the same one, which is that it
 has no path out of the browser holding it.
 
+### Reporting a wrong answer
+
+A player who recognised the street is a better locator than `make_rounds.py`, so
+a recorded reveal carries a **Wrong spot?** button. `POST /api/report` with
+`{date, player_id, image}` forwards it to Discord through the Worker's
+`DISCORD_WEBHOOK` secret, opening with the tier (`SENTRY_ENVIRONMENT`) so a
+staging test never reads as a player's report.
+
+Only a play the caller recorded can be reported, and only once:
+`plays.reported_at` (migration `0010`) is set by the same `UPDATE` that checks
+it, so a repeat or a loop changes no rows and sends nothing. The message names
+the moment (`slug` + `source_ts_sec`), not the clip. Scoring is untouched. A
+tier with no webhook answers 503 before the claim, and a failed delivery gives
+the claim back, so neither spends the player's one report.
+
 ### The boards
 
 `GET /api/leaderboard?board=daily|monthly` returns `{board, period, rows}`, rows
