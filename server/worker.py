@@ -14,6 +14,9 @@ Game Center comes from three more -- ASC_KEY_ID, ASC_ISSUER_ID and
 ASC_PRIVATE_KEY -- and any one unset switches /api/gamecenter off; stage
 leaves them unset.
 
+A player's coordinate report goes to the DISCORD_WEBHOOK secret, labeled with
+SENTRY_ENVIRONMENT; unset answers /api/report with a 503.
+
 Unhandled exceptions go to Sentry tagged with the SENTRY_ENVIRONMENT var
 (`prod-1` / `stage-1`, plain vars in wrangler.jsonc); unset sends nothing.
 """
@@ -105,11 +108,19 @@ async def fetch(url, headers=None, method="GET", body=None):
     return res.status, await res.text()
 
 
+def discord(request):
+    env = request.scope["env"]
+    url = getattr(env, "DISCORD_WEBHOOK", "")
+    return (
+        (url, getattr(env, "SENTRY_ENVIRONMENT", "") or "unknown tier") if url else None
+    )
+
+
 async def report(request, exc):
     environment = getattr(request.scope["env"], "SENTRY_ENVIRONMENT", "")
     await sentry.report(fetch, exc, environment, request.method, str(request.url))
 
 
-app = make_app(context, fetch, app_store_connect, report)
+app = make_app(context, fetch, app_store_connect, report, discord)
 
 Default = asgi.entrypoint(app)
