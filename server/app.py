@@ -11,6 +11,8 @@ not at import. Anywhere they are fixed it is a lambda returning the same three.
 `fetch` is the outbound-HTTP seam /api/live, the admin gate and the Game Center
 submission share. `asc(request)` is the App Store Connect client for the tier's
 secrets, or None where there are none, which switches /api/gamecenter off.
+`discord(request)` is `(webhook_url, tier)` for a tier that can forward a
+player's coordinate report, or None, which answers /api/report with a 503.
 `report(request, exc)` hears every exception no handler caught, before the 500
 goes out; a failure inside it is swallowed, so reporting can never change the
 answer a caller gets.
@@ -49,7 +51,7 @@ from server import (
     link,
     progress,
 )
-from server import live, rules, score
+from server import live, report as reports, rules, score
 from server.admin_auth import caller, refusal
 
 
@@ -77,7 +79,7 @@ def respond(status: int, body, headers: dict | None = None) -> Response:
 
 
 # (path, method, handler). `r` carries what the request resolved to: db,
-# get_clip, fetch, asc, params, headers, body (POST only) and who (the gate's
+# get_clip, fetch, asc, discord, params, headers, body (POST only) and who (the gate's
 # admitted caller, under /admin/ only).
 ROUTES = [
     ("/api/day", "GET", lambda r: day.day(r.db, r.params)),
@@ -96,6 +98,11 @@ ROUTES = [
         "/api/gamecenter",
         "POST",
         lambda r: gamecenter.sync(r.db, r.body, r.asc, r.fetch),
+    ),
+    (
+        "/api/report",
+        "POST",
+        lambda r: reports.report(r.db, r.body, r.discord, r.fetch),
     ),
     ("/api/link", "POST", lambda r: link.link(r.db, r.body)),
     ("/api/link/code", "POST", lambda r: link.issue_code(r.db, r.body)),
@@ -133,7 +140,13 @@ ROUTES = [
 EVERY_METHOD = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 
 
-def make_app(context, fetch, asc=lambda request: None, report=None) -> Starlette:
+def make_app(
+    context,
+    fetch,
+    asc=lambda request: None,
+    report=None,
+    discord=lambda request: None,
+) -> Starlette:
     def route(path: str, method: str, handler) -> Route:
         async def endpoint(request):
             db, get_clip, _ = context(request)
@@ -142,6 +155,7 @@ def make_app(context, fetch, asc=lambda request: None, report=None) -> Starlette
                 get_clip=get_clip,
                 fetch=fetch,
                 asc=asc(request),
+                discord=discord(request),
                 params=request.query_params,
                 headers=request.headers,
                 body=await _body(request) if method == "POST" else None,
