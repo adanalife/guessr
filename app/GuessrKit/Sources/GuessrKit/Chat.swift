@@ -199,10 +199,11 @@ public enum TwitchChatError: Error, LocalizedError, Equatable {
     }
 }
 
-/// The three calls the chat's socket loop makes, so a test can script the
-/// frames a `URLSessionWebSocketTask` would deliver.
+/// The calls the chat socket loops make, so a test can script the frames a
+/// `URLSessionWebSocketTask` would deliver.
 protocol ChatSocket: AnyObject, Sendable {
     func resume()
+    func send(_ message: URLSessionWebSocketTask.Message) async throws
     func receive() async throws -> URLSessionWebSocketTask.Message
     func cancel(with closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?)
 }
@@ -214,7 +215,7 @@ extension URLSessionWebSocketTask: ChatSocket {}
 /// host with no socket can build on its own.
 ///
 /// EventSub's WebSocket transport only delivers chat to the token's own user,
-/// so reading requires a login; there is no anonymous mode.
+/// so reading here requires a login; `TwitchLurk` reads without one.
 @Observable @MainActor
 public final class TwitchChat {
     /// The newest lines, oldest first, at most `capacity` of them.

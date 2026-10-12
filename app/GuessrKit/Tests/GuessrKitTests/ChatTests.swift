@@ -437,8 +437,15 @@ final class ScriptedSocket: ChatSocket, @unchecked Sendable {
     }
 
     var closeCode: URLSessionWebSocketTask.CloseCode? { lock.withLock { closed } }
+    /// What the loop wrote, as text.
+    var sent: [String] { lock.withLock { written } }
+    private var written: [String] = []
 
     func resume() {}
+
+    func send(_ message: URLSessionWebSocketTask.Message) async throws {
+        if case .string(let text) = message { lock.withLock { written.append(text) } }
+    }
 
     func receive() async throws -> URLSessionWebSocketTask.Message {
         try await withCheckedThrowingContinuation { continuation in
