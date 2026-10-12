@@ -4,6 +4,25 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.30.0 — 2026-10-12
+
+### New
+
+- **A daily guess records how long the player took over the round.** The page and the app send `elapsed_ms` with each daily play, stored in a new `plays.elapsed_ms` column for statistics (`stats.sql` reads it) and never returned by any route. ([#431](https://github.com/adanalife/guessr/pull/431))
+- The app's loading mark opens by spinning in place — once, then twice — before it rolls off and into its lanes, so a short wait shows the whole gesture instead of a wheel already mid-roll. ([#432](https://github.com/adanalife/guessr/pull/432))
+- The app's Watch tab shows the channel's Twitch chat without signing in, read-only, with a button to sign in and join the conversation. ([#437](https://github.com/adanalife/guessr/pull/437))
+
+### Changed
+
+- **Round generation draws from one trip's corpus and says what it drops.** `make_rounds.py --corpus s1|s2|s2fast` (default `s1`) filters the scored pool on `videos.corpus`, so a season-2 row can't eat a `--pool` draw while its clip is parked elsewhere, and a scored clip missing from the corpus directory is reported instead of silently shrinking the set. ([#428](https://github.com/adanalife/guessr/pull/428))
+- The app's Chat tab is now part of the Watch tab, under the stream, and the stream can be hidden to give the chat the whole screen. ([#437](https://github.com/adanalife/guessr/pull/437))
+
+### Fixed
+
+- The app no longer reports a clip or request that failed because the device has no connection (airplane mode, Wi-Fi off, cellular data off) to Sentry, so being offline stops filing errors that aren't bugs. ([#433](https://github.com/adanalife/guessr/pull/433))
+- The weekly round batch now logs Postgres's error when its scoring query fails, instead of a traceback with no cause. ([#436](https://github.com/adanalife/guessr/pull/436))
+- The YouTube stream on the watch page starts playing on its own, muted, instead of waiting on a tap. ([#437](https://github.com/adanalife/guessr/pull/437))
+
 ## v1.29.0 — 2026-10-07
 
 ### New
