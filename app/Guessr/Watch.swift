@@ -4,8 +4,8 @@ import SwiftUI
 import WebKit
 
 /// The stream, live, on the platform it goes out on — Twitch or YouTube, the
-/// viewer's pick, kept — with the channel's chat under it for a signed-in
-/// login. The stream tucks away to give the chat the whole screen, and stops
+/// viewer's pick, kept — with the channel's chat under it, read anonymously
+/// until the viewer signs in to talk. The stream tucks away to give the chat the whole screen, and stops
 /// while it is tucked.
 ///
 /// A web view and not a player: neither platform publishes a native way in.

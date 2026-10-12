@@ -142,6 +142,9 @@ final class Account {
     /// The channel's chat for the signed-in login, made the first time the
     /// chat opens and kept until sign-out, so switching tabs keeps the log.
     private(set) var chat: TwitchChat?
+    /// The channel's chat read with no login, for a viewer who hasn't signed
+    /// in; dropped once they do.
+    private(set) var lurk: TwitchLurk?
     /// The ids of the lines the chat opened with from last time, which the
     /// log draws dimmed under a rule.
     private(set) var earlierChat: Set<String> = []
@@ -206,8 +209,15 @@ final class Account {
     /// Whether we moderate the channel — really, or for the length of a look.
     var isMod: Bool { viewingAs.map { $0 == "mod" } ?? moderates }
 
-    /// Whether the Chat tab is there: a Twitch build with a login signed in.
-    var showsChat: Bool { auth.isConfigured && session != nil }
+    /// Whether the Watch tab carries chat: a Twitch build, signed in or not —
+    /// signed out reads it anonymously.
+    var showsChat: Bool {
+        #if TWITCH
+            !channel.isEmpty
+        #else
+            false
+        #endif
+    }
 
     /// The boards are for the channel's staff; a player sees their own day.
     var seesBoards: Bool { isOwner || isMod }
@@ -272,6 +282,14 @@ final class Account {
         if self.session?.userID == session.userID { moderates = answer }
     }
 
+    /// Reads the channel's chat anonymously, or keeps the reading it has.
+    func openLurk() {
+        guard lurk == nil, session == nil, !channel.isEmpty else { return }
+        let fresh = TwitchLurk(channel: channel)
+        fresh.start()
+        lurk = fresh
+    }
+
     /// Connects the signed-in login to the channel's chat, or keeps the
     /// connection it already has, then asks whether it moderates there.
     /// The package never refreshes a token, so this is where it happens: on
@@ -290,6 +308,8 @@ final class Account {
             fresh.beforeConnect = { [weak self] in await self?.refreshIfNeeded() }
             fresh.start()
             chat = fresh
+            lurk?.stop()
+            lurk = nil
         }
         // A failed lookup reads as no, so it is asked again on the next visit.
         if !moderates, let chat { moderates = await chat.helix.moderates() }

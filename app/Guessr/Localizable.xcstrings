@@ -3864,6 +3864,34 @@
         }
       }
     },
+    "Sign in with Twitch to chat" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Přihlaste se přes Twitch a pište do chatu"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inicia sesión con Twitch para chatear"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connectez-vous avec Twitch pour discuter"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Войдите через Twitch, чтобы писать в чат"
+          }
+        }
+      }
+    },
     "Sign out" : {
       "localizations" : {
         "cs" : {
