@@ -5,7 +5,8 @@ import WebKit
 
 /// The stream, live, on the platform it goes out on — Twitch or YouTube, the
 /// viewer's pick, kept — with the channel's chat under it for a signed-in
-/// login.
+/// login. The stream tucks away to give the chat the whole screen, and stops
+/// while it is tucked.
 ///
 /// A web view and not a player: neither platform publishes a native way in.
 /// The page is the site's own `watch.html`, because Twitch's player renders
@@ -16,27 +17,40 @@ struct WatchTab: View {
     /// Made on appearance and dropped on leaving, so a stream never decodes
     /// behind another tab.
     @State private var page: WebPage?
+    @AppStorage("watch-tucked") private var tucked = false
+    /// Tucking needs something to give the screen to.
+    private var showsPlayer: Bool { !(tucked && account.showsChat) }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Above the player, not below: a scrolling view against the
-                // top safe-area edge gets stretched up under the bars, and
-                // the web view counts as one.
-                Picker("Platform", selection: $platform) {
-                    Text(verbatim: "Twitch").tag("twitch")
-                    Text(verbatim: "YouTube").tag("youtube")
+                if showsPlayer {
+                    // Above the player, not below: a scrolling view against the
+                    // top safe-area edge gets stretched up under the bars, and
+                    // the web view counts as one.
+                    Picker("Platform", selection: $platform) {
+                        Text(verbatim: "Twitch").tag("twitch")
+                        Text(verbatim: "YouTube").tag("youtube")
+                    }
+                    .pickerStyle(.segmented)
+                    .padding()
+                    Group {
+                        if let page { WebView(page) } else { Color.black }
+                    }
+                    .aspectRatio(16 / 9, contentMode: .fit)
+                    .frame(maxWidth: .infinity)
                 }
-                .pickerStyle(.segmented)
-                .padding()
-                Group {
-                    if let page { WebView(page) } else { Color.black }
-                }
-                .aspectRatio(16 / 9, contentMode: .fit)
-                .frame(maxWidth: .infinity)
                 if account.showsChat { ChatPane() } else { Spacer() }
             }
+            .animation(.default, value: showsPlayer)
             .toolbar {
+                if account.showsChat {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(tucked ? "Show stream" : "Hide stream", systemImage: tucked ? "rectangle.expand.vertical" : "rectangle.compress.vertical") {
+                            tucked.toggle()
+                        }
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Link(destination: outside) {
                         Label("Open in \(platform == "twitch" ? "Twitch" : "YouTube")", systemImage: "arrow.up.right.square")
@@ -50,6 +64,7 @@ struct WatchTab: View {
             .onAppear { open() }
             .onDisappear { close() }
             .onChange(of: platform) { open() }
+            .onChange(of: showsPlayer) { open() }
         }
     }
 
@@ -71,14 +86,16 @@ struct WatchTab: View {
     }
 
     private func open() {
+        guard showsPlayer else { return close() }
         // Playback, or the silent switch mutes the page's audio.
         try? AVAudioSession.sharedInstance().setCategory(.playback)
         try? AVAudioSession.sharedInstance().setActive(true)
         var configuration = WebPage.Configuration()
         // ponytail: there is no autoplay-without-a-tap knob here, so the
-        // viewer taps play once and gets sound for it. A WKWebView wrapper
-        // with an empty mediaTypesRequiringUserActionForPlayback if that
-        // tap grates.
+        // players start muted (Twitch's on its own, YouTube's by `mute=1` in
+        // `watch.html`) and the viewer taps for sound. A WKWebView wrapper
+        // with an empty mediaTypesRequiringUserActionForPlayback if that tap
+        // grates.
         configuration.mediaPlaybackBehavior = .allowsInlinePlayback
         let fresh = WebPage(configuration: configuration, navigationDecider: OnlyThePlayer(host: url.host()))
         _ = fresh.load(URLRequest(url: url))

@@ -45,16 +45,14 @@ struct GuessrApp: App {
                 if account.seesBoards {
                     Tab("Boards", systemImage: "list.number", value: "Boards") { NavigationStack { TodayView(alias: player.alias).viewingAsBanner() } }
                 }
+                // Chat hangs off the Twitch login and sits under the stream,
+                // so it shows only while a login is signed in; Settings is
+                // where a player signs in. Settings always has the reminder,
+                // and hides only its Twitch section in a build without a
+                // Twitch client id.
                 #if WATCH
                     Tab("Watch", systemImage: "play.rectangle", value: "Watch") { WatchTab() }
                 #endif
-                // Chat hangs off the Twitch login, so the tab shows only while
-                // a login is signed in; Settings is where a player signs in.
-                // Settings always has the reminder, and hides only its Twitch
-                // section in a build without a Twitch client id.
-                if account.showsChat {
-                    Tab("Chat", systemImage: "bubble.left.and.bubble.right", value: "Chat") { ChatTab() }
-                }
                 Tab("Settings", systemImage: "gear", value: "Settings") {
                     NavigationStack { SettingsView(player: $player).viewingAsBanner() }
                 }
@@ -65,16 +63,8 @@ struct GuessrApp: App {
             .environment(account)
             .environment(gameCenter)
             .task { gameCenter.start { await gameCenter.sync(player, with: client) } }
-            // A sign-in opens Chat, the tab it brings, on every device: left to
-            // itself, the iPad's tab bar keeps Settings selected as Chat
-            // appears ahead of it.
-            // A sign-out while on Chat, a "View as" that drops the boards, or a
-            // `-tab` launch naming a hidden tab lands on Play rather than on a
-            // tab that isn't there.
-            .onChange(of: account.showsChat, initial: true) { showed, shows in
-                if shows, !showed { tab = "Chat" }
-                if !shows, tab == "Chat" { tab = "Play" }
-            }
+            // A "View as" that drops the boards, or a `-tab` launch naming a
+            // hidden tab, lands on Play rather than on a tab that isn't there.
             .onChange(of: account.seesBoards, initial: true) { _, sees in
                 if !sees, tab == "Boards" { tab = "Play" }
             }

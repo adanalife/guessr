@@ -20,10 +20,11 @@ GUESSR_API_BASE[config=Debug] = https:/$()/stage.guessr.dana.lol
 GUESSR_TWITCH_CHANNEL = adanalife_
 GUESSR_TWITCH_CHANNEL[config=Debug] = adanalife_staging
 
-// TWITCH compiles in the Twitch login, and with it the Chat tab and the Siri
-// guess. Debug only: the App Store build ships without chat until it has been
+// TWITCH compiles in the Twitch login, and with it the chat under the Watch
+// tab's stream and the Siri guess. Debug only: the App Store build ships without chat until it has been
 // through review on its own.
-// WATCH compiles in the Watch tab, the live stream in a web view. On in every
+// WATCH compiles in the Watch tab, the live stream in a web view, which is
+// also where chat lives — a build with TWITCH and no WATCH has none. On in every
 // configuration while it is being tried out on TestFlight; drop it from the
 // unconditional line to keep the embedded players, and the ads they carry,
 // out of a store submission. A conditional line replaces the unconditional

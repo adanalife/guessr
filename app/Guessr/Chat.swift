@@ -1,23 +1,8 @@
 import GuessrKit
 import SwiftUI
 
-/// The channel's Twitch chat for the signed-in login: the log and the composer.
-/// The tab is there only while a login is signed in.
-struct ChatTab: View {
-    @Environment(Account.self) private var account
-
-    var body: some View {
-        NavigationStack {
-            ChatPane()
-                .viewingAsBanner()
-                .paper()
-                .navigationTitle("Chat")
-        }
-    }
-}
-
-/// The signed-in login's chat with the channel: the Chat tab, and the pane
-/// under the Watch tab's player. Nothing while signed out.
+/// The signed-in login's chat with the channel, under the Watch tab's player.
+/// Nothing while signed out.
 struct ChatPane: View {
     @Environment(Account.self) private var account
 
