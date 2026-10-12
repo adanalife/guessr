@@ -45,16 +45,14 @@ struct GuessrApp: App {
                 if account.seesBoards {
                     Tab("Boards", systemImage: "list.number", value: "Boards") { NavigationStack { TodayView(alias: player.alias).viewingAsBanner() } }
                 }
+                // Chat hangs off the Twitch login and sits under the stream,
+                // so it shows only while a login is signed in; Settings is
+                // where a player signs in. Settings always has the reminder,
+                // and hides only its Twitch section in a build without a
+                // Twitch client id.
                 #if WATCH
                     Tab("Watch", systemImage: "play.rectangle", value: "Watch") { WatchTab() }
                 #endif
-                // Chat hangs off the Twitch login, so the tab shows only while
-                // a login is signed in; Settings is where a player signs in.
-                // Settings always has the reminder, and hides only its Twitch
-                // section in a build without a Twitch client id.
-                if account.showsChat {
-                    Tab("Chat", systemImage: "bubble.left.and.bubble.right", value: "Chat") { ChatTab() }
-                }
                 Tab("Settings", systemImage: "gear", value: "Settings") {
                     NavigationStack { SettingsView(player: $player).viewingAsBanner() }
                 }
@@ -65,16 +63,8 @@ struct GuessrApp: App {
             .environment(account)
             .environment(gameCenter)
             .task { gameCenter.start { await gameCenter.sync(player, with: client) } }
-            // A sign-in opens Chat, the tab it brings, on every device: left to
-            // itself, the iPad's tab bar keeps Settings selected as Chat
-            // appears ahead of it.
-            // A sign-out while on Chat, a "View as" that drops the boards, or a
-            // `-tab` launch naming a hidden tab lands on Play rather than on a
-            // tab that isn't there.
-            .onChange(of: account.showsChat, initial: true) { showed, shows in
-                if shows, !showed { tab = "Chat" }
-                if !shows, tab == "Chat" { tab = "Play" }
-            }
+            // A "View as" that drops the boards, or a `-tab` launch naming a
+            // hidden tab, lands on Play rather than on a tab that isn't there.
             .onChange(of: account.seesBoards, initial: true) { _, sees in
                 if !sees, tab == "Boards" { tab = "Play" }
             }
@@ -145,13 +135,16 @@ final class Account {
     let auth: TwitchAuth
     /// Supplied by the build; empty makes nobody the owner.
     let ownerID: String
-    /// The Twitch channel the Chat tab talks in, supplied per configuration.
+    /// The Twitch channel the chat talks in, supplied per configuration.
     let channel: String
     private let store: any SessionStore
 
     /// The channel's chat for the signed-in login, made the first time the
-    /// Chat tab opens and kept until sign-out, so switching tabs keeps the log.
+    /// chat opens and kept until sign-out, so switching tabs keeps the log.
     private(set) var chat: TwitchChat?
+    /// The channel's chat read with no login, for a viewer who hasn't signed
+    /// in; dropped once they do.
+    private(set) var lurk: TwitchLurk?
     /// The ids of the lines the chat opened with from last time, which the
     /// log draws dimmed under a rule.
     private(set) var earlierChat: Set<String> = []
@@ -162,7 +155,7 @@ final class Account {
     private var modLogin: Task<Void, Never>?
     /// The token exchange in flight; see `refreshIfNeeded()`.
     private var refreshing: Task<Void, Never>?
-    /// Chatters whose lines this device keeps off the Chat tab: Twitch user id
+    /// Chatters whose lines this device keeps out of the chat: Twitch user id
     /// to the display name Settings lists them by. The viewer's own
     /// moderation: it changes nothing on Twitch. A list from before names
     /// were kept shows each chatter by id.
@@ -178,7 +171,7 @@ final class Account {
             auth = TwitchAuth(clientID: bundle.object(forInfoDictionaryKey: "GuessrTwitchClientID") as? String ?? "")
         #else
             // No client id is no Twitch login: Settings hides its Twitch
-            // section and the Chat tab never appears.
+            // section, and the Watch tab has no chat.
             auth = TwitchAuth(clientID: "")
         #endif
         ownerID = bundle.object(forInfoDictionaryKey: "GuessrOwnerTwitchID") as? String ?? ""
@@ -216,8 +209,15 @@ final class Account {
     /// Whether we moderate the channel — really, or for the length of a look.
     var isMod: Bool { viewingAs.map { $0 == "mod" } ?? moderates }
 
-    /// Whether the Chat tab is there: a Twitch build with a login signed in.
-    var showsChat: Bool { auth.isConfigured && session != nil }
+    /// Whether the Watch tab carries chat: a Twitch build, signed in or not —
+    /// signed out reads it anonymously.
+    var showsChat: Bool {
+        #if TWITCH
+            !channel.isEmpty
+        #else
+            false
+        #endif
+    }
 
     /// The boards are for the channel's staff; a player sees their own day.
     var seesBoards: Bool { isOwner || isMod }
@@ -282,6 +282,14 @@ final class Account {
         if self.session?.userID == session.userID { moderates = answer }
     }
 
+    /// Reads the channel's chat anonymously, or keeps the reading it has.
+    func openLurk() {
+        guard lurk == nil, session == nil, !channel.isEmpty else { return }
+        let fresh = TwitchLurk(channel: channel)
+        fresh.start()
+        lurk = fresh
+    }
+
     /// Connects the signed-in login to the channel's chat, or keeps the
     /// connection it already has, then asks whether it moderates there.
     /// The package never refreshes a token, so this is where it happens: on
@@ -300,6 +308,8 @@ final class Account {
             fresh.beforeConnect = { [weak self] in await self?.refreshIfNeeded() }
             fresh.start()
             chat = fresh
+            lurk?.stop()
+            lurk = nil
         }
         // A failed lookup reads as no, so it is asked again on the next visit.
         if !moderates, let chat { moderates = await chat.helix.moderates() }

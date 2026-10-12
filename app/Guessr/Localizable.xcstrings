@@ -1876,6 +1876,34 @@
         }
       }
     },
+    "Hide stream" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skrýt stream"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ocultar transmisión"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Masquer le direct"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скрыть трансляцию"
+          }
+        }
+      }
+    },
     "How linking works" : {
       "localizations" : {
         "cs" : {
@@ -3696,6 +3724,34 @@
         }
       }
     },
+    "Show stream" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zobrazit stream"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar transmisión"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher le direct"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показать трансляцию"
+          }
+        }
+      }
+    },
     "Shows the app the way a mod or a viewer sees it. Anything you press still runs as you." : {
       "localizations" : {
         "cs" : {
@@ -3804,6 +3860,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Войти через Twitch"
+          }
+        }
+      }
+    },
+    "Sign in with Twitch to chat" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Přihlaste se přes Twitch a pište do chatu"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inicia sesión con Twitch para chatear"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connectez-vous avec Twitch pour discuter"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Войдите через Twitch, чтобы писать в чат"
           }
         }
       }
