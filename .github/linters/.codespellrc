@@ -8,4 +8,7 @@
 # inout: a Swift keyword (`inout` parameters).
 # mappin: an SF Symbols name ("mappin.and.ellipse").
 # statics: a legitimate word — static members, in a test's doc comment.
+# *.xcstrings: the String Catalogs carry every translation (fr/es/ru/cs), and
+# codespell reads French and Spanish words as English misspellings.
+skip = *.xcstrings
 ignore-words-list = isplay,unparseable,nd,inout,mappin,statics
