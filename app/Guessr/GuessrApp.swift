@@ -135,12 +135,12 @@ final class Account {
     let auth: TwitchAuth
     /// Supplied by the build; empty makes nobody the owner.
     let ownerID: String
-    /// The Twitch channel the Chat tab talks in, supplied per configuration.
+    /// The Twitch channel the chat talks in, supplied per configuration.
     let channel: String
     private let store: any SessionStore
 
     /// The channel's chat for the signed-in login, made the first time the
-    /// Chat tab opens and kept until sign-out, so switching tabs keeps the log.
+    /// chat opens and kept until sign-out, so switching tabs keeps the log.
     private(set) var chat: TwitchChat?
     /// The ids of the lines the chat opened with from last time, which the
     /// log draws dimmed under a rule.
@@ -152,7 +152,7 @@ final class Account {
     private var modLogin: Task<Void, Never>?
     /// The token exchange in flight; see `refreshIfNeeded()`.
     private var refreshing: Task<Void, Never>?
-    /// Chatters whose lines this device keeps off the Chat tab: Twitch user id
+    /// Chatters whose lines this device keeps out of the chat: Twitch user id
     /// to the display name Settings lists them by. The viewer's own
     /// moderation: it changes nothing on Twitch. A list from before names
     /// were kept shows each chatter by id.
@@ -168,7 +168,7 @@ final class Account {
             auth = TwitchAuth(clientID: bundle.object(forInfoDictionaryKey: "GuessrTwitchClientID") as? String ?? "")
         #else
             // No client id is no Twitch login: Settings hides its Twitch
-            // section and the Chat tab never appears.
+            // section, and the Watch tab has no chat.
             auth = TwitchAuth(clientID: "")
         #endif
         ownerID = bundle.object(forInfoDictionaryKey: "GuessrOwnerTwitchID") as? String ?? ""
