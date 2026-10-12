@@ -570,6 +570,12 @@ def score_candidates(
             "into the pod, which needs kubectl, or straight over the network when "
             "DATABASE_HOST is set, which needs a psql client on PATH."
         )
+    except subprocess.CalledProcessError as e:
+        # capture_output keeps psql's error off the console, and the traceback
+        # names only the argv, so a failed unattended run would log no cause.
+        sys.exit(
+            f"scoring query failed (psql exit {e.returncode}):\n{e.stderr.strip()}"
+        )
 
     return parse_scored(out, k, max_radius_m)
 
