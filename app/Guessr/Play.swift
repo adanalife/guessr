@@ -265,18 +265,22 @@ struct PlayView: View {
             // A new pin cancels the last lookup, and the label keeps the last
             // state until the new one answers, so moving the pin doesn't flash
             // plain "Guess" between states. Outside the US, or when the lookup
-            // fails, it says plain "Guess". ponytail: CLGeocoder is deprecated
-            // in iOS 26, but MKReverseGeocodingRequest's addresses carry a city
-            // and a country and no state field to read.
+            // fails, it says plain "Guess". MapKit's addresses have no state
+            // field, so the state is the postal code that ends a US pin's
+            // `cityWithContext` ("Austin, NV" — the nearest town, even in a
+            // national forest). ponytail: a pin near a border names the
+            // nearest town's state; bundle state polygons if that misleads.
             .task(id: pin.map { [$0.latitude, $0.longitude] }) {
                 guard let pin else {
                     pinState = nil
                     return
                 }
-                let placemark = try? await CLGeocoder()
-                    .reverseGeocodeLocation(CLLocation(latitude: pin.latitude, longitude: pin.longitude)).first
+                let request = MKReverseGeocodingRequest(location: CLLocation(latitude: pin.latitude, longitude: pin.longitude))
+                let address = try? await request?.mapItems.first?.addressRepresentations
                 guard !Task.isCancelled else { return }
-                guard placemark?.isoCountryCode == "US", let area = placemark?.administrativeArea else {
+                guard address?.region?.identifier == "US",
+                      let area = address?.cityWithContext?.split(separator: ",").last?.trimmingCharacters(in: .whitespaces)
+                else {
                     pinState = nil
                     return
                 }
