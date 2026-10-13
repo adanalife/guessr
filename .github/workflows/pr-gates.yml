@@ -1,9 +1,7 @@
 # The per-PR gates: the org's reusable `gates` job (adanalife/infra,
-# .github/workflows/gates.yml), configured for this repo.
-#
-# `checks` carries this repo's own gates, the ones the shared job doesn't
-# cover. Its steps are path-gated where they're slow, and it is not a
-# required check, so a skip never blocks a merge.
+# .github/workflows/gates.yml), configured for this repo. `tests` is the
+# game's own suite: it needs node, python, ffmpeg and sqlite, which the shared
+# job doesn't install.
 name: pr-gates
 
 on:
@@ -26,9 +24,15 @@ jobs:
     uses: adanalife/infra/.github/workflows/gates.yml@main
     with:
       vendor-script: ./scripts/vendor.sh
+      # A name in the docs is a claim about the repo, and a wrong one can reach
+      # players: error bodies name tasks too. Resolves every backticked `task
+      # <name>` against the Taskfile and every backticked repo-relative path
+      # against the tracked files; legitimately absent names live in
+      # scripts/doc-names-allow.txt with their reason.
+      checks: ./scripts/check-doc-names.py
     secrets: inherit
 
-  checks:
+  tests:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -88,14 +92,6 @@ jobs:
       - uses: astral-sh/setup-uv@v10.0.1 # no floating major tag published
       - name: Python tests
         run: for f in test_*.py; do echo "== $f"; uv run --project api python "$f" || exit 1; done
-
-      # A name in the docs is a claim about the repo, and a wrong one can reach
-      # players: error bodies name tasks too. This resolves every backticked `task <name>` against the Taskfile and every
-      # backticked repo-relative path against the tracked files. Names that are
-      # legitimately absent (gitignored round-set artifacts, a naming template)
-      # live in scripts/doc-names-allow.txt with their reason.
-      - name: Every name the docs cite resolves
-        run: ./scripts/check-doc-names.py
 
       # The migrations are hand-written DDL that nothing else parses until
       # someone runs `task schema:prod:apply`, where a typo is discovered against
