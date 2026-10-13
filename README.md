@@ -735,7 +735,9 @@ a pin in the wrong place is caught before a real day is made of it. Past dates
 read the same way, which is how a finished day gets looked at again. The page
 that shows it is not in this repo: the tripbot console and tempomat render the
 day — five clips in order, each answer on a street-zoom map — and call this
-route for it.
+route for it. `/admin/month?month=YYYY-MM` is the overview above it: every date
+of the month with a schedule or plays, whether it is pending, open or closed,
+its review mark, how many played, and — once closed — who won.
 
 **It is behind a login.** The Worker gates everything under `/admin/` before
 routing, so a caller who is not admitted learns nothing about which admin paths
