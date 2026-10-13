@@ -109,6 +109,7 @@ ROUTES = [
             r.db, r.who, r.body, lambda key: _exists(r.get_clip, key)
         ),
     ),
+    ("/admin/month", "GET", lambda r: admin_day.month(r.db, r.who, r.params)),
     ("/admin/review", "POST", lambda r: admin_day.review(r.db, r.who, r.body)),
     ("/admin/players", "GET", lambda r: admin_players.players(r.db, r.who)),
     (

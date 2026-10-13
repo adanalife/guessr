@@ -166,6 +166,7 @@ ADMIN = [
     ("GET", f"/admin/day?date={d(2)}"),
     ("POST", "/admin/day"),
     ("POST", "/admin/review"),
+    ("GET", f"/admin/month?month={TODAY.isoformat()[:7]}"),
     ("GET", f"/admin/plays?date={TODAY}"),
     ("GET", "/admin/players"),
     ("POST", "/admin/players"),
@@ -683,6 +684,10 @@ def admin_reads():
         get("today previews as open", 200, f"/admin/day?date={TODAY}").json["open"]
         is True
     )
+
+    error(get("a month with no month is refused", 400, "/admin/month"))
+    m = get("a month reads", 200, f"/admin/month?month={d(2)[:7]}").json
+    assert d(2) in {x["date"] for x in m["days"]}, m
 
     error(get("a score lookup with no date is refused", 400, "/admin/plays"))
     r = get("a day's plays read", 200, f"/admin/plays?date={FIRST}")

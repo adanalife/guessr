@@ -10,7 +10,7 @@ import asyncio
 import datetime as dt
 
 from server.admin_auth import Caller
-from server.admin_day import preview, reject, review
+from server.admin_day import month, preview, reject, review
 from server.db import Sqlite
 
 NOW = dt.datetime(2026, 8, 5, 12, tzinfo=dt.UTC)
@@ -92,6 +92,7 @@ async def test_gate() -> None:
             await reject(d, who, {"date": DAY1, "image": img(DAY1, 1)}, everywhere, NOW)
         )[0] == code
         assert (await review(d, who, {"date": DAY1, "reviewed": True}, NOW))[0] == code
+        assert (await month(d, who, {"month": "nonsense"}, NOW))[0] == code
     assert (
         schedule(d, DAY1)[0] == img(DAY1, 1)
         and status_of(d, img(DAY1, 1)) == "scheduled"
@@ -270,11 +271,49 @@ async def test_review() -> None:
     )
 
 
+async def test_month() -> None:
+    # Closed, open and pending dates in one month; the closed one names its
+    # winner (a tie goes to the lower player id, as on the daily board), the
+    # open one counts its players and names nobody, and July stays out.
+    pending = "2026-08-07"
+    d = seeded(("2026-07-31", PAST, OPEN, pending))
+    for date, player, i, points, handle in (
+        (PAST, "bbb", 1, 9000, "bea"),
+        (PAST, "aaa", 1, 4500, "al"),
+        (PAST, "aaa", 2, 4500, "al"),
+        (PAST, "ccc", 1, 100, None),
+        (OPEN, "aaa", 1, 5000, "al"),
+        ("2026-07-31", "aaa", 1, 1, "al"),
+    ):
+        d.conn.execute(
+            "INSERT INTO plays (date, player_id, image, km, points, handle, played_at) "
+            "VALUES (?, ?, ?, 1.0, ?, ?, '2026-08-01 12:00:00')",
+            (date, player, img(date, i), points, handle),
+        )
+    d.conn.execute("INSERT INTO day_reviews (date) VALUES (?)", (pending,))
+    assert (await month(d, OWNER, {"month": "2026-13"}, NOW))[0] == 400
+    status, body, headers = await month(d, OWNER, {"month": "2026-08"}, NOW)
+    assert (status, headers["cache-control"], body["month"]) == (
+        200,
+        "no-store",
+        "2026-08",
+    )
+    days = {x["date"]: x for x in body["days"]}
+    assert list(days) == [PAST, OPEN, pending], list(days)
+    assert days[PAST]["status"] == "closed" and days[PAST]["players"] == 3
+    assert days[PAST]["winner"] == {"name": "al", "points": 9000}, days[PAST]
+    assert days[OPEN]["status"] == "open" and days[OPEN]["players"] == 1
+    assert days[OPEN]["winner"] is None, "an open date named a winner"
+    assert days[pending]["status"] == "pending" and days[pending]["rounds"] == 5
+    assert days[pending]["reviewed_at"] and days[PAST]["reviewed_at"] is None
+
+
 async def main() -> None:
     await test_gate()
     await test_preview()
     await test_reject()
     await test_review()
+    await test_month()
 
 
 asyncio.run(main())
