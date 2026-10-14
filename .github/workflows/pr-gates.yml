@@ -39,7 +39,6 @@ jobs:
       # against the tracked files; legitimately absent names live in
       # scripts/doc-names-allow.txt with their reason.
       checks: ./scripts/check-doc-names.py
-    secrets: inherit
 
   tests:
     runs-on: ubuntu-latest
