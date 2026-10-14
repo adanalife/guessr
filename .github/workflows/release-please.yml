@@ -25,4 +25,5 @@ jobs:
     uses: adanalife/infra/.github/workflows/release-please.yml@main
     with:
       runs-on: ubuntu-latest
-    secrets: inherit
+    secrets:
+      AUTOMATION_APP_PRIVATE_KEY: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}

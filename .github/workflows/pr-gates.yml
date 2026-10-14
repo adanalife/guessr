@@ -19,6 +19,15 @@ concurrency:
   group: pr-gates-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
+# What the shared gates job reads: the checkout, the PR (title check), this
+# run's own jobs (the failing-gate reporter) and GHCR (the pinned-tag check).
+# Without a block every job here would get the repo's default token.
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+  packages: read
+
 jobs:
   gates:
     uses: adanalife/infra/.github/workflows/gates.yml@main
@@ -30,7 +39,6 @@ jobs:
       # against the tracked files; legitimately absent names live in
       # scripts/doc-names-allow.txt with their reason.
       checks: ./scripts/check-doc-names.py
-    secrets: inherit
 
   tests:
     runs-on: ubuntu-latest
