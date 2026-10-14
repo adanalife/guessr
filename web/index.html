@@ -449,6 +449,11 @@
   <button type="button" id="share" class="secondary" hidden data-i18n>Share</button>
   <button type="button" id="practice" class="secondary" hidden data-i18n>Practice</button>
   <button type="button" id="history" class="secondary" hidden data-i18n>All my guesses</button>
+  <!-- Up only on a reveal whose play was recorded: a report names a play, and a
+       practice round is not one. A question, because the player is judging the
+       answer, not their score. -->
+  <button type="button" id="report" class="secondary" hidden
+          title="Tell Dana this round's coordinates look wrong" data-i18n data-i18n-attr="title">Wrong spot?</button>
   <span id="result" data-i18n>Somewhere in the United States. Where?</span>
   <!-- After #result, which is flex: 1, so the toggle sits at the far end. -->
   <button type="button" class="theme-toggle" aria-label="Toggle dark mode" data-i18n-attr="aria-label"
@@ -619,6 +624,7 @@ homeView();
 const el = id => document.getElementById(id);
 const pane = el('pane'), go = el('go'), result = el('result');
 const shareBtn = el('share'), practiceBtn = el('practice'), historyBtn = el('history');
+const reportBtn = el('report');
 
 // Which of the two panes is dominant, as a pair of classes the stylesheet reads
 // (see the min-width: 801px block). `wide` only means anything with `minimap`.
@@ -844,6 +850,7 @@ function startRound() {
   shareBtn.hidden = true;
   practiceBtn.hidden = true;
   historyBtn.hidden = true;
+  reportBtn.hidden = true;
   result.textContent = t('Somewhere in the United States. Where?');
 }
 
@@ -914,10 +921,44 @@ async function reveal() {
     state: scored.state, filmed: scored.filmed, miles: miles.toLocaleString(), pts: pts.toLocaleString(),
   });
 
+  // /api/report names a play, so only a recorded one has something to report.
+  if (scored.recorded) {
+    reportBtn.hidden = false;
+    reportBtn.disabled = false;
+    reportBtn.textContent = t('Wrong spot?');
+    reportBtn.dataset.image = r.image;
+    reportBtn.dataset.date = dateForDay(gameDay);
+  }
+
   go.disabled = false;
   go.dataset.phase = 'next';
   if (last) finish();
   else go.textContent = t('Next round');
+}
+
+// The score stays exactly as it is, and the button says so: an offer to report
+// an answer otherwise reads like an offer to re-score it. One press per round
+// here for the look of it; the server forwards a play once regardless.
+async function sendReport() {
+  reportBtn.disabled = true;
+  reportBtn.textContent = t('Sending…');
+  try {
+    const res = await request('api/report', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        date: reportBtn.dataset.date,
+        player_id: playerId(),
+        image: reportBtn.dataset.image,
+      }),
+    });
+    if (!res.ok) throw new Error(res.status);
+    reportBtn.textContent = t('Thanks — score stands');
+  } catch {
+    // Re-armed: only the request failed, and the round is still reportable.
+    reportBtn.disabled = false;
+    reportBtn.textContent = t('Didn’t send — retry?');
+  }
 }
 
 // What a resumed day is rebuilt from. Written after every reveal rather than
@@ -1282,6 +1323,7 @@ practiceBtn.addEventListener('click', () => {
 });
 
 historyBtn.addEventListener('click', showHistory);
+reportBtn.addEventListener('click', sendReport);
 
 // <details> stays open until it is toggled again, and the panel sits over the
 // top-right of the map — so dismiss it the two ways an overlay is expected to
