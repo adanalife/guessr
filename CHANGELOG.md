@@ -4,6 +4,16 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.31.0 — 2026-10-14
+
+### New
+
+- Add your info here ([#443](https://github.com/adanalife/guessr/pull/443))
+
+### Behind the scenes
+
+- The guess button reads the pinned state from MapKit instead of the `CLGeocoder` API that iOS 26 deprecates. ([#439](https://github.com/adanalife/guessr/pull/439))
+
 ## v1.30.0 — 2026-10-12
 
 ### New
