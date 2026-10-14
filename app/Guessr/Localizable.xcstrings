@@ -1904,6 +1904,34 @@
         }
       }
     },
+    "Hide the map" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skrýt mapu"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ocultar el mapa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Masquer la carte"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скрыть карту"
+          }
+        }
+      }
+    },
     "How linking works" : {
       "localizations" : {
         "cs" : {
@@ -3048,6 +3076,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Открыть в %@"
+          }
+        }
+      }
+    },
+    "Open the map" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otevřít mapu"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir el mapa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir la carte"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть карту"
           }
         }
       }
