@@ -1,61 +1,44 @@
-# The fast per-PR gates, in one job.
-#
-# Fleet convention: every adanalife repo runs its cheap per-PR checks as steps
-# of one `gates` job here, because GitHub bills Actions per job rounded up to
-# the whole minute. Five checks in one job is four minutes of billing saved per
-# PR, and a sixth is a step to add rather than a workflow (and a required-check
-# rename) to introduce.
-#
-# `gates` always reports, even when an individual step is inapplicable, so it is
-# safe to mark required in branch protection — a path-filtered *workflow* would
-# hang as "Expected" and block merges instead.
+# The per-PR gates: the org's reusable `gates` job (adanalife/infra,
+# .github/workflows/gates.yml), configured for this repo. `tests` is the
+# game's own suite: it needs node, python, ffmpeg and sqlite, which the shared
+# job doesn't install.
 name: pr-gates
 
 on:
   pull_request:
-    # Every PR, whatever it targets. Filtering to `branches: [main]` would leave
-    # a PR stacked on another feature branch running no tests at all — the review
-    # that most wants them, since it is looking at the top of a stack rather than
-    # at a diff against main.
+    # Every PR, whatever it targets. Filtering to `branches: [main]` would leave a
+    # PR stacked on another feature branch running no gates at all — the review
+    # that most wants them, since its diff is against a branch nobody has looked
+    # at rather than against main.
     #
-    # `edited` is what makes the title check re-run when a title is fixed;
-    # `labeled`/`unlabeled` the same for the skip-changelog escape hatch.
+    # `edited` re-runs the title check when a title is fixed; `labeled` /
+    # `unlabeled` the same for the skip-changelog escape hatch.
     types: [opened, edited, reopened, synchronize, labeled, unlabeled]
-
-permissions:
-  contents: read
-  pull-requests: read
-  actions: read
 
 concurrency:
   group: pr-gates-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  # `gates` is the required-status-check name in this repo's protect-main
-  # ruleset. Renaming this job means updating the ruleset in the same change,
-  # or every subsequent PR hangs on a check that can never report.
   gates:
+    uses: adanalife/infra/.github/workflows/gates.yml@main
+    with:
+      vendor-script: ./scripts/vendor.sh
+      # A name in the docs is a claim about the repo, and a wrong one can reach
+      # players: error bodies name tasks too. Resolves every backticked `task
+      # <name>` against the Taskfile and every backticked repo-relative path
+      # against the tracked files; legitimately absent names live in
+      # scripts/doc-names-allow.txt with their reason.
+      checks: ./scripts/check-doc-names.py
+    secrets: inherit
+
+  tests:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      # Conventional Commits enforcement for the SQUASH SUBJECT. The commit-msg
-      # pre-commit hook only guards local commits; because PRs squash-merge, the
-      # PR *title* becomes the commit subject written to history.
-      #
-      # release-please's standing release PR is titled `chore(main): release
-      # X.Y.Z`, itself a conventional subject, so it passes with no exemption.
-      - name: Conventional PR title
-        uses: amannn/action-semantic-pull-request@v6
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # fetch-depth: 0 so the changelog gate below can diff against the base
-      # branch; nothing else here needs history.
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version-file: .tool-versions
@@ -110,14 +93,6 @@ jobs:
       - name: Python tests
         run: for f in test_*.py; do echo "== $f"; uv run --project api python "$f" || exit 1; done
 
-      # A name in the docs is a claim about the repo, and a wrong one can reach
-      # players: error bodies name tasks too. This resolves every backticked `task <name>` against the Taskfile and every
-      # backticked repo-relative path against the tracked files. Names that are
-      # legitimately absent (gitignored round-set artifacts, a naming template)
-      # live in scripts/doc-names-allow.txt with their reason.
-      - name: Every name the docs cite resolves
-        run: ./scripts/check-doc-names.py
-
       # The migrations are hand-written DDL that nothing else parses until
       # someone runs `task schema:prod:apply`, where a typo is discovered against
       # the production database. sqlite3 is D1's own engine and ships on the
@@ -152,65 +127,3 @@ jobs:
       # green build everywhere else.
       - name: The game runs under uvicorn
         run: uv run --project api python integration_uvicorn.py
-
-      # The vendored frontend assets still match the releases vendor.txt pins them
-      # to. Catches a hand-edit of a file that is supposed to be upstream's bytes;
-      # the `latest` half (is there a newer Leaflet?) needs jq and only runs on
-      # the daily sweep in vendor-freshness.yml.
-      - name: Assert vendored assets match their pinned releases
-        run: ./scripts/vendor.sh check
-
-      # Require every PR to add a towncrier changelog fragment under
-      # changelog.d/ (see README "Changelog"). CHANGELOG.md is linked from the
-      # game's About panel, so it is read by players rather than reconstructed
-      # by us at release time — this is what keeps it complete by construction.
-      #
-      # Escape hatch: the `skip-changelog` label, for PRs that genuinely warrant
-      # no entry (dependabot bumps, a round-set regeneration, a revert).
-      # release-please's own release PR is exempt by head branch — it collates
-      # the fragments, it doesn't add one.
-      - name: Require a changelog fragment
-        if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-changelog') && !startsWith(github.head_ref, 'release-please--') }}
-        env:
-          BASE: ${{ github.base_ref }}
-        run: uvx towncrier check --config towncrier.toml --compare-with "origin/$BASE"
-
-      # The gates run as steps of one job (see the header), so a red reads
-      # `gates` in the checks list with nothing saying which gate died. This step
-      # reads the job's own step verdicts back and reports them: a gate/verdict
-      # table on the run summary, and one error annotation per failed gate,
-      # which is what the PR's checks tab shows under the check. Reporting only —
-      # the job topology, and its single billed minute, are unchanged.
-      - name: Name the failing gate
-        if: failure()
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
-          JOB: ${{ github.job }}
-        run: |
-          # A step's verdict lands in the API a beat after the step ends.
-          for _ in 1 2; do
-            gh api --paginate "repos/$GH_REPO/actions/runs/$RUN_ID/jobs" > jobs.json \
-              || { echo "::warning::could not read this job's step verdicts"; exit 0; }
-            jq -r --arg job "$JOB" '
-              .jobs[] | select(.name == $job) | .steps[]
-              | select(.conclusion != null)
-              | select(.name | test("^(Set up job|Complete job|Post )") | not)
-              | "\(.conclusion)\t\(.name)"' jobs.json > verdicts
-            grep -q '^failure' verdicts && break
-            sleep 5
-          done
-          {
-            echo "## pr-gates"
-            echo
-            echo "| Gate | Verdict |"
-            echo "|---|---|"
-            awk -F'\t' '{
-              v = $1 == "success" ? "✅ pass" : $1 == "failure" ? "❌ **fail**" : $1 == "skipped" ? "⏭️ skipped" : $1
-              printf "| %s | %s |\n", $2, v
-            }' verdicts
-          } >> "$GITHUB_STEP_SUMMARY"
-          awk -F'\t' '$1 == "failure" {
-            printf "::error title=pr-gates: %s failed::Open the \"%s\" step in this run'\''s log.\n", $2, $2
-          }' verdicts
