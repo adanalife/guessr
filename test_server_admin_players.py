@@ -241,10 +241,19 @@ async def test_board_note() -> None:
             "period": DAY,
             "rank": 1,
             "name": "Copper Vale",
+            "handle": "Copper Vale",
             "note": "from the stream",
         }
     )
     assert "player_id" not in read, "a board-addressed read handed out the id"
+
+    # Under an alias the board shows the alias; the drawn handle still comes
+    # along for the owner, so the person behind the name can be placed.
+    d.conn.execute(
+        "UPDATE players SET alias = 'Lucky Overpass' WHERE player_id = ?", (NEWCOMER,)
+    )
+    aliased = (await board_note(d, OWNER, {"rank": "1"}, NOW))[1]
+    assert (aliased["name"], aliased["handle"]) == ("Lucky Overpass", "Copper Vale")
 
     # The monthly board addresses a player too.
     status, body, _ = await set_board_note(

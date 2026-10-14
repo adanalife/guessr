@@ -746,6 +746,7 @@ def notes():
         "period": str(FIRST),
         "rank": 1,
         "name": "Amber Basin",
+        "handle": "Amber Basin",
         "note": None,
     }, r.json
     assert r.header("cache-control") == "no-store"
