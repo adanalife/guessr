@@ -633,8 +633,8 @@ The native iOS app lives in [`app/`](app/README.md), with its own build notes.
 from one fragment per PR, so every PR adds one:
 
 ```sh
-task changelog:add TYPE=new     # writes changelog.d/+<branch>-<hex>.new.md — open it and write the line
-task changelog:preview          # what the next release will say
+task changelog:add TYPE=new MSG="…"  # writes changelog.d/+<branch>-<hex>.new.md
+task changelog:preview                 # what the next release will say
 ```
 
 Types are `new`, `changed`, `fixed`, `behind` (behind the scenes) and `summary`
