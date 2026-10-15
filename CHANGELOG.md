@@ -4,6 +4,12 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.32.0 — 2026-10-15
+
+### Changed
+
+- The owner-only board-note read also carries the handle the player drew, so a note editor can show who sits behind an alias. ([#445](https://github.com/adanalife/guessr/pull/445))
+
 ## v1.31.0 — 2026-10-14
 
 ### New
