@@ -98,6 +98,17 @@ async def read_note(db, player_id: str) -> str | None:
     return row["note"] if row else None
 
 
+async def read_handle(db, player_id: str) -> str | None:
+    """The name the player last drew, whatever alias the board shows over it --
+    the second half of leaderboard.name_expr, as a point lookup."""
+    row = await db.fetchone(
+        "SELECT handle FROM plays WHERE player_id = ? AND handle IS NOT NULL "
+        "ORDER BY played_at DESC, rowid DESC LIMIT 1",
+        player_id,
+    )
+    return row["handle"] if row else None
+
+
 async def players(db, who) -> tuple[int, dict, dict]:
     """GET /admin/players"""
     if refused := refusal(who):
@@ -184,14 +195,16 @@ async def _board_row(db, who, params, now):
     return None, {**found, "board": board}
 
 
-def _shape(found: dict, note: str | None) -> dict:
+def _shape(found: dict, note: str | None, handle: str | None) -> dict:
     # The raw name, not the board's collision-numbered label: it doubles as the
-    # check that the rank still names who the caller meant.
+    # check that the rank still names who the caller meant. The handle is the
+    # name under an alias -- owner-only here, never on the public board rows.
     return {
         "board": found["board"],
         "period": found["period"],
         "rank": found["rank"],
         "name": found["row"]["name"] or PLACEHOLDER,
+        "handle": handle,
         "note": note,
     }
 
@@ -202,8 +215,9 @@ async def board_note(db, who, params, now=None) -> tuple[int, dict, dict]:
     refused, found = await _board_row(db, who, params, now)
     if refused:
         return refused
-    note = await read_note(db, found["row"]["player_id"])
-    return 200, _shape(found, note), NO_STORE
+    player_id = found["row"]["player_id"]
+    note, handle = await read_note(db, player_id), await read_handle(db, player_id)
+    return 200, _shape(found, note, handle), NO_STORE
 
 
 async def set_board_note(db, who, params, body, now=None) -> tuple[int, dict, dict]:
@@ -214,5 +228,6 @@ async def set_board_note(db, who, params, body, now=None) -> tuple[int, dict, di
     note = _note_of(body if isinstance(body, dict) else {})
     if problem := note_problem(note):
         return 400, {"error": problem}, NO_STORE
-    saved = await save_note(db, found["row"]["player_id"], note)
-    return 200, _shape(found, saved), NO_STORE
+    player_id = found["row"]["player_id"]
+    saved = await save_note(db, player_id, note)
+    return 200, _shape(found, saved, await read_handle(db, player_id)), NO_STORE
