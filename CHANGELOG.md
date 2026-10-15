@@ -4,6 +4,12 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.33.0 — 2026-10-15
+
+### Changed
+
+- Rounds draw only from clips someone has reviewed: a season-2 clip that finished the pipeline unreviewed stays out of the game until it is ruled on. ([#449](https://github.com/adanalife/guessr/pull/449))
+
 ## v1.32.0 — 2026-10-15
 
 ### Changed
