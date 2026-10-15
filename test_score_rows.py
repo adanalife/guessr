@@ -116,5 +116,6 @@ print(
 # The pool draws from one corpus, bound the way the other knobs are: a psql
 # variable the query names. Dropping either half would quietly mix trips.
 assert "corpus = :'corpus'" in SCORE_SQL
+assert "reviewed_at IS NOT NULL" in SCORE_SQL
 argv, _ = psql_invocation("stage-1", 400, 25, 4, 0.8, "s2fast")
 assert "corpus=s2fast" in argv, argv
