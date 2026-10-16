@@ -111,6 +111,19 @@ jobs:
       # catches a migration that only works if run before one that precedes it.
       # Once each: from 0002 onward the `d1_migrations` ledger is what guarantees
       # single application, so the DDL is bare and re-running would rightly fail.
+      # wrangler tracks applied migrations by filename, so two files sharing a
+      # number both apply and nothing breaks -- but the order between them is
+      # then an accident of the names after the number. Two PRs written against
+      # the same main both pick the next free number; whichever lands second
+      # takes the one after.
+      - name: Migration numbers are unique
+        run: |
+          dups=$(printf "%s\n" migrations/*.sql | sed -E 's|.*/([0-9]+)_.*|\1|' | sort | uniq -d)
+          if [ -n "$dups" ]; then
+            echo "::error::duplicate migration number(s): $dups -- renumber the later one above the current max"
+            exit 1
+          fi
+
       - name: Migrations replay in order
         run: |
           for m in migrations/*.sql; do
