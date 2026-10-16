@@ -1,1 +1,0 @@
-The owner-only board-row admin route also reads and writes a private name and a star for a player, and `/admin/board-marks` returns them for every row of a board, so the console can show its own label for a player without publishing it.
