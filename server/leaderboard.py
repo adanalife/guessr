@@ -149,6 +149,16 @@ def label(names: list[str]) -> list[str]:
     return out
 
 
+async def standings(db, board: str, period: str) -> tuple[list[dict], list[str]]:
+    """One served board's rows (player_id, points, name) and the label each one
+    renders under. Shared with the admin marks read, so the owner's labels line
+    up with the public rows they decorate."""
+    results = await db.fetchall(DAILY if board == "daily" else MONTHLY, period, ROWS)
+    # The placeholder goes on before the numbering, so nameless players are
+    # numbered against each other rather than left as identical rows.
+    return results, label([r["name"] or PLACEHOLDER for r in results])
+
+
 async def leaderboard(db, params, now=None) -> tuple[int, dict, dict]:
     board = params.get("board") or "daily"
     if board not in ("daily", "monthly"):
@@ -158,9 +168,6 @@ async def leaderboard(db, params, now=None) -> tuple[int, dict, dict]:
     if error:
         return 400, {"error": error}, CACHE
 
-    results = await db.fetchall(DAILY if board == "daily" else MONTHLY, period, ROWS)
-    # The placeholder goes on before the numbering, so nameless players are
-    # numbered against each other rather than left as identical rows.
-    names = label([r["name"] or PLACEHOLDER for r in results])
+    results, names = await standings(db, board, period)
     rows = [[n, r["points"]] for n, r in zip(names, results, strict=True)]
     return 200, {"board": board, "period": period, "rows": rows}, cache
