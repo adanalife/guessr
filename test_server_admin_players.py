@@ -11,7 +11,9 @@ import datetime as dt
 
 from server.admin_auth import Caller
 from server.admin_players import (
+    MAX_NAME,
     MAX_NOTE,
+    board_marks,
     board_note,
     group,
     note_player,
@@ -21,6 +23,7 @@ from server.admin_players import (
 )
 from server.db import Sqlite
 from server.guesses import guesses
+from server.leaderboard import leaderboard
 
 NOW = dt.datetime(2026, 8, 4, 12, tzinfo=dt.UTC)
 DAY = "2026-08-03"  # the last closed date at NOW, so the daily board
@@ -84,6 +87,7 @@ async def test_gate() -> None:
             plays(d, who, {"date": "nonsense"}),
             board_note(d, who, {"rank": "1"}, NOW),
             set_board_note(d, who, {"rank": "1"}, {"note": "leaked"}, NOW),
+            board_marks(d, who, {"board": "daily"}, NOW),
         ]
         for call in calls:
             status, body, headers = await call
@@ -243,6 +247,8 @@ async def test_board_note() -> None:
             "name": "Copper Vale",
             "handle": "Copper Vale",
             "note": "from the stream",
+            "private_name": None,
+            "starred": False,
         }
     )
     assert "player_id" not in read, "a board-addressed read handed out the id"
@@ -277,6 +283,10 @@ async def test_board_note_refusals() -> None:
         ({"board": "weekly", "rank": "1"}, {"note": "x"}),
         ({"rank": "1"}, {"note": 7}),
         ({"rank": "1"}, {"note": "x" * (MAX_NOTE + 1)}),
+        ({"rank": "1"}, {}),
+        ({"rank": "1"}, {"private_name": 7}),
+        ({"rank": "1"}, {"private_name": "x" * (MAX_NAME + 1)}),
+        ({"rank": "1"}, {"starred": "yes"}),
     ):
         status, _, headers = await set_board_note(d, OWNER, params, body, NOW)
         assert (status, headers["cache-control"]) == (400, "no-store"), (
@@ -287,6 +297,52 @@ async def test_board_note_refusals() -> None:
     )
 
 
+async def test_marks() -> None:
+    # Each mark is written alone: a star leaves the note, a name leaves the
+    # star, and none of them touches the published alias.
+    d = seeded()
+    d.conn.execute(
+        "INSERT INTO players (player_id, alias, note) VALUES (?, 'Copper', 'a friend')",
+        (NEWCOMER,),
+    )
+    await set_board_note(d, OWNER, {"rank": "1"}, {"starred": True}, NOW)
+    status, body, _ = await set_board_note(
+        d, OWNER, {"rank": "1"}, {"private_name": "Phil"}, NOW
+    )
+    assert status == 200
+    assert (body["name"], body["private_name"], body["starred"], body["note"]) == (
+        "Copper",
+        "Phil",
+        True,
+        "a friend",
+    ), body
+    assert (
+        rows(d, "SELECT alias FROM players WHERE player_id = ?", NEWCOMER)[0][0]
+        == "Copper"
+    )
+    # The public board never learns the private name.
+    public = (await leaderboard(d, {"board": "daily"}, NOW))[1]
+    assert "Phil" not in str(public), public
+
+    # The marks read lines the owner's marks up with the public rows.
+    status, marks, headers = await board_marks(d, OWNER, {"board": "daily"}, NOW)
+    assert (status, headers["cache-control"]) == (200, "no-store")
+    assert marks["period"] == DAY
+    assert marks["rows"] == [["Copper", "Phil", True], ["Dusty Ford", None, False]], (
+        marks
+    )
+    assert [r[0] for r in marks["rows"]] == [r[0] for r in public["rows"]]
+
+    # An emptied name clears it; an unstar unstars.
+    await set_board_note(
+        d, OWNER, {"rank": "1"}, {"private_name": "", "starred": False}, NOW
+    )
+    read = (await board_note(d, OWNER, {"rank": "1"}, NOW))[1]
+    assert (read["private_name"], read["starred"]) == (None, False), read
+
+    assert (await board_marks(d, OWNER, {"board": "weekly"}, NOW))[0] == 400
+
+
 async def main() -> None:
     await test_gate()
     await test_players()
@@ -295,6 +351,7 @@ async def main() -> None:
     test_group()
     await test_board_note()
     await test_board_note_refusals()
+    await test_marks()
 
 
 asyncio.run(main())

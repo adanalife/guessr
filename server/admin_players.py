@@ -6,6 +6,8 @@ A note is the private half of a `players` row, served by nothing the game
 exposes, so every response here is owner-only and never cached. The alias beside
 it is published -- it names that player on every board and on the stream
 overlay -- so nothing here edits it, and a note write leaves it where it was.
+`private_name` and `starred` are the note's kind: the owner's label and a star,
+read and written only here.
 
 Each handler takes the resolved `Caller` (None when nobody signed in) and returns
 (status, body, headers).
@@ -14,10 +16,15 @@ Each handler takes the resolved `Caller` (None when nobody signed in) and return
 from server import rules
 from server.admin_auth import NO_STORE, refusal
 from server.guesses import at_rank
-from server.leaderboard import PLACEHOLDER, name_expr
+from server.leaderboard import PLACEHOLDER, name_expr, served, standings
 
 # A paste that ran away is not a note; the length is the only thing refused.
 MAX_NOTE = 500
+MAX_NAME = 80
+
+# What a board-row write may set. Each is written only when the body carries
+# it, so a star click leaves the note alone and a note save leaves the star.
+MARKS = ("note", "private_name", "starred")
 
 # Bounds rather than none, so a response cannot grow without limit once the game
 # does. Plays are five rows a player, so 2000 is 400 players on one date.
@@ -93,9 +100,45 @@ async def save_note(db, player_id: str, note: str) -> str | None:
     return note or None
 
 
-async def read_note(db, player_id: str) -> str | None:
-    row = await db.fetchone("SELECT note FROM players WHERE player_id = ?", player_id)
-    return row["note"] if row else None
+def marks_problem(body: dict) -> str | None:
+    """What is wrong with a board-row write, or None."""
+    if not any(k in body for k in MARKS):
+        return "expected any of {note, private_name, starred}"
+    if "note" in body and (problem := note_problem(_note_of(body))):
+        return problem
+    name = body.get("private_name")
+    if name is not None and not isinstance(name, str):
+        return "a name must be a string"
+    if name and len(name) > MAX_NAME:
+        return f"a name is at most {MAX_NAME} characters"
+    if "starred" in body and not isinstance(body["starred"], bool):
+        return "starred must be true or false"
+    return None
+
+
+async def save_marks(db, player_id: str, body: dict) -> None:
+    """Upserts the marks the body carries and no others. An empty note or name
+    clears it, as an emptied field means."""
+    cols = [k for k in MARKS if k in body]
+    vals = [int(body[k]) if k == "starred" else (body[k] or "") for k in cols]
+    holes = ", ".join("?" if k == "starred" else "NULLIF(?, '')" for k in cols)
+    sets = ", ".join(f"{k} = excluded.{k}" for k in cols)
+    await db.execute(
+        f"INSERT INTO players (player_id, {', '.join(cols)}) VALUES (?, {holes}) "
+        f"ON CONFLICT (player_id) DO UPDATE SET {sets}, updated_at = datetime('now')",
+        player_id,
+        *vals,
+    )
+
+
+async def read_marks(db, player_id: str) -> dict:
+    row = await db.fetchone(
+        "SELECT note, private_name, starred FROM players WHERE player_id = ?",
+        player_id,
+    )
+    if not row:
+        return {"note": None, "private_name": None, "starred": False}
+    return {**row, "starred": bool(row["starred"])}
 
 
 async def read_handle(db, player_id: str) -> str | None:
@@ -195,7 +238,7 @@ async def _board_row(db, who, params, now):
     return None, {**found, "board": board}
 
 
-def _shape(found: dict, note: str | None, handle: str | None) -> dict:
+def _shape(found: dict, marks: dict, handle: str | None) -> dict:
     # The raw name, not the board's collision-numbered label: it doubles as the
     # check that the rank still names who the caller meant. The handle is the
     # name under an alias -- owner-only here, never on the public board rows.
@@ -205,7 +248,7 @@ def _shape(found: dict, note: str | None, handle: str | None) -> dict:
         "rank": found["rank"],
         "name": found["row"]["name"] or PLACEHOLDER,
         "handle": handle,
-        "note": note,
+        **marks,
     }
 
 
@@ -216,18 +259,59 @@ async def board_note(db, who, params, now=None) -> tuple[int, dict, dict]:
     if refused:
         return refused
     player_id = found["row"]["player_id"]
-    note, handle = await read_note(db, player_id), await read_handle(db, player_id)
-    return 200, _shape(found, note, handle), NO_STORE
+    marks, handle = await read_marks(db, player_id), await read_handle(db, player_id)
+    return 200, _shape(found, marks, handle), NO_STORE
 
 
 async def set_board_note(db, who, params, body, now=None) -> tuple[int, dict, dict]:
-    """POST /admin/board-note, same query, {note}. Answers in the read's shape."""
+    """POST /admin/board-note, same query, any of {note, private_name, starred}.
+    Answers in the read's shape."""
     refused, found = await _board_row(db, who, params, now)
     if refused:
         return refused
-    note = _note_of(body if isinstance(body, dict) else {})
-    if problem := note_problem(note):
+    b = body if isinstance(body, dict) else {}
+    if problem := marks_problem(b):
         return 400, {"error": problem}, NO_STORE
     player_id = found["row"]["player_id"]
-    saved = await save_note(db, player_id, note)
-    return 200, _shape(found, saved, await read_handle(db, player_id)), NO_STORE
+    await save_marks(db, player_id, b)
+    marks, handle = await read_marks(db, player_id), await read_handle(db, player_id)
+    return 200, _shape(found, marks, handle), NO_STORE
+
+
+async def board_marks(db, who, params, now=None) -> tuple[int, dict, dict]:
+    """GET /admin/board-marks?board=[&date=|&month=] -- every row of a board
+    with the owner's marks on it, as [label, private_name, starred], so a
+    surface showing the public board can relabel and star it. The label is
+    there to be matched against the public row: a running board can reorder
+    between two reads, and a mark must not slide onto the row below."""
+    if refused := refusal(who):
+        return refused
+    board = params.get("board") or "daily"
+    if board not in ("daily", "monthly"):
+        return 400, {"error": "board must be daily or monthly"}, NO_STORE
+    period, _, error = await served(db, board, params, now)
+    if error:
+        return 400, {"error": error}, NO_STORE
+    results, names = await standings(db, board, period)
+    ids = [r["player_id"] for r in results]
+    marked = (
+        {
+            m["player_id"]: m
+            for m in await db.fetchall(
+                "SELECT player_id, private_name, starred FROM players "
+                f"WHERE player_id IN ({', '.join('?' * len(ids))})",
+                *ids,
+            )
+        }
+        if ids
+        else {}
+    )
+    rows = [
+        [
+            name,
+            marked.get(pid, {}).get("private_name"),
+            bool(marked.get(pid, {}).get("starred")),
+        ]
+        for name, pid in zip(names, ids, strict=True)
+    ]
+    return 200, {"board": board, "period": period, "rows": rows}, NO_STORE
