@@ -38,7 +38,9 @@ jobs:
       # <name>` against the Taskfile and every backticked repo-relative path
       # against the tracked files; legitimately absent names live in
       # scripts/doc-names-allow.txt with their reason.
-      checks: ./scripts/check-doc-names.py
+      checks: |
+        ./scripts/check-doc-names.py
+        scripts/number-fragment-test.sh
 
   tests:
     runs-on: ubuntu-latest
