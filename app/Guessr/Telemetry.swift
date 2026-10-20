@@ -1,4 +1,5 @@
 import GuessrKit
+import MetricKit
 import Sentry
 
 /// Sentry for the app: crashes, hangs, a span per request (URLSession is
@@ -32,6 +33,11 @@ enum Telemetry {
             // by default.
             options.sessionReplay.sessionSampleRate = 0
             options.sessionReplay.onErrorSampleRate = 1.0
+            // The OS's own hang, crash, CPU and disk-write diagnostics. They
+            // are recorded by iOS outside the app, so they arrive even when
+            // the run that hung was killed for it, with the stack it was
+            // blocked in — which the SDK's hang tracker only guesses at.
+            options.enableMetricKit = true
             // A failed request groups by status and endpoint rather than by
             // its URLSession stack, which is the same for every request.
             options.beforeSend = { event in
@@ -50,6 +56,7 @@ enum Telemetry {
             #endif
         }
         ClipView.failed = clipFailed
+        MXMetricManager.shared.add(ExitMetrics.shared)
     }
 
     /// The fleet's deploy-env ids, read off the server the build plays
@@ -105,6 +112,66 @@ enum Telemetry {
             if let under = error.userInfo[NSUnderlyingErrorKey] as? NSError {
                 scope.setTag(value: under.domain, key: "error.underlying_domain")
                 scope.setTag(value: String(under.code), key: "error.underlying_code")
+            }
+        }
+    }
+}
+
+/// How the app's runs actually ended, counted by the OS and delivered about
+/// once a day. Sentry's `WatchdogTermination` is inferred at the next launch
+/// from "the last run ended in the foreground without a crash", which a
+/// force-quit from the app switcher satisfies too; these counts are what
+/// iOS itself recorded, so a memory-limit or watchdog kill shows up here or
+/// did not happen.
+///
+/// Every payload is a log line with the full breakdown. A foreground kill
+/// is also an event, so it reaches the issue list rather than only the
+/// log search.
+/// ponytail: the same subscriber lives in tempomat's `Telemetry.swift`; a
+/// shared GuessrKit type is the upgrade if a third app wants it.
+final class ExitMetrics: NSObject, MXMetricManagerSubscriber {
+    static let shared = ExitMetrics()
+
+    nonisolated func didReceive(_ payloads: [MXMetricPayload]) {
+        for payload in payloads {
+            guard let exits = payload.applicationExitMetrics else { continue }
+            let fg = exits.foregroundExitData
+            let bg = exits.backgroundExitData
+            let counts: [String: Int] = [
+                "foreground.normal": fg.cumulativeNormalAppExitCount,
+                "foreground.memory_limit": fg.cumulativeMemoryResourceLimitExitCount,
+                "foreground.watchdog": fg.cumulativeAppWatchdogExitCount,
+                "foreground.abnormal": fg.cumulativeAbnormalExitCount,
+                "foreground.bad_access": fg.cumulativeBadAccessExitCount,
+                "foreground.illegal_instruction": fg.cumulativeIllegalInstructionExitCount,
+                "background.normal": bg.cumulativeNormalAppExitCount,
+                "background.memory_limit": bg.cumulativeMemoryResourceLimitExitCount,
+                "background.memory_pressure": bg.cumulativeMemoryPressureExitCount,
+                "background.watchdog": bg.cumulativeAppWatchdogExitCount,
+                "background.cpu_limit": bg.cumulativeCPUResourceLimitExitCount,
+                "background.abnormal": bg.cumulativeAbnormalExitCount,
+                "background.bad_access": bg.cumulativeBadAccessExitCount,
+                "background.task_timeout": bg.cumulativeBackgroundTaskAssertionTimeoutExitCount,
+                "background.locked_file": bg.cumulativeSuspendedWithLockedFileExitCount,
+            ]
+            var attributes: [String: Any] = counts
+            attributes["app_version"] = payload.latestApplicationVersion
+            attributes["window_start"] = payload.timeStampBegin.ISO8601Format()
+            attributes["window_end"] = payload.timeStampEnd.ISO8601Format()
+            SentrySDK.logger.info("App exits", attributes: attributes)
+
+            let kills = [
+                ("memory limit", fg.cumulativeMemoryResourceLimitExitCount),
+                ("watchdog", fg.cumulativeAppWatchdogExitCount),
+            ]
+            for (reason, count) in kills where count > 0 {
+                SentrySDK.capture(message: "App killed in the foreground: \(reason)") { scope in
+                    scope.setLevel(.error)
+                    scope.setFingerprint(["app-exit", reason])
+                    scope.setTag(value: String(count), key: "exit.count")
+                    scope.setTag(value: payload.latestApplicationVersion, key: "exit.app_version")
+                    scope.setContext(value: attributes, key: "exits")
+                }
             }
         }
     }
