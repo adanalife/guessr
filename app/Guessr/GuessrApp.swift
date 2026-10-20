@@ -14,10 +14,15 @@ struct GuessrApp: App {
     /// Bumped when the App Clip's plays land on this player, so Play loads
     /// the day again with any rounds the clip played today.
     @State private var clipFolds = 0
-    /// A link-a-device QR code scanned into the app, held while it asks.
+    /// A link-a-device QR code scanned into the app that the server couldn't
+    /// look up, held while the plain question asks.
     @State private var link: DeviceLink?
-    /// What joining `link` would do, when the server could say.
-    @State private var linkPreview: LinkPreview?
+    /// A scanned code the server could look up, held while the comparison
+    /// sheet asks; `link` is then the plain question for one it couldn't.
+    @State private var comparing: (link: DeviceLink, preview: LinkPreview)?
+    /// Set by a join from the sheet that failed, and shown once the sheet has
+    /// gone, since an alert can't present over it from here.
+    @State private var sheetJoinFailed = false
     /// The name a scanned code goes by when it is this device's own player.
     @State private var alreadyAs: String?
     @State private var linkFailed = false
@@ -72,6 +77,15 @@ struct GuessrApp: App {
             .environment(gameCenter)
             .task { gameCenter.start { await gameCenter.sync(player, with: client) } }
             .task { await foldInClip() }
+            #if DEBUG
+                // `-linkPreview 1` opens the comparison sheet on sample players,
+                // for a screenshot without scanning a code.
+                .task {
+                    if UserDefaults.standard.bool(forKey: "linkPreview") {
+                        comparing = (DeviceLink(id: "sample", name: "Patient Delta"), .sample)
+                    }
+                }
+            #endif
             // A "View as" that drops the boards, or a `-tab` launch naming a
             // hidden tab, lands on Play rather than on a tab that isn't there.
             .onChange(of: account.seesBoards, initial: true) { _, sees in
@@ -97,17 +111,30 @@ struct GuessrApp: App {
                 }
                 Task { await ask(opened) }
             }
+            .sheet(
+                isPresented: Binding(get: { comparing != nil }, set: { if !$0 { comparing = nil } }),
+                onDismiss: {
+                    if sheetJoinFailed { (sheetJoinFailed, linkFailed) = (false, true) }
+                }
+            ) {
+                if let comparing {
+                    LinkCompareView(
+                        preview: comparing.preview, alias: player.alias, codeHeading: String(localized: "Scanned code")
+                    ) {
+                        let joined = await join(comparing.link)
+                        sheetJoinFailed = !joined
+                        return joined
+                    }
+                }
+            }
             .alert(
-                link.map { Text("Play as \(linkPreview?.to.name ?? $0.name ?? String(localized: "your other device"))?") }
-                    ?? Text(verbatim: ""),
+                link.map { Text("Play as \($0.name ?? String(localized: "your other device"))?") } ?? Text(verbatim: ""),
                 isPresented: Binding(get: { link != nil }, set: { if !$0 { link = nil } }), presenting: link
             ) { opened in
-                Button("Join") { Task { await join(opened) } }
+                Button("Join") { Task { linkFailed = !(await join(opened)) } }
                 Button("Cancel", role: .cancel) {}
             } message: { _ in
-                Text(
-                    linkPreview?.comparison
-                        ?? String(localized: "This device's plays move to that player, and both devices play as one from now on."))
+                Text("This device's plays move to that player, and both devices play as one from now on.")
             }
             .alert(
                 alreadyAs.map { Text("Already playing as \($0)") } ?? Text(verbatim: ""),
@@ -131,28 +158,30 @@ struct GuessrApp: App {
         }
     }
 
-    /// Looks the scanned player up before asking, so the question names both
-    /// players. A failed look still asks, with only the name the code carries.
+    /// Looks the scanned player up before asking, so the sheet can set both
+    /// players side by side. A failed look still asks, with only the name the
+    /// code carries.
     private func ask(_ opened: DeviceLink) async {
         do {
-            linkPreview = try await client.previewLink(opened, from: player)
+            comparing = (opened, try await client.previewLink(opened, from: player))
         } catch {
             Telemetry.requestFailed("link-preview", error: error)
-            linkPreview = nil
+            link = opened
         }
-        link = opened
     }
 
     /// Joins the website's player: the merge runs first, and the id is adopted
     /// only once it has, so a failure leaves this device's plays where they are.
-    private func join(_ link: DeviceLink) async {
+    /// Answers whether it joined.
+    private func join(_ link: DeviceLink) async -> Bool {
         do {
             _ = try await client.link(link, from: player)
             player = Player(id: link.id, alias: player.alias)
             tab = "Play"
+            return true
         } catch {
             Telemetry.requestFailed("link", error: error)
-            linkFailed = true
+            return false
         }
     }
 
