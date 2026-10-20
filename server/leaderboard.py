@@ -50,9 +50,18 @@ def name_expr(player: str) -> str:
       LIMIT 1))"""
 
 
+def in_month(param: str) -> str:
+    """The SQL test that a YYYY-MM-DD date falls in the month `param` names
+    (YYYY-MM), as a range so it seeks an index on the date. A LIKE prefix reads
+    the same but scans every play: SQLite only rewrites LIKE into a range
+    under a case-insensitive index. `param` is numbered, since it appears
+    twice."""
+    return f"BETWEEN {param} || '-01' AND {param} || '-31'"
+
+
 def query(span: str) -> str:
     """Both boards: sum a player's points across a span, best first. The span is
-    the only difference -- `= ?` for a day, `LIKE ? || '-%'` for a month. The
+    the only difference -- `= ?` for a day, `in_month` for a month. The
     player_id tiebreak is what lets a rank name the same player twice."""
     return f"""
   SELECT p.player_id,
@@ -66,7 +75,7 @@ def query(span: str) -> str:
 
 
 DAILY = query("= ?")
-MONTHLY = query("LIKE ? || '-%'")
+MONTHLY = query(in_month("?1"))
 
 # The newest date anyone played, at or before a cutoff. plays_by_date_points
 # makes it a seek.

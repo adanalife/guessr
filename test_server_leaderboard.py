@@ -142,6 +142,8 @@ def test_ranking() -> None:
             for r in d.conn.execute(f"EXPLAIN QUERY PLAN {sql}", (period, 10))
         )
         assert "INDEX plays_by_player_recent" in plan, plan
+        # The span seeks on the date rather than reading every play.
+        assert "SCAN p" not in plan, plan
 
 
 def test_label() -> None:
