@@ -213,7 +213,12 @@ public struct TwitchAuth: Sendable {
             } catch is URLError {
                 continue
             }
-            if status(response) == 200 { return try await session(from: data) }
+            if status(response) == 200 {
+                let fresh = try await session(from: data)
+                // Nothing can chat or moderate as a login Twitch never named.
+                guard !fresh.userID.isEmpty else { throw TwitchAuthError.refused("validate named nobody") }
+                return fresh
+            }
             let why = message(data)
             if why == "authorization_pending" || why == "slow_down" { continue }
             throw TwitchAuthError.refused(why)

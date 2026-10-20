@@ -288,4 +288,14 @@ struct TwitchRefusals {
         auth = RefusingTwitch.auth(status: 400, body: #"{"status":400,"message":"Invalid refresh token"}"#)
         await #expect(throws: TwitchAuthError.refused("Invalid refresh token")) { try await auth.refresh(old) }
     }
+
+    /// A grant whose validate names nobody is no login: chat subscribes and
+    /// the mod check both key on the user id.
+    @Test func aLoginTwitchNeverNamesIsRefused() async throws {
+        let auth = RefusingTwitch.auth(
+            status: 200,
+            body: #"{"access_token":"acc","refresh_token":"ref","expires_in":14400,"token_type":"bearer"}"#,
+            login: "", userID: "")
+        await #expect(throws: TwitchAuthError.refused("validate named nobody")) { try await auth.poll(pendingCode()) }
+    }
 }
