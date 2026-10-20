@@ -113,14 +113,12 @@ struct HiddenChattersView: View {
 struct SettingsView: View {
     @Environment(Account.self) private var account
     @Binding var player: Player
-    @State private var playedToday = false
-    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("kilometers") private var kilometers = false
     @AppStorage("appearance") private var appearance = "dark"
 
     var body: some View {
         Form {
-            NameSection(player: $player, playedToday: playedToday)
+            NameSection(player: $player)
             ReminderSection()
             Section("Appearance") {
                 Picker("Appearance", selection: $appearance) {
@@ -187,17 +185,7 @@ struct SettingsView: View {
         }
         .readableWidth(title: "Settings")
         .paper()
-        // Read on every visit and every return rather than once: the Play tab
-        // saves as it goes, and a return can be on a new day.
-        .onAppear(perform: readPlayedToday)
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active { readPlayedToday() }
-        }
         .task { await account.refreshIfNeeded() }
-    }
-
-    private func readPlayedToday() {
-        playedToday = !DayProgress.resume(Saved.progress, on: GuessrClient.today()).played.isEmpty
     }
 }
 
@@ -207,7 +195,6 @@ struct SettingsView: View {
 /// ways another device plays as this same name.
 struct NameSection: View {
     @Binding var player: Player
-    let playedToday: Bool
     @AppStorage("alias-prev") private var previous = ""
 
     var body: some View {
@@ -227,7 +214,7 @@ struct NameSection: View {
                 }
             }
             // Beside the name: a linked device plays as this same name.
-            LinkCodeRows(player: $player, playedToday: playedToday)
+            LinkCodeRows(player: $player)
         }
     }
 }
@@ -238,7 +225,6 @@ struct NameSection: View {
 /// "link" alone doesn't say what moves where.
 struct LinkCodeRows: View {
     @Binding var player: Player
-    let playedToday: Bool
     @State private var code: LinkCode?
     @State private var asking = false
     @State private var error: String?
@@ -290,11 +276,7 @@ struct LinkCodeRows: View {
         if let error {
             Text(error).foregroundStyle(.secondary)
         }
-        // Only before the first guess: joining after it would leave the day's
-        // progress on this device belonging to the player it left.
-        if !playedToday {
-            NavigationLink("Enter your code") { JoinView(player: $player) }
-        }
+        NavigationLink("Enter your code") { JoinView(player: $player) }
     }
 
     private func issue() async {

@@ -176,6 +176,8 @@ struct GuessrApp: App {
     private func join(_ link: DeviceLink) async -> Bool {
         do {
             _ = try await client.link(link, from: player)
+            // Today's rounds are the joined player's now, as the server holds them.
+            Saved.progress = nil
             player = Player(id: link.id, alias: player.alias)
             tab = "Play"
             return true
