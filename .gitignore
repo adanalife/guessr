@@ -27,6 +27,9 @@ answers.json
 answers.sql
 rounds.json
 rounds.sql
+# mirror_stage.py's script carries production's upcoming answers, and a killed
+# run leaves it behind.
+/mirror.sql
 
 # Stamped into the deploy by staging.yml / release.yml — which build this is,
 # and the changelog to go with it. Generated per deploy, never committed.
