@@ -53,6 +53,11 @@ struct PlayView: View {
                     round(day, image: image, shown: shown)
                 } else {
                     DayResultView(progress: progress)
+                        .onAppear {
+                            Telemetry.step(
+                                .resultShown, date: progress.date,
+                                data: ["rounds": progress.played.count, "total": progress.total])
+                        }
                 }
             } else if let message {
                 ContentUnavailableView {
@@ -170,7 +175,10 @@ struct PlayView: View {
         .toolbar(.hidden, for: .navigationBar)
         // The image holds through the reveal and changes with the next round, so
         // this starts the clock once per clip.
-        .onChange(of: image, initial: true) { roundShown = .now }
+        .onChange(of: image, initial: true) {
+            roundShown = .now
+            Telemetry.step(.roundShown, date: progress.date, round: progress.played.count + 1, clip: image)
+        }
         // A tick as a pin lands, and none as "Next round" clears it.
         .sensoryFeedback(.selection, trigger: pin?.latitude) { _, now in now != nil }
         .sensoryFeedback(trigger: revealed) { _, shown in
@@ -311,6 +319,9 @@ struct PlayView: View {
                 progress = progress.seeded(from: recorded, in: loaded)
                 Saved.progress = progress
             }
+            Telemetry.step(
+                .dayLoaded, date: progress.date,
+                data: ["rounds": loaded.rounds.count, "played": progress.played.count])
         } catch {
             Telemetry.requestFailed("day", error: error)
             // The server says why — nothing scheduled, or a date not yet open.
@@ -358,6 +369,9 @@ struct PlayView: View {
                 image: image, guess: at, date: progress.date, player: player, elapsed: .now - roundShown)
             progress.played.append(PlayedRound(image: image, guess: at, score: score))
             Saved.progress = progress
+            Telemetry.step(
+                .guessed, date: progress.date, round: progress.played.count, clip: image,
+                data: ["points": score.points, "seconds": Int((ContinuousClock.now - roundShown).components.seconds)])
             scored(score, progress)
             // The map travels from the guess out to the answer, and the reveal
             // grows in around it, rather than cutting to both.
@@ -510,6 +524,7 @@ struct DayResultView: View {
                     Button(copied ? "Copied" : "Copy share text", systemImage: copied ? "checkmark" : "doc.on.doc") {
                         UIPasteboard.general.string = text
                         copied = true
+                        Telemetry.step(.shared, date: progress.date, data: ["total": progress.total])
                         Task {
                             try? await Task.sleep(for: .seconds(1.5))
                             copied = false
