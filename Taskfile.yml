@@ -709,8 +709,16 @@ tasks:
         case "$token" in
           '{"placeholder"'*) echo "/release/sentry-org-token still holds terraform's placeholder — seed it (app/README.md's TestFlight section)" >&2; exit 1 ;;
         esac
-        SENTRY_AUTH_TOKEN="$token" uvx sentry-cli debug-files upload --org a-dana-life --project guessr-app \
-          --include-sources .build/Guessr.xcarchive/dSYMs
+        # Sentry's upload API answers 503/504 for minutes at a time while its
+        # status page reads operational, and sentry-cli's own retries come
+        # back to back. Re-uploading is safe (files are keyed by debug id),
+        # so a few spaced attempts outlast it.
+        for attempt in 1 2 3 4; do
+          SENTRY_AUTH_TOKEN="$token" uvx sentry-cli debug-files upload --org a-dana-life --project guessr-app \
+            --include-sources .build/Guessr.xcarchive/dSYMs && exit 0
+          [ "$attempt" -lt 4 ] && { echo "dSYM upload failed (attempt $attempt of 4); retrying in 2 minutes" >&2; sleep 120; }
+        done
+        exit 1
 
   ios:verify:
     desc: Ask App Store Connect whether the newest release tag has an installable build (-- --wait polls until it does)
