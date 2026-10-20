@@ -27,9 +27,9 @@ import datetime as dt
 from server import rules
 
 BUNDLE_ID = "lol.dana.guessr"
-# The app lives on TestFlight, where Game Center runs against the prerelease
-# configuration; flip to False when it ships to the App Store.
-PRERELEASED = True
+# The app is on the App Store, so Game Center runs against the live
+# configuration. True while a build exists only on TestFlight.
+PRERELEASED = False
 
 # Vendor identifiers, as configured in App Store Connect; app/README.md lists
 # what each is. Underscores, not hyphens: Apple allows only letters, digits,
