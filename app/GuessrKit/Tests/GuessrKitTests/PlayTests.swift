@@ -137,6 +137,22 @@ private func answer(_ proto: URLProtocol, with name: String) {
     proto.client?.urlProtocolDidFinishLoading(proto)
 }
 
+/// Answers the website's merge, /api/link, as the server does.
+final class LinkingGuessr: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var lastBody: [String: Any] = [:]
+    nonisolated(unsafe) static var lastPath: String?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+
+    override func startLoading() {
+        Self.lastPath = request.url?.path
+        Self.lastBody = jsonBody(of: request)
+        answer(self, with: "link")
+    }
+}
+
 /// Refuses every play the way /api/score refuses one against a closed date.
 final class ClosedGuessr: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool { true }
@@ -168,7 +184,8 @@ private let image = "clips/2018_1015_183219_002_opt-026000.mp4"
 
 @Test func aGuessPostsAPlayAndDecodesTheReveal() async throws {
     let scored = try await client(ScoringGuessr.self).score(
-        image: image, guess: Coordinate(lat: 33.76, lng: -118.28), date: "2026-09-23", player: player)
+        image: image, guess: Coordinate(lat: 33.76, lng: -118.28), date: "2026-09-23", player: player,
+        elapsed: .milliseconds(8200))
     #expect(scored.points == 4091)
     #expect(scored.state == "California")
     #expect(scored.answer == Coordinate(lat: 33.913757, lng: -117.324235))
@@ -181,6 +198,7 @@ private let image = "clips/2018_1015_183219_002_opt-026000.mp4"
     #expect(body["player_id"] as? String == player.id)
     #expect(body["handle"] as? String == "Patient Delta")
     #expect(body["lat"] as? Double == 33.76)
+    #expect(body["elapsed_ms"] as? Int == 8200)
 }
 
 @Test func aClosedDayIsARefusalNotARetry() async throws {
@@ -210,6 +228,52 @@ private let image = "clips/2018_1015_183219_002_opt-026000.mp4"
     #expect(SyncingGuessr.lastBody["game_player_id"] as? String == "A:_5f21e308073d18f9b3afdc37f646e851")
     // The server computes the standing; a body carrying a score would be the cheat.
     #expect(SyncingGuessr.lastBody.count == 2)
+}
+
+/// A player store that holds whatever it was last given.
+final class MemoryPlayerStore: PlayerStore, @unchecked Sendable {
+    var player: Player?
+    init(_ player: Player? = nil) { self.player = player }
+    func load() -> Player? { player }
+    func save(_ player: Player) { self.player = player }
+}
+
+@Test func aHandedOverPlayerIsAdoptedOnlyByAnEmptyStore() {
+    let clips = Player(id: "clip", alias: "Clip Player")
+    let empty = MemoryPlayerStore()
+    #expect(empty.current(orAdopt: clips) == clips)
+    #expect(empty.player == clips)
+    let kept = Player(id: "kept", alias: "Kept Player")
+    #expect(MemoryPlayerStore(kept).current(orAdopt: clips) == kept)
+    #expect(MemoryPlayerStore().current().alias.isEmpty == false)
+}
+
+@Test func theGroupStoreRoundTripsAPlayer() {
+    let suite = "lol.dana.guessr.tests.\(UUID().uuidString)"
+    let store = GroupPlayerStore(suite: suite)
+    #expect(store.load() == nil)
+    let player = Player(id: "abc", alias: "Patient Delta")
+    store.save(player)
+    #expect(GroupPlayerStore(suite: suite).load() == player)
+    UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+}
+
+@Test func theWebsitesLinkCodeNamesThePlayerAndTheirName() {
+    // What web/link.js writes: URLSearchParams, so a space is a `+`.
+    let link = DeviceLink(URL(string: "https://guessr.dana.lol/#link=5d2c8e1a-9b3f-4c7d-a6e0-1f2b3c4d5e6f&name=Patient+Delta")!)
+    #expect(link == DeviceLink(id: "5d2c8e1a-9b3f-4c7d-a6e0-1f2b3c4d5e6f", name: "Patient Delta"))
+    #expect(DeviceLink(URL(string: "https://guessr.dana.lol/#link=abc")!) == DeviceLink(id: "abc"))
+    #expect(DeviceLink(URL(string: "https://guessr.dana.lol/")!) == nil)
+    #expect(DeviceLink(URL(string: "https://guessr.dana.lol/?link=abc")!) == nil)
+    #expect(DeviceLink(URL(string: "https://guessr.dana.lol/#name=Nobody")!) == nil)
+}
+
+@Test func aDeviceLinkMovesThisPlayersPlays() async throws {
+    let moved = try await client(LinkingGuessr.self).link(DeviceLink(id: "5d2c8e1a-9b3f-4c7d-a6e0-1f2b3c4d5e6f"), from: player)
+    #expect(moved == 3)
+    #expect(LinkingGuessr.lastPath == "/api/link")
+    #expect(LinkingGuessr.lastBody["from"] as? String == player.id)
+    #expect(LinkingGuessr.lastBody["to"] as? String == "5d2c8e1a-9b3f-4c7d-a6e0-1f2b3c4d5e6f")
 }
 
 @Test func aPreviewedCodeNamesBothPlayers() async throws {
@@ -267,6 +331,24 @@ private let image = "clips/2018_1015_183219_002_opt-026000.mp4"
 
     let done = DayProgress(date: "2026-09-23", played: Array(repeating: one, count: day.rounds.count))
     #expect(done.next(in: day) == nil)
+}
+
+@Test func aStreakShowsWhileItCouldStillGrow() throws {
+    let score = try snake.decode(GuessrScore.self, from: fixture("score"))
+    #expect(score.streak == 3 && score.streakDate == "2026-09-23")
+    func streak(_ days: Int?, endingOn end: String?, today: String) throws -> Int? {
+        var s = score
+        (s.streak, s.streakDate) = (days, end)
+        let noon = try #require(ISO8601DateFormatter().date(from: "\(today)T12:00:00Z"))
+        let progress = DayProgress(date: today, played: [PlayedRound(image: image, guess: s.answer, score: s)])
+        return progress.streak(now: noon)
+    }
+    #expect(try streak(3, endingOn: "2026-09-23", today: "2026-09-23") == 3)
+    #expect(try streak(3, endingOn: "2026-09-30", today: "2026-10-01") == 3, "yesterday, across a month")
+    #expect(try streak(3, endingOn: "2026-09-21", today: "2026-09-23") == nil, "a broken run")
+    #expect(try streak(1, endingOn: "2026-09-23", today: "2026-09-23") == nil, "one day is no streak")
+    #expect(try streak(nil, endingOn: nil, today: "2026-09-23") == nil, "practice carries none")
+    #expect(DayProgress(date: "2026-09-23").streak() == nil)
 }
 
 @Test func aPlayerIsMintedOnceAndKept() {

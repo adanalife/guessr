@@ -11,6 +11,9 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <!-- iOS labels a home-screen icon from <title>, which is too long for it. -->
 <meta name="apple-mobile-web-app-title" content="Guessr">
+<!-- Safari's banner for the App Store listing, and for a visitor with no app,
+     the App Clip that plays today with no install. -->
+<meta name="apple-itunes-app" content="app-id=6815375923, app-clip-bundle-id=lol.dana.guessr.Clip">
 <link rel="manifest" href="manifest.json">
 <!-- Rewritten to match the palette by setTheme() below; this is the dark value
      so an installed icon's splash agrees with the manifest either way. -->
@@ -42,7 +45,7 @@
 <script src="sentry-init.js"></script>
 
 <!-- Blocking and before the stylesheet, so the page never flashes the wrong
-     palette. Shared with /admin/, which reads the same saved choice. -->
+     palette. -->
 <script src="theme.js"></script>
 
 <!-- Leaflet, vendored rather than loaded from unpkg. It is the only thing on
@@ -459,9 +462,8 @@
      the next one. Pinned, and from unpkg: unlike the map, a QR code that fails
      to load costs the page one optional button rather than any way to play. -->
 <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
-<!-- A module, so daily.js can be imported here and by functions/api/score.js
-     alike: the play window the page reads and the one the server enforces have
-     to be the same code. The classic scripts above run first, so Leaflet's `L`
+<!-- A module, so daily.js can be imported here: the play window the page
+     reads and the one the server enforces (server/rules.py) have to agree. The classic scripts above run first, so Leaflet's `L`
      is in place by the time this executes. -->
 <script type="module">
 import { ROUNDS_PER_GAME, dailyState, dateForDay, effectiveDay } from './daily.js';
@@ -540,7 +542,7 @@ function alias(next = null) {
   }
 }
 
-// Scoring is a round trip to functions/api/score.js, which holds the answers. The
+// Scoring is a round trip to /api/score, which holds the answers. The
 // response is also where the truth coordinates come from -- so a player learns
 // where the frame was only by committing a guess first.
 //
@@ -548,7 +550,10 @@ function alias(next = null) {
 // one, the server records the result and a re-guess gets the score already on
 // record; without one, nothing is stored. So practice can be replayed freely and
 // the daily cannot, which is the difference the board depends on.
-async function scoreGuess(image, latlng, date) {
+//
+// `elapsedMs` is how long the round was on screen before the guess, stored with
+// a daily play for statistics and never shown back.
+async function scoreGuess(image, latlng, date, elapsedMs) {
   const id = date && playerId();
   const res = await request('api/score', {
     method: 'POST',
@@ -558,7 +563,7 @@ async function scoreGuess(image, latlng, date) {
       // The handle rides with every play rather than being set once, so a
       // reroll takes effect from the next round without needing a way to
       // rewrite what is already recorded.
-      ...(id ? { date, player_id: id, handle: alias() } : {}),
+      ...(id ? { date, player_id: id, handle: alias(), elapsed_ms: elapsedMs } : {}),
     }),
   });
   if (!res.ok) {
@@ -816,9 +821,14 @@ map.on('click', e => {
   go.textContent = t('Guess');
 });
 
+// When the current round's clip went up, for the think time sent with the guess.
+// Held in memory only, so a reload mid-round starts the clock again.
+let roundStart = 0;
+
 function startRound() {
   const r = game[idx];
   setFrame(r.image);
+  roundStart = performance.now();
   el('roundnum').textContent = idx + 1;
   clearMarks();
   if (guess) { map.removeLayer(guess); guess = null; }
@@ -847,10 +857,11 @@ async function reveal() {
   // the pin out from under the answer being scored.
   go.dataset.phase = 'scoring';
   const at = guess.getLatLng();
+  const elapsedMs = Math.round(performance.now() - roundStart);
 
   let scored;
   try {
-    scored = await scoreGuess(r.image, at, mode === 'daily' ? dateForDay(gameDay) : null);
+    scored = await scoreGuess(r.image, at, mode === 'daily' ? dateForDay(gameDay) : null, elapsedMs);
   } catch (e) {
     // A refused play is not a failed request: retrying it changes nothing, so
     // say what the server said and offer practice, which is never refused.

@@ -1,4 +1,4 @@
-"""The HTTP surface: every route the Pages Functions serve, as one Starlette app
+"""The HTTP surface: every route the game has, as one Starlette app
 over the framework-free handlers beside it.
 
 ASGI is the point of Starlette here. The same app runs under Python Workers'
@@ -11,12 +11,15 @@ not at import. Anywhere they are fixed it is a lambda returning the same three.
 `fetch` is the outbound-HTTP seam /api/live, the admin gate and the Game Center
 submission share. `asc(request)` is the App Store Connect client for the tier's
 secrets, or None where there are none, which switches /api/gamecenter off.
+`report(request, exc)` hears every exception no handler caught, before the 500
+goes out; a failure inside it is swallowed, so reporting can never change the
+answer a caller gets.
 
 Everything under /admin is gated before routing, so a caller who is not the
 owner learns nothing about which admin paths exist or which methods they take:
-401 or 403 for all of it, the same as functions/admin/_middleware.js gating the
-whole directory. The Worker also receives /admin/ itself, whose page is not
-served here.
+401 or 403 for all of it. The Worker also receives /admin/ itself, which no
+page answers: the console and tempomat are the admin surfaces, and they call the
+routes below.
 
 A handler answers (status, body[, headers]). A dict body is JSON; anything else
 is a clip's: bytes, an async iterator of bytes, or None for no body.
@@ -27,7 +30,12 @@ from types import SimpleNamespace
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response, StreamingResponse
+from starlette.responses import (
+    JSONResponse,
+    PlainTextResponse,
+    Response,
+    StreamingResponse,
+)
 from starlette.routing import Route
 
 from server import (
@@ -101,6 +109,7 @@ ROUTES = [
             r.db, r.who, r.body, lambda key: _exists(r.get_clip, key)
         ),
     ),
+    ("/admin/month", "GET", lambda r: admin_day.month(r.db, r.who, r.params)),
     ("/admin/review", "POST", lambda r: admin_day.review(r.db, r.who, r.body)),
     ("/admin/players", "GET", lambda r: admin_players.players(r.db, r.who)),
     (
@@ -119,13 +128,18 @@ ROUTES = [
         "POST",
         lambda r: admin_players.set_board_note(r.db, r.who, r.params, r.body),
     ),
+    (
+        "/admin/board-marks",
+        "GET",
+        lambda r: admin_players.board_marks(r.db, r.who, r.params),
+    ),
 ]
 
-# The clip route answers every method itself, 405 included, as the Function does.
+# The clip route answers every method itself, 405 included.
 EVERY_METHOD = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 
 
-def make_app(context, fetch, asc=lambda request: None) -> Starlette:
+def make_app(context, fetch, asc=lambda request: None, report=None) -> Starlette:
     def route(path: str, method: str, handler) -> Route:
         async def endpoint(request):
             db, get_clip, _ = context(request)
@@ -154,7 +168,16 @@ def make_app(context, fetch, asc=lambda request: None) -> Starlette:
             )
         )
 
+    async def server_error(request, exc):
+        if report is not None:
+            try:
+                await report(request, exc)
+            except Exception:  # noqa: BLE001 -- see the module docstring
+                pass
+        return PlainTextResponse("Internal Server Error", 500)
+
     return Starlette(
+        exception_handlers={Exception: server_error},
         routes=[
             *(route(*r) for r in ROUTES),
             Route("/clips/{name:path}", clip, methods=EVERY_METHOD),

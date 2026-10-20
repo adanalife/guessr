@@ -1,8 +1,8 @@
 // Checks the date arithmetic and the window a day is open for. Run with
 // `node test_daily.mjs` (or `task test`).
 //
-// This is the module the page and functions/api/{day,score}.js all import, so a
-// rule that reads differently on the two sides means the server refuses plays
+// The page imports this module and server/rules.py carries the same window, so
+// a rule that reads differently on the two sides means the server refuses plays
 // the page legitimately handed out, and says nothing about why.
 //
 // *Which rounds* a date plays is not tested here: that is a row set in D1, so

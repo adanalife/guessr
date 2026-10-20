@@ -1,6 +1,6 @@
 """The `get_clip` seam over a Cloudflare R2 binding, for the Python Worker.
 
-The call is the one functions/clips/[[path]].js makes: the request's headers go
+The request's headers go
 to `get` whole, as both `range` and `onlyIf`, because R2 parses Range and the
 conditionals itself. R2 reads them only from a real JS `Headers` -- a plain
 object in that slot is taken as an `R2Range` and quietly ignored -- so the

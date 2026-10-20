@@ -2,7 +2,7 @@
 """Check that a rebuild refuses to put the wrong footage at a cached key.
 `python3 test_rebuild.py`.
 
-`functions/clips/[[path]].js` serves clips `immutable` for a year, so the one
+`server/clips.py` serves clips `immutable` for a year, so the one
 thing a rebuild must never do is land different bytes at a name a player already
 holds. Nothing downstream can notice if it does: the object is a valid mp4 of a
 real road, the endpoint returns 200, and the only symptom is a round whose answer

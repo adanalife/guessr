@@ -78,7 +78,7 @@ def main() -> int:
 
     (args.dest / "rounds.sql").write_text(rounds_sql(rounds, answers, "fixture", days))
     # The batch name only reaches rounds.sql, so answers.sql carries it as a
-    # comment: integration.sh's refuse-to-clobber guard greps both for it.
+    # comment, so a file holding a real set is told apart from a fixture by grep.
     (args.dest / "answers.sql").write_text(
         f"-- batch 'fixture'\n{answers_sql(answers)}"
     )

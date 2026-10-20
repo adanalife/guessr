@@ -7,8 +7,9 @@ name: release
 #
 # Production runs the Python API the same way staging does: the Worker deploys
 # first, and the Pages project's `API` service binding (set by hand in the
-# dashboard) decides whether the site's /api/, /admin/ and /clips/ reach it.
-# Without the binding the Worker sits idle and the JS Functions keep answering.
+# dashboard) is how the site's /api/ and /admin/ reach it. Without the binding
+# those paths fail at the root middleware; /clips/ never touches the Worker,
+# since a Pages Function streams clips straight from R2.
 on:
   push:
     tags:

@@ -131,6 +131,10 @@ public enum Guessr {
         (Bundle.main.object(forInfoDictionaryKey: "GuessrAPIBase") as? String).flatMap { URL(string: $0) }
         ?? URL(string: "https://guessr.dana.lol")!
 
+    /// Every clip's shape: 1280 wide with the dashcam HUD cropped off the
+    /// bottom. A frame of this shape leaves nothing to letterbox.
+    public static let clipAspect = 1280.0 / 674.0
+
     /// The server's keys are snake_case.
     static let decoder: JSONDecoder = {
         let d = JSONDecoder()
@@ -213,6 +217,30 @@ extension Guessr {
         return "Guessr/\(version) (\(await platform()) \(os.majorVersion).\(os.minorVersion))"
     }
 
+    /// The Sentry grouping for a failed request: one issue per status and
+    /// endpoint. An HTTP-client event's stack is all URLSession frames, so
+    /// without this every 500 from every endpoint lands in the same issue.
+    /// The query string is left out, so a date or a player id in it doesn't
+    /// split one endpoint into many.
+    public static func httpErrorFingerprint(status: Int, url: URL) -> [String] {
+        ["http-client-error", String(status), url.path()]
+    }
+
+    /// Whether a failure is the device having no connection at all — airplane
+    /// mode, Wi-Fi off, cellular data off for the app — rather than anything
+    /// the server or the network did. AVPlayer wraps the URL error it failed
+    /// on, so the underlying error counts too.
+    public static func isOffline(_ error: any Error) -> Bool {
+        let offline: Set<Int> = [
+            URLError.notConnectedToInternet.rawValue,
+            URLError.dataNotAllowed.rawValue,
+            URLError.internationalRoamingOff.rawValue,
+        ]
+        let error = error as NSError
+        if error.domain == NSURLErrorDomain, offline.contains(error.code) { return true }
+        return (error.userInfo[NSUnderlyingErrorKey] as? NSError).map(isOffline) ?? false
+    }
+
     private static func platform() async -> String {
         #if os(iOS)
             if ProcessInfo.processInfo.isiOSAppOnMac { return "macOS" }
@@ -292,6 +320,18 @@ public struct GuessrClient: Sendable {
             throw GuessrError.http(status: http.statusCode, message: message)
         }
         return data
+    }
+
+    /// `body` as JSON, POSTed to `path` and answered as `data(_:)` answers.
+    func post(
+        _ path: String, _ body: some Encodable, encoder: JSONEncoder = JSONEncoder(), headers: [String: String] = [:]
+    ) async throws -> Data {
+        var req = URLRequest(url: baseURL.appending(path: path))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        for (field, value) in headers { req.setValue(value, forHTTPHeaderField: field) }
+        req.httpBody = try encoder.encode(body)
+        return try await data(req)
     }
 }
 

@@ -1,3 +1,4 @@
+#if TWITCH
 import AppIntents
 import GuessrKit
 
@@ -8,12 +9,15 @@ struct GuessError: Error, CustomLocalizedStringResourceConvertible {
 }
 
 /// `!guess <state>` in the channel's Twitch chat, as the signed-in viewer —
-/// the same line they could type in the Chat tab. Runs with the app closed: it
-/// reads the login the app keeps and posts once, with no chat connection.
+/// the same line they could type in the Watch tab's chat. Runs with the app
+/// closed: it reads the login the app keeps and posts once, with no chat
+/// connection.
 struct GuessStateIntent: AppIntent {
     static let title: LocalizedStringResource = "Guess the State"
     static let description = IntentDescription("Guess which state the van is in, as !guess in Twitch chat.")
-    static let openAppWhenRun = false
+    /// In the background unless nobody is signed in, when Siri offers to open
+    /// the app on Settings, where the sign-in is.
+    static let supportedModes: IntentModes = [.background, .foreground(.dynamic)]
 
     @Parameter(title: "State")
     var state: USState
@@ -26,8 +30,13 @@ struct GuessStateIntent: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let account = Account()
         await account.refreshIfNeeded()
-        guard let session = account.session, !account.channel.isEmpty else {
-            throw GuessError(text: String(localized: "Sign in to Twitch in Guessr first."))
+        guard account.auth.isConfigured, !account.channel.isEmpty else {
+            return .result(dialog: "This build of Guessr can't guess in Twitch chat.")
+        }
+        guard let session = account.session else {
+            try await continueInForeground("Sign in to Twitch in Guessr's Settings to guess in the stream's chat.")
+            UserDefaults.standard.set("Settings", forKey: GuessrApp.openTabKey)
+            return .result(dialog: "Sign in under Twitch, then guess again.")
         }
         let helix = Helix(channel: account.channel, clientID: account.auth.clientID, session: session)
         do {
@@ -54,3 +63,4 @@ struct GuessrShortcuts: AppShortcutsProvider {
         )
     }
 }
+#endif

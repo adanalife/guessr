@@ -8,7 +8,7 @@
 // reports no error. And an `immutable` header on a name that can be regenerated is
 // a player stuck with the wrong footage for a year, with no way to clear it.
 //
-// The R2 stub below is the same bargain as _d1.mjs: it models the shape of the
+// The R2 stub below models the shape of the
 // binding, not the service. Range and conditional parsing really live in the
 // runtime, so what is pinned here is that this handler asks for them and renders
 // whatever R2 hands back -- not that R2 parses `bytes=` correctly.

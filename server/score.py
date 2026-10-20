@@ -16,7 +16,7 @@ from server import rules
 
 async def score(db, body, now=None, client=None) -> tuple[int, dict]:
     """`client` is rules.client_of's bucket for the caller, stored on the play
-    and never returned."""
+    and never returned. So is the body's optional `elapsed_ms`."""
     guess = rules.parse_guess(body)
     if not guess:
         return 400, {"error": "expected {image, lat, lng}"}
@@ -58,7 +58,34 @@ async def score(db, body, now=None, client=None) -> tuple[int, dict]:
         **await _record(db, play, guess, scored, client),
         **answer,
         "recorded": True,
+        **await streak(db, play["player_id"]),
     }
+
+
+# A finished day is one with a play for every round. Subtracting each finished
+# date's rank from its day number gives every date in an unbroken run the same
+# value, so the run ending on the latest finished date is the rows sharing its
+# value. julianday() counts real days, so a run crosses a month or a year.
+STREAK = """
+  WITH done AS (
+    SELECT date, julianday(date) - ROW_NUMBER() OVER (ORDER BY date) AS run
+      FROM plays
+     WHERE player_id = ?
+     GROUP BY date
+    HAVING COUNT(*) >= ?)
+  SELECT COUNT(*) AS streak, MAX(date) AS streak_date
+    FROM done
+   WHERE run = (SELECT run FROM done ORDER BY date DESC LIMIT 1)"""
+
+
+async def streak(db, player: str) -> dict:
+    """{streak, streak_date}: how many consecutive days the player has finished,
+    counting back from the latest one they finished, and that date (None with
+    no finished day). Whether the run is still alive is the client's call,
+    since only it knows which date is today for the player."""
+    # ponytail: reads every play the player has, once per daily guess; cache it
+    # per player and date if a long-time player's history makes that measurable.
+    return await db.fetchone(STREAK, player, rules.ROUNDS_PER_GAME)
 
 
 async def _in_draw(db, date: str, image: str) -> bool:
@@ -86,8 +113,9 @@ async def _record(db, play: dict, guess: dict, scored: dict, client) -> dict:
     re-scoring a round cannot improve what the board sees. The pin is stored beside
     its distance because a radius cannot be turned back into a point."""
     changed = await db.execute(
-        """INSERT INTO plays (date, player_id, image, km, points, handle, guess_lat, guess_lng, client)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """INSERT INTO plays (date, player_id, image, km, points, handle, guess_lat, guess_lng, client,
+                              elapsed_ms)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (date, player_id, image) DO NOTHING""",
         play["date"],
         play["player_id"],
@@ -98,6 +126,7 @@ async def _record(db, play: dict, guess: dict, scored: dict, client) -> dict:
         guess["lat"],
         guess["lng"],
         client,
+        play["elapsed_ms"],
     )
     if changed:
         return scored

@@ -22,7 +22,8 @@ simulator build from the repo root.
 The app's version is the repo's release tag: the `vX.Y.Z` release-please cuts
 for the web game is the version TestFlight shows, and the build number is the
 commit count. `task ios:release` builds only from a clean checkout of a tag,
-then archives, uploads and waits for Apple to finish processing:
+then archives, uploads, waits for Apple to finish processing, and sends the
+build's dSYMs to Sentry:
 
 ```sh
 git fetch --tags && git checkout vX.Y.Z
@@ -38,6 +39,16 @@ It reads four variables from the environment:
 | `ASC_KEY_ID` | that key's id |
 | `ASC_ISSUER_ID` | the key's issuer id |
 
+The dSYM upload (`task ios:dsyms`, the release's last step) authenticates with
+a Sentry org token (scope `org:ci`). It reads `SENTRY_AUTH_TOKEN` if set, and
+otherwise fetches `/release/sentry-org-token` from the prod account's SSM
+through `aws-vault`. Seed that once with:
+
+```sh
+aws-vault exec adanalife-prod -- aws ssm put-parameter \
+  --name /release/sentry-org-token --type SecureString --overwrite --value '<token>'
+```
+
 Signing needs the team's *Apple Distribution* certificate in the keychain and an
 App Store profile for `lol.dana.guessr` named `Guessr App Store`.
 `task ios:archive` and `task ios:upload` are the two halves, for a deliberate
@@ -45,6 +56,55 @@ off-tag build or a retried upload; `task ios:validate`, which the release runs
 between them, puts the last archive through the App Store export checks
 without uploading it; `task ios:verify` asks App Store Connect
 whether the newest tag has an installable build.
+
+## Universal links
+
+The website's *Link a device* QR code (`web/link.js`) opens the app when it is
+installed, and Safari otherwise. Three parts agree on it: the site serves
+`web/.well-known/apple-app-site-association`, which names the team and bundle
+id and matches only the site root carrying `#link=` (the `_headers` rule beside
+it gives the extensionless file its JSON content type); the app's entitlements
+in `project.yml` name `guessr.dana.lol` and its stage; and `GuessrApp`'s
+`onOpenURL` reads the player out of the fragment (`DeviceLink` in GuessrKit)
+and runs the same `POST /api/link` merge the website does, behind a question.
+
+The App ID in the developer portal needs the *Associated Domains* capability,
+and the `Guessr App Store` profile has to be regenerated after it is added; a
+build signed with a profile that lacks it installs, and iOS quietly never hands
+it a link. Apple's CDN fetches the file on install, not on every scan, so after
+a change check what it holds:
+
+```sh
+curl https://app-site-association.cdn-apple.com/a/v1/guessr.dana.lol
+```
+
+A fresh install, or Settings → Developer → *Associated Domains Development* →
+*Diagnostics* on a device, says what iOS resolved the domain to.
+
+## App Clip
+
+`GuessrClip` in `project.yml` is a second app target: the Play screen and what
+it needs from the app (`Play.swift`, `Layout.swift`, `USState.swift`,
+`Telemetry.swift`, the asset catalog and string catalog), compiled again into
+the bundle iOS downloads and launches from a link with no install. Chat,
+Settings, Game Center and Siri stay in the full app. The clip plays the day
+and posts scores through the normal `/api/score`; the player it mints lives in
+the `group.lol.dana.guessr` app group (`GroupPlayerStore` in GuessrKit), which
+iOS moves to the full app on install, and the full app adopts it on its first
+launch if its Keychain holds no player yet. Any link into the clip plays
+today; the invocation URL is not read.
+
+What launches it: the site's `apple-itunes-app` meta tag (Safari's banner on
+`guessr.dana.lol`), a `guessr.dana.lol` link in Messages, and the site's QR
+codes, all through the `appclips` entry in the association file above.
+
+Portal and App Store Connect, once per team: an App ID `lol.dana.guessr.Clip`
+with *App Groups* and *Associated Domains*; the `group.lol.dana.guessr` group
+on it and on `lol.dana.guessr` (so the full app's profile needs regenerating
+too); a `Guessr Clip App Store` distribution profile; and under the app's App
+Clip section in App Store Connect, the default App Clip experience (header
+image, subtitle, the *Play* action). The archive already carries the clip;
+nothing in `task ios:release` changes.
 
 ## Game Center
 
@@ -68,7 +128,7 @@ wherever an achievement has none:
 | `lol.dana.guessr.lifetime` | classic leaderboard, best score, integer | every point ever |
 | `lol.dana.guessr.weekly` | recurring leaderboard, 7 days from Monday 00:00 UTC, best score, integer | the ISO week's points |
 | `lol.dana.guessr.first_pin` | achievement | a first round played |
-| `lol.dana.guessr.bullseye` | achievement | a guess inside 10 km |
+| `lol.dana.guessr.bullseye` | achievement | a guess inside 5 miles |
 | `lol.dana.guessr.golden_day` | achievement | five rounds in a day totaling 20,000 |
 | `lol.dana.guessr.week_streak` | achievement, progressive | seven days in a row |
 | `lol.dana.guessr.century` | achievement, progressive | a hundred rounds |
@@ -99,6 +159,41 @@ The key needs a role that may write Game Center data (App Manager or Admin).
 The submissions name the prerelease configuration while the app lives on
 TestFlight; `PRERELEASED` in `server/gamecenter.py` flips when it ships.
 
+## App Store
+
+The listing lives in `store.toml` beside this file: the name, subtitle,
+privacy policy and category, the version's description, keywords and URLs,
+the review notes and the age-rating declaration. `task asc:listing` reads App
+Store Connect back and prints what differs; `task asc:listing -- --apply`
+writes it, with the same key as the release. It creates the version named at
+the top of the file when none is editable, attaches the newest valid
+TestFlight build of that version once there is one, and uploads screenshots
+from `.build/screenshots` wherever App Store Connect has none for a display
+type. The review contact and the demo account are not public: they go in
+`store.local.toml` (gitignored), merged over `store.toml` table by table:
+
+```toml
+[review]
+contact_last_name = "…"
+contact_phone = "+1 …"
+contact_email = "…"
+demo_account_name = "…"      # a review-only Twitch login, a plain viewer
+demo_account_password = "…"
+```
+
+`task ios:screenshots` takes the screenshots: it builds for the simulator,
+then on an iPhone 17 Pro Max and a 13-inch iPad Pro launches the Debug build
+with its launch arguments (`-tab`, `-autoplay 1`) and captures a
+round, its reveal and Settings, with Apple's 9:41 status bar. The
+Debug build plays stage, so the round is staging's.
+
+Two things the API does not do, and the dashboard does: the App Privacy
+labels (they must agree with `Guessr/PrivacyInfo.xcprivacy`), and the
+submission itself, which is the *Add for Review* button on the version.
+Submitting a version that reaches *Pending Developer Release* and releasing it
+by hand is the point of `release_type = "MANUAL"`: the server's
+`PRERELEASED` flag has to flip in the same minute (see Game Center above).
+
 ## Build settings
 
 Two settings are empty in a public checkout, declared in `Guessr.xcconfig`:
@@ -113,13 +208,13 @@ Set them in `Local.xcconfig` beside it (gitignored), or pass them to
 never the login, which can be renamed. `task ios:upload` refuses an archive
 whose client id is empty, so a TestFlight build always has the login on.
 
-`GUESSR_TWITCH_CHANNEL` is set in the tree: the Chat tab talks in `adanalife_`
-in a Release build and in `adanalife_staging` in a Debug one.
+`GUESSR_TWITCH_CHANNEL` is set in the tree: the Chat tab talks in, and the Watch
+tab watches, `adanalife_` in a Release build and `adanalife_staging` in a Debug one.
 
 ## Languages
 
-The app follows the device language: English, French, Spanish, Russian and
-Czech. Every string lives in a catalog, `Guessr/Localizable.xcstrings` for the
+The app follows the device language, or the one picked for it under iOS
+Settings › Guessr › Language: English, French, Spanish, Russian and Czech. Every string lives in a catalog, `Guessr/Localizable.xcstrings` for the
 app, `GuessrKit/Sources/GuessrKit/Localizable.xcstrings` for the package, and
 `Guessr/AppShortcuts.xcstrings` for the Siri phrases. A string literal in a
 SwiftUI view localizes on its own; one built as a `String` goes through

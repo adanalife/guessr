@@ -7,8 +7,7 @@
    article layout (sidenotes, 55%-wide sections, figures) and none of that has
    anything to say about a full-viewport game or a review page.
 
-   Paths are relative to this file, which sits beside et-book/, so /admin/ gets
-   the same faces without a second set of URLs. */
+   Paths are relative to this file, which sits beside et-book/. */
 @font-face { font-family: et-book; font-weight: normal; font-style: normal;
              font-display: swap;
              src: url("et-book/et-book-roman-line-figures.woff") format("woff"); }

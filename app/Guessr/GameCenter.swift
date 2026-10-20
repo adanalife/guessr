@@ -52,11 +52,6 @@ final class GameCenter {
         guard !new.isEmpty, let all = try? await GKAchievementDescription.loadAchievementDescriptions() else { return }
         newlyEarned = all.filter { new.contains($0.identifier) }.map(\.title)
     }
-
-    /// Game Center's own dashboard over the app: the boards and the achievements.
-    func showDashboard() {
-        GKAccessPoint.shared.trigger(state: .dashboard) {}
-    }
 }
 
 extension UIApplication {

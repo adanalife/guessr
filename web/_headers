@@ -1,0 +1,4 @@
+# Apple fetches this once per app install and insists on a JSON content type;
+# Pages guesses nothing for a file with no extension.
+/.well-known/apple-app-site-association
+  Content-Type: application/json

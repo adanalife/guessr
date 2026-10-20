@@ -21,8 +21,10 @@
 
         private var sets: BadgeSets = [:]
         private var images: [URL: Image] = [:]
-        private var asked: Set<URL> = []
-        private var loaded = false
+        // Bookkeeping, unobserved: `icon` writes `asked` from inside a body,
+        // and a tracked write there would redraw the view that made it.
+        @ObservationIgnored private var asked: Set<URL> = []
+        @ObservationIgnored private var loaded = false
 
         /// Reads the badge table from `source`, once. A failure leaves it
         /// unloaded, so the next visit to the chat log tries again — the text

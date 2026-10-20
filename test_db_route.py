@@ -71,3 +71,26 @@ assert argv[argv.index("-d") + 1] == "tripbot", argv
 
 env(**SAVED)
 print("ok: the database route follows DATABASE_HOST, and the query does not change")
+
+# A failed query has to say why. capture_output swallows psql's stderr, so an
+# unattended run that only re-raised would log the argv and nothing else.
+import tempfile  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+from make_rounds import score_candidates  # noqa: E402
+
+with tempfile.TemporaryDirectory() as bin_dir:
+    fake = Path(bin_dir) / "psql"
+    fake.write_text(
+        "#!/bin/sh\necho 'ERROR:  column \"corpus\" does not exist' >&2\nexit 3\n"
+    )
+    fake.chmod(0o755)
+    env(DATABASE_HOST="db")
+    os.environ["PATH"] = f"{bin_dir}{os.pathsep}{os.environ['PATH']}"
+    try:
+        score_candidates("ns", pool=1, k=1)
+    except SystemExit as e:
+        assert 'column "corpus" does not exist' in str(e.code), e.code
+        assert "exit 3" in str(e.code), e.code
+    else:
+        raise AssertionError("a failed scoring query returned instead of exiting")

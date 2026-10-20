@@ -28,8 +28,8 @@ def test_task_pattern_needs_the_backticks():
 
 
 def test_path_pattern_matches_paths_and_nothing_else():
-    assert check.PATH_REF.findall("see `web/admin/notes.html` and `check.py`") == [
-        "web/admin/notes.html",
+    assert check.PATH_REF.findall("see `server/app.py` and `check.py`") == [
+        "server/app.py",
         "check.py",
     ]
     assert check.PATH_REF.findall("pinned at `1.20.3` on `guessr.dana.lol`") == []

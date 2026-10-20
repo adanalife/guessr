@@ -4,50 +4,6 @@
 import GuessrKit
 import SwiftUI
 
-extension Color {
-    /// The web game's page and text colors, light and dark, from the asset catalog.
-    static let paper = Color("Paper")
-    static let ink = Color("Ink")
-}
-
-extension View {
-    /// The web game's page color behind a screen, lists and forms included.
-    func paper() -> some View {
-        scrollContentBackground(.hidden).background(Color.paper)
-    }
-
-    /// A list or form at a readable width, centred on the page, on regular width
-    /// only: an iPad row the full width of the screen strands a toggle far from
-    /// its label. The large title moves over the column with it, so it doesn't
-    /// float at the screen's edge. Goes inside `paper()`, so the page color still
-    /// fills the screen. `logo` sets the A Dana Life mark before the title.
-    func readableWidth(title: LocalizedStringKey, logo: Bool = false) -> some View {
-        modifier(ReadableWidth(title: title, logo: logo))
-    }
-
-    /// The web game's play button: an ink fill under a paper label, the
-    /// highest-contrast thing on screen in either theme. The accent is a text
-    /// color, too light in dark mode to carry a white label.
-    func inkButton() -> some View { buttonStyle(InkButtonStyle()) }
-}
-
-/// An ink capsule under a paper label. Disabled, it is the same capsule at
-/// half strength rather than the system's grey, which vanishes on paper in
-/// light mode and on footage in either.
-private struct InkButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.body.weight(.semibold))
-            .foregroundStyle(Color.paper)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
-            .background(Color.ink.opacity(isEnabled ? 1 : 0.45), in: Capsule())
-            .opacity(configuration.isPressed ? 0.7 : 1)
-    }
-}
-
 extension View {
     /// The owner's "Viewing as" band, on each tab's root inside its navigation stack.
     /// Inside the stack it sits below the navigation bar and clear of the tab bar on
@@ -56,55 +12,6 @@ extension View {
     /// the other. Solid yellow with black text reads in light and dark; the fill stays
     /// out of the safe area, where it would flood the transparent navigation bar.
     func viewingAsBanner() -> some View { modifier(ViewingAsBanner()) }
-}
-
-private struct ReadableWidth: ViewModifier {
-    let title: LocalizedStringKey
-    let logo: Bool
-    @Environment(\.horizontalSizeClass) private var sizeClass
-    @ScaledMetric(relativeTo: .largeTitle) private var mark = 34
-
-    func body(content: Content) -> some View {
-        if sizeClass == .regular {
-            content.frame(maxWidth: 640).frame(maxWidth: .infinity)
-                .navigationTitle(title)
-                .toolbar {
-                    // The bar's own large title, drawn over the column and
-                    // lined up with its cards' edge, where a full-width list
-                    // puts it. The serif matches the appearance proxy's.
-                    ToolbarItem(placement: .largeTitle) {
-                        largeTitle
-                            // ponytail: 20 is the inset-grouped list's regular-width
-                            // margin, measured, not read; a system margin change
-                            // drifts it, a readable-content guide fixes that.
-                            .padding(.leading, 20)
-                            .frame(maxWidth: 640, alignment: .leading)
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-        } else if logo {
-            content.navigationTitle(title)
-                .toolbar {
-                    ToolbarItem(placement: .largeTitle) {
-                        // ponytail: 16 is the compact large title's margin, measured
-                        // like the regular one above.
-                        largeTitle.padding(.leading, 16).frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-        } else {
-            content.navigationTitle(title)
-        }
-    }
-
-    private var largeTitle: some View {
-        HStack(spacing: 10) {
-            if logo {
-                Image("Logo").resizable().scaledToFit().frame(width: mark, height: mark)
-                    .accessibilityLabel(Text(verbatim: "A Dana Life"))
-            }
-            Text(title).font(.system(.largeTitle, design: .serif, weight: .bold))
-        }
-    }
 }
 
 private struct ViewingAsBanner: ViewModifier {
@@ -131,6 +38,7 @@ struct TodayView: View {
     @State private var board: GuessrLeaderboard?
     @State private var boardName = "monthly"
     @State private var error: String?
+    @Environment(\.scenePhase) private var scenePhase
 
     private let client = GuessrClient()
 
@@ -159,6 +67,10 @@ struct TodayView: View {
         .paper()
         .task(id: boardName) { await load() }
         .refreshable { await load() }
+        // Coming back, perhaps on a new day or month, reads the board again.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await load() } }
+        }
     }
 
     // ponytail: matched by name, since no public response may carry a player
@@ -179,17 +91,30 @@ struct TodayView: View {
     }
 }
 
-struct SettingsView: View {
-    /// The language the app is showing, named in itself.
-    static var language: String {
-        let code = Bundle.main.preferredLocalizations.first ?? "en"
-        return Locale(identifier: code).localizedString(forLanguageCode: code)?.localizedCapitalized ?? code
-    }
-
+/// The chatters this device hides, each shown again on its own.
+struct HiddenChattersView: View {
     @Environment(Account.self) private var account
-    @Environment(GameCenter.self) private var gameCenter
+
+    var body: some View {
+        List {
+            ForEach(account.hiddenChatters.sorted { $0.value.localizedCaseInsensitiveCompare($1.value) == .orderedAscending }, id: \.key) { id, name in
+                LabeledContent(name) {
+                    Button("Show") { account.hiddenChatters[id] = nil }
+                }
+            }
+            if account.hiddenChatters.count > 1 {
+                Button("Show everyone") { account.hiddenChatters = [:] }
+            }
+        }
+        .navigationTitle("Hidden chatters")
+    }
+}
+
+struct SettingsView: View {
+    @Environment(Account.self) private var account
     @Binding var player: Player
     @State private var playedToday = false
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("kilometers") private var kilometers = false
     @AppStorage("appearance") private var appearance = "dark"
 
@@ -197,22 +122,6 @@ struct SettingsView: View {
         Form {
             NameSection(player: $player, playedToday: playedToday)
             ReminderSection()
-            Section {
-                Picker("Units", selection: $kilometers) {
-                    Text("Imperial").tag(false)
-                    Text("Metric").tag(true)
-                }
-                .pickerStyle(.segmented)
-            }
-            if gameCenter.signedIn {
-                Section {
-                    Button("Leaderboards and achievements") { gameCenter.showDashboard() }
-                } header: {
-                    Text("Game Center")
-                } footer: {
-                    Text("Your lifetime and weekly points and your achievements reach Game Center from the server as you play.")
-                }
-            }
             Section("Appearance") {
                 Picker("Appearance", selection: $appearance) {
                     Text("Light").tag("light")
@@ -220,18 +129,11 @@ struct SettingsView: View {
                     Text("Auto").tag("system")
                 }
                 .pickerStyle(.segmented)
-            }
-            Section {
-                // iOS keeps each app's language under its own page in Settings,
-                // and an app can only open that page, not set the language.
-                Button {
-                    if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
-                } label: {
-                    LabeledContent("Language", value: Self.language)
+                Picker("Units", selection: $kilometers) {
+                    Text("Imperial").tag(false)
+                    Text("Metric").tag(true)
                 }
-                .foregroundStyle(Color.ink)
-            } footer: {
-                Text("Opens Settings, where iOS keeps the app's language.")
+                .pickerStyle(.segmented)
             }
             Section {
                 Link("Privacy Policy", destination: URL(string: "https://www.dana.lol/privacy/")!)
@@ -251,7 +153,7 @@ struct SettingsView: View {
                             }
                         }
                         if !account.hiddenChatters.isEmpty {
-                            Button("Show hidden chatters (\(account.hiddenChatters.count))") { account.hiddenChatters = [] }
+                            NavigationLink("Hidden chatters (\(account.hiddenChatters.count))") { HiddenChattersView() }
                         }
                         Button("Sign out", role: .destructive) { account.signOut() }
                     } else {
@@ -285,9 +187,17 @@ struct SettingsView: View {
         }
         .readableWidth(title: "Settings")
         .paper()
-        // Read on every visit rather than once: the Play tab saves as it goes.
-        .onAppear { playedToday = !DayProgress.resume(Saved.progress, on: GuessrClient.today()).played.isEmpty }
+        // Read on every visit and every return rather than once: the Play tab
+        // saves as it goes, and a return can be on a new day.
+        .onAppear(perform: readPlayedToday)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { readPlayedToday() }
+        }
         .task { await account.refreshIfNeeded() }
+    }
+
+    private func readPlayedToday() {
+        playedToday = !DayProgress.resume(Saved.progress, on: GuessrClient.today()).played.isEmpty
     }
 }
 

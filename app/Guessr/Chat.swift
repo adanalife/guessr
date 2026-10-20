@@ -1,25 +1,26 @@
 import GuessrKit
 import SwiftUI
 
-/// The channel's Twitch chat for the signed-in login: the log and the composer.
-/// The tab is there only while a login is signed in.
-struct ChatTab: View {
+/// The channel's chat, under the Watch tab's player: the signed-in login's,
+/// or read anonymously while signed out.
+struct ChatPane: View {
     @Environment(Account.self) private var account
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if let session = account.session {
-                    let mayModerate = account.isMod && session.canModerate
-                    let lines = (account.chat?.lines ?? []).filter { !account.hiddenChatters.contains($0.userId) }
-                    ChatLog(lines: mayModerate ? lines : lines.filter { !$0.deleted }, mayModerate: mayModerate)
-                    .task(id: session.userID) { await account.openChat() }
-                    .onChange(of: lines.count) { Saved.chat = lines }
-                }
-            }
-            .viewingAsBanner()
-            .paper()
-            .navigationTitle("Chat")
+        if let session = account.session {
+            let mayModerate = account.isMod && session.canModerate
+            let lines = (account.chat?.lines ?? []).filter { account.hiddenChatters[$0.userId] == nil }
+            ChatLog(lines: mayModerate ? lines : lines.filter { !$0.deleted }, mayModerate: mayModerate)
+                .task(id: session.userID) { await account.openChat() }
+                // The lines, not their count: a full ring and a mod's
+                // delete both change what's saved and leave the count be.
+                .onChange(of: lines) { Saved.chat = lines }
+        } else {
+            ChatLog(
+                lines: (account.lurk?.lines ?? []).filter { !$0.deleted && account.hiddenChatters[$0.userId] == nil },
+                mayModerate: false
+            )
+            .task { account.openLurk() }
         }
     }
 }
@@ -53,6 +54,7 @@ struct ChatLog: View {
     @State private var lastSent: Date?
     /// Whether slow mode is still holding the next send back.
     @State private var cooling = false
+    @AppStorage(GuessrApp.openTabKey) private var openTab = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -62,14 +64,18 @@ struct ChatLog: View {
                 Text(status)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
                     .padding(.horizontal)
+                    // Clear of the composer, so it reads as the log's state
+                    // rather than a label on the text field.
+                    .padding(.vertical, 8)
             }
             if let stub = mentionInProgress(text) { mentions(matching: stub) }
             if mayModerate, let held = account.chat?.held, !held.isEmpty { heldBar(held) }
             if let mode = account.chat?.mode, let summary = mode.summary { modeBar(mode, summary) }
             if let replyingTo { replyBar(replyingTo) }
-            composer
+            if account.session == nil { signInBar } else { composer }
             if pickingEmote { emotePicker }
         }
         .toolbar {
@@ -190,8 +196,21 @@ struct ChatLog: View {
     /// own, so while it is down the log says only that it is on its way. An
     /// empty log says so itself, in its middle.
     private var connectionStatus: String? {
-        guard let chat = account.chat else { return nil }
-        return chat.isConnected ? chat.lastError : lines.isEmpty ? nil : String(localized: "Connecting…")
+        guard account.chat != nil || account.lurk != nil else { return nil }
+        return connected ? account.chat?.lastError : lines.isEmpty ? nil : String(localized: "Connecting…")
+    }
+
+    private var connected: Bool { account.chat?.isConnected ?? account.lurk?.isConnected ?? false }
+
+    /// Where the composer goes for a viewer reading anonymously: the way to
+    /// Settings' Twitch login, in a build that has one.
+    @ViewBuilder private var signInBar: some View {
+        if account.auth.isConfigured {
+            Button("Sign in with Twitch to chat", systemImage: "person.crop.circle") { openTab = "Settings" }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(.bar)
+        }
     }
 
     private func loadArt() async {
@@ -284,7 +303,7 @@ struct ChatLog: View {
             .overlay {
                 if lines.isEmpty {
                     Text(
-                        account.chat?.isConnected == true
+                        connected
                             ? "Connected · nobody has said anything yet"
                             : "Connecting…"
                     )
@@ -470,11 +489,11 @@ struct ChatLineView: View {
                                 banned = Banned(userId: line.userId, name: line.displayName, seconds: seconds)
                             }
                         } : nil,
-                    reply: line.kind == nil && !line.deleted ? reply : nil,
+                    reply: account.session != nil && line.kind == nil && !line.deleted ? reply : nil,
                     warn: mayModerate && !line.isBroadcaster
                         ? { reason in moderate { try await $0.warn(userId: line.userId, reason: reason) } } : nil,
                     // Not on your own lines: there is nobody to hide or report.
-                    hide: line.userId == account.session?.userID ? nil : { account.hiddenChatters.insert(line.userId) },
+                    hide: line.userId == account.session?.userID ? nil : { account.hiddenChatters[line.userId] = line.displayName },
                     report: line.userId == account.session?.userID ? nil : URL(string: "https://www.twitch.tv/\(line.login)")))
     }
 

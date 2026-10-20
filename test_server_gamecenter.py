@@ -70,8 +70,8 @@ assert gc.standing(sunday_monday, WEEK)[0][gc.WEEKLY] == 10
 assert gc.standing(sunday_monday, (2026, 41))[0][gc.WEEKLY] == 20
 
 # A bullseye is under BULLSEYE_KM; at it is not.
-assert gc.BULLSEYE in gc.standing([{**rows[0], "km": 9.9}], WEEK)[1]
-assert gc.BULLSEYE not in gc.standing([{**rows[0], "km": 10}], WEEK)[1]
+assert gc.BULLSEYE in gc.standing([{**rows[0], "km": gc.BULLSEYE_KM - 0.01}], WEEK)[1]
+assert gc.BULLSEYE not in gc.standing([{**rows[0], "km": gc.BULLSEYE_KM}], WEEK)[1]
 
 # A golden day is one date's rounds summing to the threshold, not a lifetime sum.
 golden = [{"date": "2026-10-01", "km": 1, "points": 4000} for _ in range(5)]

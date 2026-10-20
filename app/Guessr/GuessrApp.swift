@@ -9,39 +9,50 @@ struct GuessrApp: App {
     private let client = GuessrClient()
     /// State rather than a constant because a link code swaps it for the player
     /// the code joined; every change goes back to the Keychain.
-    @State private var player = KeychainPlayerStore().current()
+    @State private var player = KeychainPlayerStore().current(orAdopt: GroupPlayerStore().load())
     @State private var tab = GuessrApp.firstTab
+    /// A link-a-device QR code scanned into the app, held while it asks.
+    @State private var link: DeviceLink?
+    @State private var linkFailed = false
+    /// A tab something outside the view asked for, such as the Siri guess
+    /// sending a signed-out player to Settings; taken once, then cleared.
+    @AppStorage(GuessrApp.openTabKey) private var openTab = ""
+    static let openTabKey = "open-tab"
     /// Settings' theme: "system" follows the device, else "light" or "dark".
     @AppStorage("appearance") private var appearance = "dark"
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
         Telemetry.start()
-        // The navigation titles carry the web's serif (ET Book there, New York
-        // here). SwiftUI has no modifier for a title's font, so it goes on the
-        // bar's appearance proxy, built from the text style so Dynamic Type
-        // still scales it.
-        let bar = UINavigationBar.appearance()
-        bar.largeTitleTextAttributes = [.font: UIFont.serif(.largeTitle)]
-        bar.titleTextAttributes = [.font: UIFont.serif(.headline)]
+        UINavigationBar.useSerifTitles()
     }
 
     var body: some Scene {
         WindowGroup {
             TabView(selection: $tab) {
                 Tab("Play", systemImage: "mappin.and.ellipse", value: "Play") {
-                    NavigationStack { PlayView(player: $player).viewingAsBanner() }
+                    NavigationStack {
+                        PlayView(player: $player) { score, progress in
+                            if progress.played.count == 1 { Task { await Reminder.refreshBadge() } }
+                            // Off the reveal's path: the server reads the standing
+                            // off its own table, so this carries nothing the reveal
+                            // waits on.
+                            if score.recorded { Task { await gameCenter.sync(player, with: client) } }
+                        }
+                        .viewingAsBanner()
+                    }
                 }
                 if account.seesBoards {
                     Tab("Boards", systemImage: "list.number", value: "Boards") { NavigationStack { TodayView(alias: player.alias).viewingAsBanner() } }
                 }
-                // Chat hangs off the Twitch login, so the tab shows only while
-                // a login is signed in; Settings is where a player signs in.
-                // Settings always has the reminder, and hides only its Twitch
-                // section in a build without a Twitch client id.
-                if account.showsChat {
-                    Tab("Chat", systemImage: "bubble.left.and.bubble.right", value: "Chat") { ChatTab() }
-                }
+                // Chat hangs off the Twitch login and sits under the stream,
+                // so it shows only while a login is signed in; Settings is
+                // where a player signs in. Settings always has the reminder,
+                // and hides only its Twitch section in a build without a
+                // Twitch client id.
+                #if WATCH
+                    Tab("Watch", systemImage: "play.rectangle", value: "Watch") { WatchTab() }
+                #endif
                 Tab("Settings", systemImage: "gear", value: "Settings") {
                     NavigationStack { SettingsView(player: $player).viewingAsBanner() }
                 }
@@ -52,24 +63,58 @@ struct GuessrApp: App {
             .environment(account)
             .environment(gameCenter)
             .task { gameCenter.start { await gameCenter.sync(player, with: client) } }
-            // A sign-in opens Chat, the tab it brings, on every device: left to
-            // itself, the iPad's tab bar keeps Settings selected as Chat
-            // appears ahead of it.
-            // A sign-out while on Chat, a "View as" that drops the boards, or a
-            // `-tab` launch naming a hidden tab lands on Play rather than on a
-            // tab that isn't there.
-            .onChange(of: account.showsChat, initial: true) { showed, shows in
-                if shows, !showed { tab = "Chat" }
-                if !shows, tab == "Chat" { tab = "Play" }
-            }
+            // A "View as" that drops the boards, or a `-tab` launch naming a
+            // hidden tab, lands on Play rather than on a tab that isn't there.
             .onChange(of: account.seesBoards, initial: true) { _, sees in
                 if !sees, tab == "Boards" { tab = "Play" }
             }
+            .onChange(of: openTab, initial: true) { _, named in
+                guard !named.isEmpty else { return }
+                tab = named
+                openTab = ""
+            }
             .onChange(of: player) { _, joined in players.save(joined) }
+            // The website's QR code, which iOS hands here instead of Safari when
+            // the app is installed. Behind a question, never on arrival alone:
+            // a URL that silently rewrites who you are is a URL anyone can send.
+            .onOpenURL { url in
+                if let opened = DeviceLink(url), opened.id != player.id { link = opened }
+            }
+            .alert(
+                link.map { Text("Play as \($0.name ?? String(localized: "your other device"))?") } ?? Text(verbatim: ""),
+                isPresented: Binding(get: { link != nil }, set: { if !$0 { link = nil } }), presenting: link
+            ) { opened in
+                Button("Join") { Task { await join(opened) } }
+                Button("Cancel", role: .cancel) {}
+            } message: { _ in
+                Text("This device's plays move to that player, and both devices play as one from now on.")
+            }
+            .alert("Could not link the devices just now.", isPresented: $linkFailed) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Scan the code again to retry.")
+            }
             .task(id: account.session?.userID) { await account.checkModerates() }
             .onChange(of: scenePhase, initial: true) { _, phase in
                 if phase == .active { Task { await Reminder.refreshBadge() } }
             }
+            // Midnight with the app open: the new day is unplayed.
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
+                Task { await Reminder.refreshBadge() }
+            }
+        }
+    }
+
+    /// Joins the website's player: the merge runs first, and the id is adopted
+    /// only once it has, so a failure leaves this device's plays where they are.
+    private func join(_ link: DeviceLink) async {
+        do {
+            _ = try await client.link(link, from: player)
+            player = Player(id: link.id, alias: player.alias)
+            tab = "Play"
+        } catch {
+            Telemetry.requestFailed("link", error: error)
+            linkFailed = true
         }
     }
 
@@ -90,13 +135,16 @@ final class Account {
     let auth: TwitchAuth
     /// Supplied by the build; empty makes nobody the owner.
     let ownerID: String
-    /// The Twitch channel the Chat tab talks in, supplied per configuration.
+    /// The Twitch channel the chat talks in, supplied per configuration.
     let channel: String
     private let store: any SessionStore
 
     /// The channel's chat for the signed-in login, made the first time the
-    /// Chat tab opens and kept until sign-out, so switching tabs keeps the log.
+    /// chat opens and kept until sign-out, so switching tabs keeps the log.
     private(set) var chat: TwitchChat?
+    /// The channel's chat read with no login, for a viewer who hasn't signed
+    /// in; dropped once they do.
+    private(set) var lurk: TwitchLurk?
     /// The ids of the lines the chat opened with from last time, which the
     /// log draws dimmed under a rule.
     private(set) var earlierChat: Set<String> = []
@@ -107,14 +155,25 @@ final class Account {
     private var modLogin: Task<Void, Never>?
     /// The token exchange in flight; see `refreshIfNeeded()`.
     private var refreshing: Task<Void, Never>?
-    /// Chatters whose lines this device keeps off the Chat tab, by Twitch user
-    /// id. The viewer's own moderation: it changes nothing on Twitch.
-    var hiddenChatters: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "hidden-chatters") ?? []) {
-        didSet { UserDefaults.standard.set(Array(hiddenChatters).sorted(), forKey: "hidden-chatters") }
+    /// Chatters whose lines this device keeps out of the chat: Twitch user id
+    /// to the display name Settings lists them by. The viewer's own
+    /// moderation: it changes nothing on Twitch. A list from before names
+    /// were kept shows each chatter by id.
+    var hiddenChatters: [String: String] =
+        UserDefaults.standard.dictionary(forKey: "hidden-chatter-names") as? [String: String]
+        ?? Dictionary(uniqueKeysWithValues: (UserDefaults.standard.stringArray(forKey: "hidden-chatters") ?? []).map { ($0, $0) })
+    {
+        didSet { UserDefaults.standard.set(hiddenChatters, forKey: "hidden-chatter-names") }
     }
 
     init(bundle: Bundle = .main, store: any SessionStore = KeychainSessionStore()) {
-        auth = TwitchAuth(clientID: bundle.object(forInfoDictionaryKey: "GuessrTwitchClientID") as? String ?? "")
+        #if TWITCH
+            auth = TwitchAuth(clientID: bundle.object(forInfoDictionaryKey: "GuessrTwitchClientID") as? String ?? "")
+        #else
+            // No client id is no Twitch login: Settings hides its Twitch
+            // section, and the Watch tab has no chat.
+            auth = TwitchAuth(clientID: "")
+        #endif
         ownerID = bundle.object(forInfoDictionaryKey: "GuessrOwnerTwitchID") as? String ?? ""
         channel = bundle.object(forInfoDictionaryKey: "GuessrTwitchChannel") as? String ?? ""
         self.store = store
@@ -150,8 +209,15 @@ final class Account {
     /// Whether we moderate the channel — really, or for the length of a look.
     var isMod: Bool { viewingAs.map { $0 == "mod" } ?? moderates }
 
-    /// Whether the Chat tab is there: a Twitch build with a login signed in.
-    var showsChat: Bool { auth.isConfigured && session != nil }
+    /// Whether the Watch tab carries chat: a Twitch build, signed in or not —
+    /// signed out reads it anonymously.
+    var showsChat: Bool {
+        #if TWITCH
+            !channel.isEmpty
+        #else
+            false
+        #endif
+    }
 
     /// The boards are for the channel's staff; a player sees their own day.
     var seesBoards: Bool { isOwner || isMod }
@@ -209,11 +275,19 @@ final class Account {
     /// joining its chat, so the gates that hang off it hold before Chat opens.
     func checkModerates() async {
         await refreshIfNeeded()
-        guard let session, !channel.isEmpty, !moderates else { return }
+        guard auth.isConfigured, let session, !channel.isEmpty, !moderates else { return }
         let asker = chat?.helix ?? Helix(channel: channel, clientID: auth.clientID, session: session)
         let answer = await asker.moderates()
         // The login may have changed while Twitch answered.
         if self.session?.userID == session.userID { moderates = answer }
+    }
+
+    /// Reads the channel's chat anonymously, or keeps the reading it has.
+    func openLurk() {
+        guard lurk == nil, session == nil, !channel.isEmpty else { return }
+        let fresh = TwitchLurk(channel: channel)
+        fresh.start()
+        lurk = fresh
     }
 
     /// Connects the signed-in login to the channel's chat, or keeps the
@@ -234,6 +308,8 @@ final class Account {
             fresh.beforeConnect = { [weak self] in await self?.refreshIfNeeded() }
             fresh.start()
             chat = fresh
+            lurk?.stop()
+            lurk = nil
         }
         // A failed lookup reads as no, so it is asked again on the next visit.
         if !moderates, let chat { moderates = await chat.helix.moderates() }
@@ -256,14 +332,5 @@ final class Account {
             modCode = code
             try? await signIn(code, scopes: TwitchAuth.modScopes)
         }
-    }
-}
-
-extension UIFont {
-    /// The text style's system font in New York, bold.
-    fileprivate static func serif(_ style: TextStyle) -> UIFont {
-        let base = preferredFont(forTextStyle: style).fontDescriptor
-        let serif = base.withDesign(.serif)?.withSymbolicTraits(.traitBold) ?? base
-        return UIFont(descriptor: serif, size: 0)
     }
 }

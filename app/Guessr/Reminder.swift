@@ -39,8 +39,6 @@ enum Reminder {
     /// Badges the icon while nothing has been guessed today on this device,
     /// and clears it once something has or the badge switch is off. Without
     /// the permission there is no badge to set, so it does nothing.
-    // ponytail: refreshed on foreground and after a guess only, so an app left
-    // open across midnight shows no badge until it is next backgrounded.
     static func refreshBadge() async {
         let center = UNUserNotificationCenter.current()
         guard await center.notificationSettings().badgeSetting == .enabled else { return }

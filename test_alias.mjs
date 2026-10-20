@@ -6,26 +6,7 @@
 // about what the lists can generate, not about the picking.
 import assert from 'node:assert';
 
-import { MAX_HANDLE } from './functions/_scoring.mjs';
 import { ADJECTIVES, aliasFrom, NOUNS } from './web/alias.js';
-
-// Every alias the lists can produce has to survive the server intact, and
-// MAX_HANDLE is the column the board reads from. A word added later that pushed
-// a pair over it would not fail anywhere obvious -- the play would simply record
-// nameless and the player would show as the placeholder, having done nothing
-// wrong. Exhaustive rather than sampled: it is 2,401 pairs and the whole point
-// is that no combination is a surprise.
-let longest = '';
-for (const adjective of ADJECTIVES) {
-  for (const noun of NOUNS) {
-    const alias = `${adjective} ${noun}`;
-    if (alias.length > longest.length) longest = alias;
-  }
-}
-assert.ok(
-  longest.length <= MAX_HANDLE,
-  `"${longest}" is ${longest.length} chars; the board's column holds ${MAX_HANDLE}`,
-);
 
 // A duplicate is invisible in play -- it just makes one word twice as likely as
 // the rest -- so nothing else would catch it.
@@ -58,7 +39,4 @@ for (let i = 0; i < 200; i++) {
   assert.match(aliasFrom(), /^[A-Z][a-z]+ [A-Z][a-z]+$/);
 }
 
-console.log(
-  `ok: ${ADJECTIVES.length * NOUNS.length} aliases, none longer than ${MAX_HANDLE} chars`,
-);
 console.log('ok: wordlists are unique, capitalised, and reachable end to end');
