@@ -424,7 +424,7 @@ struct JoinView: View {
         ) { _ in
             Button("Join") { Task { await join() } }
         } message: { p in
-            Text("This device becomes \(p.to.name) (\(p.to.points.formatted()) points), replacing \(p.from.name) (\(p.from.points.formatted()) points). Its plays go with it.")
+            Text(p.comparison)
         }
     }
 
@@ -456,6 +456,33 @@ struct JoinView: View {
         } else {
             message = String(localized: "Could not reach the server. Try the code again.")
         }
+    }
+}
+
+extension LinkPreview {
+    /// Both players side by side, the one to join first, then what joining
+    /// does: the body of every "Play as …?" question.
+    var comparison: String {
+        var parts = [to.summary, String(localized: "This device: \(from.summary)")]
+        if let overlap, overlap > 0 {
+            parts.append(
+                String(localized: "Rounds both have played: \(overlap.formatted()). \(to.name)'s scores are kept for those."))
+        }
+        parts.append(String(localized: "This device's plays move to that player, and both devices play as one from now on."))
+        return parts.joined(separator: "\n\n")
+    }
+}
+
+extension LinkPreview.Standing {
+    /// The name over a line of totals. Days and the last play show only when
+    /// the server sent them.
+    var summary: String {
+        let points = String(localized: "Points: \(points.formatted())")
+        guard let days else { return "\(name)\n\(points)" }
+        let last =
+            lastPlayed?.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted, timeZone: .gmt))
+            ?? String(localized: "never")
+        return "\(name)\n\(points) · " + String(localized: "Days played: \(days.formatted()) · Last played: \(last)")
     }
 }
 

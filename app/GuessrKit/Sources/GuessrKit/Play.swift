@@ -155,6 +155,22 @@ public struct GroupPlayerStore: PlayerStore {
     public func save(_ player: Player) {
         UserDefaults(suiteName: suite)?.set(try? JSONEncoder().encode(player), forKey: key)
     }
+
+    public func clear() {
+        UserDefaults(suiteName: suite)?.removeObject(forKey: key)
+    }
+}
+
+extension PlayerStore {
+    /// The player this store holds when it isn't `kept`: the App Clip's, left
+    /// behind when the full app already had a player of its own (iOS keeps
+    /// the Keychain across a delete, so a reinstall finds the old one). Its
+    /// plays are what the full app folds onto `kept`. Nil when the store is
+    /// empty or holds `kept` itself, as it does after a first launch adopts it.
+    public func handedOver(besides kept: Player) -> Player? {
+        guard let held = load(), held.id != kept.id else { return nil }
+        return held
+    }
 }
 
 /// One round as this device played it, kept so a relaunch resumes the day.
@@ -349,24 +365,43 @@ extension GuessrClient {
 }
 
 /// What a claim would do: the player a code names and the player this device
-/// plays as today, each with their all-time points.
+/// plays as today, each with their all-time record. `days`, `last` and
+/// `overlap` are optional so an answer from a server that sends only names
+/// and points still decodes.
 public struct LinkPreview: Sendable, Equatable, Codable {
     public struct Standing: Sendable, Equatable, Codable {
         public var name: String
         public var points: Int
+        /// How many dates the player has a play on.
+        public var days: Int?
+        /// The date of their latest play, `YYYY-MM-DD`; nil for a player who
+        /// has never played, or a server that doesn't say.
+        public var last: String?
 
-        public init(name: String, points: Int) {
+        public init(name: String, points: Int, days: Int? = nil, last: String? = nil) {
             self.name = name
             self.points = points
+            self.days = days
+            self.last = last
+        }
+
+        /// `last` as midnight UTC on that date, so it formats as the same
+        /// day in a UTC calendar whatever the device's zone.
+        public var lastPlayed: Date? {
+            last.flatMap { try? Date($0, strategy: Date.ISO8601FormatStyle().year().month().day()) }
         }
     }
 
     public var to: Standing
     public var from: Standing
+    /// How many of `from`'s plays the merge drops because `to` already has a
+    /// play for that date and round.
+    public var overlap: Int?
 
-    public init(to: Standing, from: Standing) {
+    public init(to: Standing, from: Standing, overlap: Int? = nil) {
         self.to = to
         self.from = from
+        self.overlap = overlap
     }
 }
 
@@ -377,6 +412,13 @@ extension GuessrClient {
     public func previewLink(code: String, from player: Player) async throws -> LinkPreview {
         try Guessr.decoder.decode(
             LinkPreview.self, from: try await post("api/link/preview", ["code": code, "from": player.id]))
+    }
+
+    /// What `link(_:from:)` would do, asked before it runs so the question can
+    /// name both players.
+    public func previewLink(_ link: DeviceLink, from player: Player) async throws -> LinkPreview {
+        try Guessr.decoder.decode(
+            LinkPreview.self, from: try await post("api/link/preview", ["to": link.id, "from": player.id]))
     }
 }
 

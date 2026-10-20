@@ -11,8 +11,15 @@ struct GuessrApp: App {
     /// the code joined; every change goes back to the Keychain.
     @State private var player = KeychainPlayerStore().current(orAdopt: GroupPlayerStore().load())
     @State private var tab = GuessrApp.firstTab
+    /// Bumped when the App Clip's plays land on this player, so Play loads
+    /// the day again with any rounds the clip played today.
+    @State private var clipFolds = 0
     /// A link-a-device QR code scanned into the app, held while it asks.
     @State private var link: DeviceLink?
+    /// What joining `link` would do, when the server could say.
+    @State private var linkPreview: LinkPreview?
+    /// The name a scanned code goes by when it is this device's own player.
+    @State private var alreadyAs: String?
     @State private var linkFailed = false
     /// A tab something outside the view asked for, such as the Siri guess
     /// sending a signed-out player to Settings; taken once, then cleared.
@@ -39,6 +46,7 @@ struct GuessrApp: App {
                             // waits on.
                             if score.recorded { Task { await gameCenter.sync(player, with: client) } }
                         }
+                        .id(clipFolds)
                         .viewingAsBanner()
                     }
                 }
@@ -63,6 +71,7 @@ struct GuessrApp: App {
             .environment(account)
             .environment(gameCenter)
             .task { gameCenter.start { await gameCenter.sync(player, with: client) } }
+            .task { await foldInClip() }
             // A "View as" that drops the boards, or a `-tab` launch naming a
             // hidden tab, lands on Play rather than on a tab that isn't there.
             .onChange(of: account.seesBoards, initial: true) { _, sees in
@@ -77,17 +86,34 @@ struct GuessrApp: App {
             // The website's QR code, which iOS hands here instead of Safari when
             // the app is installed. Behind a question, never on arrival alone:
             // a URL that silently rewrites who you are is a URL anyone can send.
+            // Linking keeps each device's own alias, so this device's player
+            // can go by another name on the web; that code still says so
+            // rather than nothing.
             .onOpenURL { url in
-                if let opened = DeviceLink(url), opened.id != player.id { link = opened }
+                guard let opened = DeviceLink(url) else { return }
+                guard opened.id != player.id else {
+                    alreadyAs = opened.name ?? player.alias
+                    return
+                }
+                Task { await ask(opened) }
             }
             .alert(
-                link.map { Text("Play as \($0.name ?? String(localized: "your other device"))?") } ?? Text(verbatim: ""),
+                link.map { Text("Play as \(linkPreview?.to.name ?? $0.name ?? String(localized: "your other device"))?") }
+                    ?? Text(verbatim: ""),
                 isPresented: Binding(get: { link != nil }, set: { if !$0 { link = nil } }), presenting: link
             ) { opened in
                 Button("Join") { Task { await join(opened) } }
                 Button("Cancel", role: .cancel) {}
             } message: { _ in
-                Text("This device's plays move to that player, and both devices play as one from now on.")
+                Text(
+                    linkPreview?.comparison
+                        ?? String(localized: "This device's plays move to that player, and both devices play as one from now on."))
+            }
+            .alert(
+                alreadyAs.map { Text("Already playing as \($0)") } ?? Text(verbatim: ""),
+                isPresented: Binding(get: { alreadyAs != nil }, set: { if !$0 { alreadyAs = nil } }), presenting: alreadyAs
+            ) { _ in
+                Button("OK", role: .cancel) {}
             }
             .alert("Could not link the devices just now.", isPresented: $linkFailed) {
                 Button("OK", role: .cancel) {}
@@ -105,6 +131,18 @@ struct GuessrApp: App {
         }
     }
 
+    /// Looks the scanned player up before asking, so the question names both
+    /// players. A failed look still asks, with only the name the code carries.
+    private func ask(_ opened: DeviceLink) async {
+        do {
+            linkPreview = try await client.previewLink(opened, from: player)
+        } catch {
+            Telemetry.requestFailed("link-preview", error: error)
+            linkPreview = nil
+        }
+        link = opened
+    }
+
     /// Joins the website's player: the merge runs first, and the id is adopted
     /// only once it has, so a failure leaves this device's plays where they are.
     private func join(_ link: DeviceLink) async {
@@ -115,6 +153,22 @@ struct GuessrApp: App {
         } catch {
             Telemetry.requestFailed("link", error: error)
             linkFailed = true
+        }
+    }
+
+    /// Moves the App Clip's plays onto this device's player when the Keychain
+    /// already held one, the merge a link runs, keeping this player's id and
+    /// alias. The clip's player leaves the app group only once the merge has
+    /// run, so a failure is retried on the next launch.
+    private func foldInClip() async {
+        let group = GroupPlayerStore()
+        guard let clip = group.handedOver(besides: player) else { return }
+        do {
+            let moved = try await client.link(DeviceLink(id: player.id), from: clip)
+            group.clear()
+            if moved > 0 { clipFolds += 1 }
+        } catch {
+            Telemetry.requestFailed("clip-link", error: error)
         }
     }
 
