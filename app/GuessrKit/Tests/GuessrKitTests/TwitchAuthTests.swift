@@ -187,12 +187,23 @@ final class RefusingTwitch: URLProtocol {
     /// has to fall back from.
     nonisolated(unsafe) static var login = "Kate"
     nonisolated(unsafe) static var userID = "555"
+    /// Whether `validate` dies in transport, the way it does when the app is
+    /// suspended between the token grant and the validate.
+    nonisolated(unsafe) static var validateDrops = false
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func stopLoading() {}
 
     override func startLoading() {
+        if request.url?.lastPathComponent == "validate", Self.lock.withLock({ Self.validateDrops }) {
+            // Off this thread, as `StubSuspendingTwitch` explains.
+            nonisolated(unsafe) let stub = self
+            DispatchQueue.global().async {
+                stub.client?.urlProtocol(stub, didFailWithError: URLError(.networkConnectionLost))
+            }
+            return
+        }
         let (status, reply): (Int, String) = Self.lock.withLock {
             if request.url?.lastPathComponent == "validate" {
                 return (
@@ -210,12 +221,15 @@ final class RefusingTwitch: URLProtocol {
 
     /// One auth against this stub, answering `status` and `body`. The tests
     /// below share the stub's static answer, so they set it here, one at a time.
-    static func auth(status: Int, body: String, login: String = "Kate", userID: String = "555") -> TwitchAuth {
+    static func auth(
+        status: Int, body: String, login: String = "Kate", userID: String = "555", validateDrops: Bool = false
+    ) -> TwitchAuth {
         lock.withLock {
             Self.status = status
             Self.body = body
             Self.login = login
             Self.userID = userID
+            Self.validateDrops = validateDrops
         }
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [RefusingTwitch.self]
@@ -302,6 +316,24 @@ struct TwitchRefusals {
             await #expect(throws: URLError.self) { try await auth.renew(old, keptIn: kept) }
             #expect(kept.load() == old)
         }
+    }
+
+    /// Twitch has already spent the old refresh token by the time validate is
+    /// asked, so a validate lost in transport must still hand back the new
+    /// pair, named from the session it replaces.
+    @Test func aRefreshKeepsTheNewPairWhenValidateFails() async throws {
+        let old = TwitchSession(
+            accessToken: "stale", refreshToken: "r1", expiresAt: .now.addingTimeInterval(60), login: "kate",
+            userID: "555", scopes: ["user:read:chat"])
+        let auth = RefusingTwitch.auth(
+            status: 200,
+            body: #"{"access_token":"acc2","refresh_token":"r2","expires_in":14400,"token_type":"bearer"}"#,
+            validateDrops: true)
+        let fresh = try await auth.refresh(old)
+        #expect(fresh.refreshToken == "r2")
+        #expect(fresh.login == "kate")
+        #expect(fresh.userID == "555")
+        #expect(fresh.scopes == ["user:read:chat"])
     }
 
     /// A grant whose validate names nobody is no login: chat subscribes and

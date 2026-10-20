@@ -280,12 +280,15 @@ public struct TwitchAuth: Sendable {
         var scopes: [String]?
     }
 
+    /// The session a token grant names. A validate that fails leaves who it is
+    /// empty rather than throwing: by then Twitch has spent the old refresh
+    /// token, so losing this pair would cost the login.
     private func session(from data: Data) async throws -> TwitchSession {
         let token = try Guessr.decoder.decode(TokenResponse.self, from: data)
         var req = URLRequest(url: base.appending(path: "validate"))
         req.setValue("OAuth \(token.accessToken)", forHTTPHeaderField: "Authorization")
-        let (body, _) = try await session.settledData(for: req)
-        let who = try? Guessr.decoder.decode(Validation.self, from: body)
+        let body = try? await session.settledData(for: req).0
+        let who = body.flatMap { try? Guessr.decoder.decode(Validation.self, from: $0) }
         return TwitchSession(
             accessToken: token.accessToken,
             refreshToken: token.refreshToken,
