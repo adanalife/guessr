@@ -70,6 +70,38 @@ enum Telemetry {
         }
     }
 
+    /// The steps of a day's play, in the order a player meets them.
+    enum Step: String {
+        case dayLoaded = "day_loaded"
+        case roundShown = "round_shown"
+        case guessed
+        case resultShown = "result_shown"
+        case shared
+    }
+
+    /// One step of play, recorded three ways. The round it names becomes the
+    /// scope's `round.*` tags, so any error or crash after it says which date,
+    /// round and clip the player was on. A breadcrumb puts the step in the
+    /// trail under that report. And a `game.<step>` log line, so where players
+    /// stop between loading a day and sharing it can be counted from the log
+    /// search. Nothing here names the player.
+    static func step(_ step: Step, date: String, round: Int? = nil, clip: String? = nil, data: [String: Any] = [:]) {
+        var fields = data
+        fields["date"] = date
+        if let round { fields["round"] = round }
+        if let clip { fields["clip"] = clip }
+        SentrySDK.configureScope { scope in
+            scope.setTag(value: date, key: "round.date")
+            if let round { scope.setTag(value: String(round), key: "round.index") }
+            if let clip { scope.setTag(value: clip, key: "round.clip") }
+        }
+        let crumb = Breadcrumb(level: .info, category: "game")
+        crumb.message = step.rawValue
+        crumb.data = fields
+        SentrySDK.addBreadcrumb(crumb)
+        SentrySDK.logger.info("game.\(step.rawValue)", attributes: fields)
+    }
+
     /// A clip that failed to load. AVPlayer fetches outside URLSession, so the
     /// SDK's failed-request capture never sees it; this is the only report.
     /// One fingerprint for every clip, so a bad deploy reads as one issue with
