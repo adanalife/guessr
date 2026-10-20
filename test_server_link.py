@@ -94,6 +94,62 @@ async def test_batch_is_one_transaction() -> None:
     assert await owned(db, PHONE) == [("a.jpg", 100)], "the batch half-applied"
 
 
+async def marks(db, player) -> dict | None:
+    return await db.fetchone(
+        "SELECT alias, note, private_name, starred FROM players WHERE player_id = ?",
+        player,
+    )
+
+
+async def test_link_keeps_marks() -> None:
+    """The owner's alias, note, name and star follow a player onto the id they
+    link into, by either route -- they are how a friend stays recognizable."""
+    friend = {"alias": "Patient Delta", "note": "met at the meetup",
+              "private_name": "Sam", "starred": 1}  # fmt: skip
+
+    async def marked(target_row=None):
+        db = await plays([(PHONE, "a.jpg", 100), (DESKTOP, "b.jpg", 300)])
+        await db.execute(
+            "INSERT INTO players (player_id, alias, note, private_name, starred) VALUES (?, ?, ?, ?, ?)",
+            PHONE, *friend.values(),
+        )  # fmt: skip
+        if target_row:
+            await db.execute(
+                "INSERT INTO players (player_id, alias, note, private_name, starred) VALUES (?, ?, ?, ?, ?)",
+                DESKTOP, *target_row.values(),
+            )  # fmt: skip
+        return db
+
+    # The mover carries the marks and the target has none: all of them move.
+    db = await marked()
+    await link(db, {"from": PHONE, "to": DESKTOP})
+    assert await marks(db, DESKTOP) == friend
+    assert await marks(db, PHONE) is None, "the mover's marks were left behind"
+
+    db = await marked()
+    _, issued = await issue_code(db, {"player_id": DESKTOP})
+    await claim(db, {"code": issued["code"], "from": PHONE})
+    assert await marks(db, DESKTOP) == friend, "a claim dropped the marks"
+    assert await marks(db, PHONE) is None
+
+    # Both carry marks: the target's stand, the mover's fill its gaps, and a star
+    # on either side survives.
+    db = await marked({"alias": "Lucky Overpass", "note": None,
+                       "private_name": None, "starred": 0})  # fmt: skip
+    await link(db, {"from": PHONE, "to": DESKTOP})
+    assert await marks(db, DESKTOP) == {
+        "alias": "Lucky Overpass",
+        "note": "met at the meetup",
+        "private_name": "Sam",
+        "starred": 1,
+    }
+
+    # Linking into yourself touches nothing.
+    db = await marked()
+    await link(db, {"from": PHONE, "to": PHONE})
+    assert await marks(db, PHONE) == friend
+
+
 async def codes(db) -> int:
     return len(await db.fetchall("SELECT code FROM link_codes"))
 
@@ -290,6 +346,7 @@ async def test_preview_by_id() -> None:
 
 
 asyncio.run(test_link())
+asyncio.run(test_link_keeps_marks())
 asyncio.run(test_preview())
 asyncio.run(test_preview_by_id())
 asyncio.run(test_batch_is_one_transaction())

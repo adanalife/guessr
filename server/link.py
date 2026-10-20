@@ -20,6 +20,30 @@ from server.leaderboard import PLACEHOLDER, name_expr
 # mover's leftovers, or the merge silently is not one.
 MOVE = "UPDATE OR IGNORE plays SET player_id = ? WHERE player_id = ?"
 SWEEP = "DELETE FROM plays WHERE player_id = ?"
+# The owner's marks travel with the plays: an alias or a star is how a friend
+# stays recognizable, and a new device must not shed it. Where both ids carry
+# marks the merged player keeps the target's and takes the mover's where the
+# target has none, so nothing the owner set is lost to a link.
+MOVE_MARKS = """INSERT INTO players (player_id, alias, note, private_name, starred)
+  SELECT ?1, alias, note, private_name, starred FROM players WHERE player_id = ?2
+  ON CONFLICT (player_id) DO UPDATE SET
+    alias = COALESCE(players.alias, excluded.alias),
+    note = COALESCE(players.note, excluded.note),
+    private_name = COALESCE(players.private_name, excluded.private_name),
+    starred = MAX(players.starred, excluded.starred),
+    updated_at = datetime('now')"""
+SWEEP_MARKS = "DELETE FROM players WHERE player_id = ?"
+
+
+def merge(target: str, source: str) -> list[tuple]:
+    """The one transaction that folds `source` into `target`: SWEEP assumes MOVE
+    ran, and SWEEP_MARKS assumes MOVE_MARKS did."""
+    return [
+        (MOVE, target, source),
+        (SWEEP, source),
+        (MOVE_MARKS, target, source),
+        (SWEEP_MARKS, source),
+    ]
 
 
 async def link(db, body) -> tuple[int, dict]:
@@ -31,8 +55,7 @@ async def link(db, body) -> tuple[int, dict]:
     # MOVE just moved onto itself.
     if source == target:
         return 200, {"moved": 0}
-    # One transaction: SWEEP assumes MOVE ran.
-    moved, _ = await db.batch([(MOVE, target, source), (SWEEP, source)])
+    moved, *_ = await db.batch(merge(target, source))
     return 200, {"moved": moved}
 
 
@@ -120,7 +143,7 @@ async def claim(db, body) -> tuple[int, dict]:
     target = row["player_id"]
     if source == target:
         return 200, {"player_id": target, "moved": 0}
-    moved, _ = await db.batch([(MOVE, target, source), (SWEEP, source)])
+    moved, *_ = await db.batch(merge(target, source))
     return 200, {"player_id": target, "moved": moved}
 
 
