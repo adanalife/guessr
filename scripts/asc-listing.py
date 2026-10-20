@@ -255,53 +255,61 @@ def main() -> int:
             )
 
     # --- the app: name, subtitle, privacy policy, category -------------------
+    # Once a version is live its app info is read-only, and App Store Connect
+    # opens an editable one only alongside the next version. The run that
+    # creates that version leaves the app info to the run after it.
     info = editable(asc.get(f"/apps/{app_id}/appInfos"))
     if info is None:
-        sys.exit("no editable app info; every version is live or replaced")
-    localization(
-        "appInfos",
-        info["id"],
-        "appInfoLocalizations",
-        "appInfo",
-        wanted(APP_FIELDS, conf["app"]),
-    )
-
-    cats = {
-        name: (asc.one(f"/appInfos/{info['id']}/{name}") or {}).get("id")
-        for name in (
-            "primaryCategory",
-            "primarySubcategoryOne",
-            "primarySubcategoryTwo",
-            "secondaryCategory",
+        print(
+            "app info is read-only until the next version exists; run again after it is created"
         )
-    }
-    want_cats = {
-        "primaryCategory": conf["app"].get("primary_category"),
-        "primarySubcategoryOne": conf["app"].get("primary_subcategory_one"),
-        "primarySubcategoryTwo": conf["app"].get("primary_subcategory_two"),
-        "secondaryCategory": conf["app"].get("secondary_category"),
-    }
-    cat_diff = {k: v for k, v in want_cats.items() if v and cats.get(k) != v}
-    if cat_diff:
-        plan(
-            f"set category {shown(cat_diff)} (now {shown(cats)})",
-            lambda: asc.patch(
-                "appInfos",
-                info["id"],
-                relationships={k: ("appCategories", v) for k, v in cat_diff.items()},
-            ),
+    else:
+        localization(
+            "appInfos",
+            info["id"],
+            "appInfoLocalizations",
+            "appInfo",
+            wanted(APP_FIELDS, conf["app"]),
         )
 
-    # --- age rating -----------------------------------------------------------
-    rating = asc.one(f"/appInfos/{info['id']}/ageRatingDeclaration")
-    if rating:
-        print("age rating now:", shown(rating["attributes"]))
-        diff = differences(conf.get("age_rating", {}), rating["attributes"])
-        if diff:
-            plan(
-                f"set age rating {shown(diff)}",
-                lambda: asc.patch("ageRatingDeclarations", rating["id"], diff),
+        cats = {
+            name: (asc.one(f"/appInfos/{info['id']}/{name}") or {}).get("id")
+            for name in (
+                "primaryCategory",
+                "primarySubcategoryOne",
+                "primarySubcategoryTwo",
+                "secondaryCategory",
             )
+        }
+        want_cats = {
+            "primaryCategory": conf["app"].get("primary_category"),
+            "primarySubcategoryOne": conf["app"].get("primary_subcategory_one"),
+            "primarySubcategoryTwo": conf["app"].get("primary_subcategory_two"),
+            "secondaryCategory": conf["app"].get("secondary_category"),
+        }
+        cat_diff = {k: v for k, v in want_cats.items() if v and cats.get(k) != v}
+        if cat_diff:
+            plan(
+                f"set category {shown(cat_diff)} (now {shown(cats)})",
+                lambda: asc.patch(
+                    "appInfos",
+                    info["id"],
+                    relationships={
+                        k: ("appCategories", v) for k, v in cat_diff.items()
+                    },
+                ),
+            )
+
+        # --- age rating -----------------------------------------------------------
+        rating = asc.one(f"/appInfos/{info['id']}/ageRatingDeclaration")
+        if rating:
+            print("age rating now:", shown(rating["attributes"]))
+            diff = differences(conf.get("age_rating", {}), rating["attributes"])
+            if diff:
+                plan(
+                    f"set age rating {shown(diff)}",
+                    lambda: asc.patch("ageRatingDeclarations", rating["id"], diff),
+                )
 
     # --- the version ----------------------------------------------------------
     version_string = conf["version"]
@@ -309,6 +317,10 @@ def main() -> int:
     versions = asc.get(f"/apps/{app_id}/appStoreVersions?filter[platform]=IOS")
     version = editable(versions)
     if version is None:
+        if any(v["attributes"]["versionString"] == version_string for v in versions):
+            sys.exit(
+                f"{version_string} is already on the App Store; set `version` in app/store.toml to the release tag being submitted"
+            )
         plan(
             f"create App Store version {version_string}, release {listing['release_type']}",
             lambda: asc.create(
