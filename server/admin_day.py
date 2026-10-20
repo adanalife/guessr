@@ -14,7 +14,7 @@ import datetime as dt
 
 from server import rules
 from server.admin_auth import NO_STORE, refusal
-from server.leaderboard import PLACEHOLDER, name_expr
+from server.leaderboard import PLACEHOLDER, in_month, name_expr
 
 # LEFT JOIN on answers: a round scheduled with no answer row is exactly the
 # failure this view should show -- a rounds push whose answers push never ran.
@@ -49,15 +49,15 @@ FORGET_REVIEW = "DELETE FROM day_reviews WHERE date = ?"
 # A month at a glance: every scheduled date with its round count and review mark,
 # and every (date, player) total for the plays in it, in the daily board's own
 # order -- so a date's first row is its winner.
-MONTH_DAYS = """SELECT d.date, COUNT(*) AS rounds, v.reviewed_at
+MONTH_DAYS = f"""SELECT d.date, COUNT(*) AS rounds, v.reviewed_at
                   FROM round_days d
                   LEFT JOIN day_reviews v ON v.date = d.date
-                 WHERE d.date LIKE ? || '-%'
+                 WHERE d.date {in_month("?1")}
                  GROUP BY d.date"""
 MONTH_TOTALS = f"""SELECT p.date, p.player_id, SUM(p.points) AS points,
                          {name_expr("p.player_id")} AS name
                     FROM plays p
-                   WHERE p.date LIKE ? || '-%'
+                   WHERE p.date {in_month("?1")}
                    GROUP BY p.date, p.player_id
                    ORDER BY p.date, points DESC, p.player_id"""
 

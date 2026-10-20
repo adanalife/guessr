@@ -25,6 +25,7 @@ submitted standing per player if App Store Connect's rate limit bites.
 import datetime as dt
 
 from server import rules
+from server.leaderboard import in_month
 
 BUNDLE_ID = "lol.dana.guessr"
 # The app is on the App Store, so Game Center runs against the live
@@ -131,13 +132,12 @@ async def top_ten_months(db, player_id: str, month: str) -> list[str]:
     for row in months:
         m = row["m"]
         above = await db.fetchone(
-            """SELECT COUNT(*) AS n FROM (
+            f"""SELECT COUNT(*) AS n FROM (
                  SELECT player_id, SUM(points) AS points FROM plays
-                  WHERE date LIKE ? || '-%' GROUP BY player_id)
-               WHERE points > (SELECT SUM(points) FROM plays WHERE player_id = ? AND date LIKE ? || '-%')""",
+                  WHERE date {in_month("?1")} GROUP BY player_id)
+               WHERE points > (SELECT SUM(points) FROM plays WHERE player_id = ?2 AND date {in_month("?1")})""",
             m,
             player_id,
-            m,
         )
         if above["n"] < TOP_TEN_RANK:
             placed.append(m)
