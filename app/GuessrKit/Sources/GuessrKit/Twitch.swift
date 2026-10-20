@@ -6,6 +6,7 @@ import Synchronization
 #endif
 #if canImport(Security)
     import Security
+    import os
 #endif
 
 /// A Twitch login: the tokens the device-code flow handed back and whose they
@@ -86,14 +87,22 @@ public final class MemorySessionStore: SessionStore {
             return item as? Data
         }
 
-        /// Replaces whatever was saved. A failed write is not an error: it costs
-        /// the value on the next launch and nothing on this one.
+        /// Replaces whatever was saved, in place, so a failed write keeps the
+        /// value before it rather than nothing. A failed write is not an error:
+        /// it costs the value on the next launch and nothing on this one, and
+        /// is logged.
         func write(_ data: Data) {
-            delete()
-            var q = query
-            q[kSecValueData] = data
-            q[kSecAttrAccessible] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            SecItemAdd(q as CFDictionary, nil)
+            let attrs: [CFString: Any] = [
+                kSecValueData: data, kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+            ]
+            var status = SecItemUpdate(query as CFDictionary, attrs as CFDictionary)
+            if status == errSecItemNotFound {
+                status = SecItemAdd(query.merging(attrs) { $1 } as CFDictionary, nil)
+            }
+            if status != errSecSuccess {
+                Logger(subsystem: "lol.dana.guessr", category: "keychain")
+                    .error("keychain write for \(service, privacy: .public) failed: \(status)")
+            }
         }
 
         func delete() { SecItemDelete(query as CFDictionary) }
