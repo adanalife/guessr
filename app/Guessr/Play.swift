@@ -491,7 +491,9 @@ struct LinkCompareView: View {
 
     private var rows: [Row] {
         var rows = [
-            Row(label: String(localized: "Name"), mine: preview.from.name, theirs: preview.to.name),
+            // This device's own alias, which a link keeps and the button names; the
+            // server's name for this player can differ.
+            Row(label: String(localized: "Name"), mine: alias, theirs: preview.to.name),
             Row(
                 label: String(localized: "Points"), mine: preview.from.points.formatted(),
                 theirs: preview.to.points.formatted()),
@@ -623,7 +625,7 @@ extension LinkPreview.Standing {
         /// without scanning a code.
         static let sample = LinkPreview(
             to: Standing(name: "Patient Delta", points: 12345, days: 30, last: "2026-10-18"),
-            from: Standing(name: "Lucky Overpass", points: 500, days: 2, last: nil), overlap: 1)
+            from: Standing(name: "Lucky Overpass", points: 500, days: 2, last: "2026-10-12"), overlap: 1)
     }
 #endif
 
