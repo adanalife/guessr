@@ -228,11 +228,19 @@ public struct TwitchAuth: Sendable {
 
     /// Trades the refresh token for a fresh pair. Twitch's public-client refresh
     /// tokens are single-use, so the returned session replaces the old one.
+    ///
+    /// Only a 400 or 401 is Twitch turning the token down, and throws `refused`;
+    /// any other status (an outage's 503, a 429) throws a `URLError`, so callers
+    /// keep the login and try again later.
     public func refresh(_ old: TwitchSession) async throws -> TwitchSession {
         let (data, response) = try await post(
             "token",
             ["client_id": clientID, "grant_type": "refresh_token", "refresh_token": old.refreshToken])
-        guard status(response) == 200 else { throw TwitchAuthError.refused(message(data)) }
+        switch status(response) {
+        case 200: break
+        case 400, 401: throw TwitchAuthError.refused(message(data))
+        default: throw URLError(.badServerResponse)
+        }
         var fresh = try await session(from: data)
         if fresh.login.isEmpty { fresh.login = old.login }
         if fresh.userID.isEmpty { fresh.userID = old.userID }

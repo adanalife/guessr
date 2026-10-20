@@ -290,6 +290,20 @@ struct TwitchRefusals {
         await #expect(throws: TwitchAuthError.refused("Invalid refresh token")) { try await auth.refresh(old) }
     }
 
+    /// An outage is not a sign-out: a 503 or a 429 from the token endpoint
+    /// leaves the login in the store for the next try.
+    @Test func aTwitchOutageDuringRefreshKeepsTheLogin() async throws {
+        let old = TwitchSession(
+            accessToken: "stale", refreshToken: "r1", expiresAt: .now.addingTimeInterval(60), login: "kate", userID: "555")
+        for status in [503, 429] {
+            let auth = RefusingTwitch.auth(status: status, body: #"{"status":\#(status),"message":"Service Unavailable"}"#)
+            await #expect(throws: URLError.self) { try await auth.refresh(old) }
+            let kept = MemorySessionStore(old)
+            await #expect(throws: URLError.self) { try await auth.renew(old, keptIn: kept) }
+            #expect(kept.load() == old)
+        }
+    }
+
     /// A grant whose validate names nobody is no login: chat subscribes and
     /// the mod check both key on the user id.
     @Test func aLoginTwitchNeverNamesIsRefused() async throws {
