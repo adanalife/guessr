@@ -515,10 +515,6 @@ struct LinkCompareView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     Text("This code belongs to another player.")
                     if typeSize.isAccessibilitySize { stacked } else { table }
-                    if let overlap = preview.overlap, overlap > 0 {
-                        Text("Rounds both have played: \(overlap.formatted()). \(preview.to.name)'s scores are kept for those.")
-                            .foregroundStyle(.secondary)
-                    }
                 }
                 .frame(maxWidth: 560, alignment: .leading)
                 .frame(maxWidth: .infinity)
@@ -573,6 +569,16 @@ struct LinkCompareView: View {
         }
     }
 
+    /// What joining does to this device's plays, counted in days when the
+    /// server says how many.
+    private var merging: Text {
+        switch preview.from.days {
+        case 0?: Text("Nothing has been played on this device yet.")
+        case let days?: Text("\(days) days played on this device will be merged with \(preview.to.name).")
+        case nil: Text("This device's plays will be merged with \(preview.to.name).")
+        }
+    }
+
     private var choices: some View {
         VStack(spacing: 12) {
             Button {
@@ -590,7 +596,7 @@ struct LinkCompareView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            Text("This device's plays move to that player, and both devices play as one from now on.")
+            merging
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
