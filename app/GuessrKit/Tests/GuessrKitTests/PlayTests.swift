@@ -61,6 +61,23 @@ final class PreviewingGuessr: URLProtocol, @unchecked Sendable {
     }
 }
 
+/// Answers with a preview carrying each player's days and last play and the
+/// overlap, the shape a preview by id gets.
+final class FullPreviewingGuessr: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var lastBody: [String: Any] = [:]
+    nonisolated(unsafe) static var lastPath: String?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+
+    override func startLoading() {
+        Self.lastPath = request.url?.path
+        Self.lastBody = jsonBody(of: request)
+        answer(self, with: "link-preview-full")
+    }
+}
+
 /// Answers every request with the progress fixture and keeps the last request.
 final class RecordingGuessr: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var lastBody: [String: Any] = [:]
@@ -283,6 +300,25 @@ final class MemoryPlayerStore: PlayerStore, @unchecked Sendable {
     #expect(PreviewingGuessr.lastPath == "/api/link/preview")
     #expect(PreviewingGuessr.lastBody["code"] as? String == "ABCD2345")
     #expect(PreviewingGuessr.lastBody["from"] as? String == player.id)
+    // A server that sends only names and points says nothing of the rest.
+    #expect(preview.overlap == nil)
+    #expect(preview.to.lastPlayed == nil)
+}
+
+@Test func aPreviewedDeviceLinkNamesBothPlayersRecords() async throws {
+    let preview = try await client(FullPreviewingGuessr.self).previewLink(DeviceLink(id: "web-player"), from: player)
+    #expect(FullPreviewingGuessr.lastPath == "/api/link/preview")
+    #expect(FullPreviewingGuessr.lastBody["to"] as? String == "web-player")
+    #expect(FullPreviewingGuessr.lastBody["from"] as? String == player.id)
+    #expect(FullPreviewingGuessr.lastBody["code"] == nil)
+    #expect(preview.to == LinkPreview.Standing(name: "Patient Delta", points: 12345, days: 30, last: "2026-10-18"))
+    #expect(preview.from == LinkPreview.Standing(name: "Lucky Overpass", points: 500, days: 2))
+    #expect(preview.overlap == 1)
+    #expect(preview.from.lastPlayed == nil)
+    var utc = Calendar(identifier: .gregorian)
+    utc.timeZone = .gmt
+    let last = try #require(preview.to.lastPlayed)
+    #expect(utc.dateComponents([.year, .month, .day], from: last) == DateComponents(year: 2026, month: 10, day: 18))
 }
 
 @Test func anIssuedCodeIsForThisPlayer() async throws {

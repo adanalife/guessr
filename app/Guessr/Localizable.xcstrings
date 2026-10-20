@@ -445,6 +445,34 @@
         }
       }
     },
+    "Already playing as %@" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Už hrajete jako %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ya juegas como %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vous jouez déjà en tant que %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вы уже играете как %@"
+          }
+        }
+      }
+    },
     "Appearance" : {
       "localizations" : {
         "cs" : {
@@ -1225,6 +1253,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Тёмное"
+          }
+        }
+      }
+    },
+    "Days played: %@ · Last played: %@" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Odehrané dny: %1$@ · Naposledy: %2$@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Días jugados: %1$@ · Última partida: %2$@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jours joués : %1$@ · Dernière partie : %2$@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дней в игре: %1$@ · Последняя игра: %2$@"
           }
         }
       }
@@ -3304,6 +3360,34 @@
         }
       }
     },
+    "Points: %@" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Body: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Puntos: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Points : %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очки: %@"
+          }
+        }
+      }
+    },
     "Privacy Policy" : {
       "localizations" : {
         "cs" : {
@@ -3412,6 +3496,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Род-Айленд"
+          }
+        }
+      }
+    },
+    "Rounds both have played: %@. %@'s scores are kept for those." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kola odehraná oběma: %1$@. U nich zůstávají skóre hráče %2$@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rondas jugadas por ambos: %1$@. En esas se conservan las puntuaciones de %2$@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manches jouées par les deux : %1$@. Pour celles-ci, les scores de %2$@ sont conservés."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Раунды, сыгранные обоими: %1$@. Для них сохраняются очки игрока %2$@."
           }
         }
       }
@@ -4228,30 +4340,58 @@
         }
       }
     },
-    "This device becomes %@ (%@ points), replacing %@ (%@ points). Its plays go with it." : {
+    "This device's plays move to that player, and both devices play as one from now on." : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Toto zařízení se stane %@ (%@ bodů) a nahradí %@ (%@ bodů). Jeho hry jdou s ním."
+            "value" : "Hry z tohoto zařízení přejdou na tohoto hráče a obě zařízení budou od teď hrát jako jeden."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Este dispositivo pasa a ser %@ (%@ puntos) y sustituye a %@ (%@ puntos). Sus partidas van con él."
+            "value" : "Las partidas de este dispositivo pasan a ese jugador, y desde ahora ambos dispositivos juegan como uno."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cet appareil devient %@ (%@ points) et remplace %@ (%@ points). Ses parties le suivent."
+            "value" : "Les parties de cet appareil passent à ce joueur, et les deux appareils jouent désormais comme un seul."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Это устройство становится %@ (%@ очков) вместо %@ (%@ очков). Его игры переходят вместе с ним."
+            "value" : "Игры с этого устройства перейдут к этому игроку, и дальше оба устройства будут играть как одно."
+          }
+        }
+      }
+    },
+    "This device: %@" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toto zařízení: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este dispositivo: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cet appareil : %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это устройство: %@"
           }
         }
       }
@@ -4959,6 +5099,34 @@
         }
       }
     },
+    "never" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nikdy"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nunca"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "jamais"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "никогда"
+          }
+        }
+      }
+    },
     "new" : {
       "localizations" : {
         "cs" : {
@@ -5039,6 +5207,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "вы"
+          }
+        }
+      }
+    },
+    "your other device" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vaše druhé zařízení"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tu otro dispositivo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "votre autre appareil"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ваше другое устройство"
           }
         }
       }
