@@ -124,7 +124,8 @@ private func chat(userID: String = "2914196", capacity: Int = 300) -> TwitchChat
     #expect(line.isModerator && line.isSubscriber && !line.isBroadcaster)
     #expect(line.fragments == [.text("hello van "), .emote(id: "25", text: "Kappa"), .text(" where are we")])
     #expect(line.fragments.map(\.text).joined() == line.text)
-    #expect(line.timestamp == Date(timeIntervalSince1970: 1_790_175_411.634))
+    // Kept to the millisecond; the parse is exact only that far.
+    #expect(abs(line.timestamp.timeIntervalSince1970 - 1_790_175_411.634) < 0.0005)
     #expect(line.messageType == "text" && !line.isFirstMessage && !line.isPointsHighlight)
 }
 
@@ -363,7 +364,7 @@ private func chat(userID: String = "2914196", capacity: Int = 300) -> TwitchChat
     #expect(chat.held.count == 1)
     #expect(held.id == "h1" && held.userId == "11" && held.displayName == "RoadWatcher")
     #expect(held.text == "wow that is a bad word" && held.why == "AutoMod: swearing 2")
-    #expect(held.heldAt == Date(timeIntervalSince1970: 1_790_780_211.123))
+    #expect(abs(held.heldAt.timeIntervalSince1970 - 1_790_780_211.123) < 0.0005)
     // A message the log would show is not a held one, and a hold is not a line.
     #expect(chat.lines.isEmpty)
 

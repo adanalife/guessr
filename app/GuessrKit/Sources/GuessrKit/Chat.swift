@@ -752,11 +752,9 @@ func parseTimestamp(_ raw: String?) -> Date {
         let digits = raw[raw.index(after: dot)..<end].prefix(3)
         raw = String(raw[..<dot]) + "." + digits.padding(toLength: 3, withPad: "0", startingAt: 0) + raw[end...]
     }
-    let parser = ISO8601DateFormatter()
-    parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    if let date = parser.date(from: raw) { return date }
-    parser.formatOptions = [.withInternetDateTime]
-    return parser.date(from: raw) ?? .now
+    // Format styles are values, cheap to make per frame where a formatter is not.
+    return (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(raw))
+        ?? (try? Date.ISO8601FormatStyle().parse(raw)) ?? .now
 }
 
 /// An EventSub WebSocket frame, as far as chat reads it.
