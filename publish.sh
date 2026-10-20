@@ -42,6 +42,18 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+# A dry run generates nothing, so everything after `make_rounds.py` would publish
+# whatever an earlier run left behind -- to production, under --top-up. `--dr*`
+# because argparse also takes the flag abbreviated.
+for arg in "$@"; do
+  case "$arg" in
+  --dr*)
+    echo "publish.sh publishes; preview a set with \`python3 make_rounds.py --dry-run\` instead" >&2
+    exit 2
+    ;;
+  esac
+done
+
 STAGE_DB="adanalife-guessr-answers-staging"
 PROD_DB="adanalife-guessr-answers"
 
