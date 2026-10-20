@@ -211,6 +211,11 @@ whose client id is empty, so a TestFlight build always has the login on.
 `GUESSR_TWITCH_CHANNEL` is set in the tree: the Chat tab talks in, and the Watch
 tab watches, `adanalife_` in a Release build and `adanalife_staging` in a Debug one.
 
+Two compilation conditions in `Guessr.xcconfig` keep features out of the App
+Store build until each goes through review on its own: `TWITCH` (the Twitch
+login, chat and the Siri guess) and `WATCH` (the Watch tab). Both are on in
+Debug only, so a TestFlight build has neither.
+
 ## Languages
 
 The app follows the device language, or the one picked for it under iOS
