@@ -593,8 +593,29 @@ def link(desk):
         {"from": PHONE, "to": PHONE},
     ).json == {"moved": 0}
 
+    error(
+        post(
+            "a preview by ids with one id is refused",
+            400,
+            "/api/link/preview",
+            {"to": DESKTOP},
+        )
+    )
     # Both browsers answered round one; only the phone answered round two. The
-    # collision keeps the desktop's play, so one row moves and none are left.
+    # preview names the one play the merge would drop, and the merge then keeps
+    # the desktop's play over it, so one row moves and none are left.
+    peek = post(
+        "a merge previews by ids",
+        200,
+        "/api/link/preview",
+        {"to": DESKTOP, "from": PHONE},
+    ).json
+    assert peek["overlap"] == 1, peek
+    assert {k: peek["from"][k] for k in ("days", "last")} == {
+        "days": 1,
+        "last": TODAY.isoformat(),
+    }, peek
+    assert set(peek["to"]) == {"name", "points", "days", "last"}, peek
     r = post("two browsers merge", 200, "/api/link", {"from": PHONE, "to": DESKTOP})
     assert r.json == {"moved": 1}, r.json
     players = {

@@ -69,9 +69,19 @@ ISSUE = """INSERT INTO link_codes (code, player_id, expires_at)
 TAKE = f"""DELETE FROM link_codes WHERE code = ? AND expires_at > {NOW}
   RETURNING player_id"""
 PEEK = f"SELECT player_id FROM link_codes WHERE code = ? AND expires_at > {NOW}"
-# Who a player is on the boards, all time. `?1` twice over, so one argument.
-STANDING = f"""SELECT COALESCE(SUM(p.points), 0) AS points, {name_expr("?1")} AS name
+# Who a player is on the boards, all time, and how much of a habit it is: the
+# dates played and the latest one, which is what tells two aliases apart when
+# the points are close. `date` is stored YYYY-MM-DD, so MAX is the latest and
+# comes back in the stored form. `?1` twice over, so one argument.
+STANDING = f"""SELECT COALESCE(SUM(p.points), 0) AS points, {name_expr("?1")} AS name,
+  COUNT(DISTINCT p.date) AS days, MAX(p.date) AS last
   FROM plays p WHERE p.player_id = ?1"""
+# The mover's plays a merge into `?1` would lose: the rows MOVE's UPDATE OR
+# IGNORE skips because the target already holds that (date, image) under the
+# primary key, which SWEEP then deletes.
+OVERLAP = """SELECT COUNT(*) AS n FROM plays f
+  WHERE f.player_id = ?2 AND EXISTS (SELECT 1 FROM plays t
+    WHERE t.player_id = ?1 AND t.date = f.date AND t.image = f.image)"""
 SWEEP_EXPIRED = f"DELETE FROM link_codes WHERE expires_at <= {NOW}"
 SHAPE = re.compile(f"[{ALPHABET}]{{{LENGTH}}}")
 
@@ -116,21 +126,43 @@ async def claim(db, body) -> tuple[int, dict]:
 
 async def standing(db, player) -> dict:
     row = await db.fetchone(STANDING, player)
-    return {"name": row["name"] or PLACEHOLDER, "points": row["points"]}
+    return {
+        "name": row["name"] or PLACEHOLDER,
+        "points": row["points"],
+        "days": row["days"],
+        "last": row["last"],
+    }
 
 
 async def preview(db, body) -> tuple[int, dict]:
-    """What a claim would do, so the device can ask before it does: the player
-    the code names and the player it would replace, each with their all-time
-    points. Reads only -- the code stays live for the claim."""
-    code = normalize(body.get("code") if isinstance(body, dict) else None)
-    source = body.get("from") if isinstance(body, dict) else None
-    if not SHAPE.fullmatch(code) or not rules.is_player_id(source):
-        return 400, {"error": "expected {code, from}"}
-    row = await db.fetchone(PEEK, code)
-    if row is None:
-        return 404, {"error": "unknown or expired code"}
+    """What a merge would do, so the device can ask before it does: the player
+    it would become and the player it would replace, each with their all-time
+    standing, and how many of the mover's plays the merge would drop.
+
+    Named by a link code ({code, from}, the typed-code flow) or by both ids
+    ({to, from}, a universal link, which carries both and no code). Reads only
+    -- a code stays live for the claim."""
+    body = body if isinstance(body, dict) else {}
+    source = body.get("from")
+    if "to" in body and "code" not in body:
+        target = body.get("to")
+        if not rules.is_player_id(target) or not rules.is_player_id(source):
+            return 400, {"error": "expected {code, from} or {to, from}"}
+    else:
+        code = normalize(body.get("code"))
+        if not SHAPE.fullmatch(code) or not rules.is_player_id(source):
+            return 400, {"error": "expected {code, from}"}
+        row = await db.fetchone(PEEK, code)
+        if row is None:
+            return 404, {"error": "unknown or expired code"}
+        target = row["player_id"]
+    # Same id: nothing would move, and OVERLAP would count every row against
+    # itself.
+    overlap = (
+        0 if source == target else (await db.fetchone(OVERLAP, target, source))["n"]
+    )
     return 200, {
-        "to": await standing(db, row["player_id"]),
+        "to": await standing(db, target),
         "from": await standing(db, source),
+        "overlap": overlap,
     }
