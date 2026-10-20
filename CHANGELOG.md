@@ -4,6 +4,15 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.35.0 — 2026-10-20
+
+### Behind the scenes
+
+- Game Center scores and achievements go to the live boards now that the app is on the App Store. ([#364](https://github.com/adanalife/guessr/pull/364))
+- Run the changelog fragment-numbering self-test on every PR, so a break shows up in review rather than on the next release PR. ([#453](https://github.com/adanalife/guessr/pull/453))
+- The app reports iOS's own hang and crash diagnostics (MetricKit) to Sentry, plus a daily count of how its runs ended. ([#456](https://github.com/adanalife/guessr/pull/456))
+- Every app error now says which date, round and clip the player was on, and each step of a day's play (loaded, round shown, guessed, result, shared) is logged, so drop-off between them can be counted. ([#458](https://github.com/adanalife/guessr/pull/458))
+
 ## v1.34.0 — 2026-10-16
 
 ### New
