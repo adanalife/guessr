@@ -32,6 +32,9 @@ struct PlayView: View {
     /// Each score as it lands, with the day so far. The app hangs the Game
     /// Center sync and the badge off it; the App Clip hangs nothing.
     var scored: (GuessrScore, DayProgress) -> Void = { _, _ in }
+    /// The finished day on screen, whether just played or reopened. The App
+    /// Clip offers the full app off it; the app hangs nothing.
+    var finished: () -> Void = {}
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
@@ -54,6 +57,7 @@ struct PlayView: View {
                 } else {
                     DayResultView(progress: progress)
                         .onAppear {
+                            finished()
                             Telemetry.step(
                                 .resultShown, date: progress.date,
                                 data: ["rounds": progress.played.count, "total": progress.total])
