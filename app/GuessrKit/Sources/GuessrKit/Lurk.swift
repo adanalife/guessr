@@ -84,8 +84,8 @@ public final class TwitchLurk {
                 try await Task.sleep(for: silence)
                 ws.cancel(with: .goingAway, reason: nil)
             }
+            defer { watchdog.cancel() }
             let message = try await ws.receive()
-            watchdog.cancel()
             let text: String
             switch message {
             case .string(let s): text = s
