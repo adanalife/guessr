@@ -60,7 +60,7 @@ SETUP: no login, credentials or setup are needed. On first launch the app picks 
 
 GAME CENTER: if the device is signed in to Game Center, the app signs in automatically. Scores and achievements are submitted by our server (App Store Connect API), never by the app, after each recorded guess.
 
-EXTERNAL SERVICES: our own API on Cloudflare Workers, with Cloudflare D1 (rounds and scores) and Cloudflare R2 (the video clips); Apple Game Center; Apple MapKit (the guessing map); Sentry (crash and error diagnostics; session replays have text and images masked). The app has no payments, ads, AI services or third-party sign-in.
+EXTERNAL SERVICES: our own API on Cloudflare Workers, with Cloudflare D1 (rounds and scores) and Cloudflare R2 (the video clips); Apple Game Center; Apple MapKit (the guessing map); Sentry (crash and error diagnostics, and a count of each step of the day's game with no player identifier; session replays have text and images masked). The app has no payments, ads, AI services or third-party sign-in.
 
 REGIONS: the app works the same in every region. Everyone gets the same five daily rounds. The interface is available in English, French, Spanish, Russian and Czech.
 
