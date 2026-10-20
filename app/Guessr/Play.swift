@@ -404,6 +404,7 @@ struct JoinView: View {
     @State private var joining = false
     @State private var message: String?
     @State private var preview: LinkPreview?
+    @State private var joined = false
 
     private let client = GuessrClient()
 
@@ -422,13 +423,14 @@ struct JoinView: View {
         }
         .paper()
         .navigationTitle("Enter your code")
-        .confirmationDialog(
-            preview.map { Text("Play as \($0.to.name)?") } ?? Text(verbatim: ""), isPresented: Binding(get: { preview != nil }, set: { if !$0 { preview = nil } }),
-            titleVisibility: .visible, presenting: preview
-        ) { _ in
-            Button("Join") { Task { await join() } }
-        } message: { p in
-            Text(p.comparison)
+        .sheet(
+            isPresented: Binding(get: { preview != nil }, set: { if !$0 { preview = nil } }),
+            onDismiss: { if joined { dismiss() } }
+        ) {
+            if let preview {
+                LinkCompareView(
+                    preview: preview, alias: player.alias, codeHeading: String(localized: "Entered code"), join: join)
+            }
         }
     }
 
@@ -442,16 +444,17 @@ struct JoinView: View {
         }
     }
 
-    private func join() async {
-        joining = true
-        defer { joining = false }
+    /// Claims the code; this view closes once the comparison sheet has, and a
+    /// failure is left in the footer.
+    private func join() async -> Bool {
         do {
             let claim = try await client.claimLink(code: code, from: player)
             player = Player(id: claim.playerId, alias: player.alias)
-            dismiss()
+            joined = true
         } catch {
             fail(error)
         }
+        return joined
     }
 
     private func fail(_ error: Error) {
@@ -463,32 +466,166 @@ struct JoinView: View {
     }
 }
 
-extension LinkPreview {
-    /// Both players side by side, the one to join first, then what joining
-    /// does: the body of every "Play as …?" question.
-    var comparison: String {
-        var parts = [to.summary, String(localized: "This device: \(from.summary)")]
-        if let overlap, overlap > 0 {
-            parts.append(
-                String(localized: "Rounds both have played: \(overlap.formatted()). \(to.name)'s scores are kept for those."))
+/// The question a link code asks before this device joins its player: both
+/// players side by side, then one button that joins and one that doesn't.
+/// `join` answers whether the merge ran; the sheet closes either way, and the
+/// caller says what went wrong.
+struct LinkCompareView: View {
+    let preview: LinkPreview
+    /// This device's own name, which joining keeps.
+    let alias: String
+    /// The other column's heading: where the code came from.
+    let codeHeading: String
+    let join: () async -> Bool
+    @State private var joining = false
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    /// A row of the table: what it is, then this device's value and the code's.
+    private struct Row: Identifiable {
+        var label: String
+        var mine: String
+        var theirs: String
+        var id: String { label }
+    }
+
+    private var rows: [Row] {
+        var rows = [
+            Row(label: String(localized: "Name"), mine: preview.from.name, theirs: preview.to.name),
+            Row(
+                label: String(localized: "Points"), mine: preview.from.points.formatted(),
+                theirs: preview.to.points.formatted()),
+        ]
+        // A server that sends only names and points says nothing of the rest.
+        if let mine = preview.from.days, let theirs = preview.to.days {
+            rows.append(Row(label: String(localized: "Days played"), mine: mine.formatted(), theirs: theirs.formatted()))
+            rows.append(
+                Row(
+                    label: String(localized: "Last played"), mine: preview.from.lastPlayedText,
+                    theirs: preview.to.lastPlayedText))
         }
-        parts.append(String(localized: "This device's plays move to that player, and both devices play as one from now on."))
-        return parts.joined(separator: "\n\n")
+        return rows
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("This code belongs to another player.")
+                    if typeSize.isAccessibilitySize { stacked } else { table }
+                    if let overlap = preview.overlap, overlap > 0 {
+                        Text("Rounds both have played: \(overlap.formatted()). \(preview.to.name)'s scores are kept for those.")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: 560, alignment: .leading)
+                .frame(maxWidth: .infinity)
+                .padding()
+            }
+            .safeAreaInset(edge: .bottom) { choices }
+            .paper()
+            .navigationTitle("Link this device?")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .interactiveDismissDisabled(joining)
+    }
+
+    private var table: some View {
+        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 12) {
+            GridRow {
+                Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                Text("This device")
+                Text(codeHeading)
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .accessibilityHidden(true)
+            Divider()
+            ForEach(rows) { row in
+                GridRow {
+                    Text(row.label).foregroundStyle(.secondary)
+                    Text(row.mine)
+                    Text(row.theirs)
+                }
+                .monospacedDigit()
+                // One element per row: the label, then each column's value
+                // named by its heading.
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(row.label)
+                .accessibilityValue(String(localized: "This device: \(row.mine)") + ", \(codeHeading): \(row.theirs)")
+            }
+        }
+    }
+
+    /// The table one player at a time, for text too large to sit three across.
+    private var stacked: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach([(String(localized: "This device"), \Row.mine), (codeHeading, \Row.theirs)], id: \.0) { heading, value in
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(heading).font(.headline).accessibilityAddTraits(.isHeader)
+                    ForEach(rows) { row in
+                        LabeledContent(row.label, value: row[keyPath: value])
+                    }
+                }
+            }
+        }
+    }
+
+    private var choices: some View {
+        VStack(spacing: 12) {
+            Button {
+                Task {
+                    joining = true
+                    _ = await join()
+                    joining = false
+                    dismiss()
+                }
+            } label: {
+                Group {
+                    if joining { ProgressView() } else { Text("Play as \(preview.to.name)").fixedSize(horizontal: false, vertical: true) }
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            Text("This device's plays move to that player, and both devices play as one from now on.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button {
+                dismiss()
+            } label: {
+                // A long name at a large text size wraps rather than truncating.
+                Text("Keep playing as \(alias)").fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+        }
+        .disabled(joining)
+        .frame(maxWidth: 560)
+        .padding()
+        .background(.bar)
     }
 }
 
 extension LinkPreview.Standing {
-    /// The name over a line of totals. Days and the last play show only when
-    /// the server sent them.
-    var summary: String {
-        let points = String(localized: "Points: \(points.formatted())")
-        guard let days else { return "\(name)\n\(points)" }
-        let last =
-            lastPlayed?.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted, timeZone: .gmt))
-            ?? String(localized: "never")
-        return "\(name)\n\(points) · " + String(localized: "Days played: \(days.formatted()) · Last played: \(last)")
+    /// The last play's date for the reader's locale, read in UTC so it is the
+    /// date the server sent.
+    var lastPlayedText: String {
+        lastPlayed?.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted, timeZone: .gmt))
+            ?? String(localized: "Never")
     }
 }
+
+#if DEBUG
+    extension LinkPreview {
+        /// What `-linkPreview 1` shows, so the comparison can be screenshotted
+        /// without scanning a code.
+        static let sample = LinkPreview(
+            to: Standing(name: "Patient Delta", points: 12345, days: 30, last: "2026-10-18"),
+            from: Standing(name: "Lucky Overpass", points: 500, days: 2, last: nil), overlap: 1)
+    }
+#endif
 
 /// The finished day: every round on the map, the total, and the text to share it.
 struct DayResultView: View {

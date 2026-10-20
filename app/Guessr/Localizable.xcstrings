@@ -1257,30 +1257,30 @@
         }
       }
     },
-    "Days played: %@ · Last played: %@" : {
+    "Days played" : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Odehrané dny: %1$@ · Naposledy: %2$@"
+            "value" : "Odehrané dny"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Días jugados: %1$@ · Última partida: %2$@"
+            "value" : "Días jugados"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Jours joués : %1$@ · Dernière partie : %2$@"
+            "value" : "Jours joués"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Дней в игре: %1$@ · Последняя игра: %2$@"
+            "value" : "Дней в игре"
           }
         }
       }
@@ -1505,6 +1505,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ввести код"
+          }
+        }
+      }
+    },
+    "Entered code" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zadaný kód"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Código introducido"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code saisi"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Введённый код"
           }
         }
       }
@@ -2240,6 +2268,34 @@
         }
       }
     },
+    "Keep playing as %@" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dál hrát jako %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seguir jugando como %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuer en tant que %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продолжить как %@"
+          }
+        }
+      }
+    },
     "Kentucky" : {
       "localizations" : {
         "cs" : {
@@ -2264,6 +2320,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Кентукки"
+          }
+        }
+      }
+    },
+    "Last played" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Naposledy"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Última partida"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dernière partie"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Последняя игра"
           }
         }
       }
@@ -2376,6 +2460,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Светлое"
+          }
+        }
+      }
+    },
+    "Link this device?" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Propojit toto zařízení?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Vincular este dispositivo?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Associer cet appareil ?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Связать это устройство?"
           }
         }
       }
@@ -2716,6 +2828,34 @@
         }
       }
     },
+    "Name" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jméno"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nombre"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nom"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Имя"
+          }
+        }
+      }
+    },
     "Nebraska" : {
       "localizations" : {
         "cs" : {
@@ -2768,6 +2908,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Невада"
+          }
+        }
+      }
+    },
+    "Never" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nikdy"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nunca"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jamais"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Никогда"
           }
         }
       }
@@ -3304,6 +3472,34 @@
         }
       }
     },
+    "Play as %@" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hrát jako %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jugar como %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jouer en tant que %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Играть как %@"
+          }
+        }
+      }
+    },
     "Play as %@?" : {
       "localizations" : {
         "cs" : {
@@ -3360,30 +3556,30 @@
         }
       }
     },
-    "Points: %@" : {
+    "Points" : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Body: %@"
+            "value" : "Body"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Puntos: %@"
+            "value" : "Puntos"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Points : %@"
+            "value" : "Points"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Очки: %@"
+            "value" : "Очки"
           }
         }
       }
@@ -3552,6 +3748,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Напишите что-нибудь как %@"
+          }
+        }
+      }
+    },
+    "Scanned code" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Naskenovaný kód"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Código escaneado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code scanné"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отсканированный код"
           }
         }
       }
@@ -4340,6 +4564,62 @@
         }
       }
     },
+    "This code belongs to another player." : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tento kód patří jinému hráči."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este código pertenece a otro jugador."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce code appartient à un autre joueur."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот код принадлежит другому игроку."
+          }
+        }
+      }
+    },
+    "This device" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toto zařízení"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este dispositivo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cet appareil"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это устройство"
+          }
+        }
+      }
+    },
     "This device's plays move to that player, and both devices play as one from now on." : {
       "localizations" : {
         "cs" : {
@@ -5095,34 +5375,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Отдалить"
-          }
-        }
-      }
-    },
-    "never" : {
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "nikdy"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "nunca"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "jamais"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "никогда"
           }
         }
       }
