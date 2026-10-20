@@ -514,6 +514,16 @@ it can, as the row it is looking at. Being under `/admin/` it takes the same
 Twitch login as everything else there: a bearer token the console and tempomat
 already hold.
 
+The same route also reads and writes the owner's two other marks on a player:
+`private_name`, a label for the console to show in place of the drawn name, and
+`starred`. A write sets only the fields its body carries. Both are private like
+the note, so a friend can read as "Phil" on the console while the board and the
+overlay still say whatever they drew. `/admin/board-marks?board=` (with the
+same optional `date` or `month`) returns every row of a board as
+`[label, private_name, starred]`, for relabelling a public board without
+handing out an id. The label is there so a caller can check it against the
+public row before trusting the position.
+
 One thing this does *not* buy outright: the round sets published before scoring
 moved server-side carried their coordinates in `rounds.json`, and that file is in
 this repo's git history. The current set is a later regeneration and most of it
@@ -633,8 +643,8 @@ The native iOS app lives in [`app/`](app/README.md), with its own build notes.
 from one fragment per PR, so every PR adds one:
 
 ```sh
-task changelog:add TYPE=new     # writes changelog.d/+<branch>-<hex>.new.md — open it and write the line
-task changelog:preview          # what the next release will say
+task changelog:add TYPE=new MSG="…"  # writes changelog.d/+<branch>-<hex>.new.md
+task changelog:preview                 # what the next release will say
 ```
 
 Types are `new`, `changed`, `fixed`, `behind` (behind the scenes) and `summary`

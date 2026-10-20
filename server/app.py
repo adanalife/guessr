@@ -128,6 +128,11 @@ ROUTES = [
         "POST",
         lambda r: admin_players.set_board_note(r.db, r.who, r.params, r.body),
     ),
+    (
+        "/admin/board-marks",
+        "GET",
+        lambda r: admin_players.board_marks(r.db, r.who, r.params),
+    ),
 ]
 
 # The clip route answers every method itself, 405 included.

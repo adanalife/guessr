@@ -431,7 +431,12 @@ tasks:
   # The About panel links to that file, so the entries are written for players;
   # towncrier.toml says what that means.
   changelog:add:
-    desc: 'Scaffold a changelog fragment (TYPE=new, optional SLUG=my-thing; the release numbers it). Types: new changed fixed behind summary'
+    desc: 'Write a changelog fragment (MSG="the line", TYPE=new, optional SLUG=my-thing; the release numbers it). Types: new changed fixed behind summary'
+    # The message is required so the fragment is written whole: without it,
+    # towncrier opens $EDITOR (a hang in a non-interactive shell) or writes its
+    # "Add your info here" placeholder.
+    requires:
+      vars: [MSG]
     vars:
       TYPE: '{{.TYPE | default "new"}}'
       # The branch is the fallback slug because it is unique per PR. Defaulting
@@ -445,8 +450,12 @@ tasks:
       SUFFIX:
         sh: openssl rand -hex 2
       NAME: '+{{.SLUG | default .BRANCH}}-{{.SUFFIX}}'
+    # Through the environment rather than templated into the command, so
+    # quotes and backticks in the message reach towncrier as written.
+    env:
+      MSG: '{{.MSG}}'
     cmds:
-      - uvx towncrier create --config towncrier.toml {{.NAME}}.{{.TYPE}}.md
+      - uvx towncrier create --config towncrier.toml --content "$MSG" {{.NAME}}.{{.TYPE}}.md
 
   changelog:preview:
     desc: Preview the pending changelog from the current fragments (towncrier draft)

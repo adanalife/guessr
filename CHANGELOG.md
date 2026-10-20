@@ -4,6 +4,22 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.34.0 — 2026-10-16
+
+### New
+
+- The owner-only board-row admin route also reads and writes a private name and a star for a player, and `/admin/board-marks` returns them for every row of a board, so the console can show its own label for a player without publishing it. ([#451](https://github.com/adanalife/guessr/pull/451))
+
+### Behind the scenes
+
+- `task changelog:add` takes the entry as a required `MSG="…"` and writes the fragment whole, rather than opening an editor or leaving towncrier's placeholder to fill in. ([#448](https://github.com/adanalife/guessr/pull/448))
+
+## v1.33.0 — 2026-10-15
+
+### Changed
+
+- Rounds draw only from clips someone has reviewed: a season-2 clip that finished the pipeline unreviewed stays out of the game until it is ruled on. ([#449](https://github.com/adanalife/guessr/pull/449))
+
 ## v1.32.0 — 2026-10-15
 
 ### Changed

@@ -172,6 +172,7 @@ ADMIN = [
     ("POST", "/admin/players"),
     ("GET", f"/admin/board-note?board=daily&date={FIRST}&rank=1"),
     ("POST", f"/admin/board-note?board=daily&date={FIRST}&rank=1"),
+    ("GET", f"/admin/board-marks?board=daily&date={FIRST}"),
 ]
 
 
@@ -748,6 +749,8 @@ def notes():
         "name": "Amber Basin",
         "handle": "Amber Basin",
         "note": None,
+        "private_name": None,
+        "starred": False,
     }, r.json
     assert r.header("cache-control") == "no-store"
     assert (
@@ -766,6 +769,14 @@ def notes():
         by_id[top]
     )
     error(post("a board note that is not a string is refused", 400, q, {"note": 5}))
+    post("a board row's name saves", 200, q, {"private_name": "Phil", "starred": True})
+    marks = get(
+        "the board's marks read",
+        200,
+        f"/admin/board-marks?board=daily&date={FIRST}",
+    )
+    assert marks.json["rows"][0] == ["Amber Basin", "Phil", True], marks.json
+    assert marks.header("cache-control") == "no-store"
     error(
         get(
             "a board note at an empty rank is 404",
