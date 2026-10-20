@@ -4,6 +4,18 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.36.0 — 2026-10-20
+
+### New
+
+- Before linking two devices, the preview can report each player's days played, last play date, and how many duplicate rounds the merge would drop, including for links opened from a QR code. ([#464](https://github.com/adanalife/guessr/pull/464))
+- The App Clip offers the full app in an App Store banner once the day's rounds are finished. ([#465](https://github.com/adanalife/guessr/pull/465))
+- Scanning the website's link-a-device QR code in the app compares both players' points, days played and last play before joining, and says so when the code is this device's own player. ([#466](https://github.com/adanalife/guessr/pull/466))
+
+### Fixed
+
+- Reinstalling the app after playing in the App Clip keeps the plays made in the clip, moving them onto the player the app already had. ([#466](https://github.com/adanalife/guessr/pull/466))
+
 ## v1.35.1 — 2026-10-20
 
 ### New
