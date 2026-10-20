@@ -155,6 +155,22 @@ public struct GroupPlayerStore: PlayerStore {
     public func save(_ player: Player) {
         UserDefaults(suiteName: suite)?.set(try? JSONEncoder().encode(player), forKey: key)
     }
+
+    public func clear() {
+        UserDefaults(suiteName: suite)?.removeObject(forKey: key)
+    }
+}
+
+extension PlayerStore {
+    /// The player this store holds when it isn't `kept`: the App Clip's, left
+    /// behind when the full app already had a player of its own (iOS keeps
+    /// the Keychain across a delete, so a reinstall finds the old one). Its
+    /// plays are what the full app folds onto `kept`. Nil when the store is
+    /// empty or holds `kept` itself, as it does after a first launch adopts it.
+    public func handedOver(besides kept: Player) -> Player? {
+        guard let held = load(), held.id != kept.id else { return nil }
+        return held
+    }
 }
 
 /// One round as this device played it, kept so a relaunch resumes the day.

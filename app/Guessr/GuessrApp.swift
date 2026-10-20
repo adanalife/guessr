@@ -11,6 +11,9 @@ struct GuessrApp: App {
     /// the code joined; every change goes back to the Keychain.
     @State private var player = KeychainPlayerStore().current(orAdopt: GroupPlayerStore().load())
     @State private var tab = GuessrApp.firstTab
+    /// Bumped when the App Clip's plays land on this player, so Play loads
+    /// the day again with any rounds the clip played today.
+    @State private var clipFolds = 0
     /// A link-a-device QR code scanned into the app, held while it asks.
     @State private var link: DeviceLink?
     /// What joining `link` would do, when the server could say.
@@ -43,6 +46,7 @@ struct GuessrApp: App {
                             // waits on.
                             if score.recorded { Task { await gameCenter.sync(player, with: client) } }
                         }
+                        .id(clipFolds)
                         .viewingAsBanner()
                     }
                 }
@@ -67,6 +71,7 @@ struct GuessrApp: App {
             .environment(account)
             .environment(gameCenter)
             .task { gameCenter.start { await gameCenter.sync(player, with: client) } }
+            .task { await foldInClip() }
             // A "View as" that drops the boards, or a `-tab` launch naming a
             // hidden tab, lands on Play rather than on a tab that isn't there.
             .onChange(of: account.seesBoards, initial: true) { _, sees in
@@ -148,6 +153,22 @@ struct GuessrApp: App {
         } catch {
             Telemetry.requestFailed("link", error: error)
             linkFailed = true
+        }
+    }
+
+    /// Moves the App Clip's plays onto this device's player when the Keychain
+    /// already held one, the merge a link runs, keeping this player's id and
+    /// alias. The clip's player leaves the app group only once the merge has
+    /// run, so a failure is retried on the next launch.
+    private func foldInClip() async {
+        let group = GroupPlayerStore()
+        guard let clip = group.handedOver(besides: player) else { return }
+        do {
+            let moved = try await client.link(DeviceLink(id: player.id), from: clip)
+            group.clear()
+            if moved > 0 { clipFolds += 1 }
+        } catch {
+            Telemetry.requestFailed("clip-link", error: error)
         }
     }
 
