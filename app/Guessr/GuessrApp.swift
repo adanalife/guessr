@@ -290,8 +290,9 @@ final class Account {
         chat?.session = fresh
     }
 
-    /// Refreshes a login close to expiry. A refused refresh means the login is
-    /// gone, so it is dropped rather than retried.
+    /// Refreshes a login close to expiry, or takes up the one the Siri guess
+    /// already refreshed. A refused refresh means the login is gone, so it is
+    /// dropped rather than retried.
     ///
     /// One exchange at a time, shared by every caller: a launch onto the Chat
     /// tab asks twice at once (the root's mod check and the tab's chat), and
@@ -303,13 +304,11 @@ final class Account {
         guard let old = session, old.expiresSoon else { return }
         let exchange = Task {
             defer { refreshing = nil }
-            do {
-                let fresh = try await auth.refresh(old)
-                // A sign-out, or another login, while the exchange ran wins.
-                if session?.refreshToken == old.refreshToken { adopt(fresh) }
-            } catch is TwitchAuthError {
-                if session?.refreshToken == old.refreshToken { signOut() }
-            } catch {}
+            let renewed: TwitchSession?
+            do { renewed = try await auth.renew(old, keptIn: store) } catch { return }  // a transport failure retries next time
+            // A sign-out, or another login, while the exchange ran wins.
+            guard session?.refreshToken == old.refreshToken else { return }
+            if let renewed { adopt(renewed) } else { signOut() }
         }
         refreshing = exchange
         await exchange.value

@@ -240,6 +240,26 @@ public struct TwitchAuth: Sendable {
         return fresh
     }
 
+    /// Renews `old` and keeps the result in `store`; nil once the login is gone,
+    /// with the store cleared. Other processes renew from the same store — the
+    /// Siri guess does — and a refresh token works once, so a token another one
+    /// already spent comes back as what it saved rather than as a sign-out.
+    public func renew(_ old: TwitchSession, keptIn store: any SessionStore) async throws -> TwitchSession? {
+        func renewedElsewhere() -> TwitchSession? {
+            store.load().flatMap { $0.refreshToken == old.refreshToken ? nil : $0 }
+        }
+        if let kept = renewedElsewhere() { return kept }
+        do {
+            let fresh = try await refresh(old)
+            store.save(fresh)
+            return fresh
+        } catch is TwitchAuthError {
+            if let kept = renewedElsewhere() { return kept }
+            store.clear()
+            return nil
+        }
+    }
+
     private struct TokenResponse: Decodable {
         var accessToken: String
         var refreshToken: String
