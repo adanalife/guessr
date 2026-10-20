@@ -1,5 +1,6 @@
 import Foundation
 import GuessrKit
+import Synchronization
 import Testing
 
 #if canImport(FoundationNetworking)
@@ -288,4 +289,60 @@ struct TwitchRefusals {
         auth = RefusingTwitch.auth(status: 400, body: #"{"status":400,"message":"Invalid refresh token"}"#)
         await #expect(throws: TwitchAuthError.refused("Invalid refresh token")) { try await auth.refresh(old) }
     }
+
+    /// A grant whose validate names nobody is no login: chat subscribes and
+    /// the mod check both key on the user id.
+    @Test func aLoginTwitchNeverNamesIsRefused() async throws {
+        let auth = RefusingTwitch.auth(
+            status: 200,
+            body: #"{"access_token":"acc","refresh_token":"ref","expires_in":14400,"token_type":"bearer"}"#,
+            login: "", userID: "")
+        await #expect(throws: TwitchAuthError.refused("validate named nobody")) { try await auth.poll(pendingCode()) }
+    }
+
+    /// The app and the Siri guess renew from one Keychain item, and Twitch
+    /// spends a refresh token on first use: the loser of that race is refused,
+    /// and must take up the winner's login rather than delete it.
+    @Test func renewingTakesUpALoginAnotherProcessRenewedInsteadOfSigningOut() async throws {
+        let old = TwitchSession(
+            accessToken: "stale", refreshToken: "r1", expiresAt: .now.addingTimeInterval(60), login: "kate", userID: "555")
+        let theirs = TwitchSession(
+            accessToken: "acc9", refreshToken: "r9", expiresAt: .now.addingTimeInterval(14400), login: "kate",
+            userID: "555")
+        let refused = RefusingTwitch.auth(status: 400, body: #"{"status":400,"message":"Invalid refresh token"}"#)
+
+        // Renewed elsewhere while this exchange was in flight.
+        let racing = RacedStore(before: old, after: theirs)
+        #expect(try await refused.renew(old, keptIn: racing) == theirs)
+        #expect(racing.load() == theirs)
+
+        // Renewed elsewhere before this one asked: Twitch is never asked.
+        #expect(try await refused.renew(old, keptIn: MemorySessionStore(theirs)) == theirs)
+
+        // Refused with nobody else holding a newer one: the login is gone.
+        let gone = MemorySessionStore(old)
+        #expect(try await refused.renew(old, keptIn: gone) == nil)
+        #expect(gone.load() == nil)
+
+        // Granted: the new pair is kept.
+        let granted = RefusingTwitch.auth(
+            status: 200,
+            body: #"{"access_token":"acc2","refresh_token":"r2","expires_in":14400,"token_type":"bearer"}"#)
+        let kept = MemorySessionStore(old)
+        #expect(try await granted.renew(old, keptIn: kept)?.refreshToken == "r2")
+        #expect(kept.load()?.refreshToken == "r2")
+    }
+}
+
+/// A store another process writes to between its first read and its second.
+final class RacedStore: SessionStore {
+    private let reads = Mutex(0)
+    private let before: TwitchSession
+    private let after: TwitchSession
+
+    init(before: TwitchSession, after: TwitchSession) { (self.before, self.after) = (before, after) }
+
+    func load() -> TwitchSession? { reads.withLock { $0 += 1; return $0 == 1 ? before : after } }
+    func save(_ session: TwitchSession) {}
+    func clear() { Issue.record("cleared a login another process had just renewed") }
 }

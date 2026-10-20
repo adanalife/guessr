@@ -213,7 +213,12 @@ public struct TwitchAuth: Sendable {
             } catch is URLError {
                 continue
             }
-            if status(response) == 200 { return try await session(from: data) }
+            if status(response) == 200 {
+                let fresh = try await session(from: data)
+                // Nothing can chat or moderate as a login Twitch never named.
+                guard !fresh.userID.isEmpty else { throw TwitchAuthError.refused("validate named nobody") }
+                return fresh
+            }
             let why = message(data)
             if why == "authorization_pending" || why == "slow_down" { continue }
             throw TwitchAuthError.refused(why)
@@ -233,6 +238,26 @@ public struct TwitchAuth: Sendable {
         if fresh.userID.isEmpty { fresh.userID = old.userID }
         if fresh.scopes == nil { fresh.scopes = old.scopes }
         return fresh
+    }
+
+    /// Renews `old` and keeps the result in `store`; nil once the login is gone,
+    /// with the store cleared. Other processes renew from the same store — the
+    /// Siri guess does — and a refresh token works once, so a token another one
+    /// already spent comes back as what it saved rather than as a sign-out.
+    public func renew(_ old: TwitchSession, keptIn store: any SessionStore) async throws -> TwitchSession? {
+        func renewedElsewhere() -> TwitchSession? {
+            store.load().flatMap { $0.refreshToken == old.refreshToken ? nil : $0 }
+        }
+        if let kept = renewedElsewhere() { return kept }
+        do {
+            let fresh = try await refresh(old)
+            store.save(fresh)
+            return fresh
+        } catch is TwitchAuthError {
+            if let kept = renewedElsewhere() { return kept }
+            store.clear()
+            return nil
+        }
     }
 
     private struct TokenResponse: Decodable {
