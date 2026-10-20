@@ -4,6 +4,22 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.35.1 — 2026-10-20
+
+### New
+
+- `task asc:listing` prints What's New in full before writing it, and warns when a version after the first has none. ([#459](https://github.com/adanalife/guessr/pull/459))
+
+### Changed
+
+- The App Store build leaves out the Watch tab, which stays in Debug builds until it goes through review on its own. ([#460](https://github.com/adanalife/guessr/pull/460))
+
+### Fixed
+
+- `task asc:listing` creates the next App Store version after a release instead of stopping at the locked app info, and refuses a version that is already on the store. ([#459](https://github.com/adanalife/guessr/pull/459))
+- The app's privacy manifest declares the gameplay steps it reports to Sentry as Product Interaction, not linked to the player. ([#461](https://github.com/adanalife/guessr/pull/461))
+- `task ios:dsyms` retries the Sentry upload a few times, two minutes apart, when Sentry's API is unavailable. ([#462](https://github.com/adanalife/guessr/pull/462))
+
 ## v1.35.0 — 2026-10-20
 
 ### Behind the scenes
