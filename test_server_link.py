@@ -190,8 +190,19 @@ async def test_preview() -> None:
     assert await preview(db, {"code": issued["code"].lower(), "from": PHONE}) == (
         200,
         {
-            "to": {"name": "Patient Delta", "points": 350},
-            "from": {"name": "anonymous", "points": 100},
+            "to": {
+                "name": "Patient Delta",
+                "points": 350,
+                "days": 1,
+                "last": "2026-08-02",
+            },
+            "from": {
+                "name": "anonymous",
+                "points": 100,
+                "days": 1,
+                "last": "2026-08-02",
+            },
+            "overlap": 0,
         },
     )
     assert await codes(db) == 1, "a preview consumed the code"
@@ -200,15 +211,87 @@ async def test_preview() -> None:
     assert await preview(db, {"code": issued["code"], "from": "nobody"}) == (
         200,
         {
-            "to": {"name": "Patient Delta", "points": 350},
-            "from": {"name": "anonymous", "points": 0},
+            "to": {
+                "name": "Patient Delta",
+                "points": 350,
+                "days": 1,
+                "last": "2026-08-02",
+            },
+            "from": {"name": "anonymous", "points": 0, "days": 0, "last": None},
+            "overlap": 0,
         },
     ), "a device with no plays has no standing"
     assert (await claim(db, {"code": issued["code"], "from": PHONE}))[0] == 200
 
 
+async def test_preview_by_id() -> None:
+    """Both ids instead of a code, and the overlap a merge would drop."""
+    # PHONE and DESKTOP both answered a.jpg on 08-02, so that play is the one
+    # the merge would drop. PHONE's b.jpg on 08-02 and its a.jpg on 08-03 are
+    # different (date, image) pairs and would move.
+    db = await plays(
+        [(PHONE, "a.jpg", 100), (PHONE, "b.jpg", 200), (DESKTOP, "a.jpg", 10)]
+    )
+    await db.execute(
+        "INSERT INTO plays (date, player_id, image, km, points) VALUES ('2026-08-03', ?, 'a.jpg', 1.0, 5)",
+        PHONE,
+    )
+    merge = {"to": DESKTOP, "from": PHONE}
+    assert await preview(db, merge) == (
+        200,
+        {
+            "to": {"name": "anonymous", "points": 10, "days": 1, "last": "2026-08-02"},
+            "from": {
+                "name": "anonymous",
+                "points": 305,
+                "days": 2,
+                "last": "2026-08-03",
+            },
+            "overlap": 1,
+        },
+    )
+    # The count is exactly what the merge then drops.
+    _, issued = await issue_code(db, {"player_id": DESKTOP})
+    assert (await preview(db, {"code": issued["code"], "from": PHONE}))[1][
+        "overlap"
+    ] == 1
+    assert await link(db, merge) == (200, {"moved": 2})
+    assert len(await owned(db, DESKTOP)) == 3, "overlap disagreed with the merge"
+
+    db = await plays([(PHONE, "a.jpg", 100)])
+    same = await preview(db, {"to": PHONE, "from": PHONE})
+    standing = {"name": "anonymous", "points": 100, "days": 1, "last": "2026-08-02"}
+    assert same == (200, {"to": standing, "from": standing, "overlap": 0}), same
+    assert await preview(db, {"to": STRANGER, "from": PHONE}) == (
+        200,
+        {
+            "to": {"name": "anonymous", "points": 0, "days": 0, "last": None},
+            "from": standing,
+            "overlap": 0,
+        },
+    ), "a player with no plays has no standing"
+    assert len(await owned(db, PHONE)) == 1, "a preview merged"
+
+    for bad in (
+        {"to": DESKTOP},
+        {"to": "", "from": PHONE},
+        {"to": DESKTOP, "from": 1},
+        {"to": "x" * 65, "from": PHONE},
+        {"to": None, "from": PHONE},
+    ):
+        assert await preview(db, bad) == (
+            400,
+            {"error": "expected {code, from} or {to, from}"},
+        ), bad
+    assert await preview(db, {"from": PHONE}) == (
+        400,
+        {"error": "expected {code, from}"},
+    )
+
+
 asyncio.run(test_link())
 asyncio.run(test_preview())
+asyncio.run(test_preview_by_id())
 asyncio.run(test_batch_is_one_transaction())
 asyncio.run(test_link_codes())
 print("ok: the Python /api/link and link codes match the contract the .mjs tests hold")

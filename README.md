@@ -415,8 +415,12 @@ shows it beside the QR code. `POST /api/link/claim {code, from}` takes the code
 (single-use: it is deleted as it is read), runs the same merge with `from` as
 the mover, and answers `{player_id, moved}` — the id the claiming device plays as
 from then on. `POST /api/link/preview {code, from}` is the same lookup without
-the merge — `{to: {name, points}, from: {name, points}}`, all-time — so a device
-can say whose player it is about to become before it claims. This is the one
+the merge — `{to: {name, points, days, last}, from: {…}, overlap}`, all-time,
+where `days` counts distinct dates played, `last` is the latest (or `null`), and
+`overlap` is how many of `from`'s plays the merge would drop because `to`
+already answered that round — so a device can say whose player it is about to
+become before it claims. `{to, from}` in place of the code previews a direct
+link the same way. This is the one
 place a player id leaves the server, and only to the device holding a code its
 owner just drew. The `link_codes` table holds
 nothing else, and a row is gone once claimed or once the next issue or claim
