@@ -200,6 +200,15 @@ def shown(attrs: dict) -> str:
     )
 
 
+def in_full(attrs: dict) -> None:
+    """The release notes as the store page will show them, since `shown`
+    cuts every value to one short line and these are read before they ship."""
+    if attrs.get("whatsNew"):
+        print("  What's New, as it will read:")
+        for line in attrs["whatsNew"].splitlines():
+            print(f"    {line}")
+
+
 def editable(resources: list[dict]) -> dict | None:
     for r in resources:
         a = r["attributes"]
@@ -245,6 +254,7 @@ def main() -> int:
                     kind, {"locale": LOCALE, **want}, {rel: (parent_kind, parent_id)}
                 ),
             )
+            in_full(want)
             return
         loc = have[LOCALE]
         diff = differences(want, loc["attributes"])
@@ -253,6 +263,7 @@ def main() -> int:
                 f"set {kind[:-1]} {shown(diff)}",
                 lambda: asc.patch(kind, loc["id"], diff),
             )
+            in_full(diff)
 
     # --- the app: name, subtitle, privacy policy, category -------------------
     # Once a version is live its app info is read-only, and App Store Connect
@@ -347,6 +358,12 @@ def main() -> int:
     print(
         f"version {vattrs['versionString']} is {state}, release {vattrs.get('releaseType')}"
     )
+    if not listing.get("whats_new", "").strip() and any(
+        v["id"] != vid for v in versions
+    ):
+        print(
+            "whats_new is empty in app/store.toml: every version after the first needs release notes before Add for Review"
+        )
     vdiff = {}
     if vattrs["versionString"] != version_string:
         vdiff["versionString"] = version_string
