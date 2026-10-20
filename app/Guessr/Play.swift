@@ -449,6 +449,8 @@ struct JoinView: View {
     private func join() async -> Bool {
         do {
             let claim = try await client.claimLink(code: code, from: player)
+            // Today's rounds are the joined player's now, as the server holds them.
+            Saved.progress = nil
             player = Player(id: claim.playerId, alias: player.alias)
             joined = true
         } catch {
