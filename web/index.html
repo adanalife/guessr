@@ -515,22 +515,32 @@ const PLAYER_KEY = 'guessr-player';
 // cannot disturb the identity a board is keyed on.
 const ALIAS_KEY = 'guessr-alias';
 
+// randomUUID exists only in a secure context, and a phone on the tailnet loads
+// the page over plain http; getRandomValues exists everywhere.
+const mintId = () => crypto.randomUUID?.()
+  ?? Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+
 function playerId() {
   try {
     let id = localStorage.getItem(PLAYER_KEY);
-    if (!id) { id = crypto.randomUUID(); localStorage.setItem(PLAYER_KEY, id); }
+    if (!id) { id = mintId(); localStorage.setItem(PLAYER_KEY, id); }
     return id;
   } catch {
-    // A private window can't keep an id, so it can't hold a place on the board.
-    // The round still plays and still scores; it just goes unrecorded.
+    // A browser that refuses storage can't keep an id, so it can't link or
+    // carry a place across visits.
     return null;
   }
 }
 
+// What a daily guess is recorded under when playerId() has nothing: an id for
+// this page's life. The server takes a dated guess only with an id, and an
+// undated one is practice, which refuses today's rounds -- so without this a
+// browser that refuses storage could not play the daily at all.
+const pageId = mintId();
+
 // The name this browser plays under, minted on first use and kept until it is
-// rerolled. Absent when localStorage refuses, which is the same case that
-// already means unrecorded — the play never reaches a board, so it needs no
-// name on it.
+// rerolled. Absent when localStorage refuses, and a name that could not
+// survive a reload is no name, so those plays place as anonymous.
 function alias(next = null) {
   try {
     if (next) localStorage.setItem(ALIAS_KEY, next);
@@ -554,7 +564,7 @@ function alias(next = null) {
 // `elapsedMs` is how long the round was on screen before the guess, stored with
 // a daily play for statistics and never shown back.
 async function scoreGuess(image, latlng, date, elapsedMs) {
-  const id = date && playerId();
+  const id = date && (playerId() ?? pageId);
   const res = await request('api/score', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
