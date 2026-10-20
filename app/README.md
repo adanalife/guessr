@@ -194,6 +194,38 @@ Submitting a version that reaches *Pending Developer Release* and releasing it
 by hand is the point of `release_type = "MANUAL"`: the server's
 `PRERELEASED` flag has to flip in the same minute (see Game Center above).
 
+### Submitting a new version
+
+1. **Pick the tag.** The store version is a release tag with a valid
+   TestFlight build (`./scripts/asc-builds.py` lists them). Play that build on
+   a phone, including whatever changed since the version on the store.
+2. **Check what is held out.** `TWITCH` and `WATCH` in `Guessr.xcconfig`
+   and the App Clip embed (App Clip above) keep features out of the App Store
+   build until each is reviewed on its own. Turning one on is its own PR,
+   merged before the tag is cut, along with any review notes or age-rating
+   answers it changes.
+3. **Write the version in `store.toml`.** Set `version` to the tag and write
+   `whats_new` for players: what they will notice, not the changelog.
+   `CHANGELOG.md` between the store version and the tag is the source, and
+   most of it (telemetry, server work, held-out features) stays out. Change
+   the description, review notes or age rating here too if the app's surface
+   changed. This goes through a PR, so the file stays what the store says.
+4. **Create the version.** `task asc:listing -- --apply` creates it. App
+   Store Connect only opens the app info for editing alongside a new version,
+   so this first run skips it.
+5. **Review, then apply.** `task asc:listing` plans everything else and
+   prints What's New in full. Read it as the store page will show it, edit
+   `store.toml` if it is wrong, then `task asc:listing -- --apply`, and again
+   until it reports nothing to do.
+6. **Screenshots**, if the screens changed: delete the set in the dashboard,
+   `task ios:screenshots`, apply again.
+7. **Dashboard.** Check the App Privacy labels still agree with
+   `PrivacyInfo.xcprivacy` (*published*, not only saved), then *Add for
+   Review*.
+8. **Release.** At *Pending Developer Release*, ship anything the server must
+   do first (prod deploys from the release tag), then *Release This Version*
+   and play a round on the store build.
+
 ## Build settings
 
 Two settings are empty in a public checkout, declared in `Guessr.xcconfig`:
