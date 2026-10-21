@@ -4,6 +4,13 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.38.0 — 2026-10-21
+
+### New
+
+- Linking a browser to another device shows both players side by side (name, points, days played, last played) before anything merges, on a typed code or a scanned link alike. ([#479](https://github.com/adanalife/guessr/pull/479))
+- The app has an external TestFlight group with a public link, and every release build is submitted to it for Beta App Review, so a tester no longer needs an App Store Connect account. ([#481](https://github.com/adanalife/guessr/pull/481))
+
 ## v1.37.0 — 2026-10-21
 
 ### Changed
