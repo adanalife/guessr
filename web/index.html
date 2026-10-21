@@ -122,17 +122,26 @@
   /* A native <dialog> for the intro: showModal() brings the backdrop, the
      focus trap and Escape-to-dismiss with it, and none of that is worth
      re-implementing for one panel. */
-  #welcome { border: 1px solid var(--color-border); border-radius: 10px;
+  #welcome, #linkask { border: 1px solid var(--color-border); border-radius: 10px;
              background: var(--color-panel);
              color: var(--color-text); font: inherit; padding: 1.5rem;
              width: min(28rem, calc(100vw - 2rem));
              box-shadow: 0 20px 50px rgba(0, 0, 0, .35); }
-  #welcome::backdrop { background: rgba(0, 0, 0, .7); }
+  #welcome::backdrop, #linkask::backdrop { background: rgba(0, 0, 0, .7); }
   /* Italic and unbolded, the way the blog sets a heading. */
-  #welcome h2 { margin: 0 0 .8rem; font-size: 1.4rem; font-style: italic;
+  #welcome h2, #linkask h2 { margin: 0 0 .8rem; font-size: 1.4rem; font-style: italic;
                 font-weight: 400; line-height: 1.15; }
-  #welcome p { margin: .5rem 0; }
+  #welcome p, #linkask p { margin: .5rem 0; }
   #welcome .actions { display: flex; gap: .6rem; margin-top: 1.1rem; }
+  #linkask table { width: 100%; border-collapse: collapse; margin: .8rem 0;
+                   font-variant-numeric: tabular-nums; }
+  #linkask th, #linkask td { text-align: left; padding: .3rem .6rem .3rem 0;
+                             vertical-align: baseline; overflow-wrap: anywhere; }
+  #linkask thead th { color: var(--color-muted); font-weight: 600;
+                      border-bottom: 1px solid var(--color-border); }
+  #linkask tbody th { color: var(--color-muted); font-weight: 400; }
+  #linkask .actions { display: flex; flex-direction: column; gap: .6rem; margin-top: 1rem; }
+  #linkmerge { color: var(--color-muted); font-size: .9em; text-align: center; }
   main { flex: 1; position: relative; display: grid;
          grid-template-columns: 1fr 1fr; min-height: 0; }
   /* touch-action: none so a pinch zooms the frame instead of the page. Leaflet
@@ -393,6 +402,21 @@
   <div class="actions">
     <button type="button" id="welcomeplay" autofocus data-i18n>Play</button>
     <button type="button" id="welcomemore" class="secondary" data-i18n>Learn more</button>
+  </div>
+</dialog>
+<!-- Who this browser would become, beside who it is now, before a link merges
+     them: a code or a link is something anyone can hand you. -->
+<dialog id="linkask">
+  <h2 data-i18n>Link this browser?</h2>
+  <p data-i18n>This code belongs to another player.</p>
+  <table>
+    <thead><tr><td></td><th scope="col" data-i18n>This browser</th><th scope="col" id="linkfrom"></th></tr></thead>
+    <tbody id="linkrows"></tbody>
+  </table>
+  <div class="actions">
+    <button type="button" id="linkyes"></button>
+    <p id="linkmerge"></p>
+    <button type="button" id="linkno" class="secondary" autofocus></button>
   </div>
 </dialog>
 <main>
@@ -1457,10 +1481,7 @@ el('claim').addEventListener('submit', async event => {
     : t('Could not link the devices just now. Try the code again.'));
   const peek = await post('api/link/preview');
   if (!peek?.ok) return refused(peek);
-  const { to, from: me } = await peek.json();
-  if (!window.confirm(t('This browser becomes {to} ({toPoints} points), replacing {me} ({mePoints} points). Its scores go with it. Both devices will play as one player from now on.', {
-    to: to.name, toPoints: to.points.toLocaleString(), me: me.name, mePoints: me.points.toLocaleString(),
-  }))) return;
+  if (!await askLink(await peek.json(), t('Entered code'))) return;
   const res = await post('api/link/claim');
   if (!res?.ok) return refused(res);
   localStorage.setItem(PLAYER_KEY, (await res.json()).player_id);
@@ -1468,6 +1489,44 @@ el('claim').addEventListener('submit', async event => {
   // for a player who no longer plays here.
   location.reload();
 });
+
+// Asks whether to merge, from a /api/link/preview answer: the two players side
+// by side, then a button for each. Resolves true only on the merge button;
+// Escape and the backdrop count as keeping things as they are.
+function askLink({ to, from: me }, heading) {
+  const lastText = last => last
+    ? new Date(`${last}T00:00:00Z`).toLocaleDateString(document.documentElement.lang, { dateStyle: 'medium', timeZone: 'UTC' })
+    : t('Never');
+  const rows = [
+    [t('Name'), me.name, to.name],
+    [t('Points'), me.points.toLocaleString(), to.points.toLocaleString()],
+    [t('Days played'), me.days.toLocaleString(), to.days.toLocaleString()],
+    [t('Last played'), lastText(me.last), lastText(to.last)],
+  ];
+  el('linkfrom').textContent = heading;
+  el('linkrows').replaceChildren(...rows.map(cells => {
+    const tr = document.createElement('tr');
+    cells.forEach((text, i) => {
+      const cell = document.createElement(i ? 'td' : 'th');
+      if (!i) cell.scope = 'row';
+      cell.textContent = text;
+      tr.append(cell);
+    });
+    return tr;
+  }));
+  el('linkyes').textContent = t('Play as {name}', { name: to.name });
+  el('linkno').textContent = t('Keep playing as {name}', { name: me.name });
+  el('linkmerge').textContent = me.days
+    ? t("This browser's scores will be merged with {name}. Both devices will play as one player from now on.", { name: to.name })
+    : t('Nothing has been played on this browser yet.');
+  const ask = el('linkask');
+  ask.returnValue = '';
+  ask.showModal();
+  return new Promise(resolve => ask.addEventListener('close', () => resolve(ask.returnValue === 'yes'), { once: true }));
+}
+el('linkyes').addEventListener('click', () => el('linkask').close('yes'));
+el('linkno').addEventListener('click', () => el('linkask').close());
+el('linkask').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
 // The other end: a browser that opens one of those links moves what it has
 // recorded onto that id, then plays as it from here on.
@@ -1491,8 +1550,18 @@ async function adoptLink() {
   // browser that drew it, which has nothing to do.
   if (!from || from === to) return;
 
-  if (!window.confirm(t("Add this browser's scores to {name}? Both devices will play as one player from now on.",
-    { name: isAlias(name) ? name : t('your other device') }))) return;
+  // The preview names both players from the server. If it can't answer, the
+  // name the link carries is still enough to ask with.
+  const peek = await request('api/link/preview', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ from, to }),
+  }).catch(() => null);
+  const ok = peek?.ok
+    ? await askLink(await peek.json(), t('Scanned code'))
+    : window.confirm(t("Add this browser's scores to {name}? Both devices will play as one player from now on.",
+      { name: isAlias(name) ? name : t('your other device') }));
+  if (!ok) return;
 
   try {
     const res = await request('api/link', {
