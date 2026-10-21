@@ -12,6 +12,7 @@ enum USState: String, AppEnum {
     case colorado = "Colorado"
     case connecticut = "Connecticut"
     case delaware = "Delaware"
+    case districtOfColumbia = "District of Columbia"
     case florida = "Florida"
     case georgia = "Georgia"
     case hawaii = "Hawaii"
@@ -65,6 +66,7 @@ enum USState: String, AppEnum {
         .colorado: "Colorado",
         .connecticut: "Connecticut",
         .delaware: "Delaware",
+        .districtOfColumbia: DisplayRepresentation(title: "District of Columbia", synonyms: ["DC", "Washington DC"]),
         .florida: "Florida",
         .georgia: "Georgia",
         .hawaii: "Hawaii",
@@ -125,6 +127,7 @@ enum USState: String, AppEnum {
         "CO": .colorado,
         "CT": .connecticut,
         "DE": .delaware,
+        "DC": .districtOfColumbia,
         "FL": .florida,
         "GA": .georgia,
         "HI": .hawaii,

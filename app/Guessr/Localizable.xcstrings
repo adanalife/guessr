@@ -1549,6 +1549,34 @@
         }
       }
     },
+    "District of Columbia" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distrikt Columbia"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distrito de Columbia"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "District de Columbia"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Округ Колумбия"
+          }
+        }
+      }
+    },
     "Done" : {
       "localizations" : {
         "cs" : {
