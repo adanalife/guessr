@@ -256,7 +256,7 @@ async def test_handler() -> None:
 
     # Up to two days a month the last closed date is the month before. Nobody
     # has played the new month, so the unnamed monthly board is still August's,
-    # labelled as such; the month named outright is served empty.
+    # labeled as such; the month named outright is served empty.
     early = dt.datetime(2026, 9, 1, 12, tzinfo=dt.UTC)
     status, body, _ = await leaderboard(d, {"board": "monthly"}, early)
     assert (body["period"], body["rows"]) == (MONTH, monthly_rows)

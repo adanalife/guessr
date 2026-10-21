@@ -2,9 +2,8 @@
 # file with --config, and ruff's own discovery never reaches it from the code.
 #
 # super-linter's bundled template sets no `select`, so the sweep lints with
-# whatever ruff's default rule set is. ruff 0.16 (bundled in super-linter v9)
-# widened that from 59 rules to 413 and dropped E402, which turned the sweep
-# red on rules this repo never adopted. This pins the pre-0.16 default.
+# whatever ruff's default rule set is. ruff 0.16+ (bundled in super-linter v9)
+# defaults to 413 rules without E402; this pins the pre-0.16 default.
 cache-dir = "/tmp/.ruff_cache"
 line-length = 120
 

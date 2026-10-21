@@ -1,7 +1,7 @@
 import SwiftUI
 
 extension View {
-    /// A list or form at a readable width, centred on the page, on regular width
+    /// A list or form at a readable width, centered on the page, on regular width
     /// only: an iPad row the full width of the screen strands a toggle far from
     /// its label. The large title moves over the column with it, so it doesn't
     /// float at the screen's edge. Goes inside `paper()`, so the page color still

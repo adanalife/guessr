@@ -1,7 +1,7 @@
 import Foundation
 
 /// How far a clip is zoomed into and where it has been panned to, in points
-/// off the frame's centre. The app's pinch and drag feed it; it is the web's
+/// off the frame's center. The app's pinch and drag feed it; it is the web's
 /// `zoom.js` for a picture that always fills its frame.
 public struct ClipZoom: Sendable, Equatable {
     public var scale = 1.0
@@ -16,7 +16,7 @@ public struct ClipZoom: Sendable, Equatable {
     }
 
     /// Scaled by `factor` about the point `(px, py)`, measured from the
-    /// frame's centre, so the spot under the fingers stays under them.
+    /// frame's center, so the spot under the fingers stays under them.
     /// `aspect` is the picture's shape when it is fitted inside a frame of
     /// another shape; nil means the picture is the frame. `elastic` is the
     /// gesture in progress: past a limit it resists rather than stopping, and

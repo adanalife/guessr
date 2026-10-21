@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """available() names what it drops. `python3 test_available.py`.
 
-A scored row whose clip isn't in the corpus directory used to vanish, so a
-pool could shrink -- a trip parked in another directory, a row the mount lacks
--- with the run reporting a smaller set and no reason. Now the missing slugs
-come back beside the kept rows.
+A scored row whose clip isn't in the corpus directory comes back as a missing
+slug beside the kept rows, so a pool that shrinks -- a trip parked in another
+directory, a row the mount lacks -- says why.
 """
 
 import tempfile

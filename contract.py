@@ -379,9 +379,7 @@ def score(images, first_images):
 
 def leaderboard():
     r = get("the daily board reads", 200, "/api/leaderboard?board=daily")
-    # The newest closed date anyone played, which the seed puts at FIRST; the
-    # legacy Pages runtime answers the newest closed date whether or not it has
-    # plays, so the band admits both.
+    # The newest closed date anyone played, which the seed puts at FIRST.
     assert str(FIRST) <= r.json["period"] <= str(LAST_CLOSED), r.json
     assert isinstance(r.json["rows"], list)
     assert (

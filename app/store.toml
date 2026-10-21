@@ -84,8 +84,8 @@ Pre-release builds of A Dana Life: Guessr, the daily dashcam geography game. The
 # The age-rating declaration, attribute for attribute as App Store Connect
 # names them (`task asc:listing` prints the current one). Content questions
 # take NONE, INFREQUENT_OR_MILD or FREQUENT_OR_INTENSE; the rest are yes/no.
-# messagingAndChat and userGeneratedContent turn true with the Chat tab, which
-# the App Store build leaves out (see TWITCH in Guessr.xcconfig).
+# messagingAndChat and userGeneratedContent turn true with the Watch tab's chat,
+# which the App Store build leaves out (see TWITCH and WATCH in Guessr.xcconfig).
 [age_rating]
 advertising = false
 ageAssurance = false

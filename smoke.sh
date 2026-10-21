@@ -181,10 +181,10 @@ check() { # name, expected status, actual status, body
 #
 # Retried on a wrong status, which the other waits in this script never do, because
 # of what the version pin cannot see. version.json is a static asset and the
-# handlers are Functions, and one deployment's two halves become visible a few
-# seconds apart, so a smoke can match the marker and still reach the previous
-# build's handlers. Six tries 5 s apart outlast that cutover (measured near 47 s), and a behavior
-# that is really wrong still goes red, just ~25 s later, with each retry logged.
+# handlers are the Worker behind the API binding, and the two become visible a
+# few seconds apart, so a smoke can match the marker and still reach the
+# previous build's handlers. Six tries 5 s apart outlast that cutover, and a
+# behavior that is really wrong still goes red, just ~25 s later, with each retry logged.
 expect() {
   local name=$1 want=$2 attempt
   shift 2

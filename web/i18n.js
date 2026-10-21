@@ -10,9 +10,9 @@
 // that vary. test_i18n.mjs checks that every key on the page and in the script
 // has a row in every table.
 //
-// The language is the browser's, by the two-letter prefix of the first entry
-// in navigator.languages that a table exists for. `?lang=fr` overrides it, so a
-// translation can be checked without changing the browser.
+// The language is `?lang=` when it names a table, else the About panel's saved
+// choice, else the first browser language a table exists for (by two-letter
+// prefix). `?lang=fr` lets a translation be checked without changing the browser.
 //
 // A module, like the rest of the page's script, so it is deferred and the
 // English paints first for a moment on a translated page. ponytail: an inline

@@ -4,7 +4,7 @@
 #
 # The media could never be committed anyway — a set is ~125 MB of mp4 and this
 # repo is public, so it would land in history on every regeneration, permanently
-# and irreversibly. `task clips:push` sends it to the bucket, and the Worker's
+# and irreversibly. `task clips:push` sends it to the bucket, and the Pages
 # /clips/ route streams it back out at request time.
 #
 # A generation in progress belongs nowhere either: make_rounds.py builds into
