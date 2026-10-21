@@ -57,6 +57,26 @@ between them, puts the last archive through the App Store export checks
 without uploading it; `task ios:verify` asks App Store Connect
 whether the newest tag has an installable build.
 
+### Testers
+
+Two groups. The internal *Friends & Family* group is for App Store Connect team
+members: it gets every build at once, with no review. Everyone else goes in
+the external group, `Testers`. External testers never join the team. TestFlight
+emails them once, or they open the public link, and then they install. Each
+build is seen by Beta App Review before they get it, which usually takes
+minutes once a version has passed it once.
+
+`task ios:release` ends by running `task ios:beta:ship`, which adds the tag's
+build to `Testers`, points its *What to Test* at the GitHub release, and
+submits it for Beta App Review. The group, its public link (capped at
+`public_link_limit`), the description testers read and the beta review contact
+come from the `[beta]` table in `store.toml`. `task ios:beta:setup` plans them,
+and `-- --apply` writes them. It also prints the public link, which exists once
+a build has passed review. To invite somebody by email, queue them for guessr
+from tempomat's invite screen, or run tempomat's
+`task ios:invite APP=guessr NAME=… EMAIL=…`. Either way they are added to
+`Testers` in a single step.
+
 ## Universal links
 
 The website's *Link a device* QR code (`web/link.js`) opens the app when it is

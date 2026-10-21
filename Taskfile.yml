@@ -685,6 +685,9 @@ tasks:
       # Apple takes 5-15 minutes to process an upload; this ends the release
       # with the verdict instead of a reminder to come back and check.
       - ./scripts/asc-builds.py --wait
+      # External testers get the build once Beta App Review passes it; a
+      # failure here is retried alone with `task ios:beta:ship`.
+      - task: ios:beta:ship
       # Last, so a missing token can't hold up the build Apple already has;
       # a failure here is retried alone with `task ios:dsyms`.
       - task: ios:dsyms
@@ -724,6 +727,16 @@ tasks:
     desc: Ask App Store Connect whether the newest release tag has an installable build (-- --wait polls until it does)
     cmds:
       - ./scripts/asc-builds.py {{.CLI_ARGS}}
+
+  ios:beta:setup:
+    desc: Write app/store.toml's [beta] table into App Store Connect -- the external group, its public link, the beta description and review contact (-- --apply to write; plans by default)
+    cmds:
+      - ./scripts/asc-beta.py setup {{.CLI_ARGS}}
+
+  ios:beta:ship:
+    desc: Add the newest release tag's build to the external TestFlight group and submit it for Beta App Review
+    cmds:
+      - ./scripts/asc-beta.py ship
 
   ios:screenshots:
     desc: Build for the simulator and screenshot the store's screens on an iPhone and an iPad into app/.build/screenshots

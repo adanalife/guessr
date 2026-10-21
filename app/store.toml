@@ -68,6 +68,19 @@ REGIONS: the app works the same in every region. Everyone gets the same five dai
 CONTENT: all video is the developer's own footage, and the app is not in a regulated industry.
 """
 
+# External TestFlight testing: `task ios:beta:setup` reads App Store Connect
+# back and plans the difference; `-- --apply` writes it. The review contact is
+# the [review] table's. `feedback_email`, if set (store.local.toml is the place),
+# replaces the review contact email as the address testers send feedback to.
+[beta]
+# The external group. Testers in it get every build that passes Beta App Review.
+group = "Testers"
+# How many people the public link admits before it stops working.
+public_link_limit = 100
+description = """
+Pre-release builds of A Dana Life: Guessr, the daily dashcam geography game. The rounds and the leaderboard are the real ones, so a day played here counts. Use the TestFlight app's Send Beta Feedback (or take a screenshot) to report anything that looks wrong.
+"""
+
 # The age-rating declaration, attribute for attribute as App Store Connect
 # names them (`task asc:listing` prints the current one). Content questions
 # take NONE, INFREQUENT_OR_MILD or FREQUENT_OR_INTENSE; the rest are yes/no.
