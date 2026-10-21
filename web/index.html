@@ -360,7 +360,7 @@
       <div id="qrwrap" hidden>
         <!-- biome-ignore lint/a11y/useValidAnchor: href is the player link, set when the code is drawn -->
         <!-- biome-ignore lint/a11y/useAnchorContent: the code and its label are set at the same moment -->
-        <p><a id="qrlink"><span id="qr"></span></a></p>
+        <p id="qrline"><a id="qrlink"><span id="qr"></span></a></p>
         <!-- The same link for a device that cannot scan its way in: a Home
              Screen install keeps its own storage and the app has no browser to
              open a link in, so both take a code typed by hand instead. -->
@@ -1424,6 +1424,15 @@ el('link').addEventListener('click', () => {
   const wrap = el('qrwrap');
   wrap.hidden = !wrap.hidden;
   if (wrap.hidden) return;
+  // First, so the typed code still arrives when the QR below cannot be drawn.
+  showCode();
+
+  // The QR library comes from unpkg, so a blocked or failed fetch leaves no
+  // qrcode() to call. Hidden rather than left as an empty box: the typed code
+  // and the form below it still link.
+  const drawn = typeof qrcode === 'function';
+  el('qrline').hidden = !drawn;
+  if (!drawn) return;
 
   // Drawn on each open rather than once: it encodes the current name, and a
   // reroll between two opens would otherwise show a code carrying the old one.
@@ -1440,7 +1449,6 @@ el('link').addEventListener('click', () => {
   const qrlink = el('qrlink');
   qrlink.href = url;
   qrlink.setAttribute('aria-label', t('Link a device to play as one player'));
-  showCode();
 });
 
 // A fresh code on every open, since each lasts ten minutes and asking again
