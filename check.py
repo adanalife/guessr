@@ -58,6 +58,12 @@ LAT_RANGE, LNG_RANGE = (24.0, 49.5), (-125.0, -66.0)
 CLIP_NAME = re.compile(r"^clips/(.+)-(\d{6,})\.mp4$")
 
 
+def require(ok: object, why: str) -> None:
+    """Fail the check. An `assert` would do, except `python -O` strips them."""
+    if not ok:
+        raise AssertionError(why)
+
+
 def beside(web: Path, name: str, required: bool = True) -> Path | None:
     """Find a round set's JSON beside clips/, or one level up from it.
 
@@ -109,9 +115,12 @@ def dimensions(path: Path) -> tuple[int, int]:
         text=True,
     )
     streams = proc.stdout.split()
-    assert len(streams) == 1, (
-        f"expected one video stream, found {len(streams)}: {path}"
-        + (f" -- {proc.stderr.strip()}" if proc.stderr.strip() else "")
+    require(
+        len(streams) == 1,
+        (
+            f"expected one video stream, found {len(streams)}: {path}"
+            + (f" -- {proc.stderr.strip()}" if proc.stderr.strip() else "")
+        ),
     )
     width, height = (int(n) for n in streams[0].split(","))
     return width, height
@@ -157,9 +166,10 @@ def clustering(answers: list[dict]) -> tuple[int, str, float]:
 def main() -> int:
     web = Path(sys.argv[1]) if len(sys.argv) > 1 else WEB
     rounds = json.loads(beside(web, "rounds.json").read_text())
-    assert rounds, "rounds.json is empty"
-    assert len(rounds) >= ROUNDS_PER_GAME, (
-        f"only {len(rounds)} rounds; a daily game needs {ROUNDS_PER_GAME}"
+    require(rounds, "rounds.json is empty")
+    require(
+        len(rounds) >= ROUNDS_PER_GAME,
+        f"only {len(rounds)} rounds; a daily game needs {ROUNDS_PER_GAME}",
     )
 
     answers_file = beside(web, "answers.json", required=False)
@@ -178,30 +188,38 @@ def main() -> int:
     seen = set()
     for r in rounds:
         clip = web / r["image"]
-        assert r["image"] == f"clips/{Path(r['image']).name}", (
-            f"round is not under clips/: {r['image']}"
+        require(
+            r["image"] == f"clips/{Path(r['image']).name}",
+            f"round is not under clips/: {r['image']}",
         )
         # The name has to carry the moment, not just the clip. Re-cutting a lost
         # clip reads it, and a long immutable cache header is only safe while a
         # regeneration cannot put different footage behind a name someone already
         # holds. Unconditional: every set this validates was built by the current
         # make_rounds.py, since no set is inherited from git.
-        assert CLIP_NAME.match(r["image"]), (
-            f"{r['image']} does not name the moment it was cut from -- a round is "
-            f"clips/<slug>-<milliseconds>.mp4, so a rebuild lands at the same URL"
+        require(
+            CLIP_NAME.match(r["image"]),
+            (
+                f"{r['image']} does not name the moment it was cut from -- a round is "
+                f"clips/<slug>-<milliseconds>.mp4, so a rebuild lands at the same URL"
+            ),
         )
-        assert r["image"] not in seen, f"duplicate round: {r['image']}"
+        require(r["image"] not in seen, f"duplicate round: {r['image']}")
         seen.add(r["image"])
 
         if media:
-            assert clip.exists() and clip.stat().st_size > 0, (
-                f"missing clip: {r['image']}"
+            require(
+                clip.exists() and clip.stat().st_size > 0,
+                f"missing clip: {r['image']}",
             )
             w, h = dimensions(clip)
             aspect = w / h
-            assert aspect > UNCROPPED_ASPECT + 0.05, (
-                f"{r['image']} is {w}x{h} (aspect {aspect:.3f}) -- the HUD crop did "
-                f"not apply, so the coordinates are still burned into the clip"
+            require(
+                aspect > UNCROPPED_ASPECT + 0.05,
+                (
+                    f"{r['image']} is {w}x{h} (aspect {aspect:.3f}) -- the HUD crop did "
+                    f"not apply, so the coordinates are still burned into the clip"
+                ),
             )
 
         # These fields become the `rounds` table, and /api/day hands a browser a
@@ -209,46 +227,56 @@ def main() -> int:
         # guess -- so this is where the round/answer split gets enforced on the
         # way in.
         leaked = {"lat", "lng", "state", "filmed"} & r.keys()
-        assert not leaked, (
-            f"{r['image']}: a round is served to the player -- it must not carry "
-            f"{sorted(leaked)}"
+        require(
+            not leaked,
+            (
+                f"{r['image']}: a round is served to the player -- it must not carry "
+                f"{sorted(leaked)}"
+            ),
         )
 
-        assert r.get("median_km") is not None and r["median_km"] >= 0, (
-            f"missing locatability score: {r}"
+        require(
+            r.get("median_km") is not None and r["median_km"] >= 0,
+            f"missing locatability score: {r}",
         )
-        assert r.get("mean_cos"), f"missing distinctiveness score: {r}"
+        require(r.get("mean_cos"), f"missing distinctiveness score: {r}")
 
         if not answers:
             continue
         a = answers.get(r["image"])
-        assert a, f"no answer for {r['image']} -- the API would 404 the round"
-        assert LAT_RANGE[0] < a["lat"] < LAT_RANGE[1], f"lat out of range: {a}"
-        assert LNG_RANGE[0] < a["lng"] < LNG_RANGE[1], f"lng out of range: {a}"
-        assert a["state"] and a["filmed"], f"missing label: {a}"
+        require(a, f"no answer for {r['image']} -- the API would 404 the round")
+        require(LAT_RANGE[0] < a["lat"] < LAT_RANGE[1], f"lat out of range: {a}")
+        require(LNG_RANGE[0] < a["lng"] < LNG_RANGE[1], f"lng out of range: {a}")
+        require(a["state"] and a["filmed"], f"missing label: {a}")
 
         # The provenance of the moment: which corpus clip, and where in it. It is
         # the only record of which frame a round actually is, so a set that loses
         # it cannot be rebuilt or corrected. answers.json is where it is
         # generated; rounds.sql is what puts it into the database, on the side of
         # the split no player can read.
-        assert a.get("slug") and a["image"].startswith(f"clips/{a['slug']}-"), (
-            f"answer's slug does not match its filename: {a}"
+        require(
+            a.get("slug") and a["image"].startswith(f"clips/{a['slug']}-"),
+            f"answer's slug does not match its filename: {a}",
         )
         for field in ("source_ts_sec", "clip_ts_sec"):
-            assert a.get(field) is not None and a[field] >= 0, (
-                f"missing {field}, so this round cannot be re-cut: {a}"
+            require(
+                a.get(field) is not None and a[field] >= 0,
+                f"missing {field}, so this round cannot be re-cut: {a}",
             )
         # A clip is a window into its original, so a moment is at least as far
         # into the original as it is into the clip -- equal for the 97% that are
         # not trims. Catches the two timelines being confused for each other,
         # which reads as a coordinate that is merely a bit off.
-        assert a["source_ts_sec"] >= a["clip_ts_sec"], (
-            f"source_ts_sec is before clip_ts_sec, so the two timelines have been "
-            f"mixed up: {a}"
+        require(
+            a["source_ts_sec"] >= a["clip_ts_sec"],
+            (
+                f"source_ts_sec is before clip_ts_sec, so the two timelines have been "
+                f"mixed up: {a}"
+            ),
         )
-        assert MIN_RADIUS_M <= a.get("radius_m", 0) <= MAX_RADIUS_M, (
-            f"radius_m outside {MIN_RADIUS_M:g}-{MAX_RADIUS_M:g} m: {a}"
+        require(
+            MIN_RADIUS_M <= a.get("radius_m", 0) <= MAX_RADIUS_M,
+            f"radius_m outside {MIN_RADIUS_M:g}-{MAX_RADIUS_M:g} m: {a}",
         )
 
     # Reported, never asserted, same policy as NEAR_KM: a set whose scores
