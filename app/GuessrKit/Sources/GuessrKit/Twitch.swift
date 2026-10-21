@@ -6,6 +6,7 @@ import Synchronization
 #endif
 #if canImport(Security)
     import Security
+    import os
 #endif
 
 /// A Twitch login: the tokens the device-code flow handed back and whose they
@@ -86,14 +87,22 @@ public final class MemorySessionStore: SessionStore {
             return item as? Data
         }
 
-        /// Replaces whatever was saved. A failed write is not an error: it costs
-        /// the value on the next launch and nothing on this one.
+        /// Replaces whatever was saved, in place, so a failed write keeps the
+        /// value before it rather than nothing. A failed write is not an error:
+        /// it costs the value on the next launch and nothing on this one, and
+        /// is logged.
         func write(_ data: Data) {
-            delete()
-            var q = query
-            q[kSecValueData] = data
-            q[kSecAttrAccessible] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            SecItemAdd(q as CFDictionary, nil)
+            let attrs: [CFString: Any] = [
+                kSecValueData: data, kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+            ]
+            var status = SecItemUpdate(query as CFDictionary, attrs as CFDictionary)
+            if status == errSecItemNotFound {
+                status = SecItemAdd(query.merging(attrs) { $1 } as CFDictionary, nil)
+            }
+            if status != errSecSuccess {
+                Logger(subsystem: "lol.dana.guessr", category: "keychain")
+                    .error("keychain write for \(service, privacy: .public) failed: \(status)")
+            }
         }
 
         func delete() { SecItemDelete(query as CFDictionary) }
@@ -228,11 +237,19 @@ public struct TwitchAuth: Sendable {
 
     /// Trades the refresh token for a fresh pair. Twitch's public-client refresh
     /// tokens are single-use, so the returned session replaces the old one.
+    ///
+    /// Only a 400 or 401 is Twitch turning the token down, and throws `refused`;
+    /// any other status (an outage's 503, a 429) throws a `URLError`, so callers
+    /// keep the login and try again later.
     public func refresh(_ old: TwitchSession) async throws -> TwitchSession {
         let (data, response) = try await post(
             "token",
             ["client_id": clientID, "grant_type": "refresh_token", "refresh_token": old.refreshToken])
-        guard status(response) == 200 else { throw TwitchAuthError.refused(message(data)) }
+        switch status(response) {
+        case 200: break
+        case 400, 401: throw TwitchAuthError.refused(message(data))
+        default: throw URLError(.badServerResponse)
+        }
         var fresh = try await session(from: data)
         if fresh.login.isEmpty { fresh.login = old.login }
         if fresh.userID.isEmpty { fresh.userID = old.userID }
@@ -272,12 +289,15 @@ public struct TwitchAuth: Sendable {
         var scopes: [String]?
     }
 
+    /// The session a token grant names. A validate that fails leaves who it is
+    /// empty rather than throwing: by then Twitch has spent the old refresh
+    /// token, so losing this pair would cost the login.
     private func session(from data: Data) async throws -> TwitchSession {
         let token = try Guessr.decoder.decode(TokenResponse.self, from: data)
         var req = URLRequest(url: base.appending(path: "validate"))
         req.setValue("OAuth \(token.accessToken)", forHTTPHeaderField: "Authorization")
-        let (body, _) = try await session.settledData(for: req)
-        let who = try? Guessr.decoder.decode(Validation.self, from: body)
+        let body = try? await session.settledData(for: req).0
+        let who = body.flatMap { try? Guessr.decoder.decode(Validation.self, from: $0) }
         return TwitchSession(
             accessToken: token.accessToken,
             refreshToken: token.refreshToken,
