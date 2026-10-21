@@ -4,6 +4,28 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.37.0 — 2026-10-21
+
+### Changed
+
+- Linking a device in the app, by QR code or typed code, opens a screen that sets this device and the other player side by side, with one button to play as that player and one to keep playing as this device. ([#468](https://github.com/adanalife/guessr/pull/468))
+
+### Fixed
+
+- The daily game plays in a browser that blocks site storage, and on a phone that opens the game over a local network address. Before, the first round stopped with an error. ([#471](https://github.com/adanalife/guessr/pull/471))
+- Linking two devices keeps the name a player is known by on the leaderboard. ([#476](https://github.com/adanalife/guessr/pull/476))
+- In the app, linking to your other device mid-day shows that player's scores for today, not this device's old ones. Entering a code works after you've started the day too. ([#477](https://github.com/adanalife/guessr/pull/477))
+- A Twitch outage, or a connection dropped partway through renewing the login, keeps you signed in. ([#478](https://github.com/adanalife/guessr/pull/478))
+
+### Behind the scenes
+
+- A copy of upcoming answers that a staging sync writes can no longer be committed by accident. ([#469](https://github.com/adanalife/guessr/pull/469))
+- Previewing a new batch of rounds can no longer publish an older batch by mistake. ([#470](https://github.com/adanalife/guessr/pull/470))
+- The monthly leaderboard reads only the month it shows, rather than every game ever played. ([#472](https://github.com/adanalife/guessr/pull/472))
+- Signing in to Twitch fails plainly, rather than half-working, when Twitch doesn't say whose account it is. ([#473](https://github.com/adanalife/guessr/pull/473))
+- Using the Siri guess no longer signs the app out of Twitch. ([#473](https://github.com/adanalife/guessr/pull/473))
+- Busy chat takes less work to keep up with. ([#474](https://github.com/adanalife/guessr/pull/474))
+
 ## v1.36.0 — 2026-10-20
 
 ### New

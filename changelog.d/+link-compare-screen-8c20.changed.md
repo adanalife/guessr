@@ -1,1 +1,0 @@
-Linking a device in the app, by QR code or typed code, opens a screen that sets this device and the other player side by side, with one button to play as that player and one to keep playing as this device.
