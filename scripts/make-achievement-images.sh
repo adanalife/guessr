@@ -17,7 +17,7 @@ GOLD='#e5b84a'
 CREAM='#fffff8'
 FONT="font-family=\"Georgia, serif\" font-weight=\"bold\" text-anchor=\"middle\""
 
-# The mark from web/favicon.svg, as make-app-icon.sh takes it, centred on its
+# The mark from web/favicon.svg, as make-app-icon.sh takes it, centered on its
 # drawn bounds and scaled to fill `size` pixels.
 pin() { # size
   local glyph scale
@@ -53,7 +53,7 @@ SVG
 # First Pin: the mark itself.
 render first_pin "$(pin 560)"
 
-# Bullseye: a target with the mark's dot at the centre.
+# Bullseye: a target with the mark's dot at the center.
 render bullseye "
   <circle cx='512' cy='512' r='340' fill='none' stroke='$GREEN' stroke-width='60'/>
   <circle cx='512' cy='512' r='220' fill='none' stroke='$CREAM' stroke-width='50'/>

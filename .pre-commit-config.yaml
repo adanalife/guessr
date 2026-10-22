@@ -62,19 +62,17 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  # JavaScript: biome, the same linter the weekly super-linter sweep runs. Here
-  # it gates every commit; the weekly sweep reports to nobody when it goes red.
+  # JavaScript: biome, the repo's only JS lint gate (super-linter.env turns the
+  # sweep's copy off).
   #
   # lint only, never `biome check`: the format half wants to reformat
   # release-please's own manifest and config JSON, which release-please then
-  # rewrites on its next run. super-linter.yml disables it for the same reason.
+  # rewrites on its next run. super-linter.env disables it for the same reason.
   - repo: https://github.com/biomejs/pre-commit
     rev: v0.6.1
     hooks:
       - id: biome-lint
-        # --error-on-warnings is what the weekly sweep runs with, and without it
-        # the two gates disagree: a warning exits 0 here and 1 there, so a real
-        # finding reads as a flaky sweep.
+        # --error-on-warnings: a warning fails the commit rather than passing quietly.
         args: [--error-on-warnings]
         # The upstream hook's file list stops at js/ts/json/css. biome also
         # lints the CSS inside an HTML <style> block, which is where this

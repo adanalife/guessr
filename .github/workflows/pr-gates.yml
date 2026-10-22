@@ -104,16 +104,6 @@ jobs:
       - name: Python tests
         run: for f in test_*.py; do echo "== $f"; uv run --project api python "$f" || exit 1; done
 
-      # The migrations are hand-written DDL that nothing else parses until
-      # someone runs `task schema:prod:apply`, where a typo is discovered against
-      # the production database. sqlite3 is D1's own engine and ships on the
-      # runner, so replaying them into a scratch database costs nothing and moves
-      # that discovery here.
-      #
-      # In filename order, which is the order wrangler applies them in, so this
-      # catches a migration that only works if run before one that precedes it.
-      # Once each: from 0002 onward the `d1_migrations` ledger is what guarantees
-      # single application, so the DDL is bare and re-running would rightly fail.
       # wrangler tracks applied migrations by filename, so two files sharing a
       # number both apply and nothing breaks -- but the order between them is
       # then an accident of the names after the number. Two PRs written against
@@ -127,6 +117,16 @@ jobs:
             exit 1
           fi
 
+      # The migrations are hand-written DDL that nothing else parses until
+      # someone runs `task schema:prod:apply`, where a typo is discovered against
+      # the production database. sqlite3 is D1's own engine and ships on the
+      # runner, so replaying them into a scratch database costs nothing and moves
+      # that discovery here.
+      #
+      # In filename order, which is the order wrangler applies them in, so this
+      # catches a migration that only works if run before one that precedes it.
+      # Once each: from 0002 onward the `d1_migrations` ledger is what guarantees
+      # single application, so the DDL is bare and re-running would rightly fail.
       - name: Migrations replay in order
         run: |
           for m in migrations/*.sql; do

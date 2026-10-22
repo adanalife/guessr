@@ -6,11 +6,9 @@ description: >-
 # Now and then a deployed version comes up with a bad one: each cold isolate
 # then re-runs the whole import inside its first request, blows the startup CPU
 # budget or trips Pyodide's re-entrancy check, and answers 1101 to everything
-# until it is evicted -- ~70% of stage's calls for two hours on 2026-09-30, on
-# two versions in a row, while the same code on the versions either side of
-# them served fine; prod's first Worker version answered the same way to a
-# phone and to tripbot's board read on 2026-09-29. Uploading the bundle again is
-# the known cure, so that is what a failed read gets.
+# until it is evicted, while the same code on the next version serves fine.
+# Uploading the bundle again is the known cure, so that is what a failed read
+# gets.
 #
 # Sequential reads on purpose: each one that lands on a fresh isolate is a cold
 # start, which is the only thing this is trying to provoke. Through pages.dev,

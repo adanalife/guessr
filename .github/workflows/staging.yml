@@ -96,7 +96,7 @@ jobs:
           cd api
           uv sync
           uv run pywrangler deploy
-      # The step says why; the two tiers share it.
+      # The action says why; release.yml runs the same one.
       - name: Prove the Worker's cold isolates start
         if: hashFiles('api/wrangler.jsonc') != ''
         uses: ./.github/actions/worker-cold-start
