@@ -47,6 +47,8 @@ def resolve_range(header: str | None, size: int) -> Range | None:
         return None
     if not last:
         return Range(offset=start)
+    if int(last) < start:
+        return None
     return Range(offset=start, length=min(int(last), size - 1) - start + 1)
 
 
