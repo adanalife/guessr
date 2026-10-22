@@ -935,6 +935,26 @@ def drop_burned(scored: list[dict], burned: set[str]) -> tuple[list[dict], int]:
     return kept, len(scored) - len(kept)
 
 
+def schedule_start(requested: str | None, today: dt.date) -> dt.date:
+    """The first date to give a game to: --schedule-from, or two days out (UTC).
+
+    Two days out is the floor as well as the default. A date opens at 10:00 UTC
+    on the day before it, so tomorrow's game may already be live in the earliest
+    timezone by the time a run finishes, and rounds.sql's INSERT OR IGNORE would
+    quietly fill any hole in a date players can already see. Scheduling over a
+    date somebody is already playing is the one thing the primary key cannot
+    undo.
+    """
+    earliest = today + dt.timedelta(days=2)
+    start = dt.date.fromisoformat(requested) if requested else earliest
+    if start < earliest:
+        raise ValueError(
+            f"--schedule-from {start} is before {earliest}, the first date no "
+            f"timezone can have started playing yet"
+        )
+    return start
+
+
 def schedule(
     rounds: list[dict], first_date: dt.date, days: int, weight: float
 ) -> list[tuple]:
@@ -1148,7 +1168,8 @@ def main() -> int:
         metavar="YYYY-MM-DD",
         help="first date to give a game to. Defaults to two days out (UTC), "
         "which is the earliest date no timezone has started playing yet: a date "
-        "opens at 10:00 UTC the day before, so tomorrow's may already be live.",
+        "opens at 10:00 UTC the day before, so tomorrow's may already be live. "
+        "Anything earlier is refused.",
     )
     ap.add_argument(
         "--horizon",
@@ -1197,6 +1218,13 @@ def main() -> int:
         "--min-spacing as the set's own rounds.",
     )
     args = ap.parse_args()
+    # Checked before anything is scored or cut, not at the end of a long encode.
+    try:
+        first_date = schedule_start(
+            args.schedule_from, dt.datetime.now(dt.timezone.utc).date()
+        )
+    except ValueError as e:
+        ap.error(str(e))
 
     shutil.rmtree(STAGING, ignore_errors=True)
     clips = STAGING / "clips"
@@ -1309,15 +1337,6 @@ def main() -> int:
             f"{row['state']} ({row['median_km']:g} km, cos {row['mean_cos']:g})"
         )
 
-    # Two days out by default rather than tomorrow: a date opens at 10:00 UTC on
-    # the day before it, so tomorrow's game may already be live in the earliest
-    # timezone by the time this runs. Scheduling over a date somebody is already
-    # playing is the one thing the primary key cannot undo.
-    first_date = (
-        dt.date.fromisoformat(args.schedule_from)
-        if args.schedule_from
-        else dt.datetime.now(dt.timezone.utc).date() + dt.timedelta(days=2)
-    )
     days = schedule(rounds, first_date, args.horizon, args.distinctiveness)
     batch = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
