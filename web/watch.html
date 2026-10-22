@@ -18,6 +18,8 @@
 </head>
 <body>
 <script type="module">
+import { request } from './request.js';
+
 const q = new URLSearchParams(location.search);
 const platform = q.get('platform') === 'youtube' ? 'youtube' : 'twitch';
 // Validated because it goes into a URL: a Twitch login is 25 characters of
@@ -53,7 +55,7 @@ if (platform === 'twitch') {
   // id comes from. No id is a quiet channel, or a read that never landed.
   let videoId = null;
   try {
-    ({ videoId } = await (await fetch('/api/live')).json());
+    ({ videoId } = await (await request('/api/live')).json());
   } catch { /* the line below is the fallback either way */ }
   if (videoId && /^[\w-]{11}$/.test(videoId)) {
     // Muted: an unmuted autoplay needs a tap first, in the app's web view and
