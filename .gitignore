@@ -77,3 +77,4 @@ api/bundle/
 
 # App Store listing details that are not public: review contact, demo account.
 app/store.local.toml
+/aired.txt
