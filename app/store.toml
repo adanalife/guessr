@@ -6,7 +6,7 @@
 
 # The release tag the store version is built from; the TestFlight build for
 # that tag is what the version is attached to.
-version = "1.27.0"
+version = "1.41.0"
 
 [app]
 # "Guessr" alone belongs to another developer's app; the home-screen
@@ -49,7 +49,13 @@ Footage is the developer's own, recorded while living on the road.
 # The release notes, printed in full by `task asc:listing` before anything is
 # written. App Store Connect refuses them on an app's first version and
 # requires them on every later one; empty sends nothing.
-whats_new = ""
+whats_new = """
+• Streaks! See how many days in a row you have played.
+• Playing on web? We've improved the device linking flow.
+• Guesses in Washington, DC now correctly display the location.
+• App Clips mean your friends can try the app without having to install it.
+• Various bug fixes and UI improvements.
+"""
 
 [review]
 contact_first_name = "Dana"
@@ -58,6 +64,8 @@ notes = """
 A Dana Life: Guessr is a daily geography guessing game for casual players and fans of geography puzzles (GeoGuessr-style). Every day it serves the same five short dashcam clips to every player, all filmed by the developer on a road trip across the United States. The player drops a pin where they think each clip was filmed and scores up to 5,000 points based on distance. It also works as a companion to the A Dana Life livestream, whose regular viewers play the same daily rounds.
 
 SETUP: no login, credentials or setup are needed. On first launch the app picks a random leaderboard name and keeps it in the Keychain; there is no sign-up, so there is no account to create or delete. Play tab: watch the clip, tap the map to place a pin, submit the guess, and the answer and points appear on the map. Five rounds a day, with new rounds at midnight UTC. Settings tab: Generate new name, daily reminders (icon badge and notification), appearance, imperial/metric units, Privacy Policy, and "Playing on another device?". That option shows a temporary code that links the app to the web version at guessr.dana.lol, so a player keeps one name and score. It is optional.
+
+APP CLIP: opening https://guessr.dana.lol/ (in Safari, Messages, or from a QR code) on a device without the app launches the App Clip, which plays the same five daily rounds with no install. Installing the full app afterwards keeps the clip's player and plays.
 
 GAME CENTER: if the device is signed in to Game Center, the app signs in automatically. Scores and achievements are submitted by our server (App Store Connect API), never by the app, after each recorded guess.
 
