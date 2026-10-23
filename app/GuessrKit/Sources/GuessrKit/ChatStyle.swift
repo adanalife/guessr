@@ -253,40 +253,56 @@ extension UInt32 {
     fileprivate func rotated(_ n: UInt32) -> UInt32 { self << n | self >> (32 - n) }
 }
 
-/// A chat line where the log draws it: `nested` under the line it answers.
-public struct ThreadedLine: Identifiable, Equatable, Sendable {
-    public var line: ChatLine
-    public var nested: Bool
-    public var id: String { line.id }
+/// A chat line `threaded(reach:)` can order: the platform's id for the
+/// message, which a reply names as its parent, and the parent it names. Either
+/// may be absent; a line with no key can't be answered, one with no parent
+/// answers nothing. Kept apart from `id` because a client may key its rows on
+/// an id of its own.
+public protocol Threadable: Identifiable {
+    var messageKey: String? { get }
+    var parentKey: String? { get }
 }
 
-extension Array where Element == ChatLine {
+extension ChatLine: Threadable {
+    public var messageKey: String? { id }
+    public var parentKey: String? { reply?.parentId }
+}
+
+/// A chat line where the log draws it: `nested` under the line it answers.
+public struct ThreadedLine<Line: Threadable>: Identifiable {
+    public var line: Line
+    public var nested: Bool
+    public var id: Line.ID { line.id }
+}
+
+extension ThreadedLine: Equatable where Line: Equatable {}
+extension ThreadedLine: Sendable where Line: Sendable {}
+
+extension Array where Element: Threadable {
     /// The log in reading order: a reply (a bot's answer to a command, a
     /// chatter's threaded reply) sits under the line it answers, after that
     /// line's earlier replies, rather than as a new line quoting it. Only
     /// when the parent is at most `reach` lines back, so a late reply is never
     /// drawn far up the log where nobody at the bottom would see it arrive.
-    public func threaded(reach: Int = 20) -> [ThreadedLine] {
+    public func threaded(reach: Int = 20) -> [ThreadedLine<Element>] {
         var position: [String: Int] = [:]
-        // A line's thread: the line at its root, which every reply in it follows.
-        var root: [String: String] = [:]
-        var replies: [String: [ChatLine]] = [:]
-        var roots: [ChatLine] = []
+        // Each line's thread, as the index of the line at its root.
+        var root: [Int] = []
+        var replies: [Int: [Element]] = [:]
+        var roots: [Int] = []
         for (index, line) in enumerated() {
-            position[line.id] = index
-            if let parent = line.reply?.parentId, let at = position[parent], index - at <= reach,
-                let top = root[parent]
-            {
-                root[line.id] = top
-                replies[top, default: []].append(line)
+            if let parent = line.parentKey, let at = position[parent], index - at <= reach {
+                root.append(root[at])
+                replies[root[at], default: []].append(line)
             } else {
-                root[line.id] = line.id
-                roots.append(line)
+                root.append(index)
+                roots.append(index)
             }
+            if let key = line.messageKey { position[key] = index }
         }
-        return roots.flatMap { line in
-            [ThreadedLine(line: line, nested: false)]
-                + (replies[line.id] ?? []).map { ThreadedLine(line: $0, nested: true) }
+        return roots.flatMap { at in
+            [ThreadedLine(line: self[at], nested: false)]
+                + (replies[at] ?? []).map { ThreadedLine(line: $0, nested: true) }
         }
     }
 }
