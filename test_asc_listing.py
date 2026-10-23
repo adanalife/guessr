@@ -49,12 +49,12 @@ def test_header_uploads_where_there_is_none():
 def test_header_kept_when_same_file_landed_or_processing():
     assert listing.header_step(image("abc", "COMPLETE"), "abc") is None
     assert listing.header_step(image("abc", "UPLOAD_COMPLETE"), "abc") is None
+    assert listing.header_step(image("abc", "AWAITING_UPLOAD"), "abc") is None
 
 
 def test_header_replaced_when_different_failed_or_unfinished():
     assert listing.header_step(image("old", "COMPLETE"), "abc") == "replace"
     assert listing.header_step(image("abc", "FAILED"), "abc") == "replace"
-    assert listing.header_step(image("abc", "AWAITING_UPLOAD"), "abc") == "replace"
     assert listing.header_step(image(None, None), "abc") == "replace"
 
 

@@ -599,16 +599,15 @@ def png_size(data: bytes) -> tuple[int, int]:
 
 def header_step(have: dict | None, checksum: str) -> str | None:
     """What the header image needs: nothing where App Store Connect holds this
-    file, uploaded or processing; an upload where it holds none; a replacement
-    where it holds another file, or an upload that failed or never finished."""
+    file in any state but failed; an upload where it holds none; a replacement
+    where it holds another file, a failed one, or an upload never committed.
+    The checksum arrives only with the commit, so a matching one means the
+    upload was committed even while the state still reads AWAITING_UPLOAD."""
     if have is None:
         return "upload"
     attrs = have["attributes"]
     state = (attrs.get("assetDeliveryState") or {}).get("state")
-    if attrs.get("sourceFileChecksum") == checksum and state in (
-        "UPLOAD_COMPLETE",
-        "COMPLETE",
-    ):
+    if attrs.get("sourceFileChecksum") == checksum and state != "FAILED":
         return None
     return "replace"
 
