@@ -754,6 +754,11 @@ tasks:
     cmds:
       - ./scripts/asc-listing.py {{.CLI_ARGS}}
 
+  appclip:image:
+    desc: Render the App Clip card's header image into app/.build/appclip for asc:listing to upload
+    cmds:
+      - ./scripts/make-appclip-image.sh
+
   gamecenter:images:
     desc: Render the Game Center achievement images into app/.build/achievements for gamecenter:config to upload
     cmds:
