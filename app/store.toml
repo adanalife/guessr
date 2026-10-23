@@ -113,6 +113,18 @@ violenceRealistic = "NONE"
 violenceRealisticProlongedGraphicOrSadistic = "NONE"
 ageRatingOverrideV2 = "NONE"
 
+# The App Clip's default experience: the card iOS shows before the clip opens,
+# from Safari's banner, a link in Messages or a QR code. It belongs to the
+# store version, so `task asc:listing` creates it on each new one.
+[app_clip]
+# At most 56 characters, under the app's name on the card.
+subtitle = "Watch a dashcam clip and guess where it was filmed."
+# The card's button: OPEN, VIEW or PLAY.
+action = "PLAY"
+# 1800x1200 PNG, rendered by `task appclip:image`; uploaded wherever App Store
+# Connect holds a different one.
+header_image = "app/.build/appclip/header.png"
+
 [screenshots]
 # Directory of PNGs per display type; `task ios:screenshots` fills it.
 dir = "app/.build/screenshots"

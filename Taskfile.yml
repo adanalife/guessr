@@ -750,7 +750,7 @@ tasks:
       - ./scripts/ios-screenshots.sh
 
   asc:listing:
-    desc: Write app/store.toml into App Store Connect's listing -- text, category, age rating, build, review details, screenshots (-- --apply to write; plans by default)
+    desc: Write app/store.toml into App Store Connect's listing -- text, category, age rating, build, review details, screenshots, App Clip experience (-- --apply to write; plans by default)
     cmds:
       - ./scripts/asc-listing.py {{.CLI_ARGS}}
 

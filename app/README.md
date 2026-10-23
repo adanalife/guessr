@@ -121,10 +121,15 @@ codes, all through the `appclips` entry in the association file above.
 Portal and App Store Connect, once per team: an App ID `lol.dana.guessr.Clip`
 with *App Groups* and *Associated Domains*; the `group.lol.dana.guessr` group
 on it and on `lol.dana.guessr` (so the full app's profile needs regenerating
-too); a `Guessr Clip App Store` distribution profile; and under the app's App
-Clip section in App Store Connect, the default App Clip experience (header
-image, subtitle, the *Play* action). The archive already carries the clip;
-nothing in `task ios:release` changes.
+too); and a `Guessr Clip App Store` distribution profile. The archive already
+carries the clip; nothing in `task ios:release` changes.
+
+The default App Clip experience, the card iOS shows before the clip opens, is
+the `[app_clip]` table in `store.toml`: the subtitle under the app's name, the
+*Play* button, and a header image `task appclip:image` renders from the game's
+mark on its paper and ink. It belongs to the store version, so `task
+asc:listing` creates it on each new one and uploads the image wherever App
+Store Connect holds a different file.
 
 ## Game Center
 
@@ -189,7 +194,8 @@ writes it, with the same key as the release. It creates the version named at
 the top of the file when none is editable, attaches the newest valid
 TestFlight build of that version once there is one, and uploads screenshots
 from `.build/screenshots` wherever App Store Connect has none for a display
-type. The review contact and the demo account are not public: they go in
+type, and creates the App Clip's default experience on the version (App Clip
+above). The review contact and the demo account are not public: they go in
 `store.local.toml` (gitignored), merged over `store.toml` table by table:
 
 ```toml
@@ -233,7 +239,8 @@ by hand is the point of `release_type = "MANUAL"`: the server's
 4. **Create the version.** `task asc:listing -- --apply` creates it. App
    Store Connect only opens the app info for editing alongside a new version,
    so this first run skips it.
-5. **Review, then apply.** `task asc:listing` plans everything else and
+5. **Review, then apply.** `task appclip:image` renders the App Clip card's
+   header, then `task asc:listing` plans everything else and
    prints What's New in full. Read it as the store page will show it, edit
    `store.toml` if it is wrong, then `task asc:listing -- --apply`, and again
    until it reports nothing to do.
