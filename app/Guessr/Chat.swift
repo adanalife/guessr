@@ -328,14 +328,15 @@ struct ChatLog: View {
             }
             .safeAreaInset(edge: .bottom) {
                 // An inset rather than an overlay, so the pill never sits on
-                // top of the newest line it is announcing.
-                if hasNew {
+                // top of the newest line it is announcing. Any reader scrolled
+                // up gets it, new lines or not, as the way back down.
+                if hasNew || !following {
                     Button {
                         scroll(proxy)
                         following = true
                         hasNew = false
                     } label: {
-                        Label("new", systemImage: "arrow.down")
+                        Label(hasNew ? "new" : "latest", systemImage: "arrow.down")
                             .font(.caption.bold())
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
@@ -347,7 +348,7 @@ struct ChatLog: View {
                     .transition(reduceMotion ? AnyTransition.opacity : .move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .animation(.smooth, value: hasNew)
+            .animation(.smooth, value: hasNew || !following)
         }
     }
 
