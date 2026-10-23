@@ -4,6 +4,24 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.39.0 — 2026-10-23
+
+### Changed
+
+- In the app's chat, a reply (and the bot's answer to a command) now sits under the message it answers instead of as a new line quoting it. ([#494](https://github.com/adanalife/guessr/pull/494))
+
+### Fixed
+
+- The live view on YouTube falls back to its watch link when the stream lookup stalls, instead of staying black. ([#482](https://github.com/adanalife/guessr/pull/482))
+- The Link a device panel still shows the typed link code when the QR library fails to load, and hides the empty QR box. ([#485](https://github.com/adanalife/guessr/pull/485))
+- The app names Washington, DC under a pin there, and Siri can guess it ([#487](https://github.com/adanalife/guessr/pull/487))
+
+### Behind the scenes
+
+- The check that guards a new round set before it ships now holds even when Python runs with optimizations switched on, instead of quietly passing everything. ([#484](https://github.com/adanalife/guessr/pull/484))
+- The local development server answers a backwards byte range with the whole clip instead of an empty partial response. ([#486](https://github.com/adanalife/guessr/pull/486))
+- Generating new rounds refuses to schedule onto a date players may already be able to open, rather than quietly filling gaps in a live day. ([#488](https://github.com/adanalife/guessr/pull/488))
+
 ## v1.38.0 — 2026-10-21
 
 ### New
