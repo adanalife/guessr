@@ -273,9 +273,10 @@ struct ChatLog: View {
 
     private var log: some View {
         ScrollViewReader { proxy in
-            List(lines) { line in
+            List(lines.threaded()) { row in
+                let line = row.line
                 ChatLineView(
-                    line: line, mayModerate: mayModerate, error: $error, banned: $banned,
+                    line: line, nested: row.nested, mayModerate: mayModerate, error: $error, banned: $banned,
                     // A chatter's history is for the channel's staff; a
                     // viewer's card, or the owner's look as one, has none.
                     recent: {
@@ -405,7 +406,8 @@ struct ChatLog: View {
     }
 
     private func scroll(_ proxy: ScrollViewProxy) {
-        guard let last = lines.last?.id else { return }
+        // The last line drawn, which a reply nested up the log is not.
+        guard let last = lines.threaded().last?.id else { return }
         withAnimation { proxy.scrollTo(last, anchor: .bottom) }
     }
 
@@ -453,6 +455,8 @@ struct ChatLog: View {
 struct ChatLineView: View {
     @Environment(Account.self) private var account
     var line: ChatLine
+    /// Drawn under the line it answers, which then needs no quote.
+    var nested = false
     var mayModerate: Bool
     @Binding var error: String?
     @Binding var banned: Banned?
@@ -507,7 +511,7 @@ struct ChatLineView: View {
                         .font(.caption.italic())
                         .foregroundStyle(.secondary)
                 }
-                if let parent = line.reply {
+                if let parent = line.reply, !nested {
                     Label("\(parent.displayName): \(parent.text)", systemImage: "arrow.turn.down.right")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -530,6 +534,15 @@ struct ChatLineView: View {
                 }
             }
             .task(id: line.id) { await loadEmotes() }
+            .padding(.leading, nested ? 20 : 0)
+            .overlay(alignment: .topLeading) {
+                if nested {
+                    Image(systemName: "arrow.turn.down.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
+                }
+            }
             Spacer(minLength: 4)
             Text(shortAge(line.timestamp))
                 .font(.caption.monospaced())
@@ -650,6 +663,10 @@ private func shortAge(_ then: Date, now: Date = .now) -> String {
                 ChatLine(
                     id: "6", userId: "14", login: "vanfan", displayName: "vanfan", text: "", fragments: [],
                     timestamp: now.addingTimeInterval(-1), kind: "raid", notice: "5 raiders from vanfan have joined!"),
+                ChatLine(
+                    id: "7", userId: "15", login: "tripbot", displayName: "tripbot",
+                    text: "@RoadWatcher Dana is near Moab, Utah", timestamp: now,
+                    reply: ChatReply(parentId: "2", login: "roadwatcher", displayName: "RoadWatcher", text: "where is this?")),
             ],
             mayModerate: true
         )
