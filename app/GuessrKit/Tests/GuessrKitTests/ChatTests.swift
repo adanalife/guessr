@@ -619,3 +619,17 @@ private final class Rig {
     ]
     #expect(log.threaded().map { "\($0.nested ? ">" : "")\($0.id)" } == ["0", ">2", "1", "3"])
 }
+
+@Test func badgeChipsNameTheMonthsAtEveryTier() {
+    let chips = badgeTags(["subscriber": "3012", "moderator": "1", "broadcaster": "1", "founder": "0"])
+    // Sorted by set id; broadcaster left to the gold name; a tier 3 sub of
+    // 12 months reads as 12.
+    #expect(chips.map(\.label) == ["founder", "mod", "sub 12"])
+    #expect(chips.map(\.version) == ["0", "1", "3012"])
+    #expect(badgeTags(["subscriber": "0"]).map(\.label) == ["sub"])
+}
+
+@Test func botsAreKnownInAnyCase() {
+    #expect(isChatBot("Nightbot"))
+    #expect(!isChatBot("kate"))
+}
