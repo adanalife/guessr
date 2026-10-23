@@ -268,19 +268,27 @@
     /// their lines' text from the log, oldest first — the ring, not an API, so
     /// it is only what this device saw. `load` reads the profile; until it
     /// answers, or if it fails, the card shows the name it was opened with.
+    /// `details` reads what the app knows of the chatter beyond Twitch — its
+    /// own stats, say — drawn as label/value rows under the name.
     public struct UserCard: View {
         var displayName: String
         var login: String
         var recent: [String]
         var load: () async -> TwitchUser?
+        var details: () async -> [UserFact]
         @State private var user: TwitchUser?
         @State private var avatar: Image?
+        @State private var facts: [UserFact] = []
 
-        public init(displayName: String, login: String, recent: [String], load: @escaping () async -> TwitchUser?) {
+        public init(
+            displayName: String, login: String, recent: [String], load: @escaping () async -> TwitchUser?,
+            details: @escaping () async -> [UserFact] = { [] }
+        ) {
             self.displayName = displayName
             self.login = login
             self.recent = recent
             self.load = load
+            self.details = details
         }
 
         public var body: some View {
@@ -307,6 +315,17 @@
                             .accessibilityLabel(String(localized: "Open \(displayName) on Twitch", bundle: .module))
                     }
                 }
+                if !facts.isEmpty {
+                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
+                        ForEach(facts) { fact in
+                            GridRow {
+                                Text(fact.label).foregroundStyle(.secondary)
+                                Text(fact.value).monospacedDigit()
+                            }
+                        }
+                    }
+                    .font(.subheadline)
+                }
                 if !recent.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Recent messages", bundle: .module).font(.caption.bold()).foregroundStyle(.secondary)
@@ -324,6 +343,20 @@
                 user = await load()
                 if let url = user?.profileImage { avatar = await remoteImage(url, scale: 1) }
             }
+            .task { facts = await details() }
+        }
+    }
+
+    /// One row of a `UserCard`'s details: a label and its value, already
+    /// formatted by the app that knows what it means.
+    public struct UserFact: Hashable, Identifiable, Sendable {
+        public var label: String
+        public var value: String
+        public var id: String { label }
+
+        public init(_ label: String, _ value: String) {
+            self.label = label
+            self.value = value
         }
     }
 #endif
