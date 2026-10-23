@@ -80,6 +80,9 @@ public_link_limit = 100
 description = """
 Pre-release builds of A Dana Life: Guessr, the daily dashcam geography game. The rounds and the leaderboard are the real ones, so a day played here counts. Use the TestFlight app's Send Beta Feedback (or take a screenshot) to report anything that looks wrong.
 """
+# What TestFlight lists under each build to launch its App Clip from, title to
+# URL; `task ios:release` registers them on the build it uploads.
+clip_invocations = { "Play today" = "https://guessr.dana.lol/", "Shared result" = "https://guessr.dana.lol/?from=share" }
 
 # The age-rating declaration, attribute for attribute as App Store Connect
 # names them (`task asc:listing` prints the current one). Content questions

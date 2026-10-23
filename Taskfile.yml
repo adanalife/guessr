@@ -688,9 +688,12 @@ tasks:
       # External testers get the build once Beta App Review passes it; a
       # failure here is retried alone with `task ios:beta:ship`.
       - task: ios:beta:ship
-      # Last, so a missing token can't hold up the build Apple already has;
-      # a failure here is retried alone with `task ios:dsyms`.
+      # After the build ships, so a missing token can't hold up the build
+      # Apple already has; a failure here is retried alone with `task ios:dsyms`.
       - task: ios:dsyms
+      # TestFlight starts every build with no App Clip invocations; a failure
+      # here is retried alone with `task ios:clip:invocations`.
+      - task: ios:clip:invocations
 
   ios:dsyms:
     desc: Upload the last iPhone archive's dSYMs to Sentry, so a native crash names our frames
@@ -737,6 +740,11 @@ tasks:
     desc: Add the newest release tag's build to the external TestFlight group and submit it for Beta App Review
     cmds:
       - ./scripts/asc-beta.py ship
+
+  ios:clip:invocations:
+    desc: Register store.toml's TestFlight App Clip invocations on the newest release tag's build (-- --plan to only print them)
+    cmds:
+      - ./scripts/asc-clip-invocations.py {{.CLI_ARGS}}
 
   ios:screenshots:
     desc: Build for the simulator and screenshot the store's screens on an iPhone and an iPad into app/.build/screenshots

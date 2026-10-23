@@ -39,7 +39,11 @@ It reads four variables from the environment:
 | `ASC_KEY_ID` | that key's id |
 | `ASC_ISSUER_ID` | the key's issuer id |
 
-The dSYM upload (`task ios:dsyms`, the release's last step) authenticates with
+The release ends with two steps that can each be rerun alone. `task
+ios:clip:invocations` registers the TestFlight App Clip invocations
+(`clip_invocations` in `store.toml`'s `[beta]` table) on the build, since every
+build starts with none and TestFlight launches the clip only from those. The
+dSYM upload (`task ios:dsyms`) authenticates with
 a Sentry org token (scope `org:ci`). It reads `SENTRY_AUTH_TOKEN` if set, and
 otherwise fetches `/release/sentry-org-token` from the prod account's SSM
 through `aws-vault`. Seed that once with:
