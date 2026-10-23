@@ -4,6 +4,18 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.42.0 — 2026-10-23
+
+### Fixed
+
+- Scanning the website's Link a device QR code with the camera opens the side-by-side comparison in the app, rather than only opening the app. ([#500](https://github.com/adanalife/guessr/pull/500))
+
+### Behind the scenes
+
+- The App Clip's store card (its subtitle, Play button and header image) is set up from the repo along with the rest of the App Store listing. ([#501](https://github.com/adanalife/guessr/pull/501))
+- Every TestFlight build of the app gets its App Clip launch entries as part of the release. ([#503](https://github.com/adanalife/guessr/pull/503))
+- GuessrKit's chatter card takes a details slot, label/value rows an app fills with what it knows of the chatter beyond Twitch. ([#504](https://github.com/adanalife/guessr/pull/504))
+
 ## v1.41.0 — 2026-10-23
 
 ### Changed
