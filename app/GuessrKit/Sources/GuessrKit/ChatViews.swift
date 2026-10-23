@@ -2,6 +2,21 @@
 // line is drawn in, and a line's context menu. Each takes primitives rather
 // than a chat line, so an app with a line type of its own draws with them too.
 // Guarded so the rest of the package still builds where SwiftUI doesn't exist.
+
+/// One row of a `UserCard`'s details: a label and its value, already
+/// formatted by the app that knows what it means. Outside the SwiftUI guard,
+/// so an app's model can build the rows on Linux too.
+public struct UserFact: Hashable, Identifiable, Sendable {
+    public var label: String
+    public var value: String
+    public var id: String { label }
+
+    public init(_ label: String, _ value: String) {
+        self.label = label
+        self.value = value
+    }
+}
+
 #if canImport(SwiftUI)
     import SwiftUI
 
@@ -344,19 +359,6 @@
                 if let url = user?.profileImage { avatar = await remoteImage(url, scale: 1) }
             }
             .task { facts = await details() }
-        }
-    }
-
-    /// One row of a `UserCard`'s details: a label and its value, already
-    /// formatted by the app that knows what it means.
-    public struct UserFact: Hashable, Identifiable, Sendable {
-        public var label: String
-        public var value: String
-        public var id: String { label }
-
-        public init(_ label: String, _ value: String) {
-            self.label = label
-            self.value = value
         }
     }
 #endif
