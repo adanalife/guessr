@@ -102,6 +102,20 @@ enum Telemetry {
         SentrySDK.logger.info("game.\(step.rawValue)", attributes: fields)
     }
 
+    /// A URL iOS handed the app, and whether it read as a device link. Only
+    /// the fragment's keys travel: its values are a player id and an alias.
+    static func linkOpened(_ url: URL, via route: String, read: Bool) {
+        let keys = URLComponents(string: "?" + (url.fragment ?? ""))?.queryItems?.map(\.name) ?? []
+        let fields: [String: Any] = [
+            "route": route, "read": read, "path": url.path(), "fragment_keys": keys.joined(separator: ","),
+        ]
+        let crumb = Breadcrumb(level: .info, category: "link")
+        crumb.message = "opened"
+        crumb.data = fields
+        SentrySDK.addBreadcrumb(crumb)
+        SentrySDK.logger.info("link.opened", attributes: fields)
+    }
+
     /// A clip that failed to load. AVPlayer fetches outside URLSession, so the
     /// SDK's failed-request capture never sees it; this is the only report.
     /// One fingerprint for every clip, so a bad deploy reads as one issue with
