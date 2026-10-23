@@ -101,13 +101,12 @@ struct GuessrApp: App {
             // Linking keeps each device's own alias, so this device's player
             // can go by another name on the web; that code still says so
             // rather than nothing.
-            .onOpenURL { url in
-                guard let opened = DeviceLink(url) else { return }
-                guard opened.id != player.id else {
-                    alreadyAs = opened.name ?? player.alias
-                    return
-                }
-                Task { await ask(opened) }
+            .onOpenURL { opened($0, via: "url") }
+            // A camera scan of a guessr.dana.lol code can arrive as an App Clip
+            // invocation, which reaches an installed full app as a web
+            // browsing activity rather than an opened URL.
+            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                if let url = activity.webpageURL { opened(url, via: "activity") }
             }
             .sheet(
                 isPresented: Binding(get: { comparing != nil }, set: { if !$0 { comparing = nil } }),
@@ -154,6 +153,18 @@ struct GuessrApp: App {
                 Task { await Reminder.refreshBadge() }
             }
         }
+    }
+
+    /// A guessr.dana.lol URL handed to the app, by either route iOS uses.
+    private func opened(_ url: URL, via route: String) {
+        let link = DeviceLink(url)
+        Telemetry.linkOpened(url, via: route, read: link != nil)
+        guard let link else { return }
+        guard link.id != player.id else {
+            alreadyAs = link.name ?? player.alias
+            return
+        }
+        Task { await ask(link) }
     }
 
     /// Looks the scanned player up before asking, so the sheet can set both
