@@ -602,3 +602,20 @@ private final class Rig {
     // A parent that scrolled out of the ring leaves the reply where it is.
     #expect(order([line("late", replying: "gone"), line("x")], 20) == ["late", "x"])
 }
+
+/// A line keyed on a row id of its own, with the platform's message id beside
+/// it — tempomat's shape, where an event line carries no message id at all.
+@Test func threadingFollowsTheMessageKeyNotTheRowId() {
+    struct Row: Threadable {
+        var id: Int
+        var messageKey: String?
+        var parentKey: String?
+    }
+    let log = [
+        Row(id: 0, messageKey: "m1"),
+        Row(id: 1, messageKey: nil),  // a follow, which nothing can answer
+        Row(id: 2, messageKey: "m2", parentKey: "m1"),
+        Row(id: 3, messageKey: "m3", parentKey: "0"),  // names a row id, not a key
+    ]
+    #expect(log.threaded().map { "\($0.nested ? ">" : "")\($0.id)" } == ["0", ">2", "1", "3"])
+}
