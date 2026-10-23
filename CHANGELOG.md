@@ -4,6 +4,14 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.42.1 — 2026-10-23
+
+### Behind the scenes
+
+- The App Store listing submits 1.41.0, with its release notes and a review note on launching the App Clip. ([#505](https://github.com/adanalife/guessr/pull/505))
+- The App Store listing submits 1.42.0. ([#506](https://github.com/adanalife/guessr/pull/506))
+- Planning the App Store listing right after uploading the App Clip header image no longer offers to replace the same image while Apple is still processing it. ([#507](https://github.com/adanalife/guessr/pull/507))
+
 ## v1.42.0 — 2026-10-23
 
 ### Fixed
