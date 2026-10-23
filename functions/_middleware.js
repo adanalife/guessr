@@ -7,9 +7,10 @@
 // loudly, which is what smoke.sh reads -- rather than falling through to Pages,
 // which serves the site's HTML with a 200 for any path that has no file.
 //
-// /clips/ is not forwarded: `clips/[[path]].js` streams it from R2 in JS. A
-// clip needs no Python, and a broken Python isolate (below) fails every range
-// request a video player makes, which reads as a grey pane on a phone.
+// /clips/ and /reveals/ are not forwarded: `clips/[[path]].js` and
+// `reveals/[name].js` stream them from R2 in JS. Media needs no Python, and a
+// broken Python isolate (below) fails every range request a video player makes,
+// which reads as a grey pane on a phone.
 const FORWARDED = ['/api/', '/admin/'];
 
 // A Python Worker isolate can come up broken: Pyodide's startup throws
