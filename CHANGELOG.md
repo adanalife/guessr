@@ -4,6 +4,13 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.40.0 — 2026-10-23
+
+### Changed
+
+- GuessrKit's reply threading works over any line type that names its message and parent keys, so tempomat can share it. ([#495](https://github.com/adanalife/guessr/pull/495))
+- The chat's jump-to-bottom button shows whenever you've scrolled up, reading "latest" when nothing new has arrived. ([#496](https://github.com/adanalife/guessr/pull/496))
+
 ## v1.39.0 — 2026-10-23
 
 ### Changed
