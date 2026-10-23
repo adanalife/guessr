@@ -584,3 +584,21 @@ private final class Rig {
 @Test func reconnectsBackOffByDoublingUpToAMinute() {
     #expect((0..<8).map(TwitchChat.backoff) == [1, 2, 4, 8, 16, 32, 60, 60])
 }
+
+@Test func aReplyIsDrawnUnderTheLineItAnswersWhenThatLineIsNear() {
+    func line(_ id: String, replying parent: String? = nil) -> ChatLine {
+        ChatLine(
+            id: id, userId: id, login: id, displayName: id, text: id,
+            reply: parent.map { ChatReply(parentId: $0, login: $0, displayName: $0, text: $0) })
+    }
+    let order = { (lines: [ChatLine], reach: Int) in
+        lines.threaded(reach: reach).map { "\($0.nested ? ">" : "")\($0.id)" }
+    }
+    // A command, a line in between, the bot's answer, and a reply to the answer.
+    let log = [line("cmd"), line("chat"), line("bot", replying: "cmd"), line("again", replying: "bot")]
+    #expect(order(log, 20) == ["cmd", ">bot", ">again", "chat"])
+    // Too far back: the reply keeps its place and its quote.
+    #expect(order(log, 1) == ["cmd", "chat", "bot", ">again"])
+    // A parent that scrolled out of the ring leaves the reply where it is.
+    #expect(order([line("late", replying: "gone"), line("x")], 20) == ["late", "x"])
+}
