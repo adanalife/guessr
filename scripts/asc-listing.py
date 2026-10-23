@@ -5,7 +5,8 @@
 # ///
 """The App Store listing, from app/store.toml into App Store Connect: the app's
 name, subtitle, privacy policy and category, the version's text, release type,
-build, review details, age rating and screenshots.
+build, review details, age rating, screenshots and the App Clip's default
+experience.
 
     uv run scripts/asc-listing.py           # the plan: what differs
     uv run scripts/asc-listing.py --apply   # write it
@@ -17,8 +18,11 @@ contact and the demo account. The version named in the file is created when
 missing, in the state App Store Connect calls Prepare for Submission; the
 build is the newest valid TestFlight build of that version, attached only when
 it exists. Screenshots upload from the directory the file names, one set per
-display type, only where the set is empty. Submitting for review is a click in
-App Store Connect, not this script.
+display type, only where the set is empty. The App Clip's default experience
+(the card iOS shows before the clip opens) is created on the version with the
+file's action and subtitle, and its header image uploads from the file
+`task appclip:image` renders wherever App Store Connect holds a different one.
+Submitting for review is a click in App Store Connect, not this script.
 
 Reads ASC_KEY_PATH, ASC_KEY_ID and ASC_ISSUER_ID, as `task ios:release` does.
 """
@@ -27,13 +31,12 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import struct
 import sys
 import time
 import tomllib
 import urllib.error
 import urllib.request
-
-import jwt
 
 API = "https://api.appstoreconnect.apple.com/v1"
 BUNDLE_ID = "lol.dana.guessr"
@@ -75,9 +78,15 @@ REVIEW_FIELDS = {
     "notes": "notes",
 }
 SECRET = {"demoAccountPassword", "contactPhone", "contactEmail"}
+# The App Clip card: its button, the subtitle's limit, the header image's size.
+CLIP_ACTIONS = {"OPEN", "VIEW", "PLAY"}
+CLIP_SUBTITLE_MAX = 56
+HEADER_SIZE = (1800, 1200)
 
 
 def token() -> str:
+    import jwt  # here, so the tests import this file without the script's deps
+
     now = int(time.time())
     return jwt.encode(
         {
@@ -346,7 +355,7 @@ def main() -> int:
         )
         if not apply:
             print(
-                "the version's text, build, review details and screenshots follow once it exists"
+                "the version's text, build, review details, screenshots and App Clip experience follow once it exists"
             )
             return done(changes, apply)
         version = editable(
@@ -478,7 +487,154 @@ def main() -> int:
     elif not apply:
         print("screenshots follow once the localization exists")
 
+    # --- the App Clip's default experience ------------------------------------
+    # The card iOS shows before the clip opens. It belongs to the version, so
+    # every new version starts without one.
+    clip = conf.get("app_clip")
+    clips = asc.get(f"/apps/{app_id}/appClips") if clip else []
+    if clip and not clips:
+        print(
+            "no App Clip in App Store Connect yet; it appears with the first uploaded build that embeds one"
+        )
+    elif clip:
+        subtitle, action, png = clip_settings(clip)
+        experience = experience_for(
+            asc.get(
+                f"/appClips/{clips[0]['id']}/appClipDefaultExperiences"
+                "?include=releaseWithAppStoreVersion"
+            ),
+            vid,
+        )
+        if experience is None:
+            created: dict = {}
+            plan(
+                f"create the App Clip default experience, action {action}",
+                lambda: created.update(
+                    asc.create(
+                        "appClipDefaultExperiences",
+                        {"action": action},
+                        {
+                            "appClip": ("appClips", clips[0]["id"]),
+                            "releaseWithAppStoreVersion": ("appStoreVersions", vid),
+                        },
+                    )
+                ),
+            )
+            experience = created or None
+        elif experience["attributes"].get("action") != action:
+            plan(
+                f"set App Clip action {action} (now {experience['attributes'].get('action')})",
+                lambda: asc.patch(
+                    "appClipDefaultExperiences", experience["id"], {"action": action}
+                ),
+            )
+        if experience is None:
+            # Only a plan gets here: what the experience gets once it exists.
+            plan(
+                f"create the {LOCALE} App Clip subtitle {json.dumps(subtitle)}",
+                lambda: None,
+            )
+            plan(f"upload the App Clip header image from {png}", lambda: None)
+        else:
+            localization(
+                "appClipDefaultExperiences",
+                experience["id"],
+                "appClipDefaultExperienceLocalizations",
+                "appClipDefaultExperience",
+                {"subtitle": subtitle},
+            )
+            clip_locs = {
+                loc["attributes"]["locale"]: loc
+                for loc in asc.get(
+                    f"/appClipDefaultExperiences/{experience['id']}/appClipDefaultExperienceLocalizations"
+                )
+            }
+            if not png.exists():
+                print(f"no App Clip header image at {png}; run `task appclip:image`")
+            elif LOCALE not in clip_locs:
+                plan(f"upload the App Clip header image from {png}", lambda: None)
+            else:
+                loc_id = clip_locs[LOCALE]["id"]
+                data = png.read_bytes()
+                if png_size(data) != HEADER_SIZE:
+                    sys.exit(f"{png} is {png_size(data)}, not {HEADER_SIZE}")
+                have = asc.one(
+                    f"/appClipDefaultExperienceLocalizations/{loc_id}/appClipHeaderImage"
+                )
+                step = header_step(have, hashlib.md5(data).hexdigest())
+                if step:
+                    plan(
+                        f"{step} the App Clip header image from {png}",
+                        lambda: header_image(asc, loc_id, png.name, data, have),
+                    )
+
     return done(changes, apply)
+
+
+def clip_settings(clip: dict) -> tuple[str, str, Path]:
+    """The [app_clip] table, checked against what App Store Connect accepts."""
+    subtitle = clip["subtitle"].strip()
+    if len(subtitle) > CLIP_SUBTITLE_MAX:
+        sys.exit(
+            f"[app_clip] subtitle is {len(subtitle)} characters; App Store Connect takes {CLIP_SUBTITLE_MAX}"
+        )
+    if clip["action"] not in CLIP_ACTIONS:
+        sys.exit(f"[app_clip] action must be one of {sorted(CLIP_ACTIONS)}")
+    return subtitle, clip["action"], ROOT / clip["header_image"]
+
+
+def experience_for(experiences: list[dict], version_id: str) -> dict | None:
+    """The default experience released with the version, of the App Clip's."""
+    for e in experiences:
+        release = e.get("relationships", {}).get("releaseWithAppStoreVersion", {})
+        if (release.get("data") or {}).get("id") == version_id:
+            return e
+    return None
+
+
+def png_size(data: bytes) -> tuple[int, int]:
+    """Width and height from a PNG's header chunk."""
+    return struct.unpack(">II", data[16:24])
+
+
+def header_step(have: dict | None, checksum: str) -> str | None:
+    """What the header image needs: nothing where App Store Connect holds this
+    file, uploaded or processing; an upload where it holds none; a replacement
+    where it holds another file, or an upload that failed or never finished."""
+    if have is None:
+        return "upload"
+    attrs = have["attributes"]
+    state = (attrs.get("assetDeliveryState") or {}).get("state")
+    if attrs.get("sourceFileChecksum") == checksum and state in (
+        "UPLOAD_COMPLETE",
+        "COMPLETE",
+    ):
+        return None
+    return "replace"
+
+
+def header_image(
+    asc: Client, loc_id: str, name: str, data: bytes, have: dict | None
+) -> None:
+    if have:
+        asc.call("DELETE", f"/appClipHeaderImages/{have['id']}")
+    image = asc.create(
+        "appClipHeaderImages",
+        {"fileName": name, "fileSize": len(data)},
+        {
+            "appClipDefaultExperienceLocalization": (
+                "appClipDefaultExperienceLocalizations",
+                loc_id,
+            )
+        },
+    )
+    asc.upload(image["attributes"]["uploadOperations"], data)
+    asc.patch(
+        "appClipHeaderImages",
+        image["id"],
+        {"uploaded": True, "sourceFileChecksum": hashlib.md5(data).hexdigest()},
+    )
+    print(f"  uploaded {name}")
 
 
 def screenshots(

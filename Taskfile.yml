@@ -758,9 +758,14 @@ tasks:
       - ./scripts/ios-screenshots.sh
 
   asc:listing:
-    desc: Write app/store.toml into App Store Connect's listing -- text, category, age rating, build, review details, screenshots (-- --apply to write; plans by default)
+    desc: Write app/store.toml into App Store Connect's listing -- text, category, age rating, build, review details, screenshots, App Clip experience (-- --apply to write; plans by default)
     cmds:
       - ./scripts/asc-listing.py {{.CLI_ARGS}}
+
+  appclip:image:
+    desc: Render the App Clip card's header image into app/.build/appclip for asc:listing to upload
+    cmds:
+      - ./scripts/make-appclip-image.sh
 
   gamecenter:images:
     desc: Render the Game Center achievement images into app/.build/achievements for gamecenter:config to upload
