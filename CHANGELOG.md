@@ -4,6 +4,12 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.41.0 — 2026-10-23
+
+### Changed
+
+- GuessrKit exposes its chat bot list, mention rule and badge chips over plain values, so tempomat drops its copies. ([#498](https://github.com/adanalife/guessr/pull/498))
+
 ## v1.40.0 — 2026-10-23
 
 ### Changed
