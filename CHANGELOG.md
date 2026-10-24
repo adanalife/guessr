@@ -4,6 +4,24 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.43.0 — 2026-10-24
+
+### New
+
+- Chat folds a viewer's command and the bot's answer into one small line; tap it to read the answer in full. ([#509](https://github.com/adanalife/guessr/pull/509))
+- Settings shows which version of the app you have, at the bottom. ([#511](https://github.com/adanalife/guessr/pull/511))
+
+### Fixed
+
+- When linking a second device, the confirmation says your plays will be merged with the other player, the same words the comparison screen uses. ([#510](https://github.com/adanalife/guessr/pull/510))
+- The app's first loading screen fills the page behind the spinning mark, instead of showing it in a band of a different shade. ([#512](https://github.com/adanalife/guessr/pull/512))
+
+### Behind the scenes
+
+- The App Store listing submits 1.41.0, with its release notes and a review note on launching the App Clip. ([#505](https://github.com/adanalife/guessr/pull/505))
+- The App Store listing submits 1.42.0. ([#506](https://github.com/adanalife/guessr/pull/506))
+- Planning the App Store listing right after uploading the App Clip header image no longer offers to replace the same image while Apple is still processing it. ([#507](https://github.com/adanalife/guessr/pull/507))
+
 ## v1.42.0 — 2026-10-23
 
 ### Fixed
