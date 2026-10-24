@@ -633,3 +633,37 @@ private final class Rig {
     #expect(isChatBot("Nightbot"))
     #expect(!isChatBot("kate"))
 }
+
+@Test func aCommandIsABangAndAName() {
+    #expect(isChatCommand("!location"))
+    #expect(isChatCommand("  !guess NY"))
+    #expect(isChatCommand("!8ball"))
+    #expect(!isChatCommand("!"))
+    #expect(!isChatCommand("!!!"))
+    #expect(!isChatCommand("wow!"))
+}
+
+@Test func aCommandFoldsTheBotsAnswersUntilItIsOpened() {
+    func line(_ id: String, from login: String, _ text: String, replying parent: String? = nil) -> ChatLine {
+        ChatLine(
+            id: id, userId: login, login: login, displayName: login, text: text,
+            reply: parent.map { ChatReply(parentId: $0, login: "", displayName: "", text: "") })
+    }
+    let log = [
+        line("cmd", from: "kate", "!location"),
+        line("hi", from: "sam", "hello"),
+        line("ans", from: "tripbot4000", "Niagara Falls, New York", replying: "cmd"),
+        line("re", from: "sam", "nice", replying: "cmd"),
+        // A bot's reply to a chatter who asked it nothing stays a line.
+        line("q", from: "sam", "tripbot are you there"),
+        line("bot", from: "tripbot4000", "yes", replying: "q"),
+    ]
+    let ids = { (rows: [ThreadedLine<ChatLine>]) in rows.map { "\($0.nested ? ">" : "")\($0.id)" } }
+    let closed = log.threaded(open: [])
+    #expect(ids(closed) == ["cmd", ">re", "hi", "q", ">bot"])
+    #expect(closed[0].answers.map(\.id) == ["ans"])
+    #expect(closed.dropFirst().map(\.answers.count) == [0, 0, 0, 0])
+    let opened = log.threaded(open: ["cmd"])
+    #expect(ids(opened) == ["cmd", ">ans", ">re", "hi", "q", ">bot"])
+    #expect(opened[0].answers.map(\.id) == ["ans"])
+}

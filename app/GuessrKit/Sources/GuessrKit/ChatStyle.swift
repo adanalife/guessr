@@ -30,12 +30,20 @@ private let broadcasterColor = "#ffc857"
 // channel's bot logins from the server if that starts to matter.
 private let builtinBots: Set<String> = [
     "nightbot", "streamelements", "streamlabs", "moobot", "fossabot", "wizebot", "sery_bot",
-    "commanderroot", "soundalerts", "tripbot",
+    "commanderroot", "soundalerts", "tripbot", "tripbot4000", "tripbot4001",
 ]
 
 /// Whether `login` is a known bot account: its name reads muted, and a client
 /// that sums up the chat leaves its lines out.
 public func isChatBot(_ login: String) -> Bool { builtinBots.contains(login.lowercased()) }
+
+/// Whether `text` is a chat command: `!` and then a name, which is how every
+/// channel bot reads one. A lone `!` or `!!!` is a chatter being emphatic.
+public func isChatCommand(_ text: String) -> Bool {
+    let rest = text.drop { $0.isWhitespace }
+    guard rest.first == "!", let next = rest.dropFirst().first else { return false }
+    return next.isLetter || next.isNumber
+}
 
 /// Whether `text`, sent by `sender`, names `login` — as `@login` or bare, in
 /// any case. Twitch logins are letters, digits and underscores, so any other
@@ -285,6 +293,9 @@ extension ChatLine: Threadable {
 public struct ThreadedLine<Line: Threadable>: Identifiable {
     public var line: Line
     public var nested: Bool
+    /// For a command folded by `threaded(reach:open:)`: the bot's answers to
+    /// it, whether or not they are also drawn as lines of their own.
+    public var answers: [Line] = []
     public var id: Line.ID { line.id }
 }
 
@@ -317,5 +328,39 @@ extension Array where Element: Threadable {
             [ThreadedLine(line: self[at], nested: false)]
                 + (replies[at] ?? []).map { ThreadedLine(line: $0, nested: true) }
         }
+    }
+}
+
+/// A chat line a command's answers can fold under: who sent it and what it
+/// says, which is what tells a viewer's `!command` from the bot's answer.
+public protocol ChatExchangeable: Threadable {
+    var senderLogin: String { get }
+    var body: String { get }
+}
+
+extension ChatLine: ChatExchangeable {
+    public var senderLogin: String { login }
+    public var body: String { text }
+}
+
+extension Array where Element: ChatExchangeable {
+    /// `threaded(reach:)`, with each command and the bot's answers to it read as
+    /// one exchange: a viewer's `!command` carries those answers in `answers`,
+    /// and they leave the log unless the command's id is in `open`. Anyone
+    /// else's reply to the command stays in its thread either way.
+    public func threaded(reach: Int = 20, open: Set<Element.ID>) -> [ThreadedLine<Element>] {
+        var out: [ThreadedLine<Element>] = []
+        // Where in `out` the current thread's root is, when that root is a command.
+        var command: Int?
+        for row in threaded(reach: reach) {
+            if !row.nested {
+                command = isChatCommand(row.line.body) && !isChatBot(row.line.senderLogin) ? out.count : nil
+            } else if let at = command, isChatBot(row.line.senderLogin) {
+                out[at].answers.append(row.line)
+                if !open.contains(out[at].id) { continue }
+            }
+            out.append(row)
+        }
+        return out
     }
 }

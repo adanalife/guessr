@@ -95,6 +95,40 @@ public struct UserFact: Hashable, Identifiable, Sendable {
         }
     }
 
+    /// A viewer's command and the bot's answer, as one quiet line: who asked,
+    /// what they asked, and as much of the answer as fits. An app draws it in
+    /// a button that opens the answer in full, at which point this line drops
+    /// the preview and the chevron turns down.
+    public struct ChatExchangeRow: View {
+        public var name: String
+        /// The asker's name color; nil reads secondary.
+        public var nameColor: Color?
+        public var command: String
+        /// The newest answer, nil while the bot hasn't said anything yet.
+        public var answer: String?
+        public var open: Bool
+        public init(name: String, nameColor: Color? = nil, command: String, answer: String?, open: Bool) {
+            (self.name, self.nameColor, self.command, self.answer, self.open) = (name, nameColor, command, answer, open)
+        }
+        public var body: some View {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Image(systemName: open ? "chevron.down" : "chevron.right")
+                    .font(.caption2.bold())
+                    .foregroundStyle(.tertiary)
+                    .opacity(answer == nil ? 0 : 1)
+                    .accessibilityHidden(true)
+                Text(name).foregroundStyle(nameColor ?? .secondary)
+                Text(command).monospaced().foregroundStyle(.secondary)
+                if !open, let answer {
+                    Text("→ \(answer)").foregroundStyle(.tertiary)
+                }
+            }
+            .font(.caption)
+            .lineLimit(1)
+            .accessibilityElement(children: .combine)
+        }
+    }
+
     /// Badge chips borrow the roles' usual colors; a badge the app has no
     /// opinion about gets the neutral chip.
     public func badgeColor(_ chip: String) -> Color {
