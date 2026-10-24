@@ -78,6 +78,9 @@ struct PlayView: View {
                 LoadingMark()
             }
         }
+        // The page fills the screen, so the mark waits on paper rather than in a
+        // paper band across the system background.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .paper()
         .navigationTitle("Guessr")
         // Keyed on the player and the date: a link to another device's player
