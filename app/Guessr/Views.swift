@@ -116,6 +116,15 @@ struct SettingsView: View {
     @AppStorage("kilometers") private var kilometers = false
     @AppStorage("appearance") private var appearance = "dark"
 
+    /// The release and build `ios:release` stamps at archive time; a Debug
+    /// build reads project.yml's placeholder.
+    private static let version: String = {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let release = info["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info["CFBundleVersion"] as? String ?? "?"
+        return "Guessr \(release) (\(build))"
+    }()
+
     var body: some View {
         Form {
             NameSection(player: $player)
@@ -181,6 +190,9 @@ struct SettingsView: View {
                 } footer: {
                     Text("Shows the app the way a mod or a viewer sees it. Anything you press still runs as you.")
                 }
+            }
+            Section {} footer: {
+                Text(verbatim: Self.version).frame(maxWidth: .infinity)
             }
         }
         .readableWidth(title: "Settings")
