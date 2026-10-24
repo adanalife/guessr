@@ -440,9 +440,17 @@ has no path out of the browser holding it.
 
 ### The boards
 
-`GET /api/leaderboard?board=daily|monthly` returns `{board, period, rows}`, rows
+`GET /api/leaderboard?board=daily|monthly` returns `{board, period, rows, prev}`, rows
 being `[name, points]` pairs, best first. Ten of them, since the overlay renders
 five and the extra leaves room to filter without a second request.
+
+`prev`, parallel to `rows`, is each player's position on the board before:
+the day before for a daily board, and for the running month the same month
+without its newest closed day or anything still open. `0` marks a player who
+wasn't on it, and the key is left out when there is no earlier board to compare
+against (nobody played the day before, a finished month, or a month's first
+days). Players are matched by id, and the earlier board is read deeper than ten
+rows, so someone just off yesterday's top ten reads as moved rather than new.
 
 The **daily** board is the most recently *closed* date, never one still filling.
 Three dates are open at once, so "today" isn't a single answer, and the
