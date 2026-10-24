@@ -50,6 +50,8 @@ struct ChatLog: View {
     @State private var pickingEmote = false
     /// The line the next send answers, from its long-press Reply.
     @State private var replyingTo: ChatLine?
+    /// Commands whose bot answers are drawn in full rather than folded.
+    @State private var openCommands: Set<String> = []
     /// When this viewer's last message went, which slow mode counts from.
     @State private var lastSent: Date?
     /// Whether slow mode is still holding the next send back.
@@ -273,10 +275,11 @@ struct ChatLog: View {
 
     private var log: some View {
         ScrollViewReader { proxy in
-            List(lines.threaded()) { row in
+            List(lines.threaded(open: openCommands)) { row in
                 let line = row.line
                 ChatLineView(
-                    line: line, nested: row.nested, mayModerate: mayModerate, error: $error, banned: $banned,
+                    line: line, nested: row.nested, exchange: exchange(row), mayModerate: mayModerate, error: $error,
+                    banned: $banned,
                     // A chatter's history is for the channel's staff; a
                     // viewer's card, or the owner's look as one, has none.
                     recent: {
@@ -406,9 +409,18 @@ struct ChatLog: View {
             >= geo.contentSize.height + geo.contentInsets.bottom - 40
     }
 
+    /// A viewer's command, drawn as one line with the bot's answer folded in.
+    private func exchange(_ row: ThreadedLine<ChatLine>) -> ChatLineView.Exchange? {
+        guard !row.nested, isChatCommand(row.line.text), !isChatBot(row.line.login) else { return nil }
+        let id = row.line.id
+        return .init(answer: row.answers.last?.text, open: openCommands.contains(id)) {
+            if openCommands.remove(id) == nil { openCommands.insert(id) }
+        }
+    }
+
     private func scroll(_ proxy: ScrollViewProxy) {
         // The last line drawn, which a reply nested up the log is not.
-        guard let last = lines.threaded().last?.id else { return }
+        guard let last = lines.threaded(open: openCommands).last?.id else { return }
         withAnimation { proxy.scrollTo(last, anchor: .bottom) }
     }
 
@@ -458,6 +470,13 @@ struct ChatLineView: View {
     var line: ChatLine
     /// Drawn under the line it answers, which then needs no quote.
     var nested = false
+    /// A command and its folded answer: a quiet line a tap opens.
+    struct Exchange {
+        var answer: String?
+        var open: Bool
+        var toggle: () -> Void
+    }
+    var exchange: Exchange?
     var mayModerate: Bool
     @Binding var error: String?
     @Binding var banned: Banned?
@@ -473,7 +492,16 @@ struct ChatLineView: View {
     var body: some View {
         // A button, so the row highlights under the finger, a slide off it
         // cancels, and VoiceOver says it opens something.
-        Button { showingCard = true } label: { row }
+        Button { if let exchange { exchange.toggle() } else { showingCard = true } } label: {
+            if let exchange {
+                ChatExchangeRow(
+                    name: line.displayName, nameColor: line.colorHex.map(hexColor), command: line.text,
+                    answer: exchange.answer, open: exchange.open)
+                    .contentShape(Rectangle())
+            } else {
+                row
+            }
+        }
             .foregroundStyle(.primary)
             .listRowBackground(tint)
             .sheet(isPresented: $showingCard) {
