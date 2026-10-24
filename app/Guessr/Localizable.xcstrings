@@ -4828,34 +4828,6 @@
         }
       }
     },
-    "This device's plays move to that player, and both devices play as one from now on." : {
-      "localizations" : {
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hry z tohoto zařízení přejdou na tohoto hráče a obě zařízení budou od teď hrát jako jeden."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Las partidas de este dispositivo pasan a ese jugador, y desde ahora ambos dispositivos juegan como uno."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les parties de cet appareil passent à ce joueur, et les deux appareils jouent désormais comme un seul."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Игры с этого устройства перейдут к этому игроку, и дальше оба устройства будут играть как одно."
-          }
-        }
-      }
-    },
     "This device's plays will be merged with %@." : {
       "localizations" : {
         "cs" : {
@@ -5727,9 +5699,7 @@
         }
       }
     },
-    "🔥 %lld-day streak" : {
-
-    }
+    "🔥 %lld-day streak" : {}
   },
   "version" : "1.0"
 }
