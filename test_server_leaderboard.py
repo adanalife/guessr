@@ -10,7 +10,14 @@ import datetime as dt
 
 from server import rules
 from server.db import Sqlite
-from server.leaderboard import DAILY, MONTHLY, label, leaderboard
+from server.leaderboard import (
+    DAILY,
+    MONTHLY,
+    PREV_DAILY,
+    PREV_MONTHLY,
+    label,
+    leaderboard,
+)
 
 NOW = dt.datetime(2026, 8, 20, 12, tzinfo=dt.UTC)
 DAY = "2026-08-19"  # the last closed date at NOW
@@ -144,6 +151,14 @@ def test_ranking() -> None:
         assert "INDEX plays_by_player_recent" in plan, plan
         # The span seeks on the date rather than reading every play.
         assert "SCAN p" not in plan, plan
+    for sql, args in (
+        (PREV_DAILY, ("2026-08-01", 1000)),
+        (PREV_MONTHLY, ("2026-08", "2026-08-03", 1000)),
+    ):
+        plan = "\n".join(
+            r["detail"] for r in d.conn.execute(f"EXPLAIN QUERY PLAN {sql}", args)
+        )
+        assert "SCAN p" not in plan, plan
 
 
 def test_label() -> None:
@@ -190,9 +205,11 @@ async def test_handler() -> None:
             {"board": "daily", "period": DAY, "rows": daily_rows},
             {"cache-control": "public, max-age=60"},
         ), q
+    # Only Lucky Overpass played before the last closed date, so the other two
+    # are new since the month's previous board.
     assert (await get(board="monthly"))[:2] == (
         200,
-        {"board": "monthly", "period": MONTH, "rows": monthly_rows},
+        {"board": "monthly", "period": MONTH, "rows": monthly_rows, "prev": [1, 0, 0]},
     )
     for b in ("weekly", "Daily", "MONTHLY", "all", "daily' OR 1=1"):
         assert (await get(board=b))[:2] == (
@@ -235,6 +252,7 @@ async def test_handler() -> None:
     )
     assert (await get(board="monthly", month="2019-06"))[1]["rows"] == []
     status, body, headers = await get(board="monthly", month=MONTH)
+    assert "prev" not in (await get(board="monthly", month="2020-01"))[1]
     assert (
         body["rows"] == monthly_rows
         and headers["cache-control"] == "public, max-age=60"
@@ -288,8 +306,61 @@ async def test_handler() -> None:
     assert (status, body["period"], body["rows"]) == (200, DAY, [])
 
 
+async def test_prev() -> None:
+    """`prev` is each row's position on the board before: 0 for a player who
+    was not on it, the key absent when there is no such board."""
+    yesterday = "2026-08-18"
+    # Twelve players yesterday, p12 last; today p12 climbs to ninth. Past the
+    # ten served rows, so the previous board must be read deeper than ROWS.
+    plays = [(yesterday, f"p{i:02}", "a.jpg", 1000 - i, f"P {i}") for i in range(1, 13)]
+    plays += [(DAY, f"p{i:02}", "a.jpg", 1000 - i, f"P {i}") for i in range(1, 9)]
+    plays += [
+        (DAY, "p11", "a.jpg", 1, "P 11"),
+        (DAY, "p12", "a.jpg", 500, "P 12"),
+        (DAY, "new", "a.jpg", 600, "Newcomer"),
+    ]
+    d = db(plays)
+
+    async def get(**q):
+        return (await leaderboard(d, q, NOW))[1]
+
+    body = await get(board="daily")
+    names = [n for n, _ in body["rows"]]
+    assert len(names) == 10, names
+    assert names[8:] == ["Newcomer", "P 12"], names
+    # p01..p08 kept 1..8; Newcomer is new; p12 moved 12th -> 10th.
+    assert body["prev"] == [1, 2, 3, 4, 5, 6, 7, 8, 0, 12], body
+    # Matched by id, not name: an alias changes nothing.
+    d.conn.execute("INSERT INTO players (player_id, alias) VALUES ('p12', 'Alias')")
+    assert (await get(board="daily"))["prev"] == body["prev"]
+
+    # A day whose previous day nobody played carries no prev.
+    assert "prev" not in await get(board="daily", date=yesterday)
+
+    # The running month's previous board stops before the last closed date:
+    # plays on DAY (and any still-open date) are left out of it.
+    month = await get(board="monthly")
+    # Month totals: p01..p08 twice, then p12 (988 + 500) ahead of p09; the
+    # previous board is yesterday's alone, where p12 was twelfth.
+    assert (month["period"], month["prev"]) == (
+        MONTH,
+        [1, 2, 3, 4, 5, 6, 7, 8, 12, 9],
+    ), month
+
+    # A finished month never moves, so it has no prev; neither does a running
+    # month whose only plays are on or after the last closed date.
+    early = dt.datetime(2026, 9, 2, 12, tzinfo=dt.UTC)  # last closed 2026-08-31
+    assert (
+        "prev"
+        not in (await leaderboard(d, {"board": "monthly", "month": MONTH}, early))[1]
+    )
+    fresh = db([("2026-08-19", "p1", "a.jpg", 100, "Amber Basin")])
+    assert "prev" not in (await leaderboard(fresh, {"board": "monthly"}, NOW))[1]
+
+
 test_names()
 test_ranking()
 test_label()
 asyncio.run(test_handler())
+asyncio.run(test_prev())
 print("ok: the Python /api/leaderboard matches the contract test_leaderboard.mjs holds")

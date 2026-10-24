@@ -392,6 +392,8 @@ def leaderboard():
         200,
         f"/api/leaderboard?board=daily&date={FIRST}",
     )
+    # No `prev`: nobody played the day before FIRST, so there is no board to rank
+    # against.
     assert r.json == {
         "board": "daily",
         "period": str(FIRST),
@@ -411,6 +413,10 @@ def leaderboard():
         r.json
     )
     assert r.header("cache-control") == "public, max-age=60", r.header("cache-control")
+    # The running month's previous board is absent or one rank per row, 0 for new.
+    prev = r.json.get("prev", [0] * len(r.json["rows"]))
+    assert len(prev) == len(r.json["rows"]), r.json
+    assert all(isinstance(n, int) and n >= 0 for n in prev), r.json
     assert (
         get(
             "the running month by name",
@@ -761,6 +767,8 @@ def notes():
 
     q = f"/admin/board-note?board=daily&date={FIRST}&rank=1"
     r = get("a board row's note reads", 200, q)
+    # No `prev`: nobody played the day before FIRST, so there is no board to rank
+    # against.
     assert r.json == {
         "board": "daily",
         "period": str(FIRST),
