@@ -130,8 +130,8 @@ struct GuessrApp: App {
             ) { opened in
                 Button("Join") { Task { linkFailed = !(await join(opened)) } }
                 Button("Cancel", role: .cancel) {}
-            } message: { _ in
-                Text("This device's plays move to that player, and both devices play as one from now on.")
+            } message: { opened in
+                Text("This device's plays will be merged with \(opened.name ?? String(localized: "your other device")).")
             }
             .alert(
                 alreadyAs.map { Text("Already playing as \($0)") } ?? Text(verbatim: ""),
