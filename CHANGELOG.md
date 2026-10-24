@@ -4,6 +4,12 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.44.0 — 2026-10-24
+
+### Behind the scenes
+
+- The stream's leaderboards know where each player stood the day before, so they can show who climbed and who slipped. ([#513](https://github.com/adanalife/guessr/pull/513))
+
 ## v1.43.0 — 2026-10-24
 
 ### New
