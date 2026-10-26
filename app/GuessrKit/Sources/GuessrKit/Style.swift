@@ -23,7 +23,10 @@
                 (Double(hex >> 16 & 0xFF) / 255, Double(hex >> 8 & 0xFF) / 255, Double(hex & 0xFF) / 255)
             }
             let (l, d) = (rgb(light), rgb(dark))
-            #if canImport(UIKit)
+            #if os(watchOS)
+                // The watch has no light appearance.
+                return Color(red: d.0, green: d.1, blue: d.2)
+            #elseif canImport(UIKit)
                 return Color(
                     uiColor: UIColor { traits in
                         let c = traits.userInterfaceStyle == .dark ? d : l
