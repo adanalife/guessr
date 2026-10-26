@@ -51,7 +51,9 @@ async def test_day() -> None:
     # and everything the day a column is added.
     assert body["rounds"] == [{"image": image(PAST[0], i)} for i in range(1, 6)]
     assert "max-age=86400" in headers["cache-control"]
-    assert (await get(date=OPEN))[0] == 200, "an open date did not read"
+    status, _, headers = await get(date=OPEN)
+    assert status == 200, "an open date did not read"
+    assert headers["cache-control"] == "no-store", "an open date's rounds cached"
 
     status, body, _ = await get(date=FUTURE)
     assert status == 403 and "not opened" in body["error"] and "rounds" not in body

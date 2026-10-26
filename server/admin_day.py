@@ -44,6 +44,7 @@ QUEUED = "SELECT image FROM rounds WHERE status = 'queued' ORDER BY image LIMIT 
 TAIL = "SELECT MAX(date) AS date FROM round_days"
 TAIL_ROUNDS = "SELECT image FROM round_days WHERE date = ? ORDER BY position"
 FORGET_REVIEW = "DELETE FROM day_reviews WHERE date = ?"
+FROZEN = "{} is frozen: it has been played or has closed"
 
 
 # A month at a glance: every scheduled date with its round count and review mark,
@@ -62,11 +63,17 @@ MONTH_TOTALS = f"""SELECT p.date, p.player_id, SUM(p.points) AS points,
                    ORDER BY p.date, points DESC, p.player_id"""
 
 
-def _opened(date: str, now: dt.datetime | None) -> bool:
-    """Frozen from the moment a date opens: a player mid-game cannot have a round
-    swapped under them, and a finished day is the record of what was played.
-    Not is_open(), which is false again once a date has closed."""
-    return (now or dt.datetime.now(dt.UTC)) >= rules.play_window(date)[0]
+PLAYED = "SELECT 1 FROM plays WHERE date = ? LIMIT 1"
+
+
+async def _frozen(db, date: str, now: dt.datetime | None) -> bool:
+    """Frozen from the first play: a player mid-game cannot have a round swapped
+    under them. A closed day is frozen even unplayed, as the record of what was
+    on offer. An open date nobody has reached yet is still fair to change."""
+    return (
+        date <= rules.last_closed_date(now)
+        or await db.fetchone(PLAYED, date) is not None
+    )
 
 
 async def preview(db, who, params, now=None) -> tuple[int, dict, dict]:
@@ -91,6 +98,7 @@ async def preview(db, who, params, now=None) -> tuple[int, dict, dict]:
         {
             "date": date,
             "open": rules.is_open(date, now),
+            "frozen": await _frozen(db, date, now),
             "scheduled_through": horizon["date"],
             "queued": horizon["queued"],
             "reviewed_at": review["reviewed_at"] if review else None,
@@ -161,12 +169,8 @@ async def reject(db, who, body, clip_exists=None, now=None) -> tuple[int, dict, 
     date, image = b.get("date"), b.get("image")
     if not rules.is_calendar_date(date) or not isinstance(image, str):
         return 400, {"error": "expected {date, image}"}, NO_STORE
-    if _opened(date, now):
-        return (
-            409,
-            {"error": f"{date} has already opened, so its schedule is frozen"},
-            NO_STORE,
-        )
+    if await _frozen(db, date, now):
+        return 409, {"error": FROZEN.format(date)}, NO_STORE
 
     slot = await db.fetchone(
         "SELECT position FROM round_days WHERE date = ? AND image = ?", date, image
@@ -262,14 +266,10 @@ async def review(db, who, body, now=None) -> tuple[int, dict, dict]:
     date, reviewed = b.get("date"), b.get("reviewed")
     if not rules.is_calendar_date(date) or not isinstance(reviewed, bool):
         return 400, {"error": "expected {date, reviewed}"}, NO_STORE
-    # An opened day's schedule could not have been withheld, so marking it would
-    # read as approval of something nobody could stop.
-    if _opened(date, now):
-        return (
-            409,
-            {"error": f"{date} has already opened, so there is nothing left to review"},
-            NO_STORE,
-        )
+    # A frozen day's schedule can no longer be changed, so marking it would read
+    # as approval of something nobody could stop.
+    if await _frozen(db, date, now):
+        return 409, {"error": FROZEN.format(date)}, NO_STORE
     # A typo'd date would otherwise count toward a horizon nobody looked at.
     if not await db.fetchone("SELECT 1 FROM round_days WHERE date = ? LIMIT 1", date):
         return 404, {"error": f"no game is scheduled for {date}"}, NO_STORE
