@@ -205,12 +205,15 @@ def day():
     assert len(set(images)) == 5, "a round was served twice in one game"
     # A round reaches the browser as a name and nothing else.
     assert all(list(x) == ["image"] for x in game["rounds"]), game
+    # Open, so still editable until someone plays it: never cached.
+    assert r.header("cache-control") == "no-store", r.header("cache-control")
+
+    r = get("a finished day stays readable", 200, f"/api/day?date={FIRST}")
+    first = r.json
+    assert len(first["rounds"]) == 5, first
     assert r.header("cache-control") == "public, max-age=86400", r.header(
         "cache-control"
     )
-
-    first = get("a finished day stays readable", 200, f"/api/day?date={FIRST}").json
-    assert len(first["rounds"]) == 5, first
 
     # The spoiler property: a date that IS scheduled is still refused until it
     # opens. today + 2 is on the schedule and never open yet.
@@ -684,7 +687,8 @@ def admin_reads():
     )
     a = ahead.json
     assert ahead.header("cache-control") == "no-store", ahead.header("cache-control")
-    assert a["open"] is False and a["reviewed_at"] is None and a["queued"] == 0, a
+    assert a["open"] is False and a["frozen"] is False, a
+    assert a["reviewed_at"] is None and a["queued"] == 0, a
     assert [x["position"] for x in a["rounds"]] == [1, 2, 3, 4, 5], a
     for x in a["rounds"]:
         assert {
@@ -706,10 +710,8 @@ def admin_reads():
     assert last >= d(3), (
         f"the run needs a scheduled day past today+2 to reject from; it ends {last}"
     )
-    assert (
-        get("today previews as open", 200, f"/admin/day?date={TODAY}").json["open"]
-        is True
-    )
+    today = get("today previews as open and played", 200, f"/admin/day?date={TODAY}")
+    assert today.json["open"] is True and today.json["frozen"] is True, today.json
 
     error(get("a month with no month is refused", 400, "/admin/month"))
     m = get("a month reads", 200, f"/admin/month?month={d(2)[:7]}").json
@@ -836,7 +838,7 @@ def review():
         error(post(f"a review with {name} is refused", 400, "/admin/review", body))
     error(
         post(
-            "reviewing an opened date is refused",
+            "reviewing a played date is refused",
             409,
             "/admin/review",
             {"date": str(TODAY), "reviewed": True},
@@ -892,7 +894,7 @@ def reject(last):
         error(post(f"a reject with {name} is refused", 400, "/admin/day", body))
     error(
         post(
-            "rejecting from an opened date is refused",
+            "rejecting from a played date is refused",
             409,
             "/admin/day",
             {"date": str(TODAY), "image": ahead[0]["image"]},

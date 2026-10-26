@@ -34,12 +34,14 @@ async def day(db, params, now=None) -> tuple[int, dict, dict]:
     if not rounds:
         return 404, {"error": "no game is scheduled for that date"}, {}
 
-    # A date's five are frozen from the moment it opens -- the generator schedules
-    # ahead and the admin writes refuse anything open -- so it caches for a day.
+    # A closed date's five are the record of what was played, so it caches for
+    # a day. An open date's can still be swapped until someone plays it, and a
+    # cached list would hand that player a round the server no longer scores.
+    closed = date <= rules.last_closed_date(now)
     return (
         200,
         {"date": date, "rounds": rounds},
-        {"cache-control": "public, max-age=86400"},
+        {"cache-control": "public, max-age=86400" if closed else "no-store"},
     )
 
 
