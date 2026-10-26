@@ -25,8 +25,8 @@ struct PlayView: View {
     @State private var camera = PlayView.lower48
     /// Where the map is looking, whoever moved it last: the zoom buttons scale it.
     @State private var region: MKCoordinateRegion?
-    /// The corner map grown to a panel on a phone held on its side, up until
-    /// the guess is scored.
+    /// The corner map grown to a panel over a full-screen clip, up until the
+    /// guess is scored.
     @State private var showingMap = false
     @Environment(\.horizontalSizeClass) private var sizeClass
     /// Compact on a phone held on its side, the one shape with no room to
@@ -109,19 +109,20 @@ struct PlayView: View {
     private func round(_ day: GuessrDay, image: String, shown: PlayedRound?) -> some View {
         // A fresh player per clip: a looper can't be rebuilt on a queue
         // player still holding the last clip's items.
-        let clip = ClipView(
-            url: Guessr.baseURL.appending(path: image), fills: sizeClass == .regular || heightClass == .compact
-        ).id(image)
+        let clip = ClipView(url: Guessr.baseURL.appending(path: image)).id(image)
         return Group {
-            if heightClass == .compact {
-                // A phone on its side: the clip fills the screen, and the map
-                // waits small in its corner until the player opens it, then
-                // grows into a panel down the trailing side with the guess under
-                // it. It stays a panel through the reveal, with the score card on
-                // the clip's other corner, since the panel has no height to share.
+            if heightClass == .compact || sizeClass == .regular {
+                // A phone on its side, an iPad, an unfolded iPhone Duo: the clip
+                // takes the whole screen, letterboxed so none of the road is
+                // cropped, since squinting at it is the game. The map waits small
+                // in its corner until the player opens it, then grows into a panel
+                // down the trailing side with the guess under it. It stays a panel
+                // through the reveal, with the score card on the clip's other corner.
                 GeometryReader { screen in
                     let open = showingMap || shown != nil
+                    let panel = min(screen.size.width * 0.45, 420)
                     ZStack(alignment: .bottomTrailing) {
+                        Color.black.ignoresSafeArea()
                         clip.ignoresSafeArea()
                         if let shown {
                             RevealCard(round: shown)
@@ -134,7 +135,9 @@ struct PlayView: View {
                         VStack(spacing: 8) {
                             ProgressSquares(progress: progress, of: day.rounds.count)
                             map(shown, zoomable: open)
-                                .frame(maxHeight: open ? .infinity : 110)
+                                // No taller than wide, so an upright screen's panel
+                                // doesn't stretch the map into a strip.
+                                .frame(maxHeight: open ? panel : 110)
                                 .allowsHitTesting(open)
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                                 .overlay {
@@ -172,56 +175,11 @@ struct PlayView: View {
                             }
                         }
                         .padding(8)
-                        .frame(width: open ? min(screen.size.width * 0.45, 420) : 200)
+                        .frame(width: open ? panel : 200)
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
                         .padding()
                     }
                     .animation(reduceMotion ? nil : .smooth, value: open)
-                }
-            } else if sizeClass == .regular {
-                // The web's wide layout: the clip is the whole screen, since
-                // squinting at it is the game, and the map rides over its corner
-                // until the reveal makes the map the thing worth reading.
-                GeometryReader { screen in
-                    ZStack(alignment: .bottomTrailing) {
-                        clip.ignoresSafeArea()
-                            // A scrim under the status bar, whose white text is lost
-                            // over a bright sky.
-                            .overlay(alignment: .top) {
-                                LinearGradient(colors: [.black.opacity(0.35), .clear], startPoint: .top, endPoint: .bottom)
-                                    .frame(height: 80)
-                                    .ignoresSafeArea()
-                                    .allowsHitTesting(false)
-                            }
-                        let width = revealed ? min(screen.size.width * 0.6, 736) : 352
-                        VStack(alignment: .trailing, spacing: 12) {
-                            map(shown)
-                                // Revealed, the map keeps its own aspect rather than
-                                // growing taller than wide on a portrait screen, and
-                                // yields height to the card so a landscape screen
-                                // still shows the whole column.
-                                .frame(width: width)
-                                .frame(maxHeight: revealed ? min(screen.size.height * 0.6, width * 0.66) : 240)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .shadow(color: .black.opacity(0.4), radius: 12, y: 8)
-                                .layoutPriority(-1)
-                            // Before the reveal the column is one width with the map,
-                            // the squares on a capsule of their own and the pill on the
-                            // clip, carrying its own contrast; the reveal gets a card.
-                            // Either way it shares the map's edges.
-                            VStack(spacing: 12) {
-                                ProgressSquares(progress: progress, of: day.rounds.count)
-                                    .padding(.horizontal, 12).padding(.vertical, 6)
-                                    .background(.regularMaterial.opacity(shown == nil ? 1 : 0), in: Capsule())
-                                controls(day, image: image, shown: shown)
-                                    .shadow(color: .black.opacity(shown == nil ? 0.4 : 0), radius: 8, y: 4)
-                            }
-                            .padding(shown == nil ? 0 : 16)
-                            .frame(maxWidth: width)
-                            .background(.regularMaterial.opacity(shown == nil ? 0 : 1), in: RoundedRectangle(cornerRadius: 12))
-                        }
-                        .padding()
-                    }
                 }
             } else {
                 VStack(spacing: 12) {
@@ -410,7 +368,7 @@ struct PlayView: View {
     #if DEBUG
         /// `-autoplay 1` plays the rest of the day unattended, pausing on each
         /// round and each reveal long enough to screenshot it. `-map 1` opens
-        /// the sideways phone's map on launch, and `-landscape 1` turns the
+        /// the corner map on launch, and `-landscape 1` turns the
         /// phone on its side, two things the shell can't do.
         private func autoplay() async {
             guard UserDefaults.standard.bool(forKey: "autoplay"), let day else { return }
