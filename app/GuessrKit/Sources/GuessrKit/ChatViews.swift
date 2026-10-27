@@ -236,7 +236,8 @@ public struct UserFact: Hashable, Identifiable, Sendable {
         private var why: String? { reason.isEmpty ? nil : reason }
 
         public func body(content: Content) -> some View {
-            #if os(tvOS)
+            // The TV has no pointer for a menu and the watch no room for one.
+            #if os(tvOS) || os(watchOS)
                 content
             #else
                 // Viewers chat in several languages. The system sheet translates
