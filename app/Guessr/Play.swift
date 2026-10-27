@@ -25,6 +25,9 @@ struct PlayView: View {
     @State private var camera = PlayView.lower48
     /// Where the map is looking, whoever moved it last: the zoom buttons scale it.
     @State private var region: MKCoordinateRegion?
+    /// The corner map grown to a panel over a full-screen clip, up until the
+    /// guess is scored.
+    @State private var showingMap = false
     @Environment(\.horizontalSizeClass) private var sizeClass
     /// Compact on a phone held on its side, the one shape with no room to
     /// stack the clip over the map.
@@ -106,68 +109,77 @@ struct PlayView: View {
     private func round(_ day: GuessrDay, image: String, shown: PlayedRound?) -> some View {
         // A fresh player per clip: a looper can't be rebuilt on a queue
         // player still holding the last clip's items.
-        let clip = ClipView(
-            url: Guessr.baseURL.appending(path: image), fills: sizeClass == .regular && heightClass != .compact
-        ).id(image)
+        let clip = ClipView(url: Guessr.baseURL.appending(path: image)).id(image)
         return Group {
-            if heightClass == .compact {
-                // A phone on its side: the clip as large as the height allows,
-                // the map and controls in the column beside it.
-                HStack(spacing: 12) {
-                    clip.aspectRatio(Guessr.clipAspect, contentMode: .fit)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    VStack(spacing: 8) {
-                        ProgressSquares(progress: progress, of: day.rounds.count)
-                        map(shown)
-                        controls(day, image: image, shown: shown)
-                    }
-                    .frame(width: 280)
-                }
-                .padding(.horizontal)
-            } else if sizeClass == .regular {
-                // The web's wide layout: the clip is the whole screen, since
-                // squinting at it is the game, and the map rides over its corner
-                // until the reveal makes the map the thing worth reading.
+            if heightClass == .compact || sizeClass == .regular {
+                // A phone on its side, an iPad, an unfolded iPhone Duo: the clip
+                // takes the whole screen, letterboxed so none of the road is
+                // cropped, since squinting at it is the game. The map waits small
+                // in its corner until the player opens it, then grows into a panel
+                // down the trailing side with the guess under it. It stays a panel
+                // through the reveal, with the score card on the clip's other corner.
                 GeometryReader { screen in
+                    let open = showingMap || shown != nil
+                    let panel = min(screen.size.width * 0.45, 420)
                     ZStack(alignment: .bottomTrailing) {
+                        Color.black.ignoresSafeArea()
                         clip.ignoresSafeArea()
-                            // A scrim under the status bar, whose white text is lost
-                            // over a bright sky.
-                            .overlay(alignment: .top) {
-                                LinearGradient(colors: [.black.opacity(0.35), .clear], startPoint: .top, endPoint: .bottom)
-                                    .frame(height: 80)
-                                    .ignoresSafeArea()
-                                    .allowsHitTesting(false)
-                            }
-                        let width = revealed ? min(screen.size.width * 0.6, 736) : 352
-                        VStack(alignment: .trailing, spacing: 12) {
-                            map(shown)
-                                // Revealed, the map keeps its own aspect rather than
-                                // growing taller than wide on a portrait screen, and
-                                // yields height to the card so a landscape screen
-                                // still shows the whole column.
-                                .frame(width: width)
-                                .frame(maxHeight: revealed ? min(screen.size.height * 0.6, width * 0.66) : 240)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .shadow(color: .black.opacity(0.4), radius: 12, y: 8)
-                                .layoutPriority(-1)
-                            // Before the reveal the column is one width with the map,
-                            // the squares on a capsule of their own and the pill on the
-                            // clip, carrying its own contrast; the reveal gets a card.
-                            // Either way it shares the map's edges.
-                            VStack(spacing: 12) {
-                                ProgressSquares(progress: progress, of: day.rounds.count)
-                                    .padding(.horizontal, 12).padding(.vertical, 6)
-                                    .background(.regularMaterial.opacity(shown == nil ? 1 : 0), in: Capsule())
-                                controls(day, image: image, shown: shown)
-                                    .shadow(color: .black.opacity(shown == nil ? 0.4 : 0), radius: 8, y: 4)
-                            }
-                            .padding(shown == nil ? 0 : 16)
-                            .frame(maxWidth: width)
-                            .background(.regularMaterial.opacity(shown == nil ? 0 : 1), in: RoundedRectangle(cornerRadius: 12))
+                        if let shown {
+                            RevealCard(round: shown)
+                                .padding(8)
+                                .frame(width: 280)
+                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                                .padding()
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                         }
+                        VStack(spacing: 8) {
+                            ProgressSquares(progress: progress, of: day.rounds.count)
+                            map(shown, zoomable: open)
+                                // No taller than wide, so an upright screen's panel
+                                // doesn't stretch the map into a strip.
+                                .frame(maxHeight: open ? panel : 110)
+                                .allowsHitTesting(open)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .overlay {
+                                    if !open {
+                                        Button { showingMap = true } label: {
+                                            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                                .padding(6)
+                                                .background(.regularMaterial, in: Circle())
+                                                .padding(6)
+                                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                                                .contentShape(Rectangle())
+                                        }
+                                        .buttonStyle(.plain)
+                                        .foregroundStyle(Color.ink)
+                                        .accessibilityLabel("Open the map")
+                                    }
+                                }
+                                .overlay(alignment: .topTrailing) {
+                                    if open && shown == nil {
+                                        Button { showingMap = false } label: {
+                                            Image(systemName: "xmark").frame(width: 44, height: 44).contentShape(Rectangle())
+                                        }
+                                        .buttonStyle(.plain)
+                                        .foregroundStyle(Color.ink)
+                                        .background(.regularMaterial, in: Circle().inset(by: 6))
+                                        .accessibilityLabel("Hide the map")
+                                    }
+                                }
+                                .layoutPriority(-1)
+                            if open {
+                                if shown == nil, let message {
+                                    Text(message).font(.callout).multilineTextAlignment(.center)
+                                }
+                                button(day, image: image).inkButton()
+                            }
+                        }
+                        .padding(8)
+                        .frame(width: open ? panel : 200)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
                         .padding()
                     }
+                    .animation(reduceMotion ? nil : .smooth, value: open)
                 }
             } else {
                 VStack(spacing: 12) {
@@ -180,6 +192,9 @@ struct PlayView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        // Scored, the map shows the answer inline, so the opened one closes and
+        // the next round starts on the clip.
+        .onChange(of: revealed) { if revealed { showingMap = false } }
         // The image holds through the reveal and changes with the next round, so
         // this starts the clock once per clip.
         .onChange(of: image, initial: true) {
@@ -208,7 +223,8 @@ struct PlayView: View {
         }
     }
 
-    private func map(_ shown: PlayedRound?) -> some View {
+    /// `zoomable: false` drops the zoom buttons, for a map too small to hold them.
+    private func map(_ shown: PlayedRound?, zoomable: Bool = true) -> some View {
         MapReader { proxy in
             Map(position: $camera) {
                 if let pin { Marker("Your guess", coordinate: pin) }
@@ -228,24 +244,28 @@ struct PlayView: View {
             .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
             .background(Color.paper)
             .overlay(alignment: .bottomTrailing) {
-                VStack(spacing: 0) {
-                    Button { zoom(by: 0.5) } label: {
-                        Image(systemName: "plus").frame(width: 44, height: 44).contentShape(Rectangle())
-                    }
-                    .accessibilityLabel("Zoom in")
-                    Divider()
-                    Button { zoom(by: 2) } label: {
-                        Image(systemName: "minus").frame(width: 44, height: 44).contentShape(Rectangle())
-                    }
-                    .accessibilityLabel("Zoom out")
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(Color.ink)
-                .fixedSize()
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-                .padding(8)
+                if zoomable { zoomButtons }
             }
         }
+    }
+
+    private var zoomButtons: some View {
+        VStack(spacing: 0) {
+            Button { zoom(by: 0.5) } label: {
+                Image(systemName: "plus").frame(width: 44, height: 44).contentShape(Rectangle())
+            }
+            .accessibilityLabel("Zoom in")
+            Divider()
+            Button { zoom(by: 2) } label: {
+                Image(systemName: "minus").frame(width: 44, height: 44).contentShape(Rectangle())
+            }
+            .accessibilityLabel("Zoom out")
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Color.ink)
+        .fixedSize()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .padding(8)
     }
 
     private func zoom(by factor: Double) {
@@ -335,13 +355,21 @@ struct PlayView: View {
             message = (error as? GuessrError)?.errorDescription ?? String(localized: "Could not reach the rounds")
         }
         #if DEBUG
+            showingMap = UserDefaults.standard.bool(forKey: "map")
+            if UserDefaults.standard.bool(forKey: "landscape"),
+                let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene
+            {
+                scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscapeRight))
+            }
             await autoplay()
         #endif
     }
 
     #if DEBUG
         /// `-autoplay 1` plays the rest of the day unattended, pausing on each
-        /// round and each reveal long enough to screenshot it.
+        /// round and each reveal long enough to screenshot it. `-map 1` opens
+        /// the corner map on launch, and `-landscape 1` turns the
+        /// phone on its side, two things the shell can't do.
         private func autoplay() async {
             guard UserDefaults.standard.bool(forKey: "autoplay"), let day else { return }
             while let next = progress.next(in: day) {
