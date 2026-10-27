@@ -20,17 +20,22 @@ concurrency:
   cancel-in-progress: true
 
 # What the shared gates job reads: the checkout, the PR (title check) and GHCR
-# (the pinned-tag check); `statuses: write` is for the per-gate commit statuses
-# it posts on the PR head. Without a block every job here would get the repo's
+# (the pinned-tag check). Without a block every job here would get the repo's
 # default token.
 permissions:
   contents: read
   pull-requests: read
   packages: read
-  statuses: write
 
 jobs:
   gates:
+    # `statuses: write` is for the per-gate commit statuses gates posts on the
+    # PR head; only this job gets it.
+    permissions:
+      contents: read
+      pull-requests: read
+      packages: read
+      statuses: write
     uses: adanalife/infra/.github/workflows/gates.yml@main
     with:
       vendor-script: ./scripts/vendor.sh
