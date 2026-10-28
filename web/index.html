@@ -844,6 +844,9 @@ let mode = 'daily', results = [], guesses = [];
 // have a game that crossed local midnight post tomorrow's date against tonight's
 // rounds, and resume the next day holding the previous day's results.
 let gameDay = 0;
+// Bumped by whatever establishes a board, so a slower load that started earlier
+// can tell it has been superseded.
+let boardSeq = 0;
 
 function clearMarks() { marks.forEach(m => { map.removeLayer(m); }); marks = []; }
 
@@ -1229,6 +1232,7 @@ function offerHistory() {
 }
 
 async function showFinished(saved) {
+  ++boardSeq; // a game still loading must not replace this board
   mode = 'daily';
   gameDay = saved.day;
   total = saved.total;
@@ -1647,20 +1651,29 @@ el('welcomemore').addEventListener('click', e => {
 // `saved` resumes an unfinished daily. The draw is the same five rounds for the
 // day either way, so resuming needs only the scores and guesses already banked
 // carried over; the next unplayed round follows from how many there are.
+//
+// Nothing is assigned until the rounds arrive, and then mode, day and game go
+// in together, so a load that fails leaves the board exactly as it was. Only the
+// latest request may land: Practice then Today's pressed quickly would otherwise
+// let the slower practice draw overwrite the daily's rounds, and every guess
+// would be refused as not in that day's game.
 async function newGame(which, saved = null) {
-  mode = which;
-  gameDay = today();
-  const day = gameDay;
+  const seq = ++boardSeq;
+  const day = today();
+  let rounds;
   try {
-    game = await loadRounds(mode === 'daily' ? `date=${dateForDay(day)}` : 'practice');
+    rounds = await loadRounds(which === 'daily' ? `date=${dateForDay(day)}` : 'practice');
   } catch (e) {
-    // Nothing to play, and no state has changed yet -- the mode swap above is
-    // the only thing this got to, and the buttons below stay as they were. Say
-    // what the server said rather than a generic failure, because "no game is
-    // scheduled" and "could not reach the rounds" want different reactions.
+    if (seq !== boardSeq) return;
+    // Say what the server said rather than a generic failure, because "no game
+    // is scheduled" and "could not reach the rounds" want different reactions.
     result.textContent = `${e.message}.`;
     return;
   }
+  if (seq !== boardSeq) return;
+  mode = which;
+  gameDay = day;
+  game = rounds;
   el('label').textContent = mode === 'daily' ? t('Daily #{n}', { n: day }) : t('Practice');
   // Not always five: practice comes up short until enough dates have finished
   // playing, and a game reads its length from what it was handed.
