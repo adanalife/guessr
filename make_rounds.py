@@ -924,14 +924,25 @@ def avoided_points(path: Path) -> list[dict]:
     return points
 
 
-def drop_burned(scored: list[dict], burned: set[str]) -> tuple[list[dict], int]:
+def drop_burned(
+    scored: list[dict], burned: set[str], aired: set[str] = frozenset()
+) -> tuple[list[dict], int]:
     """Filter scored moments whose clip is burned, before the quality window.
 
     Before, not after: the keep-fraction window sizes itself on what it is
     given, and a window padded with unpickable rounds is narrower than the one
     asked for.
+
+    `aired` is images that ever held a date. A clip frees up after the replay
+    window, but the moment that aired never does: drawn again it is the same
+    `image`, which round_days' UNIQUE index drops (the date ships short) and
+    the answers upsert rewrites under the plays already scored against it.
     """
-    kept = [r for r in scored if r["slug"] not in burned]
+    kept = [
+        r
+        for r in scored
+        if r["slug"] not in burned and not (aired and f"clips/{clip_name(r)}" in aired)
+    ]
     return kept, len(scored) - len(kept)
 
 
@@ -1210,6 +1221,13 @@ def main() -> int:
         "unit is the clip and not the moment.",
     )
     ap.add_argument(
+        "--exclude-images",
+        metavar="FILE",
+        help="images never to select, one per line: every round a target tier "
+        "has ever scheduled, so a clip back from its replay window offers a "
+        "different moment rather than the one that aired.",
+    )
+    ap.add_argument(
         "--avoid",
         metavar="FILE",
         help="locations never to select near, `lat,lng` one per line: where a "
@@ -1251,9 +1269,13 @@ def main() -> int:
             f"{len(missing)} scored clip(s) are not in {CORPUS} and were dropped "
             f"(first: {missing[0]}) -- the {args.corpus} rows and the mount disagree"
         )
-    if args.exclude:
-        scored, dropped = drop_burned(scored, burned_slugs(Path(args.exclude)))
-        print(f"excluded {dropped} scored moments whose clip is burned")
+    if args.exclude or args.exclude_images:
+        burned = burned_slugs(Path(args.exclude)) if args.exclude else set()
+        aired = (
+            burned_slugs(Path(args.exclude_images)) if args.exclude_images else set()
+        )
+        scored, dropped = drop_burned(scored, burned, aired)
+        print(f"excluded {dropped} scored moments whose clip is burned or that aired")
     keep = max(args.count, int(len(scored) * args.keep_fraction))
     eligible = rank(scored, args.distinctiveness)[:keep]
     print(
