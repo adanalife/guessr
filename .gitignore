@@ -12,6 +12,11 @@
 web/clips/
 web/.staging/
 web/clips.old/
+# The "where you guessed" stills and their rows: the whole corpus thinned to a
+# grid, a few hundred MB, and reveals.py rebuilds them. `task reveals:push` and
+# `task reveals:*:rows` are where they go.
+web/reveals/
+reveals.sql
 
 # The three files a generation leaves at the repo root rather than inside web/,
 # which is the entire deployed surface.
