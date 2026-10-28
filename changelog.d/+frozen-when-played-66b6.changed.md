@@ -1,1 +1,0 @@
-An upcoming day stays reviewable and editable until someone plays it, instead of freezing the moment it opens. Today's rounds are no longer cached by the browser, so a swap reaches a player who loaded them earlier.
