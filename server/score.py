@@ -12,6 +12,7 @@ parse) and returns (status, body), so whatever serves HTTP is a thin shim.
 """
 
 from server import rules
+from server.day import rounds_for
 
 
 async def score(db, body, now=None, client=None) -> tuple[int, dict]:
@@ -89,12 +90,9 @@ async def streak(db, player: str) -> dict:
 
 
 async def _in_draw(db, date: str, image: str) -> bool:
-    """Whether an image is one of the five that date plays, read straight off the
-    schedule the page was handed."""
-    row = await db.fetchone(
-        "SELECT 1 FROM round_days WHERE date = ? AND image = ?", date, image
-    )
-    return row is not None
+    """Whether an image is one of the five that date plays: the same rounds
+    /api/day handed the page, replay included."""
+    return any(r["image"] == image for r in await rounds_for(db, date))
 
 
 async def _practiceable(db, image: str, now) -> bool:
