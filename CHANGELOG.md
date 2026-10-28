@@ -4,6 +4,30 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.45.0 — 2026-10-28
+
+### New
+
+- If the schedule ever runs dry, the daily game replays a whole finished day (a year-old one when there is one) instead of showing no game. ([#520](https://github.com/adanalife/guessr/pull/520))
+
+### Changed
+
+- An upcoming day stays reviewable and editable until someone plays it, instead of freezing the moment it opens. Today's rounds are no longer cached by the browser, so a swap reaches a player who loaded them earlier. ([#515](https://github.com/adanalife/guessr/pull/515))
+- On an iPad or an unfolded iPhone Duo, the whole clip shows, letterboxed rather than cropped, and the map waits small in the corner until tapped, as on a sideways iPhone. ([#517](https://github.com/adanalife/guessr/pull/517))
+- On an iPhone held on its side, the clip fills the screen and the map waits small in the corner; tapping it opens a panel down the side with the guess button under it. ([#517](https://github.com/adanalife/guessr/pull/517))
+
+### Fixed
+
+- Switching between practice and today's game quickly, or after a practice load fails, no longer leaves the wrong game on the board or refuses every guess. ([#483](https://github.com/adanalife/guessr/pull/483))
+- The nightly staging mirror leaves dates that are already open alone, so a short open date no longer makes it replace the rest of staging's schedule and then fail. ([#489](https://github.com/adanalife/guessr/pull/489))
+- The weekly production top-up no longer refuses to run over a short date that is already open, which nothing can fill, so the schedule keeps its depth. ([#491](https://github.com/adanalife/guessr/pull/491))
+- A top-up never redraws the exact moment a past day already aired, so a replayed clip can't ship a short day or move a played round's answer. ([#493](https://github.com/adanalife/guessr/pull/493))
+
+### Behind the scenes
+
+- GuessrKit builds for watchOS, so tempomat's Watch app can share its chat and Twitch types ([#518](https://github.com/adanalife/guessr/pull/518))
+- CI: the GuessrKit Linux tests run on Ubuntu 24.04 again (there's no Swift toolchain for 26.04 yet), and only the gates job may post commit statuses. ([#519](https://github.com/adanalife/guessr/pull/519))
+
 ## v1.44.0 — 2026-10-24
 
 ### Behind the scenes
