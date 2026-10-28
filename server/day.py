@@ -18,8 +18,9 @@ from server import rules
 SCHEDULED = "SELECT image FROM round_days WHERE date = ? ORDER BY position"
 
 # Complete days on or before a cutoff, in a fixed order so the pick is stable.
-FULL_DAYS = """SELECT date FROM round_days WHERE date <= ?
-                GROUP BY date HAVING COUNT(*) = ? ORDER BY date"""
+# Every round answered, too: a replayed round with no answer row cannot score.
+FULL_DAYS = """SELECT d.date FROM round_days d JOIN answers a ON a.image = d.image
+                WHERE d.date <= ? GROUP BY d.date HAVING COUNT(*) = ? ORDER BY d.date"""
 
 # How far back a replay reaches: a year-old day while there is one, else any
 # day already closed by the time the replaying date opens -- D-3 closes at

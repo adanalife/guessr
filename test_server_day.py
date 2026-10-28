@@ -113,6 +113,12 @@ async def test_replay() -> None:
     short = await day(db, {"date": PAST[0]}, NOW)
     assert len(short[1]["rounds"]) == 4, short
 
+    # A day missing an answer is never replayed: its round would not score.
+    db = await seeded(PAST[:1])
+    await db.execute("PRAGMA foreign_keys = OFF")
+    await db.execute("DELETE FROM answers WHERE image = ?", image(PAST[0], 3))
+    assert (await day(db, {"date": dry}, NOW))[0] == 404, "replayed an unanswered day"
+
     # A year-old day wins over a recent one, so a replay is not last week's game.
     db = await seeded((*PAST, "2025-07-01"))
     _, body, _ = await day(db, {"date": dry}, NOW)
