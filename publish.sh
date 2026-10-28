@@ -99,11 +99,14 @@ fi
 
 if [ "$MODE" = "topup" ]; then
   echo "== reading $TIER's horizon"
-  state=$(npx wrangler d1 execute "$DB" --remote --json --command="SELECT (SELECT MAX(date) FROM round_days) AS last_day, (SELECT CAST(julianday(MAX(date)) - julianday(date('now')) AS INTEGER) FROM round_days) AS days_left, (SELECT COUNT(*) FROM rounds WHERE status = 'queued') AS queued, date('now') AS today")
+  state=$(npx wrangler d1 execute "$DB" --remote --json --command="SELECT (SELECT MAX(date) FROM round_days) AS last_day, (SELECT CAST(julianday(MAX(date)) - julianday(date('now')) AS INTEGER) FROM round_days) AS days_left, (SELECT COUNT(*) FROM rounds WHERE status = 'queued') AS queued, date('now') AS today, date('now', '+38 hours') AS unopened")
   last_day=$(jq -r '.[0].results[0].last_day // empty' <<<"$state")
   days_left=$(jq -r '.[0].results[0].days_left // 0' <<<"$state")
   queued=$(jq -r '.[0].results[0].queued' <<<"$state")
   today=$(jq -r '.[0].results[0].today' <<<"$state")
+  # The first date not yet open: date D opens at D-1 10:00 UTC (play_window in
+  # server/rules.py), so it is the UTC date 38 hours ahead.
+  unopened=$(jq -r '.[0].results[0].unopened' <<<"$state")
 
   # days_left is MAX(date) - today, which reads a horizon with a hole in it as
   # exactly as deep as a whole one. That arithmetic is only true while coverage
@@ -124,10 +127,16 @@ if [ "$MODE" = "topup" ]; then
   # today the horizon has run out rather than broken, there is no covered range
   # for a hole to be inside, and appending is exactly the fix -- so that case
   # falls through to the arithmetic below.
+  #
+  # Unopened dates only. schedule_gaps.sql starts at the oldest open date, which
+  # is yesterday until 12:00 UTC, and an open date is frozen: nothing can fill
+  # it, so refusing over one only stops the top-up while the horizon drains.
+  # verify_days.sh still reports it.
   if [ -n "$last_day" ] && [[ ! "$last_day" < "$today" ]]; then
     hole=$(npx wrangler d1 execute "$DB" --remote --json \
       --command="$(cat schedule_gaps.sql)" |
-      jq -r '[.[0].results[] | select(.n < 5)][0] | select(.) | "\(.date) has \(.n) of 5"')
+      jq -r --arg from "$unopened" \
+        '[.[0].results[] | select(.n < 5 and .date >= $from)][0] | select(.) | "\(.date) has \(.n) of 5"')
     if [ -n "$hole" ]; then
       echo "::error::$TIER is scheduled through $last_day but $hole" >&2
       echo "a top-up appends past $last_day, so it cannot fill that date." >&2
