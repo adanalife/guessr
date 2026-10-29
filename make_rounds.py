@@ -215,10 +215,9 @@ WITH picked AS (
   SELECT id, slug, state, date_filmed
   FROM videos
   WHERE state IS NOT NULL AND NOT flagged
+    -- The corpus is the gate, as it is for what airs: a clip is in the game
+    -- whether or not anyone has ruled on it yet.
     AND corpus = :'corpus'
-    -- Null until someone has ruled on the clip; a finished-but-unreviewed
-    -- season-2 clip stays out of the game the way it stays off the live channels.
-    AND reviewed_at IS NOT NULL
     -- A clip whose track is not worth believing is not worth a round. This is
     -- strictly stronger than the old `lat <> 0` gate: a confidence means the
     -- coords stage read the clip and its reads agreed with each other.
