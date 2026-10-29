@@ -25,7 +25,7 @@ shoot() { # shoot <udid> <dir> <name> <seconds to wait> <launch args...>
 }
 
 # <simulator>:<dir>:<seconds from the autoplay launch to its reveal>
-for spec in "iPhone 17 Pro Max:iphone:10" "iPhone Duo:duo:10" "iPad Pro 13-inch (M5):ipad:16"; do
+for spec in "iPhone 18 Pro Max:iphone:10" "iPhone Duo:duo:10" "iPad Pro 13-inch (M5):ipad:16"; do
     IFS=: read -r sim leaf reveal <<<"$spec"; dir=.build/screenshots/$leaf
     id=$(udid "$sim")
     [ -n "$id" ] || { echo "no simulator named '$sim' -- xcrun simctl list devices available" >&2; exit 1; }
