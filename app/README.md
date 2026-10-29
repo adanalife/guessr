@@ -212,7 +212,7 @@ demo_account_password = "…"
 ```
 
 `task ios:screenshots` takes the screenshots: it builds for the simulator,
-then on an iPhone 18 Pro Max, an iPhone Duo (it stops for you to unfold it in Simulator) and a 13-inch iPad Pro launches the Debug build
+then on an iPhone 18 Pro Max, an iPhone Duo (it stops for you to unfold it in Xcode) and a 13-inch iPad Pro launches the Debug build
 with its launch arguments (`-tab`, `-autoplay 1`) and captures a
 round, its reveal and Settings, with Apple's 9:41 status bar. The
 Debug build plays stage, so the round is staging's.
