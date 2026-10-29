@@ -141,4 +141,7 @@ header_image = "app/.build/appclip/header.png"
 dir = "app/.build/screenshots"
 # App Store Connect display type -> subdirectory.
 APP_IPHONE_67 = "iphone"
+# Not in Apple's published API spec yet, but App Store Connect accepts it;
+# the set badges the product page as optimized for iPhone Duo.
+APP_IPHONE_DUO = "duo"
 APP_IPAD_PRO_3GEN_129 = "ipad"

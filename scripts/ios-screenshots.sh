@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # The App Store screenshots, from the simulator: the screens a Debug build can
-# reach with no login, on the iPhone and iPad sizes App Store Connect asks for.
+# reach with no login, on the iPhone, iPhone Duo and iPad sizes App Store Connect takes.
 # `-tab`, `-owner` and `-autoplay` are the Debug build's launch arguments; the
 # Debug build plays stage, so the round shown is staging's. Writes
-# app/.build/screenshots/{iphone,ipad}/NN-name.png, in the order the store
+# app/.build/screenshots/{iphone,duo,ipad}/NN-name.png, in the order the store
 # shows them; `task asc:listing -- --apply` uploads whichever set is empty
 # in App Store Connect.
 set -euo pipefail
@@ -25,7 +25,7 @@ shoot() { # shoot <udid> <dir> <name> <seconds to wait> <launch args...>
 }
 
 # <simulator>:<dir>:<seconds from the autoplay launch to its reveal>
-for spec in "iPhone 17 Pro Max:iphone:10" "iPad Pro 13-inch (M5):ipad:16"; do
+for spec in "iPhone 17 Pro Max:iphone:10" "iPhone Duo:duo:10" "iPad Pro 13-inch (M5):ipad:16"; do
     IFS=: read -r sim leaf reveal <<<"$spec"; dir=.build/screenshots/$leaf
     id=$(udid "$sim")
     [ -n "$id" ] || { echo "no simulator named '$sim' -- xcrun simctl list devices available" >&2; exit 1; }
@@ -33,6 +33,12 @@ for spec in "iPhone 17 Pro Max:iphone:10" "iPad Pro 13-inch (M5):ipad:16"; do
     mkdir -p "$dir"; rm -f "$dir"/*.png
     xcrun simctl boot "$id" 2>/dev/null || true
     xcrun simctl bootstatus "$id" -b >/dev/null
+    if [ "$leaf" = duo ]; then
+        # The Duo boots folded and simctl cannot unfold it, so its inner display
+        # stays black until someone unfolds it in Simulator.
+        open -a Simulator
+        read -rp "  unfold the iPhone Duo in Simulator, then press Return " </dev/tty
+    fi
     # Apple's own screenshot status bar: full signal, full battery, 9:41.
     xcrun simctl status_bar "$id" override --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 \
         --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
