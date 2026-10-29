@@ -747,7 +747,7 @@ tasks:
       - ./scripts/asc-clip-invocations.py {{.CLI_ARGS}}
 
   ios:screenshots:
-    desc: Build for the simulator and screenshot the store's screens on an iPhone and an iPad into app/.build/screenshots
+    desc: Build for the simulator and screenshot the store's screens on an iPhone, an iPhone Duo and an iPad into app/.build/screenshots
     cmds:
       # The store build's compilation conditions, plus DEBUG for the launch
       # arguments the script drives it with: no TWITCH, so no Twitch section

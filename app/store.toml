@@ -6,7 +6,7 @@
 
 # The release tag the store version is built from; the TestFlight build for
 # that tag is what the version is attached to.
-version = "1.42.0"
+version = "1.45.0"
 
 [app]
 # "Guessr" alone belongs to another developer's app; the home-screen
@@ -50,10 +50,9 @@ Footage is the developer's own, recorded while living on the road.
 # written. App Store Connect refuses them on an app's first version and
 # requires them on every later one; empty sends nothing.
 whats_new = """
-• Streaks! See how many days in a row you have played.
-• Playing on web? We've improved the device linking flow.
-• Guesses in Washington, DC now correctly display the location.
-• App Clips mean your friends can try the app without having to install it.
+• Optimized for iPad and iPhone Duo: the whole clip shows, and the map tucks into the corner until you need it.
+• Turn your iPhone sideways for a full-screen clip, with the map a tap away.
+• Settings now shows which version of the app you have.
 • Various bug fixes and UI improvements.
 """
 
@@ -141,4 +140,7 @@ header_image = "app/.build/appclip/header.png"
 dir = "app/.build/screenshots"
 # App Store Connect display type -> subdirectory.
 APP_IPHONE_67 = "iphone"
+# Not in Apple's published API spec yet, but App Store Connect accepts it;
+# the set badges the product page as optimized for iPhone Duo.
+APP_IPHONE_DUO = "duo"
 APP_IPAD_PRO_3GEN_129 = "ipad"
