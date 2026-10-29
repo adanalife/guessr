@@ -35,8 +35,9 @@ for spec in "iPhone 18 Pro Max:iphone:10" "iPhone Duo:duo:10" "iPad Pro 13-inch 
     xcrun simctl bootstatus "$id" -b >/dev/null
     if [ "$leaf" = duo ]; then
         # The Duo boots folded and simctl cannot unfold it, so its inner display
-        # stays black until someone unfolds it by hand.
-        read -rp "  unfold the iPhone Duo simulator in Xcode, then press Return " </dev/tty
+        # stays black until someone unfolds it in DeviceHub, Xcode's simulator app.
+        open "$(xcode-select -p)/../Applications/DeviceHub.app"
+        read -rp "  unfold the iPhone Duo in DeviceHub, then press Return " </dev/tty
     fi
     # Apple's own screenshot status bar: full signal, full battery, 9:41.
     xcrun simctl status_bar "$id" override --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 \
