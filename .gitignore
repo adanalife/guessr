@@ -4,7 +4,7 @@
 #
 # The media could never be committed anyway — a set is ~125 MB of mp4 and this
 # repo is public, so it would land in history on every regeneration, permanently
-# and irreversibly. `task clips:push` sends it to the bucket, and the Worker's
+# and irreversibly. `task clips:push` sends it to the bucket, and the Pages
 # /clips/ route streams it back out at request time.
 #
 # A generation in progress belongs nowhere either: make_rounds.py builds into
@@ -27,6 +27,9 @@ answers.json
 answers.sql
 rounds.json
 rounds.sql
+# mirror_stage.py's script carries production's upcoming answers, and a killed
+# run leaves it behind.
+/mirror.sql
 
 # Stamped into the deploy by staging.yml / release.yml — which build this is,
 # and the changelog to go with it. Generated per deploy, never committed.
@@ -54,6 +57,8 @@ __pycache__/
 app/Guessr.xcodeproj/
 app/Guessr/Info.plist
 app/Guessr/Guessr.entitlements
+app/GuessrClip/Info.plist
+app/GuessrClip/GuessrClip.entitlements
 app/Local.xcconfig
 .build/
 .swiftpm/
@@ -72,3 +77,4 @@ api/bundle/
 
 # App Store listing details that are not public: review contact, demo account.
 app/store.local.toml
+/aired.txt

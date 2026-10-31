@@ -42,6 +42,18 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+# A dry run generates nothing, so everything after `make_rounds.py` would publish
+# whatever an earlier run left behind -- to production, under --top-up. `--dr*`
+# because argparse also takes the flag abbreviated.
+for arg in "$@"; do
+  case "$arg" in
+  --dr*)
+    echo "publish.sh publishes; preview a set with \`python3 make_rounds.py --dry-run\` instead" >&2
+    exit 2
+    ;;
+  esac
+done
+
 STAGE_DB="adanalife-guessr-answers-staging"
 PROD_DB="adanalife-guessr-answers"
 
@@ -87,11 +99,14 @@ fi
 
 if [ "$MODE" = "topup" ]; then
   echo "== reading $TIER's horizon"
-  state=$(npx wrangler d1 execute "$DB" --remote --json --command="SELECT (SELECT MAX(date) FROM round_days) AS last_day, (SELECT CAST(julianday(MAX(date)) - julianday(date('now')) AS INTEGER) FROM round_days) AS days_left, (SELECT COUNT(*) FROM rounds WHERE status = 'queued') AS queued, date('now') AS today")
+  state=$(npx wrangler d1 execute "$DB" --remote --json --command="SELECT (SELECT MAX(date) FROM round_days) AS last_day, (SELECT CAST(julianday(MAX(date)) - julianday(date('now')) AS INTEGER) FROM round_days) AS days_left, (SELECT COUNT(*) FROM rounds WHERE status = 'queued') AS queued, date('now') AS today, date('now', '+38 hours') AS unopened")
   last_day=$(jq -r '.[0].results[0].last_day // empty' <<<"$state")
   days_left=$(jq -r '.[0].results[0].days_left // 0' <<<"$state")
   queued=$(jq -r '.[0].results[0].queued' <<<"$state")
   today=$(jq -r '.[0].results[0].today' <<<"$state")
+  # The first date not yet open: date D opens at D-1 10:00 UTC (play_window in
+  # server/rules.py), so it is the UTC date 38 hours ahead.
+  unopened=$(jq -r '.[0].results[0].unopened' <<<"$state")
 
   # days_left is MAX(date) - today, which reads a horizon with a hole in it as
   # exactly as deep as a whole one. That arithmetic is only true while coverage
@@ -112,10 +127,16 @@ if [ "$MODE" = "topup" ]; then
   # today the horizon has run out rather than broken, there is no covered range
   # for a hole to be inside, and appending is exactly the fix -- so that case
   # falls through to the arithmetic below.
+  #
+  # Unopened dates only. schedule_gaps.sql starts at the oldest open date, which
+  # is yesterday until 12:00 UTC, and an open date is frozen: nothing can fill
+  # it, so refusing over one only stops the top-up while the horizon drains.
+  # verify_days.sh still reports it.
   if [ -n "$last_day" ] && [[ ! "$last_day" < "$today" ]]; then
     hole=$(npx wrangler d1 execute "$DB" --remote --json \
       --command="$(cat schedule_gaps.sql)" |
-      jq -r '[.[0].results[] | select(.n < 5)][0] | select(.) | "\(.date) has \(.n) of 5"')
+      jq -r --arg from "$unopened" \
+        '[.[0].results[] | select(.n < 5 and .date >= $from)][0] | select(.) | "\(.date) has \(.n) of 5"')
     if [ -n "$hole" ]; then
       echo "::error::$TIER is scheduled through $last_day but $hole" >&2
       echo "a top-up appends past $last_day, so it cannot fill that date." >&2
@@ -170,6 +191,15 @@ PY
     npx wrangler d1 execute "$DB" --remote --json --command="SELECT DISTINCT r.slug FROM rounds r WHERE r.status IN ('queued', 'rejected') OR NOT EXISTS (SELECT 1 FROM round_days d WHERE d.image = r.image) OR EXISTS (SELECT 1 FROM round_days d WHERE d.image = r.image AND d.date >= date('now', '-${TOPUP_REPLAY_DAYS} days'))" | jq -r '.[0].results[].slug'
   } >burned.txt
 
+  # Every image the tier ever scheduled, whatever its age. A slug that has
+  # cooled off comes back with all its moments, and the one that aired would be
+  # the same image again -- round_days keeps an image once, so that date would
+  # ship short, and the answers upsert would move the answer under its plays.
+  {
+    echo "# images $TIER ever scheduled, read $(date -u +%Y-%m-%dT%H:%MZ) -- written by publish.sh --top-up, not by hand"
+    npx wrangler d1 execute "$DB" --remote --json --command="SELECT DISTINCT image FROM round_days" | jq -r '.[0].results[].image'
+  } >aired.txt
+
   # Where the tier already dealt, which burned.txt cannot express: a different
   # clip on the same stretch of road is a fresh slug and a repeat to the player.
   # Aired within the same replay window, so a location frees up alongside the
@@ -182,7 +212,7 @@ PY
   } >avoid.txt
 
   echo "top-up: $days_needed days from $from plus $queue_needed for the queue = $count rounds ($TIER has $days_left days, $queued queued)"
-  set -- -n "$count" --horizon "$days_needed" --schedule-from "$from" --exclude burned.txt --avoid avoid.txt --pool "$TOPUP_POOL" "$@"
+  set -- -n "$count" --horizon "$days_needed" --schedule-from "$from" --exclude burned.txt --exclude-images aired.txt --avoid avoid.txt --pool "$TOPUP_POOL" "$@"
 fi
 
 echo "== generating"

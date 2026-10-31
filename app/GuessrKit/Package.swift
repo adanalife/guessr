@@ -9,7 +9,7 @@ import PackageDescription
 let package = Package(
     name: "GuessrKit",
     defaultLocalization: "en",
-    platforms: [.iOS(.v26), .macOS(.v15)],
+    platforms: [.iOS(.v26), .macOS(.v15), .watchOS(.v26)],
     products: [.library(name: "GuessrKit", targets: ["GuessrKit"])],
     targets: [
         // The catalog is declared rather than found: the Swift in a hosted

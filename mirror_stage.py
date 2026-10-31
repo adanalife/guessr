@@ -22,9 +22,10 @@ When it does act it replaces staging's whole upcoming schedule rather than
 filling the holes. round_days is UNIQUE on image, so an incoming round already
 scheduled on staging under a different date is silently dropped -- and filling
 around that leaves a four-round day, which is the failure verify_days.sh exists
-to catch. Replacing is the only version with one outcome. Safe because every
-date it touches is unopened: an opened date's schedule is frozen (see
-server/admin_day.py), and staging has no players whose history it could be.
+to catch. Replacing is the only version with one outcome. Every date it reads,
+counts or replaces is unopened (first_unopened below): an opened date's schedule
+is frozen (see server/admin_day.py), and a short one cannot be mended by a copy
+-- replacing what follows it would leave it exactly as short.
 """
 
 from __future__ import annotations
@@ -34,6 +35,8 @@ import json
 import pathlib
 import subprocess
 import sys
+
+from server import rules
 
 PROD = "adanalife-guessr-answers"
 STAGE = "adanalife-guessr-answers-staging"
@@ -45,6 +48,11 @@ PER_GAME = 5  # ROUNDS_PER_GAME in check.py and web/index.html
 # with nothing on it.
 LEAD_DAYS = 2
 HERE = pathlib.Path(__file__).parent
+# Date D opens at D-1 OPENS_UTC_HOUR:00 UTC (rules.play_window), so the first date
+# not yet open is the UTC date this many hours ahead: 38, which is tomorrow until
+# 10:00 UTC and the day after from then on.
+UNOPENED_HOURS = 48 - rules.OPENS_UTC_HOUR
+UNOPENED = f"date('now', '+{UNOPENED_HOURS} hours')"
 
 # The columns to carry over, verbatim. `status` is excluded and set below
 # instead: it is a fact about the tier's own schedule, not about the clip.
@@ -74,7 +82,7 @@ SELECT rd.date AS date, rd.position AS position,
   FROM round_days rd
   JOIN rounds r ON r.image = rd.image
   JOIN answers a ON a.image = rd.image
- WHERE rd.date >= date('now')
+ WHERE rd.date >= {UNOPENED}
  ORDER BY rd.date, rd.position
 """
 
@@ -167,7 +175,7 @@ def mirror_sql(rows: list[dict]) -> str:
         # round_days is UNIQUE on image, so the old booking would make the
         # INSERT below drop the new one and leave that date a round short.
         # Staging's closed dates are nobody's history, so losing one costs nothing.
-        + "DELETE FROM round_days WHERE date >= date('now')\n"
+        + f"DELETE FROM round_days WHERE date >= {UNOPENED}\n"
         + f"   OR image IN ({', '.join(lit(r['image']) for r in pool)});\n\n"
         + f"INSERT OR IGNORE INTO round_days (date, position, image) VALUES\n{booked};\n\n"
         # Both directions, because the DELETE above unscheduled whatever staging
@@ -182,18 +190,31 @@ def mirror_sql(rows: list[dict]) -> str:
     )
 
 
-def short(gaps: list[dict], today: dt.date) -> list[str]:
-    """The dates in `gaps` holding fewer than a game, plus every date from the
-    end of the schedule through LEAD_DAYS past `today`.
+def first_unopened(now: dt.datetime) -> dt.date:
+    """The earliest date nobody can have started yet; UNOPENED, in Python."""
+    return (now + dt.timedelta(hours=UNOPENED_HOURS)).date()
+
+
+def short(gaps: list[dict], now: dt.datetime) -> list[str]:
+    """The unopened dates in `gaps` holding fewer than a game, plus every
+    unopened date from the end of the schedule through LEAD_DAYS past today.
+
+    Unopened only, because nothing here can change an open date: a short one
+    counted here would trigger a whole replace that leaves it short, and the
+    run would then fail verify_days.sh over it anyway.
 
     schedule_gaps.sql stops its horizon at the table's last date, which is right
     for verify_days.sh -- it asks whether what is scheduled is whole -- but blind
     to a schedule about to run out: with its last date today, the horizon is
     today alone, whole, and nothing is short until tomorrow is already open."""
-    out = [r["date"] for r in gaps if r["n"] < PER_GAME]
+    first = first_unopened(now)
+    out = [
+        r["date"] for r in gaps if r["n"] < PER_GAME and r["date"] >= first.isoformat()
+    ]
     # The query's seed guarantees at least one row.
     d = max(dt.date.fromisoformat(r["date"]) for r in gaps) + dt.timedelta(days=1)
-    while d <= today + dt.timedelta(days=LEAD_DAYS):
+    d = max(d, first)
+    while d <= now.date() + dt.timedelta(days=LEAD_DAYS):
         out.append(d.isoformat())
         d += dt.timedelta(days=1)
     return out
@@ -202,7 +223,7 @@ def short(gaps: list[dict], today: dt.date) -> list[str]:
 def short_dates(db: str) -> list[str]:
     """The upcoming dates this tier cannot play, or is about to run out of."""
     gaps = d1(db, (HERE / "schedule_gaps.sql").read_text())
-    return short(gaps, dt.datetime.now(dt.timezone.utc).date())
+    return short(gaps, dt.datetime.now(dt.timezone.utc))
 
 
 def main(argv: list[str]) -> int:

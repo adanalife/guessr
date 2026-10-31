@@ -124,7 +124,8 @@ private func chat(userID: String = "2914196", capacity: Int = 300) -> TwitchChat
     #expect(line.isModerator && line.isSubscriber && !line.isBroadcaster)
     #expect(line.fragments == [.text("hello van "), .emote(id: "25", text: "Kappa"), .text(" where are we")])
     #expect(line.fragments.map(\.text).joined() == line.text)
-    #expect(line.timestamp == Date(timeIntervalSince1970: 1_790_175_411.634))
+    // Kept to the millisecond; the parse is exact only that far.
+    #expect(abs(line.timestamp.timeIntervalSince1970 - 1_790_175_411.634) < 0.0005)
     #expect(line.messageType == "text" && !line.isFirstMessage && !line.isPointsHighlight)
 }
 
@@ -363,7 +364,7 @@ private func chat(userID: String = "2914196", capacity: Int = 300) -> TwitchChat
     #expect(chat.held.count == 1)
     #expect(held.id == "h1" && held.userId == "11" && held.displayName == "RoadWatcher")
     #expect(held.text == "wow that is a bad word" && held.why == "AutoMod: swearing 2")
-    #expect(held.heldAt == Date(timeIntervalSince1970: 1_790_780_211.123))
+    #expect(abs(held.heldAt.timeIntervalSince1970 - 1_790_780_211.123) < 0.0005)
     // A message the log would show is not a held one, and a hold is not a line.
     #expect(chat.lines.isEmpty)
 
@@ -437,8 +438,15 @@ final class ScriptedSocket: ChatSocket, @unchecked Sendable {
     }
 
     var closeCode: URLSessionWebSocketTask.CloseCode? { lock.withLock { closed } }
+    /// What the loop wrote, as text.
+    var sent: [String] { lock.withLock { written } }
+    private var written: [String] = []
 
     func resume() {}
+
+    func send(_ message: URLSessionWebSocketTask.Message) async throws {
+        if case .string(let text) = message { lock.withLock { written.append(text) } }
+    }
 
     func receive() async throws -> URLSessionWebSocketTask.Message {
         try await withCheckedThrowingContinuation { continuation in
@@ -560,6 +568,102 @@ private final class Rig {
     #expect(rig.twitch.isConnected)
 }
 
+/// A stop that lands while a connect waits on the host's token refresh finds
+/// no socket to close, so the loop must not open one once the wait ends.
+@MainActor @Test func aStopDuringTheRefreshOpensNoSocket() async throws {
+    let rig = Rig([[welcome("s1")]])
+    // Resolved already, as on any reconnect, so nothing after the refresh
+    // waits on the network and notices the cancellation for us.
+    try await rig.twitch.helix.resolveBroadcaster()
+    rig.twitch.beforeConnect = { [unowned rig] in rig.twitch.stop() }
+    rig.twitch.start()
+    try await Task.sleep(for: .milliseconds(200))
+    #expect(rig.opened.isEmpty)
+}
+
 @Test func reconnectsBackOffByDoublingUpToAMinute() {
     #expect((0..<8).map(TwitchChat.backoff) == [1, 2, 4, 8, 16, 32, 60, 60])
+}
+
+@Test func aReplyIsDrawnUnderTheLineItAnswersWhenThatLineIsNear() {
+    func line(_ id: String, replying parent: String? = nil) -> ChatLine {
+        ChatLine(
+            id: id, userId: id, login: id, displayName: id, text: id,
+            reply: parent.map { ChatReply(parentId: $0, login: $0, displayName: $0, text: $0) })
+    }
+    let order = { (lines: [ChatLine], reach: Int) in
+        lines.threaded(reach: reach).map { "\($0.nested ? ">" : "")\($0.id)" }
+    }
+    // A command, a line in between, the bot's answer, and a reply to the answer.
+    let log = [line("cmd"), line("chat"), line("bot", replying: "cmd"), line("again", replying: "bot")]
+    #expect(order(log, 20) == ["cmd", ">bot", ">again", "chat"])
+    // Too far back: the reply keeps its place and its quote.
+    #expect(order(log, 1) == ["cmd", "chat", "bot", ">again"])
+    // A parent that scrolled out of the ring leaves the reply where it is.
+    #expect(order([line("late", replying: "gone"), line("x")], 20) == ["late", "x"])
+}
+
+/// A line keyed on a row id of its own, with the platform's message id beside
+/// it — tempomat's shape, where an event line carries no message id at all.
+@Test func threadingFollowsTheMessageKeyNotTheRowId() {
+    struct Row: Threadable {
+        var id: Int
+        var messageKey: String?
+        var parentKey: String?
+    }
+    let log = [
+        Row(id: 0, messageKey: "m1"),
+        Row(id: 1, messageKey: nil),  // a follow, which nothing can answer
+        Row(id: 2, messageKey: "m2", parentKey: "m1"),
+        Row(id: 3, messageKey: "m3", parentKey: "0"),  // names a row id, not a key
+    ]
+    #expect(log.threaded().map { "\($0.nested ? ">" : "")\($0.id)" } == ["0", ">2", "1", "3"])
+}
+
+@Test func badgeChipsNameTheMonthsAtEveryTier() {
+    let chips = badgeTags(["subscriber": "3012", "moderator": "1", "broadcaster": "1", "founder": "0"])
+    // Sorted by set id; broadcaster left to the gold name; a tier 3 sub of
+    // 12 months reads as 12.
+    #expect(chips.map(\.label) == ["founder", "mod", "sub 12"])
+    #expect(chips.map(\.version) == ["0", "1", "3012"])
+    #expect(badgeTags(["subscriber": "0"]).map(\.label) == ["sub"])
+}
+
+@Test func botsAreKnownInAnyCase() {
+    #expect(isChatBot("Nightbot"))
+    #expect(!isChatBot("kate"))
+}
+
+@Test func aCommandIsABangAndAName() {
+    #expect(isChatCommand("!location"))
+    #expect(isChatCommand("  !guess NY"))
+    #expect(isChatCommand("!8ball"))
+    #expect(!isChatCommand("!"))
+    #expect(!isChatCommand("!!!"))
+    #expect(!isChatCommand("wow!"))
+}
+
+@Test func aCommandFoldsTheBotsAnswersUntilItIsOpened() {
+    func line(_ id: String, from login: String, _ text: String, replying parent: String? = nil) -> ChatLine {
+        ChatLine(
+            id: id, userId: login, login: login, displayName: login, text: text,
+            reply: parent.map { ChatReply(parentId: $0, login: "", displayName: "", text: "") })
+    }
+    let log = [
+        line("cmd", from: "kate", "!location"),
+        line("hi", from: "sam", "hello"),
+        line("ans", from: "tripbot4000", "Niagara Falls, New York", replying: "cmd"),
+        line("re", from: "sam", "nice", replying: "cmd"),
+        // A bot's reply to a chatter who asked it nothing stays a line.
+        line("q", from: "sam", "tripbot are you there"),
+        line("bot", from: "tripbot4000", "yes", replying: "q"),
+    ]
+    let ids = { (rows: [ThreadedLine<ChatLine>]) in rows.map { "\($0.nested ? ">" : "")\($0.id)" } }
+    let closed = log.threaded(open: [])
+    #expect(ids(closed) == ["cmd", ">re", "hi", "q", ">bot"])
+    #expect(closed[0].answers.map(\.id) == ["ans"])
+    #expect(closed.dropFirst().map(\.answers.count) == [0, 0, 0, 0])
+    let opened = log.threaded(open: ["cmd"])
+    #expect(ids(opened) == ["cmd", ">ans", ">re", "hi", "q", ">bot"])
+    #expect(opened[0].answers.map(\.id) == ["ans"])
 }

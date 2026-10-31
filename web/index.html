@@ -11,6 +11,9 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <!-- iOS labels a home-screen icon from <title>, which is too long for it. -->
 <meta name="apple-mobile-web-app-title" content="Guessr">
+<!-- Safari's banner for the App Store listing, and for a visitor with no app,
+     the App Clip that plays today with no install. -->
+<meta name="apple-itunes-app" content="app-id=6815375923, app-clip-bundle-id=lol.dana.guessr.Clip">
 <link rel="manifest" href="manifest.json">
 <!-- Rewritten to match the palette by setTheme() below; this is the dark value
      so an installed icon's splash agrees with the manifest either way. -->
@@ -119,17 +122,26 @@
   /* A native <dialog> for the intro: showModal() brings the backdrop, the
      focus trap and Escape-to-dismiss with it, and none of that is worth
      re-implementing for one panel. */
-  #welcome { border: 1px solid var(--color-border); border-radius: 10px;
+  #welcome, #linkask { border: 1px solid var(--color-border); border-radius: 10px;
              background: var(--color-panel);
              color: var(--color-text); font: inherit; padding: 1.5rem;
              width: min(28rem, calc(100vw - 2rem));
              box-shadow: 0 20px 50px rgba(0, 0, 0, .35); }
-  #welcome::backdrop { background: rgba(0, 0, 0, .7); }
+  #welcome::backdrop, #linkask::backdrop { background: rgba(0, 0, 0, .7); }
   /* Italic and unbolded, the way the blog sets a heading. */
-  #welcome h2 { margin: 0 0 .8rem; font-size: 1.4rem; font-style: italic;
+  #welcome h2, #linkask h2 { margin: 0 0 .8rem; font-size: 1.4rem; font-style: italic;
                 font-weight: 400; line-height: 1.15; }
-  #welcome p { margin: .5rem 0; }
+  #welcome p, #linkask p { margin: .5rem 0; }
   #welcome .actions { display: flex; gap: .6rem; margin-top: 1.1rem; }
+  #linkask table { width: 100%; border-collapse: collapse; margin: .8rem 0;
+                   font-variant-numeric: tabular-nums; }
+  #linkask th, #linkask td { text-align: left; padding: .3rem .6rem .3rem 0;
+                             vertical-align: baseline; overflow-wrap: anywhere; }
+  #linkask thead th { color: var(--color-muted); font-weight: 600;
+                      border-bottom: 1px solid var(--color-border); }
+  #linkask tbody th { color: var(--color-muted); font-weight: 400; }
+  #linkask .actions { display: flex; flex-direction: column; gap: .6rem; margin-top: 1rem; }
+  #linkmerge { color: var(--color-muted); font-size: .9em; text-align: center; }
   main { flex: 1; position: relative; display: grid;
          grid-template-columns: 1fr 1fr; min-height: 0; }
   /* touch-action: none so a pinch zooms the frame instead of the page. Leaflet
@@ -348,7 +360,7 @@
       <div id="qrwrap" hidden>
         <!-- biome-ignore lint/a11y/useValidAnchor: href is the player link, set when the code is drawn -->
         <!-- biome-ignore lint/a11y/useAnchorContent: the code and its label are set at the same moment -->
-        <p><a id="qrlink"><span id="qr"></span></a></p>
+        <p id="qrline"><a id="qrlink"><span id="qr"></span></a></p>
         <!-- The same link for a device that cannot scan its way in: a Home
              Screen install keeps its own storage and the app has no browser to
              open a link in, so both take a code typed by hand instead. -->
@@ -390,6 +402,21 @@
   <div class="actions">
     <button type="button" id="welcomeplay" autofocus data-i18n>Play</button>
     <button type="button" id="welcomemore" class="secondary" data-i18n>Learn more</button>
+  </div>
+</dialog>
+<!-- Who this browser would become, beside who it is now, before a link merges
+     them: a code or a link is something anyone can hand you. -->
+<dialog id="linkask">
+  <h2 data-i18n>Link this browser?</h2>
+  <p data-i18n>This code belongs to another player.</p>
+  <table>
+    <thead><tr><td></td><th scope="col" data-i18n>This browser</th><th scope="col" id="linkfrom"></th></tr></thead>
+    <tbody id="linkrows"></tbody>
+  </table>
+  <div class="actions">
+    <button type="button" id="linkyes"></button>
+    <p id="linkmerge"></p>
+    <button type="button" id="linkno" class="secondary" autofocus></button>
   </div>
 </dialog>
 <main>
@@ -512,22 +539,32 @@ const PLAYER_KEY = 'guessr-player';
 // cannot disturb the identity a board is keyed on.
 const ALIAS_KEY = 'guessr-alias';
 
+// randomUUID exists only in a secure context, and a phone on the tailnet loads
+// the page over plain http; getRandomValues exists everywhere.
+const mintId = () => crypto.randomUUID?.()
+  ?? Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+
 function playerId() {
   try {
     let id = localStorage.getItem(PLAYER_KEY);
-    if (!id) { id = crypto.randomUUID(); localStorage.setItem(PLAYER_KEY, id); }
+    if (!id) { id = mintId(); localStorage.setItem(PLAYER_KEY, id); }
     return id;
   } catch {
-    // A private window can't keep an id, so it can't hold a place on the board.
-    // The round still plays and still scores; it just goes unrecorded.
+    // A browser that refuses storage can't keep an id, so it can't link or
+    // carry a place across visits.
     return null;
   }
 }
 
+// What a daily guess is recorded under when playerId() has nothing: an id for
+// this page's life. The server takes a dated guess only with an id, and an
+// undated one is practice, which refuses today's rounds -- so without this a
+// browser that refuses storage could not play the daily at all.
+const pageId = mintId();
+
 // The name this browser plays under, minted on first use and kept until it is
-// rerolled. Absent when localStorage refuses, which is the same case that
-// already means unrecorded — the play never reaches a board, so it needs no
-// name on it.
+// rerolled. Absent when localStorage refuses, and a name that could not
+// survive a reload is no name, so those plays place as anonymous.
 function alias(next = null) {
   try {
     if (next) localStorage.setItem(ALIAS_KEY, next);
@@ -547,8 +584,11 @@ function alias(next = null) {
 // one, the server records the result and a re-guess gets the score already on
 // record; without one, nothing is stored. So practice can be replayed freely and
 // the daily cannot, which is the difference the board depends on.
-async function scoreGuess(image, latlng, date) {
-  const id = date && playerId();
+//
+// `elapsedMs` is how long the round was on screen before the guess, stored with
+// a daily play for statistics and never shown back.
+async function scoreGuess(image, latlng, date, elapsedMs) {
+  const id = date && (playerId() ?? pageId);
   const res = await request('api/score', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -557,7 +597,7 @@ async function scoreGuess(image, latlng, date) {
       // The handle rides with every play rather than being set once, so a
       // reroll takes effect from the next round without needing a way to
       // rewrite what is already recorded.
-      ...(id ? { date, player_id: id, handle: alias() } : {}),
+      ...(id ? { date, player_id: id, handle: alias(), elapsed_ms: elapsedMs } : {}),
     }),
   });
   if (!res.ok) {
@@ -804,6 +844,9 @@ let mode = 'daily', results = [], guesses = [];
 // have a game that crossed local midnight post tomorrow's date against tonight's
 // rounds, and resume the next day holding the previous day's results.
 let gameDay = 0;
+// Bumped by whatever establishes a board, so a slower load that started earlier
+// can tell it has been superseded.
+let boardSeq = 0;
 
 function clearMarks() { marks.forEach(m => { map.removeLayer(m); }); marks = []; }
 
@@ -815,9 +858,14 @@ map.on('click', e => {
   go.textContent = t('Guess');
 });
 
+// When the current round's clip went up, for the think time sent with the guess.
+// Held in memory only, so a reload mid-round starts the clock again.
+let roundStart = 0;
+
 function startRound() {
   const r = game[idx];
   setFrame(r.image);
+  roundStart = performance.now();
   el('roundnum').textContent = idx + 1;
   clearMarks();
   if (guess) { map.removeLayer(guess); guess = null; }
@@ -846,10 +894,11 @@ async function reveal() {
   // the pin out from under the answer being scored.
   go.dataset.phase = 'scoring';
   const at = guess.getLatLng();
+  const elapsedMs = Math.round(performance.now() - roundStart);
 
   let scored;
   try {
-    scored = await scoreGuess(r.image, at, mode === 'daily' ? dateForDay(gameDay) : null);
+    scored = await scoreGuess(r.image, at, mode === 'daily' ? dateForDay(gameDay) : null, elapsedMs);
   } catch (e) {
     // A refused play is not a failed request: retrying it changes nothing, so
     // say what the server said and offer practice, which is never refused.
@@ -1183,6 +1232,7 @@ function offerHistory() {
 }
 
 async function showFinished(saved) {
+  ++boardSeq; // a game still loading must not replace this board
   mode = 'daily';
   gameDay = saved.day;
   total = saved.total;
@@ -1378,6 +1428,15 @@ el('link').addEventListener('click', () => {
   const wrap = el('qrwrap');
   wrap.hidden = !wrap.hidden;
   if (wrap.hidden) return;
+  // First, so the typed code still arrives when the QR below cannot be drawn.
+  showCode();
+
+  // The QR library comes from unpkg, so a blocked or failed fetch leaves no
+  // qrcode() to call. Hidden rather than left as an empty box: the typed code
+  // and the form below it still link.
+  const drawn = typeof qrcode === 'function';
+  el('qrline').hidden = !drawn;
+  if (!drawn) return;
 
   // Drawn on each open rather than once: it encodes the current name, and a
   // reroll between two opens would otherwise show a code carrying the old one.
@@ -1394,7 +1453,6 @@ el('link').addEventListener('click', () => {
   const qrlink = el('qrlink');
   qrlink.href = url;
   qrlink.setAttribute('aria-label', t('Link a device to play as one player'));
-  showCode();
 });
 
 // A fresh code on every open, since each lasts ten minutes and asking again
@@ -1435,10 +1493,7 @@ el('claim').addEventListener('submit', async event => {
     : t('Could not link the devices just now. Try the code again.'));
   const peek = await post('api/link/preview');
   if (!peek?.ok) return refused(peek);
-  const { to, from: me } = await peek.json();
-  if (!window.confirm(t('This browser becomes {to} ({toPoints} points), replacing {me} ({mePoints} points). Its scores go with it. Both devices will play as one player from now on.', {
-    to: to.name, toPoints: to.points.toLocaleString(), me: me.name, mePoints: me.points.toLocaleString(),
-  }))) return;
+  if (!await askLink(await peek.json(), t('Entered code'))) return;
   const res = await post('api/link/claim');
   if (!res?.ok) return refused(res);
   localStorage.setItem(PLAYER_KEY, (await res.json()).player_id);
@@ -1446,6 +1501,44 @@ el('claim').addEventListener('submit', async event => {
   // for a player who no longer plays here.
   location.reload();
 });
+
+// Asks whether to merge, from a /api/link/preview answer: the two players side
+// by side, then a button for each. Resolves true only on the merge button;
+// Escape and the backdrop count as keeping things as they are.
+function askLink({ to, from: me }, heading) {
+  const lastText = last => last
+    ? new Date(`${last}T00:00:00Z`).toLocaleDateString(document.documentElement.lang, { dateStyle: 'medium', timeZone: 'UTC' })
+    : t('Never');
+  const rows = [
+    [t('Name'), me.name, to.name],
+    [t('Points'), me.points.toLocaleString(), to.points.toLocaleString()],
+    [t('Days played'), me.days.toLocaleString(), to.days.toLocaleString()],
+    [t('Last played'), lastText(me.last), lastText(to.last)],
+  ];
+  el('linkfrom').textContent = heading;
+  el('linkrows').replaceChildren(...rows.map(cells => {
+    const tr = document.createElement('tr');
+    cells.forEach((text, i) => {
+      const cell = document.createElement(i ? 'td' : 'th');
+      if (!i) cell.scope = 'row';
+      cell.textContent = text;
+      tr.append(cell);
+    });
+    return tr;
+  }));
+  el('linkyes').textContent = t('Play as {name}', { name: to.name });
+  el('linkno').textContent = t('Keep playing as {name}', { name: me.name });
+  el('linkmerge').textContent = me.days
+    ? t("This browser's scores will be merged with {name}. Both devices will play as one player from now on.", { name: to.name })
+    : t('Nothing has been played on this browser yet.');
+  const ask = el('linkask');
+  ask.returnValue = '';
+  ask.showModal();
+  return new Promise(resolve => ask.addEventListener('close', () => resolve(ask.returnValue === 'yes'), { once: true }));
+}
+el('linkyes').addEventListener('click', () => el('linkask').close('yes'));
+el('linkno').addEventListener('click', () => el('linkask').close());
+el('linkask').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
 // The other end: a browser that opens one of those links moves what it has
 // recorded onto that id, then plays as it from here on.
@@ -1469,8 +1562,18 @@ async function adoptLink() {
   // browser that drew it, which has nothing to do.
   if (!from || from === to) return;
 
-  if (!window.confirm(t("Add this browser's scores to {name}? Both devices will play as one player from now on.",
-    { name: isAlias(name) ? name : t('your other device') }))) return;
+  // The preview names both players from the server. If it can't answer, the
+  // name the link carries is still enough to ask with.
+  const peek = await request('api/link/preview', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ from, to }),
+  }).catch(() => null);
+  const ok = peek?.ok
+    ? await askLink(await peek.json(), t('Scanned code'))
+    : window.confirm(t("Add this browser's scores to {name}? Both devices will play as one player from now on.",
+      { name: isAlias(name) ? name : t('your other device') }));
+  if (!ok) return;
 
   try {
     const res = await request('api/link', {
@@ -1548,20 +1651,29 @@ el('welcomemore').addEventListener('click', e => {
 // `saved` resumes an unfinished daily. The draw is the same five rounds for the
 // day either way, so resuming needs only the scores and guesses already banked
 // carried over; the next unplayed round follows from how many there are.
+//
+// Nothing is assigned until the rounds arrive, and then mode, day and game go
+// in together, so a load that fails leaves the board exactly as it was. Only the
+// latest request may land: Practice then Today's pressed quickly would otherwise
+// let the slower practice draw overwrite the daily's rounds, and every guess
+// would be refused as not in that day's game.
 async function newGame(which, saved = null) {
-  mode = which;
-  gameDay = today();
-  const day = gameDay;
+  const seq = ++boardSeq;
+  const day = today();
+  let rounds;
   try {
-    game = await loadRounds(mode === 'daily' ? `date=${dateForDay(day)}` : 'practice');
+    rounds = await loadRounds(which === 'daily' ? `date=${dateForDay(day)}` : 'practice');
   } catch (e) {
-    // Nothing to play, and no state has changed yet -- the mode swap above is
-    // the only thing this got to, and the buttons below stay as they were. Say
-    // what the server said rather than a generic failure, because "no game is
-    // scheduled" and "could not reach the rounds" want different reactions.
+    if (seq !== boardSeq) return;
+    // Say what the server said rather than a generic failure, because "no game
+    // is scheduled" and "could not reach the rounds" want different reactions.
     result.textContent = `${e.message}.`;
     return;
   }
+  if (seq !== boardSeq) return;
+  mode = which;
+  gameDay = day;
+  game = rounds;
   el('label').textContent = mode === 'daily' ? t('Daily #{n}', { n: day }) : t('Practice');
   // Not always five: practice comes up short until enough dates have finished
   // playing, and a game reads its length from what it was handed.

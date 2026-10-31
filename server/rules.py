@@ -25,6 +25,11 @@ DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 # every month it matches is one the calendar has.
 MONTH = re.compile(r"[0-9]{4}-(0[1-9]|1[0-2])")
 
+# The longest think time a play stores, in milliseconds: a day. A round can sit
+# open in a backgrounded tab for hours, but past a day the number says more about
+# the clock that measured it than about the player.
+MAX_ELAPSED_MS = 24 * 60 * 60 * 1000
+
 # The handle is a display label, never an identity: two players called "Jason"
 # are two rows keyed on different player_ids that happen to render the same
 # string.
@@ -134,7 +139,21 @@ def parse_play(body) -> dict | None:
         "date": date,
         "player_id": player_id,
         "handle": label if is_alias(label) else None,
+        "elapsed_ms": elapsed_ms_of(body.get("elapsed_ms")),
     }
+
+
+def elapsed_ms_of(value) -> int | None:
+    """How long the player looked at the round before committing, as the client
+    measured it, or None. Client-reported, so a statistic and never a gate: a
+    value that is not a number, or one outside [0, a day], is dropped rather than
+    rejected, because a wrong clock must not cost a player the round."""
+    # bool is an int in Python, and `true` is not a duration.
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if not math.isfinite(value) or not 0 <= value <= MAX_ELAPSED_MS:
+        return None
+    return int(value)
 
 
 def client_of(user_agent) -> str | None:

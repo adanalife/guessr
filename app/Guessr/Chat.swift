@@ -1,25 +1,26 @@
 import GuessrKit
 import SwiftUI
 
-/// The channel's Twitch chat for the signed-in login: the log and the composer.
-/// The tab is there only while a login is signed in.
-struct ChatTab: View {
+/// The channel's chat, under the Watch tab's player: the signed-in login's,
+/// or read anonymously while signed out.
+struct ChatPane: View {
     @Environment(Account.self) private var account
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if let session = account.session {
-                    let mayModerate = account.isMod && session.canModerate
-                    let lines = (account.chat?.lines ?? []).filter { account.hiddenChatters[$0.userId] == nil }
-                    ChatLog(lines: mayModerate ? lines : lines.filter { !$0.deleted }, mayModerate: mayModerate)
-                    .task(id: session.userID) { await account.openChat() }
-                    .onChange(of: lines.count) { Saved.chat = lines }
-                }
-            }
-            .viewingAsBanner()
-            .paper()
-            .navigationTitle("Chat")
+        if let session = account.session {
+            let mayModerate = account.isMod && session.canModerate
+            let lines = (account.chat?.lines ?? []).filter { account.hiddenChatters[$0.userId] == nil }
+            ChatLog(lines: mayModerate ? lines : lines.filter { !$0.deleted }, mayModerate: mayModerate)
+                .task(id: session.userID) { await account.openChat() }
+                // The lines, not their count: a full ring and a mod's
+                // delete both change what's saved and leave the count be.
+                .onChange(of: lines) { Saved.chat = lines }
+        } else {
+            ChatLog(
+                lines: (account.lurk?.lines ?? []).filter { !$0.deleted && account.hiddenChatters[$0.userId] == nil },
+                mayModerate: false
+            )
+            .task { account.openLurk() }
         }
     }
 }
@@ -49,10 +50,13 @@ struct ChatLog: View {
     @State private var pickingEmote = false
     /// The line the next send answers, from its long-press Reply.
     @State private var replyingTo: ChatLine?
+    /// Commands whose bot answers are drawn in full rather than folded.
+    @State private var openCommands: Set<String> = []
     /// When this viewer's last message went, which slow mode counts from.
     @State private var lastSent: Date?
     /// Whether slow mode is still holding the next send back.
     @State private var cooling = false
+    @AppStorage(GuessrApp.openTabKey) private var openTab = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -73,7 +77,7 @@ struct ChatLog: View {
             if mayModerate, let held = account.chat?.held, !held.isEmpty { heldBar(held) }
             if let mode = account.chat?.mode, let summary = mode.summary { modeBar(mode, summary) }
             if let replyingTo { replyBar(replyingTo) }
-            composer
+            if account.session == nil { signInBar } else { composer }
             if pickingEmote { emotePicker }
         }
         .toolbar {
@@ -194,8 +198,21 @@ struct ChatLog: View {
     /// own, so while it is down the log says only that it is on its way. An
     /// empty log says so itself, in its middle.
     private var connectionStatus: String? {
-        guard let chat = account.chat else { return nil }
-        return chat.isConnected ? chat.lastError : lines.isEmpty ? nil : String(localized: "Connecting…")
+        guard account.chat != nil || account.lurk != nil else { return nil }
+        return connected ? account.chat?.lastError : lines.isEmpty ? nil : String(localized: "Connecting…")
+    }
+
+    private var connected: Bool { account.chat?.isConnected ?? account.lurk?.isConnected ?? false }
+
+    /// Where the composer goes for a viewer reading anonymously: the way to
+    /// Settings' Twitch login, in a build that has one.
+    @ViewBuilder private var signInBar: some View {
+        if account.auth.isConfigured {
+            Button("Sign in with Twitch to chat", systemImage: "person.crop.circle") { openTab = "Settings" }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(.bar)
+        }
     }
 
     private func loadArt() async {
@@ -258,9 +275,11 @@ struct ChatLog: View {
 
     private var log: some View {
         ScrollViewReader { proxy in
-            List(lines) { line in
+            List(lines.threaded(open: openCommands)) { row in
+                let line = row.line
                 ChatLineView(
-                    line: line, mayModerate: mayModerate, error: $error, banned: $banned,
+                    line: line, nested: row.nested, exchange: exchange(row), mayModerate: mayModerate, error: $error,
+                    banned: $banned,
                     // A chatter's history is for the channel's staff; a
                     // viewer's card, or the owner's look as one, has none.
                     recent: {
@@ -288,7 +307,7 @@ struct ChatLog: View {
             .overlay {
                 if lines.isEmpty {
                     Text(
-                        account.chat?.isConnected == true
+                        connected
                             ? "Connected · nobody has said anything yet"
                             : "Connecting…"
                     )
@@ -312,14 +331,15 @@ struct ChatLog: View {
             }
             .safeAreaInset(edge: .bottom) {
                 // An inset rather than an overlay, so the pill never sits on
-                // top of the newest line it is announcing.
-                if hasNew {
+                // top of the newest line it is announcing. Any reader scrolled
+                // up gets it, new lines or not, as the way back down.
+                if hasNew || !following {
                     Button {
                         scroll(proxy)
                         following = true
                         hasNew = false
                     } label: {
-                        Label("new", systemImage: "arrow.down")
+                        Label(hasNew ? "new" : "latest", systemImage: "arrow.down")
                             .font(.caption.bold())
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
@@ -331,7 +351,7 @@ struct ChatLog: View {
                     .transition(reduceMotion ? AnyTransition.opacity : .move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .animation(.smooth, value: hasNew)
+            .animation(.smooth, value: hasNew || !following)
         }
     }
 
@@ -389,8 +409,18 @@ struct ChatLog: View {
             >= geo.contentSize.height + geo.contentInsets.bottom - 40
     }
 
+    /// A viewer's command, drawn as one line with the bot's answer folded in.
+    private func exchange(_ row: ThreadedLine<ChatLine>) -> ChatLineView.Exchange? {
+        guard !row.nested, isChatCommand(row.line.text), !isChatBot(row.line.login) else { return nil }
+        let id = row.line.id
+        return .init(answer: row.answers.last?.text, open: openCommands.contains(id)) {
+            if openCommands.remove(id) == nil { openCommands.insert(id) }
+        }
+    }
+
     private func scroll(_ proxy: ScrollViewProxy) {
-        guard let last = lines.last?.id else { return }
+        // The last line drawn, which a reply nested up the log is not.
+        guard let last = lines.threaded(open: openCommands).last?.id else { return }
         withAnimation { proxy.scrollTo(last, anchor: .bottom) }
     }
 
@@ -438,6 +468,15 @@ struct ChatLog: View {
 struct ChatLineView: View {
     @Environment(Account.self) private var account
     var line: ChatLine
+    /// Drawn under the line it answers, which then needs no quote.
+    var nested = false
+    /// A command and its folded answer: a quiet line a tap opens.
+    struct Exchange {
+        var answer: String?
+        var open: Bool
+        var toggle: () -> Void
+    }
+    var exchange: Exchange?
     var mayModerate: Bool
     @Binding var error: String?
     @Binding var banned: Banned?
@@ -453,7 +492,16 @@ struct ChatLineView: View {
     var body: some View {
         // A button, so the row highlights under the finger, a slide off it
         // cancels, and VoiceOver says it opens something.
-        Button { showingCard = true } label: { row }
+        Button { if let exchange { exchange.toggle() } else { showingCard = true } } label: {
+            if let exchange {
+                ChatExchangeRow(
+                    name: line.displayName, nameColor: line.colorHex.map(hexColor), command: line.text,
+                    answer: exchange.answer, open: exchange.open)
+                    .contentShape(Rectangle())
+            } else {
+                row
+            }
+        }
             .foregroundStyle(.primary)
             .listRowBackground(tint)
             .sheet(isPresented: $showingCard) {
@@ -474,7 +522,7 @@ struct ChatLineView: View {
                                 banned = Banned(userId: line.userId, name: line.displayName, seconds: seconds)
                             }
                         } : nil,
-                    reply: line.kind == nil && !line.deleted ? reply : nil,
+                    reply: account.session != nil && line.kind == nil && !line.deleted ? reply : nil,
                     warn: mayModerate && !line.isBroadcaster
                         ? { reason in moderate { try await $0.warn(userId: line.userId, reason: reason) } } : nil,
                     // Not on your own lines: there is nobody to hide or report.
@@ -492,7 +540,7 @@ struct ChatLineView: View {
                         .font(.caption.italic())
                         .foregroundStyle(.secondary)
                 }
-                if let parent = line.reply {
+                if let parent = line.reply, !nested {
                     Label("\(parent.displayName): \(parent.text)", systemImage: "arrow.turn.down.right")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -515,6 +563,15 @@ struct ChatLineView: View {
                 }
             }
             .task(id: line.id) { await loadEmotes() }
+            .padding(.leading, nested ? 20 : 0)
+            .overlay(alignment: .topLeading) {
+                if nested {
+                    Image(systemName: "arrow.turn.down.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
+                }
+            }
             Spacer(minLength: 4)
             Text(shortAge(line.timestamp))
                 .font(.caption.monospaced())
@@ -635,6 +692,10 @@ private func shortAge(_ then: Date, now: Date = .now) -> String {
                 ChatLine(
                     id: "6", userId: "14", login: "vanfan", displayName: "vanfan", text: "", fragments: [],
                     timestamp: now.addingTimeInterval(-1), kind: "raid", notice: "5 raiders from vanfan have joined!"),
+                ChatLine(
+                    id: "7", userId: "15", login: "tripbot", displayName: "tripbot",
+                    text: "@RoadWatcher Dana is near Moab, Utah", timestamp: now,
+                    reply: ChatReply(parentId: "2", login: "roadwatcher", displayName: "RoadWatcher", text: "where is this?")),
             ],
             mayModerate: true
         )

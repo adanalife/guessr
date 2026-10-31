@@ -65,12 +65,19 @@ from check import (
 # The laptop mounts the corpus over SMB at this path; in the cluster it is an NFS
 # mount at whatever path the pod spec picks. The default is the laptop's.
 CORPUS = Path(os.environ.get("GUESSR_CORPUS", "/Volumes/ADanaLife/dashcam/_opt/clips"))
+# Which trip the rounds draw from: `videos.corpus` — s1 is the 2018 footage the
+# default CORPUS dir holds, s2 / s2fast the 2026 trip once it is parked. A run
+# draws from one corpus and one directory, so a set never mixes trips and a
+# season-2 row can't eat a `--pool` draw while its clip lives elsewhere.
+DEFAULT_CORPUS = "s1"
 WEB = Path(__file__).parent / "web"
 STAGING = WEB / ".staging"
 
-# The HUD burns "49 MPH W71.606763 N42.822437" and the date across the bottom of
-# every frame -- i.e. the answer. Crop it off. Measured against a 1920x1080 clip:
-# the text baseline sits around y=1075, so 70px clears it with room to spare.
+# The HUD burns the coordinates and the date across the bottom of every frame --
+# i.e. the answer. Crop it off. Measured on 1920x1080 clips, the glyphs span
+# y=1033-1061 in s1 ("49 MPH W71.606763 N42.822437 ... 2018/07/31 19:15:07") and
+# y=1046-1064 in s2 and s2fast ("N34.505916 W97.171533 HDR 19/02/2026 18:46:44"),
+# so 70px (everything from y=1010 down) clears both corpora by 23px or more.
 HUD_STRIP_PX = 70
 
 # The encode. Settled by measurement (see extract_clip) and constants rather than
@@ -208,6 +215,10 @@ WITH picked AS (
   SELECT id, slug, state, date_filmed
   FROM videos
   WHERE state IS NOT NULL AND NOT flagged
+    AND corpus = :'corpus'
+    -- Null until someone has ruled on the clip; a finished-but-unreviewed
+    -- season-2 clip stays out of the game the way it stays off the live channels.
+    AND reviewed_at IS NOT NULL
     -- A clip whose track is not worth believing is not worth a round. This is
     -- strictly stronger than the old `lat <> 0` gate: a confidence means the
     -- coords stage read the clip and its reads agreed with each other.
@@ -388,7 +399,12 @@ def score_sql(seed: int | None) -> str:
 
 
 def psql_invocation(
-    namespace: str, pool: int, k: int, per_clip: int, min_conf: float
+    namespace: str,
+    pool: int,
+    k: int,
+    per_clip: int,
+    min_conf: float,
+    corpus: str = DEFAULT_CORPUS,
 ) -> tuple[list[str], dict[str, str]]:
     """How to run the scoring query: straight at Postgres, or via kubectl exec.
 
@@ -425,6 +441,8 @@ def psql_invocation(
         f"per_clip={per_clip}",
         "-v",
         f"min_conf={min_conf}",
+        "-v",
+        f"corpus={corpus}",
         # The encode's own clip length, so the query can measure how far the van
         # travels over exactly the seconds a player will watch.
         "-v",
@@ -524,6 +542,7 @@ def score_candidates(
     seed: int | None = None,
     min_conf: float = MIN_CONFIDENCE,
     max_radius_m: float = MAX_RADIUS_M,
+    corpus: str = DEFAULT_CORPUS,
 ) -> list[dict]:
     """Score a random pool of clips for locatability. Best (tightest) first.
 
@@ -536,7 +555,7 @@ def score_candidates(
     alone), and the radius the answer needs because the van keeps moving while the
     round plays.
     """
-    argv, env = psql_invocation(namespace, pool, k, per_clip, min_conf)
+    argv, env = psql_invocation(namespace, pool, k, per_clip, min_conf, corpus)
     try:
         out = subprocess.run(
             argv,
@@ -554,17 +573,27 @@ def score_candidates(
             "into the pod, which needs kubectl, or straight over the network when "
             "DATABASE_HOST is set, which needs a psql client on PATH."
         )
+    except subprocess.CalledProcessError as e:
+        # capture_output keeps psql's error off the console, and the traceback
+        # names only the argv, so a failed unattended run would log no cause.
+        sys.exit(
+            f"scoring query failed (psql exit {e.returncode}):\n{e.stderr.strip()}"
+        )
 
     return parse_scored(out, k, max_radius_m)
 
 
-def available(scored: list[dict]) -> list[dict]:
-    """Drop candidates whose source clip isn't in the corpus, in one directory read.
+def available(scored: list[dict]) -> tuple[list[dict], list[str]]:
+    """Split candidates by whether their source clip is in the corpus dir, in one
+    directory read: (present, the slugs that aren't).
 
     `videos` is derived from the corpus, so the two agreeing is the normal case
     and this drops nothing -- but when it does drop something, doing it here is
     what lets select() below return exactly the count it was asked for instead
-    of discovering the gap one encode at a time.
+    of discovering the gap one encode at a time. The missing slugs come back
+    rather than vanishing, because a row whose clip lives in another directory
+    (a trip parked elsewhere, a corpus row the DB has and the mount doesn't) is
+    a pool that silently shrank, and the caller should say so.
 
     One listdir rather than a stat() per candidate: the corpus is an SMB mount,
     where a stat costs ~4ms and a pool of a couple of thousand would spend
@@ -573,7 +602,9 @@ def available(scored: list[dict]) -> list[dict]:
     before anything under web/ has been touched.
     """
     present = set(os.listdir(CORPUS))
-    return [r for r in scored if f"{r['slug']}.MP4" in present]
+    kept = [r for r in scored if f"{r['slug']}.MP4" in present]
+    missing = sorted({r["slug"] for r in scored if f"{r['slug']}.MP4" not in present})
+    return kept, missing
 
 
 def rank(scored: list[dict], weight: float) -> list[dict]:
@@ -893,15 +924,46 @@ def avoided_points(path: Path) -> list[dict]:
     return points
 
 
-def drop_burned(scored: list[dict], burned: set[str]) -> tuple[list[dict], int]:
+def drop_burned(
+    scored: list[dict], burned: set[str], aired: set[str] = frozenset()
+) -> tuple[list[dict], int]:
     """Filter scored moments whose clip is burned, before the quality window.
 
     Before, not after: the keep-fraction window sizes itself on what it is
     given, and a window padded with unpickable rounds is narrower than the one
     asked for.
+
+    `aired` is images that ever held a date. A clip frees up after the replay
+    window, but the moment that aired never does: drawn again it is the same
+    `image`, which round_days' UNIQUE index drops (the date ships short) and
+    the answers upsert rewrites under the plays already scored against it.
     """
-    kept = [r for r in scored if r["slug"] not in burned]
+    kept = [
+        r
+        for r in scored
+        if r["slug"] not in burned and not (aired and f"clips/{clip_name(r)}" in aired)
+    ]
     return kept, len(scored) - len(kept)
+
+
+def schedule_start(requested: str | None, today: dt.date) -> dt.date:
+    """The first date to give a game to: --schedule-from, or two days out (UTC).
+
+    Two days out is the floor as well as the default. A date opens at 10:00 UTC
+    on the day before it, so tomorrow's game may already be live in the earliest
+    timezone by the time a run finishes, and rounds.sql's INSERT OR IGNORE would
+    quietly fill any hole in a date players can already see. Scheduling over a
+    date somebody is already playing is the one thing the primary key cannot
+    undo.
+    """
+    earliest = today + dt.timedelta(days=2)
+    start = dt.date.fromisoformat(requested) if requested else earliest
+    if start < earliest:
+        raise ValueError(
+            f"--schedule-from {start} is before {earliest}, the first date no "
+            f"timezone can have started playing yet"
+        )
+    return start
 
 
 def schedule(
@@ -1051,6 +1113,12 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("-n", "--count", type=int, default=60, help="rounds to keep")
     ap.add_argument("--pool", type=int, default=400, help="clips to score")
+    ap.add_argument(
+        "--corpus",
+        default=DEFAULT_CORPUS,
+        help="videos.corpus to draw from (s1, s2, s2fast); GUESSR_CORPUS must be "
+        "the directory that trip's clips live in",
+    )
     ap.add_argument("-k", "--neighbours", type=int, default=25)
     ap.add_argument(
         "--per-clip",
@@ -1111,7 +1179,8 @@ def main() -> int:
         metavar="YYYY-MM-DD",
         help="first date to give a game to. Defaults to two days out (UTC), "
         "which is the earliest date no timezone has started playing yet: a date "
-        "opens at 10:00 UTC the day before, so tomorrow's may already be live.",
+        "opens at 10:00 UTC the day before, so tomorrow's may already be live. "
+        "Anything earlier is refused.",
     )
     ap.add_argument(
         "--horizon",
@@ -1152,6 +1221,13 @@ def main() -> int:
         "unit is the clip and not the moment.",
     )
     ap.add_argument(
+        "--exclude-images",
+        metavar="FILE",
+        help="images never to select, one per line: every round a target tier "
+        "has ever scheduled, so a clip back from its replay window offers a "
+        "different moment rather than the one that aired.",
+    )
+    ap.add_argument(
         "--avoid",
         metavar="FILE",
         help="locations never to select near, `lat,lng` one per line: where a "
@@ -1160,6 +1236,13 @@ def main() -> int:
         "--min-spacing as the set's own rounds.",
     )
     args = ap.parse_args()
+    # Checked before anything is scored or cut, not at the end of a long encode.
+    try:
+        first_date = schedule_start(
+            args.schedule_from, dt.datetime.now(dt.timezone.utc).date()
+        )
+    except ValueError as e:
+        ap.error(str(e))
 
     shutil.rmtree(STAGING, ignore_errors=True)
     clips = STAGING / "clips"
@@ -1169,7 +1252,7 @@ def main() -> int:
     # a wall of missing-clip failures.
     (STAGING if args.dry_run else clips).mkdir(parents=True)
 
-    scored = available(
+    scored, missing = available(
         score_candidates(
             args.namespace,
             args.pool,
@@ -1178,11 +1261,21 @@ def main() -> int:
             args.seed,
             args.min_confidence,
             args.max_radius,
+            args.corpus,
         )
     )
-    if args.exclude:
-        scored, dropped = drop_burned(scored, burned_slugs(Path(args.exclude)))
-        print(f"excluded {dropped} scored moments whose clip is burned")
+    if missing:
+        print(
+            f"{len(missing)} scored clip(s) are not in {CORPUS} and were dropped "
+            f"(first: {missing[0]}) -- the {args.corpus} rows and the mount disagree"
+        )
+    if args.exclude or args.exclude_images:
+        burned = burned_slugs(Path(args.exclude)) if args.exclude else set()
+        aired = (
+            burned_slugs(Path(args.exclude_images)) if args.exclude_images else set()
+        )
+        scored, dropped = drop_burned(scored, burned, aired)
+        print(f"excluded {dropped} scored moments whose clip is burned or that aired")
     keep = max(args.count, int(len(scored) * args.keep_fraction))
     eligible = rank(scored, args.distinctiveness)[:keep]
     print(
@@ -1266,15 +1359,6 @@ def main() -> int:
             f"{row['state']} ({row['median_km']:g} km, cos {row['mean_cos']:g})"
         )
 
-    # Two days out by default rather than tomorrow: a date opens at 10:00 UTC on
-    # the day before it, so tomorrow's game may already be live in the earliest
-    # timezone by the time this runs. Scheduling over a date somebody is already
-    # playing is the one thing the primary key cannot undo.
-    first_date = (
-        dt.date.fromisoformat(args.schedule_from)
-        if args.schedule_from
-        else dt.datetime.now(dt.timezone.utc).date() + dt.timedelta(days=2)
-    )
     days = schedule(rounds, first_date, args.horizon, args.distinctiveness)
     batch = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 

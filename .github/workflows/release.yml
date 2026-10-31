@@ -7,8 +7,9 @@ name: release
 #
 # Production runs the Python API the same way staging does: the Worker deploys
 # first, and the Pages project's `API` service binding (set by hand in the
-# dashboard) decides whether the site's /api/, /admin/ and /clips/ reach it.
-# Without the binding the Worker sits idle and the JS Functions keep answering.
+# dashboard) is how the site's /api/ and /admin/ reach it. Without the binding
+# those paths fail at the root middleware; /clips/ never touches the Worker,
+# since a Pages Function streams clips straight from R2.
 #
 # Unlike staging, the Worker never takes players' traffic until it has proved
 # itself: `worker` uploads the new version and deploys it at 0% beside the one
@@ -80,7 +81,7 @@ jobs:
         with:
           node-version-file: .tool-versions
           package-manager-cache: false
-      - uses: astral-sh/setup-uv@v10.2.0 # no floating major tag published
+      - uses: astral-sh/setup-uv@v10.3.0 # no floating major tag published
         with:
           enable-cache: false
       # pywrangler vendors the Python packages (its `sync`) before handing the

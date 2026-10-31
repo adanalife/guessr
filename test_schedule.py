@@ -34,6 +34,7 @@ from make_rounds import (
     rank,
     rounds_sql,
     schedule,
+    schedule_start,
 )
 
 # Every migration in the order wrangler applies them, rather than one file
@@ -248,10 +249,24 @@ def main() -> None:
 
     first_round_is_top_ranked()
 
+    # Two days out is the floor: tomorrow may already be open somewhere, and
+    # INSERT OR IGNORE would fill holes in a date players can see.
+    today = date(2026, 10, 21)
+    assert schedule_start(None, today) == date(2026, 10, 23)
+    assert schedule_start("2026-10-23", today) == date(2026, 10, 23)
+    assert schedule_start("2026-11-01", today) == date(2026, 11, 1)
+    for early in ("2026-10-22", "2026-10-21", "2026-10-01"):
+        try:
+            schedule_start(early, today)
+        except ValueError:
+            continue
+        raise AssertionError(f"--schedule-from {early} was accepted")
+
     print("ok: a day is five rounds, ramped, spanning the difficulty range")
     print("ok: position 1 is the top-ranked round, not merely the most locatable")
     print("ok: the schedule is deterministic and never places a round twice")
     print("ok: the generated SQL loads, is re-runnable, and keeps a reject")
+    print("ok: --schedule-from refuses a date players may already have open")
 
 
 if __name__ == "__main__":

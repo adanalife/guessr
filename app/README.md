@@ -22,7 +22,8 @@ simulator build from the repo root.
 The app's version is the repo's release tag: the `vX.Y.Z` release-please cuts
 for the web game is the version TestFlight shows, and the build number is the
 commit count. `task ios:release` builds only from a clean checkout of a tag,
-then archives, uploads and waits for Apple to finish processing:
+then archives, uploads, waits for Apple to finish processing, and sends the
+build's dSYMs to Sentry:
 
 ```sh
 git fetch --tags && git checkout vX.Y.Z
@@ -38,6 +39,20 @@ It reads four variables from the environment:
 | `ASC_KEY_ID` | that key's id |
 | `ASC_ISSUER_ID` | the key's issuer id |
 
+The release ends with two steps that can each be rerun alone. `task
+ios:clip:invocations` registers the TestFlight App Clip invocations
+(`clip_invocations` in `store.toml`'s `[beta]` table) on the build, since every
+build starts with none and TestFlight launches the clip only from those. The
+dSYM upload (`task ios:dsyms`) authenticates with
+a Sentry org token (scope `org:ci`). It reads `SENTRY_AUTH_TOKEN` if set, and
+otherwise fetches `/release/sentry-org-token` from the prod account's SSM
+through `aws-vault`. Seed that once with:
+
+```sh
+aws-vault exec adanalife-prod -- aws ssm put-parameter \
+  --name /release/sentry-org-token --type SecureString --overwrite --value '<token>'
+```
+
 Signing needs the team's *Apple Distribution* certificate in the keychain and an
 App Store profile for `lol.dana.guessr` named `Guessr App Store`.
 `task ios:archive` and `task ios:upload` are the two halves, for a deliberate
@@ -45,6 +60,80 @@ off-tag build or a retried upload; `task ios:validate`, which the release runs
 between them, puts the last archive through the App Store export checks
 without uploading it; `task ios:verify` asks App Store Connect
 whether the newest tag has an installable build.
+
+### Testers
+
+Two groups. The internal *Friends & Family* group is for App Store Connect team
+members: it gets every build at once, with no review. Everyone else goes in
+the external group, `Testers`. External testers never join the team. TestFlight
+emails them once, or they open the public link, and then they install. Each
+build is seen by Beta App Review before they get it, which usually takes
+minutes once a version has passed it once.
+
+`task ios:release` ends by running `task ios:beta:ship`, which adds the tag's
+build to `Testers`, points its *What to Test* at the GitHub release, and
+submits it for Beta App Review. The group, its public link (capped at
+`public_link_limit`), the description testers read and the beta review contact
+come from the `[beta]` table in `store.toml`. `task ios:beta:setup` plans them,
+and `-- --apply` writes them. It also prints the public link, which exists once
+a build has passed review. To invite somebody by email, queue them for guessr
+from tempomat's invite screen, or run tempomat's
+`task ios:invite APP=guessr NAME=… EMAIL=…`. Either way they are added to
+`Testers` in a single step.
+
+## Universal links
+
+The website's *Link a device* QR code (`web/link.js`) opens the app when it is
+installed, and Safari otherwise. Three parts agree on it: the site serves
+`web/.well-known/apple-app-site-association`, which names the team and bundle
+id and matches only the site root carrying `#link=` (the `_headers` rule beside
+it gives the extensionless file its JSON content type); the app's entitlements
+in `project.yml` name `guessr.dana.lol` and its stage; and `GuessrApp`'s
+`onOpenURL` reads the player out of the fragment (`DeviceLink` in GuessrKit)
+and runs the same `POST /api/link` merge the website does, behind a question.
+
+The App ID in the developer portal needs the *Associated Domains* capability,
+and the `Guessr App Store` profile has to be regenerated after it is added; a
+build signed with a profile that lacks it installs, and iOS quietly never hands
+it a link. Apple's CDN fetches the file on install, not on every scan, so after
+a change check what it holds:
+
+```sh
+curl https://app-site-association.cdn-apple.com/a/v1/guessr.dana.lol
+```
+
+A fresh install, or Settings → Developer → *Associated Domains Development* →
+*Diagnostics* on a device, says what iOS resolved the domain to.
+
+## App Clip
+
+`GuessrClip` in `project.yml` is a second app target: the Play screen and what
+it needs from the app (`Play.swift`, `Layout.swift`, `USState.swift`,
+`Telemetry.swift`, the asset catalog and string catalog), compiled again into
+the bundle iOS downloads and launches from a link with no install. Chat,
+Settings, Game Center and Siri stay in the full app. The clip plays the day
+and posts scores through the normal `/api/score`; the player it mints lives in
+the `group.lol.dana.guessr` app group (`GroupPlayerStore` in GuessrKit), which
+iOS moves to the full app on install, and the full app adopts it on its first
+launch if its Keychain holds no player yet. Any link into the clip plays
+today; the invocation URL is not read.
+
+What launches it: the site's `apple-itunes-app` meta tag (Safari's banner on
+`guessr.dana.lol`), a `guessr.dana.lol` link in Messages, and the site's QR
+codes, all through the `appclips` entry in the association file above.
+
+Portal and App Store Connect, once per team: an App ID `lol.dana.guessr.Clip`
+with *App Groups* and *Associated Domains*; the `group.lol.dana.guessr` group
+on it and on `lol.dana.guessr` (so the full app's profile needs regenerating
+too); and a `Guessr Clip App Store` distribution profile. The archive already
+carries the clip; nothing in `task ios:release` changes.
+
+The default App Clip experience, the card iOS shows before the clip opens, is
+the `[app_clip]` table in `store.toml`: the subtitle under the app's name, the
+*Play* button, and a header image `task appclip:image` renders from the game's
+mark on its paper and ink. It belongs to the store version, so `task
+asc:listing` creates it on each new one and uploads the image wherever App
+Store Connect holds a different file.
 
 ## Game Center
 
@@ -109,7 +198,8 @@ writes it, with the same key as the release. It creates the version named at
 the top of the file when none is editable, attaches the newest valid
 TestFlight build of that version once there is one, and uploads screenshots
 from `.build/screenshots` wherever App Store Connect has none for a display
-type. The review contact and the demo account are not public: they go in
+type, and creates the App Clip's default experience on the version (App Clip
+above). The review contact and the demo account are not public: they go in
 `store.local.toml` (gitignored), merged over `store.toml` table by table:
 
 ```toml
@@ -122,7 +212,7 @@ demo_account_password = "…"
 ```
 
 `task ios:screenshots` takes the screenshots: it builds for the simulator,
-then on an iPhone 17 Pro Max and a 13-inch iPad Pro launches the Debug build
+then on an iPhone 18 Pro Max, an iPhone Duo (it opens DeviceHub and stops for you to unfold it) and a 13-inch iPad Pro launches the Debug build
 with its launch arguments (`-tab`, `-autoplay 1`) and captures a
 round, its reveal and Settings, with Apple's 9:41 status bar. The
 Debug build plays stage, so the round is staging's.
@@ -133,6 +223,39 @@ submission itself, which is the *Add for Review* button on the version.
 Submitting a version that reaches *Pending Developer Release* and releasing it
 by hand is the point of `release_type = "MANUAL"`: the server's
 `PRERELEASED` flag has to flip in the same minute (see Game Center above).
+
+### Submitting a new version
+
+1. **Pick the tag.** The store version is a release tag with a valid
+   TestFlight build (`./scripts/asc-builds.py` lists them). Play that build on
+   a phone, including whatever changed since the version on the store.
+2. **Check what is held out.** `TWITCH` and `WATCH` in `Guessr.xcconfig`
+   and the App Clip embed (App Clip above) keep features out of the App Store
+   build until each is reviewed on its own. Turning one on is its own PR,
+   merged before the tag is cut, along with any review notes or age-rating
+   answers it changes.
+3. **Write the version in `store.toml`.** Set `version` to the tag and write
+   `whats_new` for players: what they will notice, not the changelog.
+   `CHANGELOG.md` between the store version and the tag is the source, and
+   most of it (telemetry, server work, held-out features) stays out. Change
+   the description, review notes or age rating here too if the app's surface
+   changed. This goes through a PR, so the file stays what the store says.
+4. **Create the version.** `task asc:listing -- --apply` creates it. App
+   Store Connect only opens the app info for editing alongside a new version,
+   so this first run skips it.
+5. **Review, then apply.** `task appclip:image` renders the App Clip card's
+   header, then `task asc:listing` plans everything else and
+   prints What's New in full. Read it as the store page will show it, edit
+   `store.toml` if it is wrong, then `task asc:listing -- --apply`, and again
+   until it reports nothing to do.
+6. **Screenshots**, if the screens changed: delete the set in the dashboard,
+   `task ios:screenshots`, apply again.
+7. **Dashboard.** Check the App Privacy labels still agree with
+   `PrivacyInfo.xcprivacy` (*published*, not only saved), then *Add for
+   Review*.
+8. **Release.** At *Pending Developer Release*, ship anything the server must
+   do first (prod deploys from the release tag), then *Release This Version*
+   and play a round on the store build.
 
 ## Build settings
 
@@ -148,8 +271,13 @@ Set them in `Local.xcconfig` beside it (gitignored), or pass them to
 never the login, which can be renamed. `task ios:upload` refuses an archive
 whose client id is empty, so a TestFlight build always has the login on.
 
-`GUESSR_TWITCH_CHANNEL` is set in the tree: the Chat tab talks in `adanalife_`
-in a Release build and in `adanalife_staging` in a Debug one.
+`GUESSR_TWITCH_CHANNEL` is set in the tree: the Chat tab talks in, and the Watch
+tab watches, `adanalife_` in a Release build and `adanalife_staging` in a Debug one.
+
+Two compilation conditions in `Guessr.xcconfig` keep features out of the App
+Store build until each goes through review on its own: `TWITCH` (the Twitch
+login, chat and the Siri guess) and `WATCH` (the Watch tab). Both are on in
+Debug only, so a TestFlight build has neither.
 
 ## Languages
 

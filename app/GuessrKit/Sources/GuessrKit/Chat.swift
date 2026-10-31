@@ -199,10 +199,11 @@ public enum TwitchChatError: Error, LocalizedError, Equatable {
     }
 }
 
-/// The three calls the chat's socket loop makes, so a test can script the
-/// frames a `URLSessionWebSocketTask` would deliver.
+/// The calls the chat socket loops make, so a test can script the frames a
+/// `URLSessionWebSocketTask` would deliver.
 protocol ChatSocket: AnyObject, Sendable {
     func resume()
+    func send(_ message: URLSessionWebSocketTask.Message) async throws
     func receive() async throws -> URLSessionWebSocketTask.Message
     func cancel(with closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?)
 }
@@ -214,7 +215,7 @@ extension URLSessionWebSocketTask: ChatSocket {}
 /// host with no socket can build on its own.
 ///
 /// EventSub's WebSocket transport only delivers chat to the token's own user,
-/// so reading requires a login; there is no anonymous mode.
+/// so reading here requires a login; `TwitchLurk` reads without one.
 @Observable @MainActor
 public final class TwitchChat {
     /// The newest lines, oldest first, at most `capacity` of them.
@@ -309,6 +310,9 @@ public final class TwitchChat {
             do {
                 if subscribe { await beforeConnect?() }
                 _ = try await helix.resolveBroadcaster()
+                // A `stop()` during either wait found no socket to close, so a
+                // stopped loop must not open one now.
+                try Task.checkCancellation()
                 let ws = makeSocket(url)
                 socket = ws
                 ws.resume()
@@ -321,7 +325,12 @@ public final class TwitchChat {
                     continue
                 }
             } catch {
-                if Task.isCancelled { break }
+                if Task.isCancelled {
+                    // `stop()` closed `socket`; a moved session's old one is
+                    // known only here.
+                    retiring?.cancel(with: .goingAway, reason: nil)
+                    break
+                }
                 lastError = error.localizedDescription
             }
             isConnected = false
@@ -457,7 +466,6 @@ public final class TwitchChat {
     }
 
     private func subscribeAll(_ sessionID: String) async throws {
-        let broadcaster = try await helix.resolveBroadcaster()
         for type in [
             "channel.chat.message", "channel.chat.notification", "channel.chat.message_delete",
             "channel.chat.clear_user_messages", "channel.chat_settings.update",
@@ -744,11 +752,9 @@ func parseTimestamp(_ raw: String?) -> Date {
         let digits = raw[raw.index(after: dot)..<end].prefix(3)
         raw = String(raw[..<dot]) + "." + digits.padding(toLength: 3, withPad: "0", startingAt: 0) + raw[end...]
     }
-    let parser = ISO8601DateFormatter()
-    parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    if let date = parser.date(from: raw) { return date }
-    parser.formatOptions = [.withInternetDateTime]
-    return parser.date(from: raw) ?? .now
+    // Format styles are values, cheap to make per frame where a formatter is not.
+    return (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(raw))
+        ?? (try? Date.ISO8601FormatStyle().parse(raw)) ?? .now
 }
 
 /// An EventSub WebSocket frame, as far as chat reads it.

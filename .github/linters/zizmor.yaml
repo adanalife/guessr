@@ -10,3 +10,8 @@ rules:
       # the major bumps. A pinned tag is still required; `@main` is not.
       policies:
         "*": ref-pin
+  self-repository:
+    # Wants `uses: $/.github/actions/...` for a local action instead of
+    # `./.github/actions/...`. actionlint (the pre-commit gate) does not parse
+    # that syntax yet, so the two linters can't both pass; the `./` form stays.
+    disable: true

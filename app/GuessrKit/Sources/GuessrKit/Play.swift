@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 #if canImport(FoundationNetworking)
     import FoundationNetworking
@@ -17,12 +18,19 @@ public struct GuessrScore: Sendable, Equatable, Codable {
     /// Whether this counted toward a board. A replayed round comes back with
     /// the score already on record, not a fresh one.
     public var recorded: Bool
+    /// On a daily play: how many consecutive days the player has finished, and
+    /// the date that run ends on. Nil on practice, and on a round rebuilt from
+    /// `/api/progress`.
+    public var streak: Int?
+    public var streakDate: String?
 
     public init(
-        km: Double, points: Int, lat: Double, lng: Double, state: String, filmed: String, recorded: Bool
+        km: Double, points: Int, lat: Double, lng: Double, state: String, filmed: String, recorded: Bool,
+        streak: Int? = nil, streakDate: String? = nil
     ) {
         (self.km, self.points, self.lat, self.lng) = (km, points, lat, lng)
         (self.state, self.filmed, self.recorded) = (state, filmed, recorded)
+        (self.streak, self.streakDate) = (streak, streakDate)
     }
 
     public var answer: Coordinate { Coordinate(lat: lat, lng: lng) }
@@ -86,9 +94,11 @@ public protocol PlayerStore: Sendable {
 
 extension PlayerStore {
     /// The saved player, or a new one minted and saved on first launch.
-    public func current() -> Player {
+    /// `handed` is a player from somewhere else to take up instead of minting,
+    /// the App Clip's: it never replaces a player this store already holds.
+    public func current(orAdopt handed: Player? = nil) -> Player {
         if let player = load() { return player }
-        let player = Player.mint()
+        let player = handed ?? Player.mint()
         // ponytail: a failed save means a new id next launch and this launch's
         // plays stranded on the old one; link codes are the recovery path.
         save(player)
@@ -96,14 +106,13 @@ extension PlayerStore {
     }
 }
 
-public final class MemoryPlayerStore: PlayerStore, @unchecked Sendable {
-    private let lock = NSLock()
-    private var player: Player?
+public final class MemoryPlayerStore: PlayerStore {
+    private let player: Mutex<Player?>
 
-    public init(_ player: Player? = nil) { self.player = player }
+    public init(_ player: Player? = nil) { self.player = Mutex(player) }
 
-    public func load() -> Player? { lock.withLock { player } }
-    public func save(_ player: Player) { lock.withLock { self.player = player } }
+    public func load() -> Player? { player.withLock { $0 } }
+    public func save(_ player: Player) { self.player.withLock { $0 = player } }
 }
 
 #if canImport(Security)
@@ -123,6 +132,46 @@ public final class MemoryPlayerStore: PlayerStore, @unchecked Sendable {
         }
     }
 #endif
+
+/// The player in the app group's defaults: where the App Clip keeps its own, and
+/// what the full app reads on first launch, since iOS moves the clip's group
+/// container to the full app when it is installed. The clip has no Keychain the
+/// full app can see; the group is the only thing that crosses.
+public struct GroupPlayerStore: PlayerStore {
+    public static let group = "group.lol.dana.guessr"
+    private let key = "player"
+    /// The suite's name rather than the `UserDefaults` itself, which is not
+    /// Sendable; it is opened on each read and write.
+    private let suite: String
+
+    public init(suite: String = GroupPlayerStore.group) {
+        self.suite = suite
+    }
+
+    public func load() -> Player? {
+        UserDefaults(suiteName: suite)?.data(forKey: key).flatMap { try? JSONDecoder().decode(Player.self, from: $0) }
+    }
+
+    public func save(_ player: Player) {
+        UserDefaults(suiteName: suite)?.set(try? JSONEncoder().encode(player), forKey: key)
+    }
+
+    public func clear() {
+        UserDefaults(suiteName: suite)?.removeObject(forKey: key)
+    }
+}
+
+extension PlayerStore {
+    /// The player this store holds when it isn't `kept`: the App Clip's, left
+    /// behind when the full app already had a player of its own (iOS keeps
+    /// the Keychain across a delete, so a reinstall finds the old one). Its
+    /// plays are what the full app folds onto `kept`. Nil when the store is
+    /// empty or holds `kept` itself, as it does after a first launch adopts it.
+    public func handedOver(besides kept: Player) -> Player? {
+        guard let held = load(), held.id != kept.id else { return nil }
+        return held
+    }
+}
 
 /// One round as this device played it, kept so a relaunch resumes the day.
 public struct PlayedRound: Sendable, Equatable, Codable {
@@ -169,6 +218,16 @@ public struct DayProgress: Sendable, Equatable, Codable {
 
     public var total: Int { played.reduce(0) { $0 + $1.score.points } }
 
+    /// The run of finished days worth celebrating, read off the last round's
+    /// score: two or more, ending today or yesterday. One day is just a day
+    /// played, and a run that ended before yesterday is already broken.
+    public func streak(now: Date = Date()) -> Int? {
+        guard let score = played.last?.score, let days = score.streak, days >= 2 else { return nil }
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: now) ?? now
+        let live = [GuessrClient.today(now), GuessrClient.today(yesterday)]
+        return live.contains(score.streakDate ?? "") ? days : nil
+    }
+
     /// The next round of `day` to play, or nil once every round is played.
     public func next(in day: GuessrDay) -> GuessrDay.Round? {
         played.count < day.rounds.count ? day.rounds[played.count] : nil
@@ -178,10 +237,12 @@ public struct DayProgress: Sendable, Equatable, Codable {
 extension GuessrClient {
     /// Scores a guess against a date's round and records it for `player`.
     /// First write wins on the server, so a round guessed twice comes back with
-    /// the score from the first time.
-    public func score(image: String, guess: Coordinate, date: String, player: Player) async throws
-        -> GuessrScore
-    {
+    /// the score from the first time. `elapsed` is how long the round was on
+    /// screen before the guess, stored with the play for statistics and never
+    /// returned.
+    public func score(
+        image: String, guess: Coordinate, date: String, player: Player, elapsed: Duration? = nil
+    ) async throws -> GuessrScore {
         struct Body: Encodable {
             var image: String
             var lat: Double
@@ -189,20 +250,19 @@ extension GuessrClient {
             var date: String
             var playerId: String
             var handle: String
+            var elapsedMs: Int?
         }
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
-        var req = URLRequest(url: baseURL.appending(path: "api/score"))
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body = Body(
+            image: image, lat: guess.lat, lng: guess.lng, date: date, playerId: player.id, handle: player.alias,
+            elapsedMs: elapsed.map { Int(($0 / .milliseconds(1)).rounded()) })
         // The server files the play under a coarse platform bucket read off
-        // this; the system default names CFNetwork and Darwin, not the device.
-        req.setValue(await Guessr.userAgent(), forHTTPHeaderField: "User-Agent")
-        req.httpBody = try encoder.encode(
-            Body(
-                image: image, lat: guess.lat, lng: guess.lng, date: date,
-                playerId: player.id, handle: player.alias))
-        return try Guessr.decoder.decode(GuessrScore.self, from: try await data(req))
+        // the user agent; the system default names CFNetwork and Darwin, not
+        // the device.
+        let answer = try await post(
+            "api/score", body, encoder: encoder, headers: ["User-Agent": await Guessr.userAgent()])
+        return try Guessr.decoder.decode(GuessrScore.self, from: answer)
     }
 }
 
@@ -223,11 +283,8 @@ extension GuessrClient {
             var filmed: String
         }
         struct Answer: Decodable { var rounds: [Row] }
-        var req = URLRequest(url: baseURL.appending(path: "api/progress"))
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(["date": date, "player_id": player.id])
-        return try Guessr.decoder.decode(Answer.self, from: try await data(req)).rounds.map { r in
+        let answer = try await post("api/progress", ["date": date, "player_id": player.id])
+        return try Guessr.decoder.decode(Answer.self, from: answer).rounds.map { r in
             PlayedRound(
                 image: r.image,
                 guess: Coordinate(lat: r.guessLat ?? r.lat, lng: r.guessLng ?? r.lng),
@@ -244,11 +301,7 @@ extension GuessrClient {
     /// monthly totals and the achievements. No score travels in either
     /// direction: a client cannot name one.
     public func syncGameCenter(player: Player, gamePlayerID: String) async throws {
-        var req = URLRequest(url: baseURL.appending(path: "api/gamecenter"))
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(["player_id": player.id, "game_player_id": gamePlayerID])
-        _ = try await data(req)
+        _ = try await post("api/gamecenter", ["player_id": player.id, "game_player_id": gamePlayerID])
     }
 }
 
@@ -270,33 +323,85 @@ extension GuessrClient {
     /// code is single-use and lasts ten minutes; an unknown, used or expired one
     /// is a 404.
     public func claimLink(code: String, from player: Player) async throws -> LinkClaim {
-        var req = URLRequest(url: baseURL.appending(path: "api/link/claim"))
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(["code": code, "from": player.id])
-        return try Guessr.decoder.decode(LinkClaim.self, from: try await data(req))
+        try Guessr.decoder.decode(
+            LinkClaim.self, from: try await post("api/link/claim", ["code": code, "from": player.id]))
+    }
+}
+
+/// The link-a-device QR code on the website, opened on this device: the player
+/// to join and the name they go by. The id rides in the URL's fragment, which
+/// never reaches a server (see web/link.js); the name is a label for the
+/// question, and the id is what links.
+///
+/// Shared with any App Clip, which opens from a URL the same way.
+public struct DeviceLink: Sendable, Equatable {
+    public var id: String
+    public var name: String?
+
+    public init(id: String, name: String? = nil) {
+        self.id = id
+        self.name = name
+    }
+
+    /// Reads the fragment `URLSearchParams` wrote: `link=<id>&name=<alias>`,
+    /// with `+` for a space. Any other URL is nil.
+    public init?(_ url: URL) {
+        guard let fragment = url.fragment(percentEncoded: true),
+            let items = URLComponents(string: "?" + fragment.replacingOccurrences(of: "+", with: "%20"))?.queryItems,
+            let id = items.first(where: { $0.name == "link" })?.value, !id.isEmpty, id.count <= 64
+        else { return nil }
+        self.init(id: id, name: items.first(where: { $0.name == "name" })?.value)
+    }
+}
+
+extension GuessrClient {
+    /// Folds `player`'s plays onto `link`'s player, the merge the website runs
+    /// when it opens the same QR code. Answers how many plays moved; the caller
+    /// then plays as `link.id`.
+    public func link(_ link: DeviceLink, from player: Player) async throws -> Int {
+        struct Moved: Decodable { var moved: Int }
+        return try Guessr.decoder.decode(Moved.self, from: try await post("api/link", ["from": player.id, "to": link.id])).moved
     }
 }
 
 /// What a claim would do: the player a code names and the player this device
-/// plays as today, each with their all-time points.
+/// plays as today, each with their all-time record. `days`, `last` and
+/// `overlap` are optional so an answer from a server that sends only names
+/// and points still decodes.
 public struct LinkPreview: Sendable, Equatable, Codable {
     public struct Standing: Sendable, Equatable, Codable {
         public var name: String
         public var points: Int
+        /// How many dates the player has a play on.
+        public var days: Int?
+        /// The date of their latest play, `YYYY-MM-DD`; nil for a player who
+        /// has never played, or a server that doesn't say.
+        public var last: String?
 
-        public init(name: String, points: Int) {
+        public init(name: String, points: Int, days: Int? = nil, last: String? = nil) {
             self.name = name
             self.points = points
+            self.days = days
+            self.last = last
+        }
+
+        /// `last` as midnight UTC on that date, so it formats as the same
+        /// day in a UTC calendar whatever the device's zone.
+        public var lastPlayed: Date? {
+            last.flatMap { try? Date($0, strategy: Date.ISO8601FormatStyle().year().month().day()) }
         }
     }
 
     public var to: Standing
     public var from: Standing
+    /// How many of `from`'s plays the merge drops because `to` already has a
+    /// play for that date and round.
+    public var overlap: Int?
 
-    public init(to: Standing, from: Standing) {
+    public init(to: Standing, from: Standing, overlap: Int? = nil) {
         self.to = to
         self.from = from
+        self.overlap = overlap
     }
 }
 
@@ -305,11 +410,15 @@ extension GuessrClient {
     /// `claimLink` replaces its player. Same 404 as a claim for a code that is
     /// unknown, used or expired.
     public func previewLink(code: String, from player: Player) async throws -> LinkPreview {
-        var req = URLRequest(url: baseURL.appending(path: "api/link/preview"))
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(["code": code, "from": player.id])
-        return try Guessr.decoder.decode(LinkPreview.self, from: try await data(req))
+        try Guessr.decoder.decode(
+            LinkPreview.self, from: try await post("api/link/preview", ["code": code, "from": player.id]))
+    }
+
+    /// What `link(_:from:)` would do, asked before it runs so the question can
+    /// name both players.
+    public func previewLink(_ link: DeviceLink, from player: Player) async throws -> LinkPreview {
+        try Guessr.decoder.decode(
+            LinkPreview.self, from: try await post("api/link/preview", ["to": link.id, "from": player.id]))
     }
 }
 
@@ -328,10 +437,6 @@ extension GuessrClient {
     /// A fresh code for `player`, live ten minutes; asking again retires the
     /// previous one.
     public func issueLinkCode(for player: Player) async throws -> LinkCode {
-        var req = URLRequest(url: baseURL.appending(path: "api/link/code"))
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(["player_id": player.id])
-        return try Guessr.decoder.decode(LinkCode.self, from: try await data(req))
+        try Guessr.decoder.decode(LinkCode.self, from: try await post("api/link/code", ["player_id": player.id]))
     }
 }

@@ -22,8 +22,10 @@ const FORWARDED = ['/api/', '/admin/'];
 // idempotent besides (`ON CONFLICT DO NOTHING`).
 const ATTEMPTS = 3;
 // Cloudflare's own error page for a Worker that threw, which the app never
-// writes; the app's 5xx answers are its own and are passed through.
-const RUNTIME_ERROR = /^error code: 11\d\d/;
+// writes; the app's 5xx answers are its own and are passed through. A request
+// that asks for JSON, as the iOS app's do, gets the same error as an RFC 9457
+// problem object carrying `"error_code":1101` instead of the text line.
+const RUNTIME_ERROR = /^error code: 11\d\d|"error_code":\s*11\d\d\b/;
 
 async function forward(api, request) {
   for (let attempt = 1; ; attempt++) {

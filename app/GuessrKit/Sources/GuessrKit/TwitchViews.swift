@@ -1,6 +1,6 @@
 // The Twitch device-code login's rows, shared by every app that signs in with
 // GuessrKit's `TwitchAuth`, so the login reads the same way in each.
-#if canImport(SwiftUI) && !os(tvOS)
+#if canImport(SwiftUI) && !os(tvOS) && !os(watchOS)
     import SwiftUI
     #if canImport(UIKit)
         import UIKit

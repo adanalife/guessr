@@ -431,7 +431,12 @@ tasks:
   # The About panel links to that file, so the entries are written for players;
   # towncrier.toml says what that means.
   changelog:add:
-    desc: 'Scaffold a changelog fragment (TYPE=new, optional SLUG=my-thing; the release numbers it). Types: new changed fixed behind summary'
+    desc: 'Write a changelog fragment (MSG="the line", TYPE=new, optional SLUG=my-thing; the release numbers it). Types: new changed fixed behind summary'
+    # The message is required so the fragment is written whole: without it,
+    # towncrier opens $EDITOR (a hang in a non-interactive shell) or writes its
+    # "Add your info here" placeholder.
+    requires:
+      vars: [MSG]
     vars:
       TYPE: '{{.TYPE | default "new"}}'
       # The branch is the fallback slug because it is unique per PR. Defaulting
@@ -445,8 +450,12 @@ tasks:
       SUFFIX:
         sh: openssl rand -hex 2
       NAME: '+{{.SLUG | default .BRANCH}}-{{.SUFFIX}}'
+    # Through the environment rather than templated into the command, so
+    # quotes and backticks in the message reach towncrier as written.
+    env:
+      MSG: '{{.MSG}}'
     cmds:
-      - uvx towncrier create --config towncrier.toml {{.NAME}}.{{.TYPE}}.md
+      - uvx towncrier create --config towncrier.toml --content "$MSG" {{.NAME}}.{{.TYPE}}.md
 
   changelog:preview:
     desc: Preview the pending changelog from the current fragments (towncrier draft)
@@ -676,14 +685,69 @@ tasks:
       # Apple takes 5-15 minutes to process an upload; this ends the release
       # with the verdict instead of a reminder to come back and check.
       - ./scripts/asc-builds.py --wait
+      # External testers get the build once Beta App Review passes it; a
+      # failure here is retried alone with `task ios:beta:ship`.
+      - task: ios:beta:ship
+      # After the build ships, so a missing token can't hold up the build
+      # Apple already has; a failure here is retried alone with `task ios:dsyms`.
+      - task: ios:dsyms
+      # TestFlight starts every build with no App Clip invocations; a failure
+      # here is retried alone with `task ios:clip:invocations`.
+      - task: ios:clip:invocations
+
+  ios:dsyms:
+    desc: Upload the last iPhone archive's dSYMs to Sentry, so a native crash names our frames
+    dir: app
+    preconditions:
+      - sh: test -d .build/Guessr.xcarchive/dSYMs
+        msg: "No archive at app/.build/Guessr.xcarchive — run ios:archive (or ios:release) first"
+    cmds:
+      # Apple's upload keeps the dSYMs to itself, so without this Sentry can
+      # only symbolicate the SDK's own frames. The token is an org token
+      # (`org:ci`): SENTRY_AUTH_TOKEN when set, else the prod account's SSM.
+      - |
+        set -euo pipefail
+        token=${SENTRY_AUTH_TOKEN:-}
+        if [ -z "$token" ]; then
+          token=$(aws-vault exec adanalife-prod -- aws ssm get-parameter \
+            --name /release/sentry-org-token --with-decryption --query Parameter.Value --output text)
+        fi
+        case "$token" in
+          '{"placeholder"'*) echo "/release/sentry-org-token still holds terraform's placeholder — seed it (app/README.md's TestFlight section)" >&2; exit 1 ;;
+        esac
+        # Sentry's upload API answers 503/504 for minutes at a time while its
+        # status page reads operational, and sentry-cli's own retries come
+        # back to back. Re-uploading is safe (files are keyed by debug id),
+        # so a few spaced attempts outlast it.
+        for attempt in 1 2 3 4; do
+          SENTRY_AUTH_TOKEN="$token" uvx sentry-cli debug-files upload --org a-dana-life --project guessr-app \
+            --include-sources .build/Guessr.xcarchive/dSYMs && exit 0
+          [ "$attempt" -lt 4 ] && { echo "dSYM upload failed (attempt $attempt of 4); retrying in 2 minutes" >&2; sleep 120; }
+        done
+        exit 1
 
   ios:verify:
     desc: Ask App Store Connect whether the newest release tag has an installable build (-- --wait polls until it does)
     cmds:
       - ./scripts/asc-builds.py {{.CLI_ARGS}}
 
+  ios:beta:setup:
+    desc: Write app/store.toml's [beta] table into App Store Connect -- the external group, its public link, the beta description and review contact (-- --apply to write; plans by default)
+    cmds:
+      - ./scripts/asc-beta.py setup {{.CLI_ARGS}}
+
+  ios:beta:ship:
+    desc: Add the newest release tag's build to the external TestFlight group and submit it for Beta App Review
+    cmds:
+      - ./scripts/asc-beta.py ship
+
+  ios:clip:invocations:
+    desc: Register store.toml's TestFlight App Clip invocations on the newest release tag's build (-- --plan to only print them)
+    cmds:
+      - ./scripts/asc-clip-invocations.py {{.CLI_ARGS}}
+
   ios:screenshots:
-    desc: Build for the simulator and screenshot the store's screens on an iPhone and an iPad into app/.build/screenshots
+    desc: Build for the simulator and screenshot the store's screens on an iPhone, an iPhone Duo and an iPad into app/.build/screenshots
     cmds:
       # The store build's compilation conditions, plus DEBUG for the launch
       # arguments the script drives it with: no TWITCH, so no Twitch section
@@ -694,9 +758,14 @@ tasks:
       - ./scripts/ios-screenshots.sh
 
   asc:listing:
-    desc: Write app/store.toml into App Store Connect's listing -- text, category, age rating, build, review details, screenshots (-- --apply to write; plans by default)
+    desc: Write app/store.toml into App Store Connect's listing -- text, category, age rating, build, review details, screenshots, App Clip experience (-- --apply to write; plans by default)
     cmds:
       - ./scripts/asc-listing.py {{.CLI_ARGS}}
+
+  appclip:image:
+    desc: Render the App Clip card's header image into app/.build/appclip for asc:listing to upload
+    cmds:
+      - ./scripts/make-appclip-image.sh
 
   gamecenter:images:
     desc: Render the Game Center achievement images into app/.build/achievements for gamecenter:config to upload

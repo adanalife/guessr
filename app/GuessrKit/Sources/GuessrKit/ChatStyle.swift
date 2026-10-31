@@ -30,8 +30,30 @@ private let broadcasterColor = "#ffc857"
 // channel's bot logins from the server if that starts to matter.
 private let builtinBots: Set<String> = [
     "nightbot", "streamelements", "streamlabs", "moobot", "fossabot", "wizebot", "sery_bot",
-    "commanderroot", "soundalerts", "tripbot",
+    "commanderroot", "soundalerts", "tripbot", "tripbot4000", "tripbot4001",
 ]
+
+/// Whether `login` is a known bot account: its name reads muted, and a client
+/// that sums up the chat leaves its lines out.
+public func isChatBot(_ login: String) -> Bool { builtinBots.contains(login.lowercased()) }
+
+/// Whether `text` is a chat command: `!` and then a name, which is how every
+/// channel bot reads one. A lone `!` or `!!!` is a chatter being emphatic.
+public func isChatCommand(_ text: String) -> Bool {
+    let rest = text.drop { $0.isWhitespace }
+    guard rest.first == "!", let next = rest.dropFirst().first else { return false }
+    return next.isLetter || next.isNumber
+}
+
+/// Whether `text`, sent by `sender`, names `login` — as `@login` or bare, in
+/// any case. Twitch logins are letters, digits and underscores, so any other
+/// character ends a name, and `kate2` is not `kate`. A line never mentions its
+/// own sender: what a reader's own highlight keys on.
+public func mentions(_ text: String, from sender: String, naming login: String) -> Bool {
+    let me = login.lowercased()
+    guard !me.isEmpty, sender.lowercased() != me else { return false }
+    return text.lowercased().split { !($0.isLetter || $0.isNumber || $0 == "_") }.contains { $0 == me }
+}
 
 /// Stable colour for a username as `#rrggbb`, or nil for a bot, which reads
 /// muted. The broadcaster takes the gold; everyone else takes a palette slot
@@ -41,7 +63,7 @@ public func usernameColorHex(_ username: String, platform: String? = "twitch", i
 {
     let login = username.lowercased()
     if isBroadcaster { return broadcasterColor }
-    if builtinBots.contains(login) { return nil }
+    if isChatBot(login) { return nil }
     let palette = platform.flatMap { userPalettes[$0] } ?? defaultPalette
     // The palette is a power of two long, so the digest's last byte decides
     // the slot — the same answer as hashing the whole digest as one integer.
@@ -57,18 +79,13 @@ extension ChatLine {
     /// The name's colour: muted (nil) for a bot, the colour the chatter picked
     /// on Twitch when there is one, the palette otherwise.
     public var colorHex: String? {
-        if builtinBots.contains(login.lowercased()) { return nil }
+        if isChatBot(login) { return nil }
         if !color.isEmpty { return color }
         return usernameColorHex(login, isBroadcaster: isBroadcaster)
     }
 
-    /// Whether the line names `login` — as `@login` or bare, in any case —
-    /// and someone else sent it. What a reader's own highlight keys on.
-    public func mentions(_ login: String) -> Bool {
-        let me = login.lowercased()
-        guard !me.isEmpty, self.login.lowercased() != me else { return false }
-        return text.lowercased().split { !($0.isLetter || $0.isNumber || $0 == "_") }.contains { $0 == me }
-    }
+    /// Whether the line names `login` and someone else sent it.
+    public func mentions(_ login: String) -> Bool { GuessrKit.mentions(text, from: self.login, naming: login) }
 
     /// A chatter's first message in the channel.
     public var isFirstMessage: Bool { messageType == "user_intro" }
@@ -76,20 +93,24 @@ extension ChatLine {
     /// A message the chatter spent channel points to highlight.
     public var isPointsHighlight: Bool { messageType == "channel_points_highlighted" }
 
-    /// The sender's badges as chips — `mod`, `sub 12`, `founder` — sorted by
-    /// set id, with the version kept so the art table can be keyed by it.
-    /// Only the subscriber version is worth showing: it counts months.
-    public var badgeTags: [BadgeTag] {
-        badges.keys.sorted().filter { $0 != "broadcaster" }.map { name in
-            let version = badges[name] ?? ""
-            let label = badgeLabels[name] ?? name
-            // Tier 2 and 3 subscriber versions are 2000 + months and 3000 +
-            // months; the chip shows the months.
-            if name == "subscriber", let n = Int(version), n % 1000 > 0 {
-                return BadgeTag(name: name, version: version, label: "\(label) \(n % 1000)")
-            }
-            return BadgeTag(name: name, version: version, label: label)
+    /// The sender's badges as chips.
+    public var badgeTags: [BadgeTag] { GuessrKit.badgeTags(badges) }
+}
+
+/// A sender's badges, set id to version, as chips — `mod`, `sub 12`, `founder`
+/// — sorted by set id, with the version kept so the art table can be keyed by
+/// it. Only the subscriber version is worth showing: it counts months.
+/// Broadcaster is left out — the gold name says it.
+public func badgeTags(_ badges: [String: String]) -> [BadgeTag] {
+    badges.keys.sorted().filter { $0 != "broadcaster" }.map { name in
+        let version = badges[name] ?? ""
+        let label = badgeLabels[name] ?? name
+        // Tier 2 and 3 subscriber versions are 2000 + months and 3000 +
+        // months; the chip shows the months.
+        if name == "subscriber", let n = Int(version), n % 1000 > 0 {
+            return BadgeTag(name: name, version: version, label: "\(label) \(n % 1000)")
         }
+        return BadgeTag(name: name, version: version, label: label)
     }
 }
 
@@ -251,4 +272,95 @@ func sha1(_ message: [UInt8]) -> [UInt8] {
 
 extension UInt32 {
     fileprivate func rotated(_ n: UInt32) -> UInt32 { self << n | self >> (32 - n) }
+}
+
+/// A chat line `threaded(reach:)` can order: the platform's id for the
+/// message, which a reply names as its parent, and the parent it names. Either
+/// may be absent; a line with no key can't be answered, one with no parent
+/// answers nothing. Kept apart from `id` because a client may key its rows on
+/// an id of its own.
+public protocol Threadable: Identifiable {
+    var messageKey: String? { get }
+    var parentKey: String? { get }
+}
+
+extension ChatLine: Threadable {
+    public var messageKey: String? { id }
+    public var parentKey: String? { reply?.parentId }
+}
+
+/// A chat line where the log draws it: `nested` under the line it answers.
+public struct ThreadedLine<Line: Threadable>: Identifiable {
+    public var line: Line
+    public var nested: Bool
+    /// For a command folded by `threaded(reach:open:)`: the bot's answers to
+    /// it, whether or not they are also drawn as lines of their own.
+    public var answers: [Line] = []
+    public var id: Line.ID { line.id }
+}
+
+extension ThreadedLine: Equatable where Line: Equatable {}
+extension ThreadedLine: Sendable where Line: Sendable {}
+
+extension Array where Element: Threadable {
+    /// The log in reading order: a reply (a bot's answer to a command, a
+    /// chatter's threaded reply) sits under the line it answers, after that
+    /// line's earlier replies, rather than as a new line quoting it. Only
+    /// when the parent is at most `reach` lines back, so a late reply is never
+    /// drawn far up the log where nobody at the bottom would see it arrive.
+    public func threaded(reach: Int = 20) -> [ThreadedLine<Element>] {
+        var position: [String: Int] = [:]
+        // Each line's thread, as the index of the line at its root.
+        var root: [Int] = []
+        var replies: [Int: [Element]] = [:]
+        var roots: [Int] = []
+        for (index, line) in enumerated() {
+            if let parent = line.parentKey, let at = position[parent], index - at <= reach {
+                root.append(root[at])
+                replies[root[at], default: []].append(line)
+            } else {
+                root.append(index)
+                roots.append(index)
+            }
+            if let key = line.messageKey { position[key] = index }
+        }
+        return roots.flatMap { at in
+            [ThreadedLine(line: self[at], nested: false)]
+                + (replies[at] ?? []).map { ThreadedLine(line: $0, nested: true) }
+        }
+    }
+}
+
+/// A chat line a command's answers can fold under: who sent it and what it
+/// says, which is what tells a viewer's `!command` from the bot's answer.
+public protocol ChatExchangeable: Threadable {
+    var senderLogin: String { get }
+    var body: String { get }
+}
+
+extension ChatLine: ChatExchangeable {
+    public var senderLogin: String { login }
+    public var body: String { text }
+}
+
+extension Array where Element: ChatExchangeable {
+    /// `threaded(reach:)`, with each command and the bot's answers to it read as
+    /// one exchange: a viewer's `!command` carries those answers in `answers`,
+    /// and they leave the log unless the command's id is in `open`. Anyone
+    /// else's reply to the command stays in its thread either way.
+    public func threaded(reach: Int = 20, open: Set<Element.ID>) -> [ThreadedLine<Element>] {
+        var out: [ThreadedLine<Element>] = []
+        // Where in `out` the current thread's root is, when that root is a command.
+        var command: Int?
+        for row in threaded(reach: reach) {
+            if !row.nested {
+                command = isChatCommand(row.line.body) && !isChatBot(row.line.senderLogin) ? out.count : nil
+            } else if let at = command, isChatBot(row.line.senderLogin) {
+                out[at].answers.append(row.line)
+                if !open.contains(out[at].id) { continue }
+            }
+            out.append(row)
+        }
+        return out
+    }
 }

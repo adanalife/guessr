@@ -4,6 +4,247 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.45.0 — 2026-10-28
+
+### New
+
+- If the schedule ever runs dry, the daily game replays a whole finished day (a year-old one when there is one) instead of showing no game. ([#520](https://github.com/adanalife/guessr/pull/520))
+
+### Changed
+
+- An upcoming day stays reviewable and editable until someone plays it, instead of freezing the moment it opens. Today's rounds are no longer cached by the browser, so a swap reaches a player who loaded them earlier. ([#515](https://github.com/adanalife/guessr/pull/515))
+- On an iPad or an unfolded iPhone Duo, the whole clip shows, letterboxed rather than cropped, and the map waits small in the corner until tapped, as on a sideways iPhone. ([#517](https://github.com/adanalife/guessr/pull/517))
+- On an iPhone held on its side, the clip fills the screen and the map waits small in the corner; tapping it opens a panel down the side with the guess button under it. ([#517](https://github.com/adanalife/guessr/pull/517))
+
+### Fixed
+
+- Switching between practice and today's game quickly, or after a practice load fails, no longer leaves the wrong game on the board or refuses every guess. ([#483](https://github.com/adanalife/guessr/pull/483))
+- The nightly staging mirror leaves dates that are already open alone, so a short open date no longer makes it replace the rest of staging's schedule and then fail. ([#489](https://github.com/adanalife/guessr/pull/489))
+- The weekly production top-up no longer refuses to run over a short date that is already open, which nothing can fill, so the schedule keeps its depth. ([#491](https://github.com/adanalife/guessr/pull/491))
+- A top-up never redraws the exact moment a past day already aired, so a replayed clip can't ship a short day or move a played round's answer. ([#493](https://github.com/adanalife/guessr/pull/493))
+
+### Behind the scenes
+
+- GuessrKit builds for watchOS, so tempomat's Watch app can share its chat and Twitch types ([#518](https://github.com/adanalife/guessr/pull/518))
+- CI: the GuessrKit Linux tests run on Ubuntu 24.04 again (there's no Swift toolchain for 26.04 yet), and only the gates job may post commit statuses. ([#519](https://github.com/adanalife/guessr/pull/519))
+
+## v1.44.0 — 2026-10-24
+
+### Behind the scenes
+
+- The stream's leaderboards know where each player stood the day before, so they can show who climbed and who slipped. ([#513](https://github.com/adanalife/guessr/pull/513))
+
+## v1.43.0 — 2026-10-24
+
+### New
+
+- Chat folds a viewer's command and the bot's answer into one small line; tap it to read the answer in full. ([#509](https://github.com/adanalife/guessr/pull/509))
+- Settings shows which version of the app you have, at the bottom. ([#511](https://github.com/adanalife/guessr/pull/511))
+
+### Fixed
+
+- When linking a second device, the confirmation says your plays will be merged with the other player, the same words the comparison screen uses. ([#510](https://github.com/adanalife/guessr/pull/510))
+- The app's first loading screen fills the page behind the spinning mark, instead of showing it in a band of a different shade. ([#512](https://github.com/adanalife/guessr/pull/512))
+
+### Behind the scenes
+
+- The App Store listing submits 1.41.0, with its release notes and a review note on launching the App Clip. ([#505](https://github.com/adanalife/guessr/pull/505))
+- The App Store listing submits 1.42.0. ([#506](https://github.com/adanalife/guessr/pull/506))
+- Planning the App Store listing right after uploading the App Clip header image no longer offers to replace the same image while Apple is still processing it. ([#507](https://github.com/adanalife/guessr/pull/507))
+
+## v1.42.0 — 2026-10-23
+
+### Fixed
+
+- Scanning the website's Link a device QR code with the camera opens the side-by-side comparison in the app, rather than only opening the app. ([#500](https://github.com/adanalife/guessr/pull/500))
+
+### Behind the scenes
+
+- The App Clip's store card (its subtitle, Play button and header image) is set up from the repo along with the rest of the App Store listing. ([#501](https://github.com/adanalife/guessr/pull/501))
+- Every TestFlight build of the app gets its App Clip launch entries as part of the release. ([#503](https://github.com/adanalife/guessr/pull/503))
+- GuessrKit's chatter card takes a details slot, label/value rows an app fills with what it knows of the chatter beyond Twitch. ([#504](https://github.com/adanalife/guessr/pull/504))
+
+## v1.41.0 — 2026-10-23
+
+### Changed
+
+- GuessrKit exposes its chat bot list, mention rule and badge chips over plain values, so tempomat drops its copies. ([#498](https://github.com/adanalife/guessr/pull/498))
+
+## v1.40.0 — 2026-10-23
+
+### Changed
+
+- GuessrKit's reply threading works over any line type that names its message and parent keys, so tempomat can share it. ([#495](https://github.com/adanalife/guessr/pull/495))
+- The chat's jump-to-bottom button shows whenever you've scrolled up, reading "latest" when nothing new has arrived. ([#496](https://github.com/adanalife/guessr/pull/496))
+
+## v1.39.0 — 2026-10-23
+
+### Changed
+
+- In the app's chat, a reply (and the bot's answer to a command) now sits under the message it answers instead of as a new line quoting it. ([#494](https://github.com/adanalife/guessr/pull/494))
+
+### Fixed
+
+- The live view on YouTube falls back to its watch link when the stream lookup stalls, instead of staying black. ([#482](https://github.com/adanalife/guessr/pull/482))
+- The Link a device panel still shows the typed link code when the QR library fails to load, and hides the empty QR box. ([#485](https://github.com/adanalife/guessr/pull/485))
+- The app names Washington, DC under a pin there, and Siri can guess it ([#487](https://github.com/adanalife/guessr/pull/487))
+
+### Behind the scenes
+
+- The check that guards a new round set before it ships now holds even when Python runs with optimizations switched on, instead of quietly passing everything. ([#484](https://github.com/adanalife/guessr/pull/484))
+- The local development server answers a backwards byte range with the whole clip instead of an empty partial response. ([#486](https://github.com/adanalife/guessr/pull/486))
+- Generating new rounds refuses to schedule onto a date players may already be able to open, rather than quietly filling gaps in a live day. ([#488](https://github.com/adanalife/guessr/pull/488))
+
+## v1.38.0 — 2026-10-21
+
+### New
+
+- Linking a browser to another device shows both players side by side (name, points, days played, last played) before anything merges, on a typed code or a scanned link alike. ([#479](https://github.com/adanalife/guessr/pull/479))
+- The app has an external TestFlight group with a public link, and every release build is submitted to it for Beta App Review, so a tester no longer needs an App Store Connect account. ([#481](https://github.com/adanalife/guessr/pull/481))
+
+## v1.37.0 — 2026-10-21
+
+### Changed
+
+- Linking a device in the app, by QR code or typed code, opens a screen that sets this device and the other player side by side, with one button to play as that player and one to keep playing as this device. ([#468](https://github.com/adanalife/guessr/pull/468))
+
+### Fixed
+
+- The daily game plays in a browser that blocks site storage, and on a phone that opens the game over a local network address. Before, the first round stopped with an error. ([#471](https://github.com/adanalife/guessr/pull/471))
+- Linking two devices keeps the name a player is known by on the leaderboard. ([#476](https://github.com/adanalife/guessr/pull/476))
+- In the app, linking to your other device mid-day shows that player's scores for today, not this device's old ones. Entering a code works after you've started the day too. ([#477](https://github.com/adanalife/guessr/pull/477))
+- A Twitch outage, or a connection dropped partway through renewing the login, keeps you signed in. ([#478](https://github.com/adanalife/guessr/pull/478))
+
+### Behind the scenes
+
+- A copy of upcoming answers that a staging sync writes can no longer be committed by accident. ([#469](https://github.com/adanalife/guessr/pull/469))
+- Previewing a new batch of rounds can no longer publish an older batch by mistake. ([#470](https://github.com/adanalife/guessr/pull/470))
+- The monthly leaderboard reads only the month it shows, rather than every game ever played. ([#472](https://github.com/adanalife/guessr/pull/472))
+- Signing in to Twitch fails plainly, rather than half-working, when Twitch doesn't say whose account it is. ([#473](https://github.com/adanalife/guessr/pull/473))
+- Using the Siri guess no longer signs the app out of Twitch. ([#473](https://github.com/adanalife/guessr/pull/473))
+- Busy chat takes less work to keep up with. ([#474](https://github.com/adanalife/guessr/pull/474))
+
+## v1.36.0 — 2026-10-20
+
+### New
+
+- Before linking two devices, the preview can report each player's days played, last play date, and how many duplicate rounds the merge would drop, including for links opened from a QR code. ([#464](https://github.com/adanalife/guessr/pull/464))
+- The App Clip offers the full app in an App Store banner once the day's rounds are finished. ([#465](https://github.com/adanalife/guessr/pull/465))
+- Scanning the website's link-a-device QR code in the app compares both players' points, days played and last play before joining, and says so when the code is this device's own player. ([#466](https://github.com/adanalife/guessr/pull/466))
+
+### Fixed
+
+- Reinstalling the app after playing in the App Clip keeps the plays made in the clip, moving them onto the player the app already had. ([#466](https://github.com/adanalife/guessr/pull/466))
+
+## v1.35.1 — 2026-10-20
+
+### New
+
+- `task asc:listing` prints What's New in full before writing it, and warns when a version after the first has none. ([#459](https://github.com/adanalife/guessr/pull/459))
+
+### Changed
+
+- The App Store build leaves out the Watch tab, which stays in Debug builds until it goes through review on its own. ([#460](https://github.com/adanalife/guessr/pull/460))
+
+### Fixed
+
+- `task asc:listing` creates the next App Store version after a release instead of stopping at the locked app info, and refuses a version that is already on the store. ([#459](https://github.com/adanalife/guessr/pull/459))
+- The app's privacy manifest declares the gameplay steps it reports to Sentry as Product Interaction, not linked to the player. ([#461](https://github.com/adanalife/guessr/pull/461))
+- `task ios:dsyms` retries the Sentry upload a few times, two minutes apart, when Sentry's API is unavailable. ([#462](https://github.com/adanalife/guessr/pull/462))
+
+## v1.35.0 — 2026-10-20
+
+### Behind the scenes
+
+- Game Center scores and achievements go to the live boards now that the app is on the App Store. ([#364](https://github.com/adanalife/guessr/pull/364))
+- Run the changelog fragment-numbering self-test on every PR, so a break shows up in review rather than on the next release PR. ([#453](https://github.com/adanalife/guessr/pull/453))
+- The app reports iOS's own hang and crash diagnostics (MetricKit) to Sentry, plus a daily count of how its runs ended. ([#456](https://github.com/adanalife/guessr/pull/456))
+- Every app error now says which date, round and clip the player was on, and each step of a day's play (loaded, round shown, guessed, result, shared) is logged, so drop-off between them can be counted. ([#458](https://github.com/adanalife/guessr/pull/458))
+
+## v1.34.0 — 2026-10-16
+
+### New
+
+- The owner-only board-row admin route also reads and writes a private name and a star for a player, and `/admin/board-marks` returns them for every row of a board, so the console can show its own label for a player without publishing it. ([#451](https://github.com/adanalife/guessr/pull/451))
+
+### Behind the scenes
+
+- `task changelog:add` takes the entry as a required `MSG="…"` and writes the fragment whole, rather than opening an editor or leaving towncrier's placeholder to fill in. ([#448](https://github.com/adanalife/guessr/pull/448))
+
+## v1.33.0 — 2026-10-15
+
+### Changed
+
+- Rounds draw only from clips someone has reviewed: a season-2 clip that finished the pipeline unreviewed stays out of the game until it is ruled on. ([#449](https://github.com/adanalife/guessr/pull/449))
+
+## v1.32.0 — 2026-10-15
+
+### Changed
+
+- The owner-only board-note read also carries the handle the player drew, so a note editor can show who sits behind an alias. ([#445](https://github.com/adanalife/guessr/pull/445))
+
+## v1.31.0 — 2026-10-14
+
+### New
+
+- Add your info here ([#443](https://github.com/adanalife/guessr/pull/443))
+
+### Behind the scenes
+
+- The guess button reads the pinned state from MapKit instead of the `CLGeocoder` API that iOS 26 deprecates. ([#439](https://github.com/adanalife/guessr/pull/439))
+
+## v1.30.0 — 2026-10-12
+
+### New
+
+- **A daily guess records how long the player took over the round.** The page and the app send `elapsed_ms` with each daily play, stored in a new `plays.elapsed_ms` column for statistics (`stats.sql` reads it) and never returned by any route. ([#431](https://github.com/adanalife/guessr/pull/431))
+- The app's loading mark opens by spinning in place — once, then twice — before it rolls off and into its lanes, so a short wait shows the whole gesture instead of a wheel already mid-roll. ([#432](https://github.com/adanalife/guessr/pull/432))
+- The app's Watch tab shows the channel's Twitch chat without signing in, read-only, with a button to sign in and join the conversation. ([#437](https://github.com/adanalife/guessr/pull/437))
+
+### Changed
+
+- **Round generation draws from one trip's corpus and says what it drops.** `make_rounds.py --corpus s1|s2|s2fast` (default `s1`) filters the scored pool on `videos.corpus`, so a season-2 row can't eat a `--pool` draw while its clip is parked elsewhere, and a scored clip missing from the corpus directory is reported instead of silently shrinking the set. ([#428](https://github.com/adanalife/guessr/pull/428))
+- The app's Chat tab is now part of the Watch tab, under the stream, and the stream can be hidden to give the chat the whole screen. ([#437](https://github.com/adanalife/guessr/pull/437))
+
+### Fixed
+
+- The app no longer reports a clip or request that failed because the device has no connection (airplane mode, Wi-Fi off, cellular data off) to Sentry, so being offline stops filing errors that aren't bugs. ([#433](https://github.com/adanalife/guessr/pull/433))
+- The weekly round batch now logs Postgres's error when its scoring query fails, instead of a traceback with no cause. ([#436](https://github.com/adanalife/guessr/pull/436))
+- The YouTube stream on the watch page starts playing on its own, muted, instead of waiting on a tap. ([#437](https://github.com/adanalife/guessr/pull/437))
+
+## v1.29.0 — 2026-10-07
+
+### New
+
+- The app's finished-day screen counts a streak of consecutive days played to the end, from two days on, kept on the server so it follows the player across a reinstall. ([#409](https://github.com/adanalife/guessr/pull/409))
+- The iOS app rolls the A Dana Life mark across the clip while it loads, and across the screen while the day's rounds load, in place of a blank grey slot. ([#413](https://github.com/adanalife/guessr/pull/413))
+- The iOS app gets a Watch tab: the stream live on Twitch or YouTube, with the channel's chat under it for a signed-in login. Served by a new `watch.html` on the site, which is also where any page that wants the live stream can embed it from. ([#422](https://github.com/adanalife/guessr/pull/422))
+- The website's Link a device QR code opens the iOS app when it is installed, and links the two devices from there, rather than opening Safari. ([#424](https://github.com/adanalife/guessr/pull/424))
+- A link to guessr.dana.lol, or the site's QR code, plays today's rounds as an App Clip on an iPhone with no app installed; installing the app afterwards keeps the clip's player and plays. ([#425](https://github.com/adanalife/guessr/pull/425))
+
+### Changed
+
+- The loading mark rolls along a new lane each time it crosses, passing under the "Loading…" text rather than following the same line every time. ([#418](https://github.com/adanalife/guessr/pull/418))
+
+### Fixed
+
+- The guess button keeps naming the last state while the pin moves, rather than flashing a plain "Guess" before it names the new one. ([#402](https://github.com/adanalife/guessr/pull/402))
+- A clip that fails to load in the app, or a round or a guess that never reaches the server, is reported to Sentry, so an outage players see shows up as an issue. ([#405](https://github.com/adanalife/guessr/pull/405))
+- The app reports a failed request to Sentry as its own issue per status and endpoint, so one endpoint's 500s don't hide another's. ([#406](https://github.com/adanalife/guessr/pull/406))
+- The API forwarder retries a broken Worker isolate for the iOS app too: Cloudflare answers a JSON request's 1101 as a JSON problem object, which the retry recognizes alongside the text page. ([#408](https://github.com/adanalife/guessr/pull/408))
+- The app's Chat tab keeps saving its last lines once a busy chat fills it, so a message a mod deleted no longer comes back after a relaunch, and signing out mid-connect no longer leaves a chat socket open. ([#411](https://github.com/adanalife/guessr/pull/411))
+- The loading mark leaves the clip once it starts playing, rather than rolling over it for the rest of the round, and a clip that fails to load is retried again as intended. ([#414](https://github.com/adanalife/guessr/pull/414))
+- The iPhone app moves on to the new day when it comes back the next day: the Play tab shows the new rounds rather than the day before's score until it is force quit, the boards and Settings read today's state again, and the icon badge returns at midnight while the app is open. ([#417](https://github.com/adanalife/guessr/pull/417))
+
+### Behind the scenes
+
+- The App Store review notes answer App Review's request for the app's purpose, setup, external services and regional behavior. ([#404](https://github.com/adanalife/guessr/pull/404))
+- GuessrKit's in-memory login and player stores are guarded by a compiler-checked Mutex, and its API calls build their JSON POSTs in one place. ([#412](https://github.com/adanalife/guessr/pull/412))
+- The clip player, the loading mark and the page colors live in GuessrKit, so tempomat's round previews draw clips the same way the app does. ([#413](https://github.com/adanalife/guessr/pull/413))
+- The accent color, the serif navigation titles and the ink play button live in GuessrKit beside the page colors, so tempomat can draw in the same style as the app. ([#415](https://github.com/adanalife/guessr/pull/415))
+- Releasing the app now sends its debug symbols to Sentry, so a crash report names the app's own code instead of raw addresses. ([#419](https://github.com/adanalife/guessr/pull/419))
+- The Watch tab is behind a `WATCH` compilation condition, on in every build for now, so a store submission can leave it out with one line in `app/Guessr.xcconfig`. ([#423](https://github.com/adanalife/guessr/pull/423))
+
 ## v1.28.0 — 2026-10-03
 
 ### Behind the scenes

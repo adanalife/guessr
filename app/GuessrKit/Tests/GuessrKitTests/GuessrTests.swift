@@ -114,3 +114,14 @@ final class CrashingGuessr: URLProtocol {
     let other = try #require(URL(string: "https://guessr.dana.lol/api/gamecenter"))
     #expect(Guessr.httpErrorFingerprint(status: 500, url: other) != Guessr.httpErrorFingerprint(status: 500, url: url))
 }
+
+@Test func isOfflineMatchesNoConnectionDirectOrWrappedButNotATimeout() {
+    #expect(Guessr.isOffline(URLError(.notConnectedToInternet)))
+    #expect(Guessr.isOffline(URLError(.dataNotAllowed)))
+    let wrapped = NSError(
+        domain: "AVFoundationErrorDomain", code: -11800,
+        userInfo: [NSUnderlyingErrorKey: NSError(domain: NSURLErrorDomain, code: URLError.notConnectedToInternet.rawValue)])
+    #expect(Guessr.isOffline(wrapped))
+    #expect(!Guessr.isOffline(URLError(.timedOut)))
+    #expect(!Guessr.isOffline(URLError(.cannotFindHost)))
+}

@@ -19,7 +19,15 @@ assert resolve_range("bytes=4-", 10) == Range(offset=4)
 assert resolve_range("bytes=-3", 10) == Range(suffix=3)
 assert resolve_range("bytes=8-99", 10) == Range(offset=8, length=2), "clamped"
 assert resolve_range("bytes=-99", 10) == Range(suffix=10), "clamped"
-for whole in (None, "", "bytes=-", "bytes=10-", "items=0-3", "bytes=0-1,4-5"):
+for whole in (
+    None,
+    "",
+    "bytes=-",
+    "bytes=10-",
+    "bytes=5-4",
+    "items=0-3",
+    "bytes=0-1,4-5",
+):
     assert resolve_range(whole, 10) is None, whole
 
 

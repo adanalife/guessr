@@ -112,6 +112,18 @@ if [ -z "$imports_ok" ]; then
 fi
 echo "$out"
 
+# The universal-link association, which makes the site's link-a-device QR code
+# open the iOS app. Apple's CDN reads it from here, and it accepts nothing but a
+# JSON content type with no redirect -- which is a _headers rule on an
+# extensionless file, and the kind of thing that stops working without a line
+# in any diff saying so. A deploy that drops it leaves every QR scan in Safari.
+aasa=$(curl -s -o /tmp/smoke-aasa.json -w '%{http_code} %{content_type}' "$BASE/.well-known/apple-app-site-association")
+if [ "$aasa" != "200 application/json" ] || ! jq -e '(.applinks.details[0].appIDs[0] | endswith(".lol.dana.guessr")) and (.appclips.apps[0] | endswith(".lol.dana.guessr.Clip"))' /tmp/smoke-aasa.json >/dev/null 2>&1; then
+  echo "::error::$BASE/.well-known/apple-app-site-association answered '$aasa' rather than the app's JSON, so the QR code opens Safari, not the app."
+  exit 1
+fi
+echo "ok: apple-app-site-association names the app"
+
 # And the round set, separately, because version.json moving does not mean the
 # game is playable. No part of a set is deployed, so the only useful question is
 # the one a player asks -- does this tier have a game for today?
@@ -169,10 +181,10 @@ check() { # name, expected status, actual status, body
 #
 # Retried on a wrong status, which the other waits in this script never do, because
 # of what the version pin cannot see. version.json is a static asset and the
-# handlers are Functions, and one deployment's two halves become visible a few
-# seconds apart, so a smoke can match the marker and still reach the previous
-# build's handlers. Six tries 5 s apart outlast that cutover (measured near 47 s), and a behavior
-# that is really wrong still goes red, just ~25 s later, with each retry logged.
+# handlers are the Worker behind the API binding, and the two become visible a
+# few seconds apart, so a smoke can match the marker and still reach the
+# previous build's handlers. Six tries 5 s apart outlast that cutover, and a
+# behavior that is really wrong still goes red, just ~25 s later, with each retry logged.
 expect() {
   local name=$1 want=$2 attempt
   shift 2

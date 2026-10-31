@@ -31,9 +31,19 @@ for (const path of ['/', '/index.html', '/version.json', '/daily.js', '/apix', '
   assert.equal(seen.length, 0);
 }
 
+// Cloudflare's 1101 as a request with `Accept: application/json` gets it.
+const CF_1101_JSON = JSON.stringify({
+  type: 'https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/error-1101/',
+  title: 'Error 1101: Worker threw exception',
+  status: 500,
+  error_code: 1101,
+  error_name: 'worker_threw_exception',
+  cloudflare_error: true,
+});
+
 // A broken Python isolate: the binding's fetch rejects, or answers Cloudflare's
-// own 1101 page. Each is tried again, a POST with its body intact, and the
-// third failure is what the player gets.
+// own 1101 page, as text or as JSON. Each is tried again, a POST with its body
+// intact, and the third failure is what the player gets.
 async function flaky(failures, request = new Request('https://stage.guessr.dana.lol/api/score', { method: 'POST', body: '{"g":1}' })) {
   const bodies = [];
   let calls = 0;
@@ -43,6 +53,7 @@ async function flaky(failures, request = new Request('https://stage.guessr.dana.
       const failure = failures[calls++];
       if (failure === 'reject') throw new Error('NoGilError');
       if (failure === '1101') return new Response('error code: 1101', { status: 500 });
+      if (failure === '1101json') return new Response(CF_1101_JSON, { status: 500 });
       return WORKER;
     },
   };
@@ -50,7 +61,7 @@ async function flaky(failures, request = new Request('https://stage.guessr.dana.
   return { res, calls, bodies };
 }
 
-for (const failure of ['reject', '1101']) {
+for (const failure of ['reject', '1101', '1101json']) {
   const { res, calls, bodies } = await flaky([failure]);
   assert.equal(res, WORKER, `a ${failure} was not tried again`);
   assert.equal(calls, 2);

@@ -166,11 +166,13 @@ ADMIN = [
     ("GET", f"/admin/day?date={d(2)}"),
     ("POST", "/admin/day"),
     ("POST", "/admin/review"),
+    ("GET", f"/admin/month?month={TODAY.isoformat()[:7]}"),
     ("GET", f"/admin/plays?date={TODAY}"),
     ("GET", "/admin/players"),
     ("POST", "/admin/players"),
     ("GET", f"/admin/board-note?board=daily&date={FIRST}&rank=1"),
     ("POST", f"/admin/board-note?board=daily&date={FIRST}&rank=1"),
+    ("GET", f"/admin/board-marks?board=daily&date={FIRST}"),
 ]
 
 
@@ -203,12 +205,15 @@ def day():
     assert len(set(images)) == 5, "a round was served twice in one game"
     # A round reaches the browser as a name and nothing else.
     assert all(list(x) == ["image"] for x in game["rounds"]), game
+    # Open, so still editable until someone plays it: never cached.
+    assert r.header("cache-control") == "no-store", r.header("cache-control")
+
+    r = get("a finished day stays readable", 200, f"/api/day?date={FIRST}")
+    first = r.json
+    assert len(first["rounds"]) == 5, first
     assert r.header("cache-control") == "public, max-age=86400", r.header(
         "cache-control"
     )
-
-    first = get("a finished day stays readable", 200, f"/api/day?date={FIRST}").json
-    assert len(first["rounds"]) == 5, first
 
     # The spoiler property: a date that IS scheduled is still refused until it
     # opens. today + 2 is on the schedule and never open yet.
@@ -377,9 +382,7 @@ def score(images, first_images):
 
 def leaderboard():
     r = get("the daily board reads", 200, "/api/leaderboard?board=daily")
-    # The newest closed date anyone played, which the seed puts at FIRST; the
-    # legacy Pages runtime answers the newest closed date whether or not it has
-    # plays, so the band admits both.
+    # The newest closed date anyone played, which the seed puts at FIRST.
     assert str(FIRST) <= r.json["period"] <= str(LAST_CLOSED), r.json
     assert isinstance(r.json["rows"], list)
     assert (
@@ -392,6 +395,8 @@ def leaderboard():
         200,
         f"/api/leaderboard?board=daily&date={FIRST}",
     )
+    # No `prev`: nobody played the day before FIRST, so there is no board to rank
+    # against.
     assert r.json == {
         "board": "daily",
         "period": str(FIRST),
@@ -411,6 +416,10 @@ def leaderboard():
         r.json
     )
     assert r.header("cache-control") == "public, max-age=60", r.header("cache-control")
+    # The running month's previous board is absent or one rank per row, 0 for new.
+    prev = r.json.get("prev", [0] * len(r.json["rows"]))
+    assert len(prev) == len(r.json["rows"]), r.json
+    assert all(isinstance(n, int) and n >= 0 for n in prev), r.json
     assert (
         get(
             "the running month by name",
@@ -591,8 +600,29 @@ def link(desk):
         {"from": PHONE, "to": PHONE},
     ).json == {"moved": 0}
 
+    error(
+        post(
+            "a preview by ids with one id is refused",
+            400,
+            "/api/link/preview",
+            {"to": DESKTOP},
+        )
+    )
     # Both browsers answered round one; only the phone answered round two. The
-    # collision keeps the desktop's play, so one row moves and none are left.
+    # preview names the one play the merge would drop, and the merge then keeps
+    # the desktop's play over it, so one row moves and none are left.
+    peek = post(
+        "a merge previews by ids",
+        200,
+        "/api/link/preview",
+        {"to": DESKTOP, "from": PHONE},
+    ).json
+    assert peek["overlap"] == 1, peek
+    assert {k: peek["from"][k] for k in ("days", "last")} == {
+        "days": 1,
+        "last": TODAY.isoformat(),
+    }, peek
+    assert set(peek["to"]) == {"name", "points", "days", "last"}, peek
     r = post("two browsers merge", 200, "/api/link", {"from": PHONE, "to": DESKTOP})
     assert r.json == {"moved": 1}, r.json
     players = {
@@ -657,7 +687,8 @@ def admin_reads():
     )
     a = ahead.json
     assert ahead.header("cache-control") == "no-store", ahead.header("cache-control")
-    assert a["open"] is False and a["reviewed_at"] is None and a["queued"] == 0, a
+    assert a["open"] is False and a["frozen"] is False, a
+    assert a["reviewed_at"] is None and a["queued"] == 0, a
     assert [x["position"] for x in a["rounds"]] == [1, 2, 3, 4, 5], a
     for x in a["rounds"]:
         assert {
@@ -679,10 +710,12 @@ def admin_reads():
     assert last >= d(3), (
         f"the run needs a scheduled day past today+2 to reject from; it ends {last}"
     )
-    assert (
-        get("today previews as open", 200, f"/admin/day?date={TODAY}").json["open"]
-        is True
-    )
+    today = get("today previews as open and played", 200, f"/admin/day?date={TODAY}")
+    assert today.json["open"] is True and today.json["frozen"] is True, today.json
+
+    error(get("a month with no month is refused", 400, "/admin/month"))
+    m = get("a month reads", 200, f"/admin/month?month={d(2)[:7]}").json
+    assert d(2) in {x["date"] for x in m["days"]}, m
 
     error(get("a score lookup with no date is refused", 400, "/admin/plays"))
     r = get("a day's plays read", 200, f"/admin/plays?date={FIRST}")
@@ -736,12 +769,17 @@ def notes():
 
     q = f"/admin/board-note?board=daily&date={FIRST}&rank=1"
     r = get("a board row's note reads", 200, q)
+    # No `prev`: nobody played the day before FIRST, so there is no board to rank
+    # against.
     assert r.json == {
         "board": "daily",
         "period": str(FIRST),
         "rank": 1,
         "name": "Amber Basin",
+        "handle": "Amber Basin",
         "note": None,
+        "private_name": None,
+        "starred": False,
     }, r.json
     assert r.header("cache-control") == "no-store"
     assert (
@@ -760,6 +798,14 @@ def notes():
         by_id[top]
     )
     error(post("a board note that is not a string is refused", 400, q, {"note": 5}))
+    post("a board row's name saves", 200, q, {"private_name": "Phil", "starred": True})
+    marks = get(
+        "the board's marks read",
+        200,
+        f"/admin/board-marks?board=daily&date={FIRST}",
+    )
+    assert marks.json["rows"][0] == ["Amber Basin", "Phil", True], marks.json
+    assert marks.header("cache-control") == "no-store"
     error(
         get(
             "a board note at an empty rank is 404",
@@ -792,7 +838,7 @@ def review():
         error(post(f"a review with {name} is refused", 400, "/admin/review", body))
     error(
         post(
-            "reviewing an opened date is refused",
+            "reviewing a played date is refused",
             409,
             "/admin/review",
             {"date": str(TODAY), "reviewed": True},
@@ -848,7 +894,7 @@ def reject(last):
         error(post(f"a reject with {name} is refused", 400, "/admin/day", body))
     error(
         post(
-            "rejecting from an opened date is refused",
+            "rejecting from a played date is refused",
             409,
             "/admin/day",
             {"date": str(TODAY), "image": ahead[0]["image"]},

@@ -1,0 +1,17 @@
+-- How long the player took over the round, in milliseconds: from the clip first
+-- showing to the guess being committed, as the client measured it. NULL for
+-- every play recorded before this column existed, for a client that does not
+-- send it, and for a value outside zero to one day, which the server drops
+-- rather than refuses so that a wrong clock never costs a player the round.
+--
+-- Client-reported, so it is a vanity and statistics number, never a gate and
+-- never a tiebreak: anyone can post any duration, and a board ordered by it
+-- would rank whoever forged the smallest one. What it is good for is the
+-- aggregate -- the fastest correct guess, a player's average think time on a
+-- stats page -- and as a tell in stats.sql: a "correct" guess in under a second
+-- is a script, not a person watching a clip.
+--
+-- A column on the play rather than a table of its own, because it is a
+-- dimension of the play, written once with it and read beside it. No public
+-- route returns it.
+ALTER TABLE plays ADD COLUMN elapsed_ms INTEGER;

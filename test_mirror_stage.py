@@ -10,7 +10,8 @@ import datetime as dt
 import pathlib
 import sqlite3
 
-from mirror_stage import PER_GAME, lit, mirror_sql, short
+from mirror_stage import UPCOMING, PER_GAME, first_unopened, lit, mirror_sql, short
+from server import rules
 
 HERE = pathlib.Path(__file__).parent
 
@@ -25,10 +26,12 @@ def fresh():
 
 
 def day(offset):
-    """A date relative to today. The copy's DELETE is scoped by date('now'), so
-    a fixture on a fixed date would pass until that date went past and then fail
-    for a reason having nothing to do with the code."""
-    return (dt.date.today() + dt.timedelta(days=offset)).isoformat()
+    """A date relative to the first unopened one, which day(0) is. The copy's
+    DELETE is scoped by the clock, so a fixture on a fixed date would pass until
+    that date went past and then fail for a reason having nothing to do with
+    the code -- and one relative to today would change meaning at 10:00 UTC."""
+    now = dt.datetime.now(dt.UTC)
+    return (first_unopened(now) + dt.timedelta(days=offset)).isoformat()
 
 
 def prod_rows(dates, slug="i-80-eastbound", start=0):
@@ -146,6 +149,22 @@ def main():
     assert db.execute("SELECT slug FROM rounds LIMIT 1").fetchone()[0] == "o'brien"
     assert schedule(db) == {day(1): PER_GAME}
 
+    # A date already open is left as it is, even when production holds
+    # something else for it: a player may be mid-game on it.
+    db = fresh()
+    db.executescript(mirror_sql(prod_rows([day(-1)])))
+    playing = db.execute("SELECT image FROM round_days ORDER BY position").fetchall()
+    db.executescript(mirror_sql(prod_rows([day(0)], slug="us-30", start=300)))
+    assert schedule(db) == {day(-1): PER_GAME, day(0): PER_GAME}
+    assert (
+        db.execute(
+            "SELECT image FROM round_days WHERE date = ? ORDER BY position", (day(-1),)
+        ).fetchall()
+        == playing
+    )
+    # ...and production's read skips it too, so its rows are never offered.
+    assert {r[0] for r in db.execute(UPCOMING)} == {day(0)}
+
     # Nothing upcoming on production is not an empty script that would delete
     # staging's schedule and put nothing back.
     assert mirror_sql([]) == ""
@@ -153,21 +172,37 @@ def main():
     # A schedule ending today is whole by schedule_gaps.sql's reckoning -- its
     # horizon is today alone -- and still has to count as short, or staging goes
     # dark the moment tomorrow opens.
-    today = dt.date(2026, 9, 28)
+    # 07:00 UTC is when the cron runs: 09-28 is open, 09-29 opens at 10:00.
+    now = dt.datetime(2026, 9, 28, 7, tzinfo=dt.UTC)
     ends_today = [{"date": "2026-09-28", "n": PER_GAME}]
-    assert short(ends_today, today) == ["2026-09-29", "2026-09-30"]
+    assert short(ends_today, now) == ["2026-09-29", "2026-09-30"]
     # Scheduled through the lead: nothing to do.
     far = [{"date": f"2026-09-{d}", "n": PER_GAME} for d in (28, 29, 30)]
-    assert short(far, today) == []
+    assert short(far, now) == []
     # A short day inside the horizon is still reported, beside the lapse.
     holed = [{"date": "2026-09-28", "n": PER_GAME}, {"date": "2026-09-29", "n": 4}]
-    assert short(holed, today) == ["2026-09-29", "2026-09-30"]
-    # An exhausted table: the seed row is the only one, holding nothing.
-    assert short([{"date": "2026-09-28", "n": 0}], today) == [
-        "2026-09-28",
+    assert short(holed, now) == ["2026-09-29", "2026-09-30"]
+    # An exhausted table: the seed row is the only one, holding nothing. The
+    # open date is not offered -- a copy cannot replace it.
+    assert short([{"date": "2026-09-27", "n": 0}], now) == [
         "2026-09-29",
         "2026-09-30",
     ]
+    # A short date that is still open (schedule_gaps.sql seeds at yesterday
+    # until 12:00 UTC) is past mending, and is no reason to replace the rest.
+    frozen = [{"date": "2026-09-27", "n": 3}] + far
+    assert short(frozen, now) == []
+    # From 10:00 UTC tomorrow is open too, and drops out the same way.
+    later = dt.datetime(2026, 9, 28, 10, tzinfo=dt.UTC)
+    assert short(holed, later) == ["2026-09-30"]
+
+    # first_unopened is the server's own opening rule, at and around 10:00 UTC.
+    for hour, minute in ((0, 0), (9, 59), (10, 0), (11, 0), (23, 59)):
+        t = dt.datetime(2026, 9, 28, hour, minute, tzinfo=dt.UTC)
+        first = first_unopened(t)
+        assert rules.play_window(first.isoformat())[0] > t
+        before = (first - dt.timedelta(days=1)).isoformat()
+        assert rules.play_window(before)[0] <= t
 
     assert lit(None) == "NULL"
     assert lit("it's") == "'it''s'"
@@ -177,6 +212,7 @@ def main():
     print("ok: a rejection survives the copy, and a quoted slug is escaped")
     print("ok: an empty production schedule generates no script at all")
     print("ok: a schedule ending inside the lead counts as short")
+    print("ok: an open date is neither counted, read, nor replaced")
 
 
 if __name__ == "__main__":
