@@ -9,10 +9,13 @@ body is the cheat the server-side submission exists to rule out, and a token
 with the wrong audience is a 401 from Apple that the app never sees.
 """
 
+import ast
 import asyncio
 import base64
 import datetime as dt
 import json
+from pathlib import Path
+import re
 
 from server import gamecenter as gc
 from server.asc import AppStoreConnect, from_env
@@ -292,3 +295,35 @@ assert (
 )
 
 print("ok: /api/gamecenter submits the table's standing, and only with secrets")
+
+# One set of vendor identifiers, three places: what the server submits to,
+# what scripts/gamecenter-config.py creates in App Store Connect, and the images
+# make-achievement-images.sh renders for it. Apple refuses a submission to an
+# identifier it doesn't know, and the server only reports that as a `failed`
+# entry in a 200 nobody reads, so a rename in one place goes quiet.
+config = ast.parse(Path("scripts/gamecenter-config.py").read_text())
+tables = {
+    node.targets[0].id: [row.elts[0].value for row in node.value.elts]
+    for node in config.body
+    if isinstance(node, ast.Assign)
+    and getattr(node.targets[0], "id", None) in ("LEADERBOARDS", "ACHIEVEMENTS")
+}
+created = set(tables["LEADERBOARDS"]) | set(tables["ACHIEVEMENTS"])
+prefix = f"{gc.BUNDLE_ID}."
+submitted = {
+    v.removeprefix(prefix)
+    for v in vars(gc).values()
+    if isinstance(v, str) and v.startswith(prefix)
+}
+assert submitted == created, (submitted ^ created, "server vs gamecenter-config.py")
+rendered = set(
+    re.findall(
+        r"^render (\w+)", Path("scripts/make-achievement-images.sh").read_text(), re.M
+    )
+)
+assert rendered == set(tables["ACHIEVEMENTS"]), (
+    rendered ^ set(tables["ACHIEVEMENTS"]),
+    "make-achievement-images.sh vs gamecenter-config.py",
+)
+
+print("ok: the server, the ASC config script and the image renderer name the same IDs")
