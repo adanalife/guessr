@@ -11,7 +11,15 @@ whose ordering is deterministic, against the same span the board serves.
 import re
 
 from server import rules
-from server.leaderboard import CACHE, DAILY, MONTHLY, PLACEHOLDER, ROWS, served
+from server.leaderboard import (
+    CACHE,
+    DAILY,
+    MONTHLY,
+    PLACEHOLDER,
+    ROWS,
+    in_month,
+    served,
+)
 
 RANK = re.compile(r"[0-9]+")
 
@@ -37,7 +45,7 @@ _GUESSES = """
    WHERE p.player_id = ?2 AND p.date {span}
    ORDER BY p.date, rd.position"""
 DAILY_GUESSES = _GUESSES.format(span="= ?1")
-MONTHLY_GUESSES = _GUESSES.format(span="LIKE ?1 || '-%'")
+MONTHLY_GUESSES = _GUESSES.format(span=in_month("?1"))
 
 
 async def at_rank(db, board: str, params, now=None) -> dict:

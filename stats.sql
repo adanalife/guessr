@@ -102,3 +102,24 @@ WHERE date <= date('now')
 GROUP BY date, p.player_id
 ORDER BY total DESC
 LIMIT 10;
+
+-- Think time. Per day, how long a guess took on average and how fast the
+-- quickest one under five miles was, in seconds, over the plays whose client
+-- sent a time -- `timed` says how many that is, since earlier plays and older
+-- clients have none. An average rather than a median because SQLite has no
+-- median, and a tab left open overnight drags it, so read it beside `timed`.
+--
+-- The time is client-reported, so it is a statistic and never a ranking. It is
+-- also a tell: `sub_second` counts guesses that landed within five miles less
+-- than a second after the clip went up, which is a script holding the answer
+-- rather than a person who watched the clip.
+SELECT date,
+       COUNT(elapsed_ms) AS timed,
+       ROUND(AVG(elapsed_ms) / 1000.0, 1) AS avg_s,
+       ROUND(MIN(CASE WHEN km < 8.05 THEN elapsed_ms END) / 1000.0, 1) AS fastest_close_s,
+       COUNT(CASE WHEN km < 8.05 AND elapsed_ms < 1000 THEN 1 END) AS sub_second
+FROM plays
+WHERE date <= date('now')
+GROUP BY date
+ORDER BY date DESC
+LIMIT 30;

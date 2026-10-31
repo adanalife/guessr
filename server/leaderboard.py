@@ -13,6 +13,8 @@ as named, empty included.
 `params` is the query string as a mapping; returns (status, body, headers).
 """
 
+import datetime as dt
+
 from server import rules
 
 # The overlay renders five rows; ten leaves the bot room to filter or re-rank
@@ -50,14 +52,24 @@ def name_expr(player: str) -> str:
       LIMIT 1))"""
 
 
-def query(span: str) -> str:
+def in_month(param: str) -> str:
+    """The SQL test that a YYYY-MM-DD date falls in the month `param` names
+    (YYYY-MM), as a range so it seeks an index on the date. A LIKE prefix reads
+    the same but scans every play: SQLite only rewrites LIKE into a range
+    under a case-insensitive index. `param` is numbered, since it appears
+    twice."""
+    return f"BETWEEN {param} || '-01' AND {param} || '-31'"
+
+
+def query(span: str, named: bool = True) -> str:
     """Both boards: sum a player's points across a span, best first. The span is
-    the only difference -- `= ?` for a day, `LIKE ? || '-%'` for a month. The
-    player_id tiebreak is what lets a rank name the same player twice."""
+    the only difference -- `= ?` for a day, `in_month` for a month. The
+    player_id tiebreak is what lets a rank name the same player twice.
+    `named=False` skips the name lookup, for a board read only for its order."""
+    name = f",\n         {name_expr('p.player_id')} AS name" if named else ""
     return f"""
   SELECT p.player_id,
-         SUM(p.points) AS points,
-         {name_expr("p.player_id")} AS name
+         SUM(p.points) AS points{name}
     FROM plays p
    WHERE p.date {span}
    GROUP BY p.player_id
@@ -66,7 +78,16 @@ def query(span: str) -> str:
 
 
 DAILY = query("= ?")
-MONTHLY = query("LIKE ? || '-%'")
+MONTHLY = query(in_month("?1"))
+
+# The board each row's `prev` rank is read from: the day before, or the running
+# month without its newest closed day and anything still open. Deep enough that
+# a player just off yesterday's top ROWS reads as moved rather than new.
+# shortcut: a player below PREV_ROWS yesterday reads as new; raise it if boards
+# ever grow that long.
+PREV_ROWS = 1000
+PREV_DAILY = query("= ?", named=False)
+PREV_MONTHLY = query(in_month("?1") + " AND p.date < ?2", named=False)
 
 # The newest date anyone played, at or before a cutoff. plays_by_date_points
 # makes it a seek.
@@ -149,6 +170,16 @@ def label(names: list[str]) -> list[str]:
     return out
 
 
+async def standings(db, board: str, period: str) -> tuple[list[dict], list[str]]:
+    """One served board's rows (player_id, points, name) and the label each one
+    renders under. Shared with the admin marks read, so the owner's labels line
+    up with the public rows they decorate."""
+    results = await db.fetchall(DAILY if board == "daily" else MONTHLY, period, ROWS)
+    # The placeholder goes on before the numbering, so nameless players are
+    # numbered against each other rather than left as identical rows.
+    return results, label([r["name"] or PLACEHOLDER for r in results])
+
+
 async def leaderboard(db, params, now=None) -> tuple[int, dict, dict]:
     board = params.get("board") or "daily"
     if board not in ("daily", "monthly"):
@@ -158,9 +189,26 @@ async def leaderboard(db, params, now=None) -> tuple[int, dict, dict]:
     if error:
         return 400, {"error": error}, CACHE
 
-    results = await db.fetchall(DAILY if board == "daily" else MONTHLY, period, ROWS)
-    # The placeholder goes on before the numbering, so nameless players are
-    # numbered against each other rather than left as identical rows.
-    names = label([r["name"] or PLACEHOLDER for r in results])
+    results, names = await standings(db, board, period)
     rows = [[n, r["points"]] for n, r in zip(names, results, strict=True)]
-    return 200, {"board": board, "period": period, "rows": rows}, cache
+    body = {"board": board, "period": period, "rows": rows}
+    prev = await previous(db, board, period, now)
+    if prev:
+        body["prev"] = [prev.get(r["player_id"], 0) for r in results]
+    return 200, body, cache
+
+
+async def previous(db, board: str, period: str, now=None) -> dict[str, int]:
+    """Each player's 1-based position on the board this one is compared against,
+    by player_id: the day before for a daily board; for the running month, the
+    same month counting only plays before the last closed date. A finished month
+    never moves, so it has none; empty means there is nothing to compare."""
+    if board == "daily":
+        day = (dt.date.fromisoformat(period) - dt.timedelta(days=1)).isoformat()
+        results = await db.fetchall(PREV_DAILY, day, PREV_ROWS)
+    elif period == rules.month_of(now):
+        cutoff = rules.last_closed_date(now)
+        results = await db.fetchall(PREV_MONTHLY, period, cutoff, PREV_ROWS)
+    else:
+        return {}
+    return {r["player_id"]: i for i, r in enumerate(results, 1)}

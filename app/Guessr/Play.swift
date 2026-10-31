@@ -7,6 +7,9 @@ import SwiftUI
 struct PlayView: View {
     @Binding var player: Player
 
+    /// The date the rounds on screen belong to, rechecked whenever the app
+    /// comes back and at midnight, since iOS can resume it days later.
+    @State private var date = GuessrClient.today()
     @State private var day: GuessrDay?
     @State private var progress = DayProgress(date: "")
     @State private var pin: CLLocationCoordinate2D?
@@ -15,16 +18,28 @@ struct PlayView: View {
     /// The round just scored stays on screen until the player moves on.
     @State private var revealed = false
     @State private var scoring = false
+    /// When the current round's clip went up, for the think time sent with the
+    /// guess. In memory only, so a relaunch mid-round starts the clock again.
+    @State private var roundShown = ContinuousClock.now
     @State private var message: String?
     @State private var camera = PlayView.lower48
     /// Where the map is looking, whoever moved it last: the zoom buttons scale it.
     @State private var region: MKCoordinateRegion?
+    /// The corner map grown to a panel over a full-screen clip, up until the
+    /// guess is scored.
+    @State private var showingMap = false
     @Environment(\.horizontalSizeClass) private var sizeClass
     /// Compact on a phone held on its side, the one shape with no room to
     /// stack the clip over the map.
     @Environment(\.verticalSizeClass) private var heightClass
-    @Environment(GameCenter.self) private var gameCenter
+    /// Each score as it lands, with the day so far. The app hangs the Game
+    /// Center sync and the badge off it; the App Clip hangs nothing.
+    var scored: (GuessrScore, DayProgress) -> Void = { _, _ in }
+    /// The finished day on screen, whether just played or reopened. The App
+    /// Clip offers the full app off it; the app hangs nothing.
+    var finished: () -> Void = {}
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     private let client = GuessrClient()
 
@@ -44,6 +59,12 @@ struct PlayView: View {
                     round(day, image: image, shown: shown)
                 } else {
                     DayResultView(progress: progress)
+                        .onAppear {
+                            finished()
+                            Telemetry.step(
+                                .resultShown, date: progress.date,
+                                data: ["rounds": progress.played.count, "total": progress.total])
+                        }
                 }
             } else if let message {
                 ContentUnavailableView {
@@ -60,78 +81,105 @@ struct PlayView: View {
                 LoadingMark()
             }
         }
+        // The page fills the screen, so the mark waits on paper rather than in a
+        // paper band across the system background.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .paper()
         .navigationTitle("Guessr")
-        // Keyed on the player: a link to another device's player is a new
-        // record to resume from.
-        .task(id: player.id) { await load() }
+        // Keyed on the player and the date: a link to another device's player
+        // is a new record to resume from, and a new day is new rounds.
+        .task(id: [player.id, date]) { await load() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { turnOver() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
+            turnOver()
+        }
+    }
+
+    /// Moves to today's rounds once the date has changed, clearing the old
+    /// day so none of its rounds show while the new one loads.
+    private func turnOver() {
+        let today = GuessrClient.today()
+        guard today != date else { return }
+        (day, message, revealed, pin, camera) = (nil, nil, false, nil, PlayView.lower48)
+        date = today
     }
 
     private func round(_ day: GuessrDay, image: String, shown: PlayedRound?) -> some View {
         // A fresh player per clip: a looper can't be rebuilt on a queue
         // player still holding the last clip's items.
-        let clip = ClipView(
-            url: Guessr.baseURL.appending(path: image), fills: sizeClass == .regular && heightClass != .compact
-        ).id(image)
+        let clip = ClipView(url: Guessr.baseURL.appending(path: image)).id(image)
         return Group {
-            if heightClass == .compact {
-                // A phone on its side: the clip as large as the height allows,
-                // the map and controls in the column beside it.
-                HStack(spacing: 12) {
-                    clip.aspectRatio(Guessr.clipAspect, contentMode: .fit)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    VStack(spacing: 8) {
-                        ProgressSquares(progress: progress, of: day.rounds.count)
-                        map(shown)
-                        controls(day, image: image, shown: shown)
-                    }
-                    .frame(width: 280)
-                }
-                .padding(.horizontal)
-            } else if sizeClass == .regular {
-                // The web's wide layout: the clip is the whole screen, since
-                // squinting at it is the game, and the map rides over its corner
-                // until the reveal makes the map the thing worth reading.
+            if heightClass == .compact || sizeClass == .regular {
+                // A phone on its side, an iPad, an unfolded iPhone Duo: the clip
+                // takes the whole screen, letterboxed so none of the road is
+                // cropped, since squinting at it is the game. The map waits small
+                // in its corner until the player opens it, then grows into a panel
+                // down the trailing side with the guess under it. It stays a panel
+                // through the reveal, with the score card on the clip's other corner.
                 GeometryReader { screen in
+                    let open = showingMap || shown != nil
+                    let panel = min(screen.size.width * 0.45, 420)
                     ZStack(alignment: .bottomTrailing) {
+                        Color.black.ignoresSafeArea()
                         clip.ignoresSafeArea()
-                            // A scrim under the status bar, whose white text is lost
-                            // over a bright sky.
-                            .overlay(alignment: .top) {
-                                LinearGradient(colors: [.black.opacity(0.35), .clear], startPoint: .top, endPoint: .bottom)
-                                    .frame(height: 80)
-                                    .ignoresSafeArea()
-                                    .allowsHitTesting(false)
-                            }
-                        let width = revealed ? min(screen.size.width * 0.6, 736) : 352
-                        VStack(alignment: .trailing, spacing: 12) {
-                            map(shown)
-                                // Revealed, the map keeps its own aspect rather than
-                                // growing taller than wide on a portrait screen, and
-                                // yields height to the card so a landscape screen
-                                // still shows the whole column.
-                                .frame(width: width)
-                                .frame(maxHeight: revealed ? min(screen.size.height * 0.6, width * 0.66) : 240)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .shadow(color: .black.opacity(0.4), radius: 12, y: 8)
-                                .layoutPriority(-1)
-                            // Before the reveal the column is one width with the map,
-                            // the squares on a capsule of their own and the pill on the
-                            // clip, carrying its own contrast; the reveal gets a card.
-                            // Either way it shares the map's edges.
-                            VStack(spacing: 12) {
-                                ProgressSquares(progress: progress, of: day.rounds.count)
-                                    .padding(.horizontal, 12).padding(.vertical, 6)
-                                    .background(.regularMaterial.opacity(shown == nil ? 1 : 0), in: Capsule())
-                                controls(day, image: image, shown: shown)
-                                    .shadow(color: .black.opacity(shown == nil ? 0.4 : 0), radius: 8, y: 4)
-                            }
-                            .padding(shown == nil ? 0 : 16)
-                            .frame(maxWidth: width)
-                            .background(.regularMaterial.opacity(shown == nil ? 0 : 1), in: RoundedRectangle(cornerRadius: 12))
+                        if let shown {
+                            RevealCard(round: shown)
+                                .padding(8)
+                                .frame(width: 280)
+                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                                .padding()
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                         }
+                        VStack(spacing: 8) {
+                            ProgressSquares(progress: progress, of: day.rounds.count)
+                            map(shown, zoomable: open)
+                                // No taller than wide, so an upright screen's panel
+                                // doesn't stretch the map into a strip.
+                                .frame(maxHeight: open ? panel : 110)
+                                .allowsHitTesting(open)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .overlay {
+                                    if !open {
+                                        Button { showingMap = true } label: {
+                                            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                                .padding(6)
+                                                .background(.regularMaterial, in: Circle())
+                                                .padding(6)
+                                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                                                .contentShape(Rectangle())
+                                        }
+                                        .buttonStyle(.plain)
+                                        .foregroundStyle(Color.ink)
+                                        .accessibilityLabel("Open the map")
+                                    }
+                                }
+                                .overlay(alignment: .topTrailing) {
+                                    if open && shown == nil {
+                                        Button { showingMap = false } label: {
+                                            Image(systemName: "xmark").frame(width: 44, height: 44).contentShape(Rectangle())
+                                        }
+                                        .buttonStyle(.plain)
+                                        .foregroundStyle(Color.ink)
+                                        .background(.regularMaterial, in: Circle().inset(by: 6))
+                                        .accessibilityLabel("Hide the map")
+                                    }
+                                }
+                                .layoutPriority(-1)
+                            if open {
+                                if shown == nil, let message {
+                                    Text(message).font(.callout).multilineTextAlignment(.center)
+                                }
+                                button(day, image: image).inkButton()
+                            }
+                        }
+                        .padding(8)
+                        .frame(width: open ? panel : 200)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
                         .padding()
                     }
+                    .animation(reduceMotion ? nil : .smooth, value: open)
                 }
             } else {
                 VStack(spacing: 12) {
@@ -144,6 +192,15 @@ struct PlayView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        // Scored, the map shows the answer inline, so the opened one closes and
+        // the next round starts on the clip.
+        .onChange(of: revealed) { if revealed { showingMap = false } }
+        // The image holds through the reveal and changes with the next round, so
+        // this starts the clock once per clip.
+        .onChange(of: image, initial: true) {
+            roundShown = .now
+            Telemetry.step(.roundShown, date: progress.date, round: progress.played.count + 1, clip: image)
+        }
         // A tick as a pin lands, and none as "Next round" clears it.
         .sensoryFeedback(.selection, trigger: pin?.latitude) { _, now in now != nil }
         .sensoryFeedback(trigger: revealed) { _, shown in
@@ -166,7 +223,8 @@ struct PlayView: View {
         }
     }
 
-    private func map(_ shown: PlayedRound?) -> some View {
+    /// `zoomable: false` drops the zoom buttons, for a map too small to hold them.
+    private func map(_ shown: PlayedRound?, zoomable: Bool = true) -> some View {
         MapReader { proxy in
             Map(position: $camera) {
                 if let pin { Marker("Your guess", coordinate: pin) }
@@ -186,24 +244,28 @@ struct PlayView: View {
             .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
             .background(Color.paper)
             .overlay(alignment: .bottomTrailing) {
-                VStack(spacing: 0) {
-                    Button { zoom(by: 0.5) } label: {
-                        Image(systemName: "plus").frame(width: 44, height: 44).contentShape(Rectangle())
-                    }
-                    .accessibilityLabel("Zoom in")
-                    Divider()
-                    Button { zoom(by: 2) } label: {
-                        Image(systemName: "minus").frame(width: 44, height: 44).contentShape(Rectangle())
-                    }
-                    .accessibilityLabel("Zoom out")
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(Color.ink)
-                .fixedSize()
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-                .padding(8)
+                if zoomable { zoomButtons }
             }
         }
+    }
+
+    private var zoomButtons: some View {
+        VStack(spacing: 0) {
+            Button { zoom(by: 0.5) } label: {
+                Image(systemName: "plus").frame(width: 44, height: 44).contentShape(Rectangle())
+            }
+            .accessibilityLabel("Zoom in")
+            Divider()
+            Button { zoom(by: 2) } label: {
+                Image(systemName: "minus").frame(width: 44, height: 44).contentShape(Rectangle())
+            }
+            .accessibilityLabel("Zoom out")
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Color.ink)
+        .fixedSize()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .padding(8)
     }
 
     private func zoom(by factor: Double) {
@@ -238,18 +300,22 @@ struct PlayView: View {
             // A new pin cancels the last lookup, and the label keeps the last
             // state until the new one answers, so moving the pin doesn't flash
             // plain "Guess" between states. Outside the US, or when the lookup
-            // fails, it says plain "Guess". ponytail: CLGeocoder is deprecated
-            // in iOS 26, but MKReverseGeocodingRequest's addresses carry a city
-            // and a country and no state field to read.
+            // fails, it says plain "Guess". MapKit's addresses have no state
+            // field, so the state is the postal code that ends a US pin's
+            // `cityWithContext` ("Austin, NV" — the nearest town, even in a
+            // national forest). ponytail: a pin near a border names the
+            // nearest town's state; bundle state polygons if that misleads.
             .task(id: pin.map { [$0.latitude, $0.longitude] }) {
                 guard let pin else {
                     pinState = nil
                     return
                 }
-                let placemark = try? await CLGeocoder()
-                    .reverseGeocodeLocation(CLLocation(latitude: pin.latitude, longitude: pin.longitude)).first
+                let request = MKReverseGeocodingRequest(location: CLLocation(latitude: pin.latitude, longitude: pin.longitude))
+                let address = try? await request?.mapItems.first?.addressRepresentations
                 guard !Task.isCancelled else { return }
-                guard placemark?.isoCountryCode == "US", let area = placemark?.administrativeArea else {
+                guard address?.region?.identifier == "US",
+                      let area = address?.cityWithContext?.split(separator: ",").last?.trimmingCharacters(in: .whitespaces)
+                else {
                     pinState = nil
                     return
                 }
@@ -267,7 +333,6 @@ struct PlayView: View {
     }
 
     private func load() async {
-        let date = GuessrClient.today()
         progress = DayProgress.resume(Saved.progress, on: date)
         do {
             let loaded = try await client.day(date)
@@ -281,19 +346,30 @@ struct PlayView: View {
                 progress = progress.seeded(from: recorded, in: loaded)
                 Saved.progress = progress
             }
+            Telemetry.step(
+                .dayLoaded, date: progress.date,
+                data: ["rounds": loaded.rounds.count, "played": progress.played.count])
         } catch {
             Telemetry.requestFailed("day", error: error)
             // The server says why — nothing scheduled, or a date not yet open.
             message = (error as? GuessrError)?.errorDescription ?? String(localized: "Could not reach the rounds")
         }
         #if DEBUG
+            showingMap = UserDefaults.standard.bool(forKey: "map")
+            if UserDefaults.standard.bool(forKey: "landscape"),
+                let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene
+            {
+                scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscapeRight))
+            }
             await autoplay()
         #endif
     }
 
     #if DEBUG
         /// `-autoplay 1` plays the rest of the day unattended, pausing on each
-        /// round and each reveal long enough to screenshot it.
+        /// round and each reveal long enough to screenshot it. `-map 1` opens
+        /// the corner map on launch, and `-landscape 1` turns the
+        /// phone on its side, two things the shell can't do.
         private func autoplay() async {
             guard UserDefaults.standard.bool(forKey: "autoplay"), let day else { return }
             while let next = progress.next(in: day) {
@@ -324,13 +400,14 @@ struct PlayView: View {
         do {
             // A round this player already guessed comes back with the score on
             // record, so a lost save cannot buy a better one.
-            let score = try await client.score(image: image, guess: at, date: progress.date, player: player)
+            let score = try await client.score(
+                image: image, guess: at, date: progress.date, player: player, elapsed: .now - roundShown)
             progress.played.append(PlayedRound(image: image, guess: at, score: score))
             Saved.progress = progress
-            if progress.played.count == 1 { await Reminder.refreshBadge() }
-            // Off the reveal's path: the server reads the standing off its
-            // own table, so this carries nothing the reveal waits on.
-            if score.recorded { Task { await gameCenter.sync(player, with: client) } }
+            Telemetry.step(
+                .guessed, date: progress.date, round: progress.played.count, clip: image,
+                data: ["points": score.points, "seconds": Int((ContinuousClock.now - roundShown).components.seconds)])
+            scored(score, progress)
             // The map travels from the guess out to the answer, and the reveal
             // grows in around it, rather than cutting to both.
             withAnimation(reduceMotion ? nil : .smooth(duration: 0.8)) {
@@ -358,6 +435,7 @@ struct JoinView: View {
     @State private var joining = false
     @State private var message: String?
     @State private var preview: LinkPreview?
+    @State private var joined = false
 
     private let client = GuessrClient()
 
@@ -376,13 +454,14 @@ struct JoinView: View {
         }
         .paper()
         .navigationTitle("Enter your code")
-        .confirmationDialog(
-            preview.map { Text("Play as \($0.to.name)?") } ?? Text(verbatim: ""), isPresented: Binding(get: { preview != nil }, set: { if !$0 { preview = nil } }),
-            titleVisibility: .visible, presenting: preview
-        ) { _ in
-            Button("Join") { Task { await join() } }
-        } message: { p in
-            Text("This device becomes \(p.to.name) (\(p.to.points.formatted()) points), replacing \(p.from.name) (\(p.from.points.formatted()) points). Its plays go with it.")
+        .sheet(
+            isPresented: Binding(get: { preview != nil }, set: { if !$0 { preview = nil } }),
+            onDismiss: { if joined { dismiss() } }
+        ) {
+            if let preview {
+                LinkCompareView(
+                    preview: preview, alias: player.alias, codeHeading: String(localized: "Entered code"), join: join)
+            }
         }
     }
 
@@ -396,16 +475,19 @@ struct JoinView: View {
         }
     }
 
-    private func join() async {
-        joining = true
-        defer { joining = false }
+    /// Claims the code; this view closes once the comparison sheet has, and a
+    /// failure is left in the footer.
+    private func join() async -> Bool {
         do {
             let claim = try await client.claimLink(code: code, from: player)
+            // Today's rounds are the joined player's now, as the server holds them.
+            Saved.progress = nil
             player = Player(id: claim.playerId, alias: player.alias)
-            dismiss()
+            joined = true
         } catch {
             fail(error)
         }
+        return joined
     }
 
     private func fail(_ error: Error) {
@@ -416,6 +498,175 @@ struct JoinView: View {
         }
     }
 }
+
+/// The question a link code asks before this device joins its player: both
+/// players side by side, then one button that joins and one that doesn't.
+/// `join` answers whether the merge ran; the sheet closes either way, and the
+/// caller says what went wrong.
+struct LinkCompareView: View {
+    let preview: LinkPreview
+    /// This device's own name, which joining keeps.
+    let alias: String
+    /// The other column's heading: where the code came from.
+    let codeHeading: String
+    let join: () async -> Bool
+    @State private var joining = false
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    /// A row of the table: what it is, then this device's value and the code's.
+    private struct Row: Identifiable {
+        var label: String
+        var mine: String
+        var theirs: String
+        var id: String { label }
+    }
+
+    private var rows: [Row] {
+        var rows = [
+            // This device's own alias, which a link keeps and the button names; the
+            // server's name for this player can differ.
+            Row(label: String(localized: "Name"), mine: alias, theirs: preview.to.name),
+            Row(
+                label: String(localized: "Points"), mine: preview.from.points.formatted(),
+                theirs: preview.to.points.formatted()),
+        ]
+        // A server that sends only names and points says nothing of the rest.
+        if let mine = preview.from.days, let theirs = preview.to.days {
+            rows.append(Row(label: String(localized: "Days played"), mine: mine.formatted(), theirs: theirs.formatted()))
+            rows.append(
+                Row(
+                    label: String(localized: "Last played"), mine: preview.from.lastPlayedText,
+                    theirs: preview.to.lastPlayedText))
+        }
+        return rows
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("This code belongs to another player.")
+                    if typeSize.isAccessibilitySize { stacked } else { table }
+                }
+                .frame(maxWidth: 560, alignment: .leading)
+                .frame(maxWidth: .infinity)
+                .padding()
+            }
+            .safeAreaInset(edge: .bottom) { choices }
+            .paper()
+            .navigationTitle("Link this device?")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .interactiveDismissDisabled(joining)
+    }
+
+    private var table: some View {
+        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 12) {
+            GridRow {
+                Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                Text("This device")
+                Text(codeHeading)
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .accessibilityHidden(true)
+            Divider()
+            ForEach(rows) { row in
+                GridRow {
+                    Text(row.label).foregroundStyle(.secondary)
+                    Text(row.mine)
+                    Text(row.theirs)
+                }
+                .monospacedDigit()
+                // One element per row: the label, then each column's value
+                // named by its heading.
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(row.label)
+                .accessibilityValue(String(localized: "This device: \(row.mine)") + ", \(codeHeading): \(row.theirs)")
+            }
+        }
+    }
+
+    /// The table one player at a time, for text too large to sit three across.
+    private var stacked: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach([(String(localized: "This device"), \Row.mine), (codeHeading, \Row.theirs)], id: \.0) { heading, value in
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(heading).font(.headline).accessibilityAddTraits(.isHeader)
+                    ForEach(rows) { row in
+                        LabeledContent(row.label, value: row[keyPath: value])
+                    }
+                }
+            }
+        }
+    }
+
+    /// What joining does to this device's plays, counted in days when the
+    /// server says how many.
+    private var merging: Text {
+        switch preview.from.days {
+        case 0?: Text("Nothing has been played on this device yet.")
+        case let days?: Text("\(days) days played on this device will be merged with \(preview.to.name).")
+        case nil: Text("This device's plays will be merged with \(preview.to.name).")
+        }
+    }
+
+    private var choices: some View {
+        VStack(spacing: 12) {
+            Button {
+                Task {
+                    joining = true
+                    _ = await join()
+                    joining = false
+                    dismiss()
+                }
+            } label: {
+                Group {
+                    if joining { ProgressView() } else { Text("Play as \(preview.to.name)").fixedSize(horizontal: false, vertical: true) }
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            merging
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button {
+                dismiss()
+            } label: {
+                // A long name at a large text size wraps rather than truncating.
+                Text("Keep playing as \(alias)").fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+        }
+        .disabled(joining)
+        .frame(maxWidth: 560)
+        .padding()
+        .background(.bar)
+    }
+}
+
+extension LinkPreview.Standing {
+    /// The last play's date for the reader's locale, read in UTC so it is the
+    /// date the server sent.
+    var lastPlayedText: String {
+        lastPlayed?.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted, timeZone: .gmt))
+            ?? String(localized: "Never")
+    }
+}
+
+#if DEBUG
+    extension LinkPreview {
+        /// What `-linkPreview 1` shows, so the comparison can be screenshotted
+        /// without scanning a code.
+        static let sample = LinkPreview(
+            to: Standing(name: "Patient Delta", points: 12345, days: 30, last: "2026-10-18"),
+            from: Standing(name: "Lucky Overpass", points: 500, days: 2, last: "2026-10-12"), overlap: 1)
+    }
+#endif
 
 /// The finished day: every round on the map, the total, and the text to share it.
 struct DayResultView: View {
@@ -482,6 +733,7 @@ struct DayResultView: View {
                     Button(copied ? "Copied" : "Copy share text", systemImage: copied ? "checkmark" : "doc.on.doc") {
                         UIPasteboard.general.string = text
                         copied = true
+                        Telemetry.step(.shared, date: progress.date, data: ["total": progress.total])
                         Task {
                             try? await Task.sleep(for: .seconds(1.5))
                             copied = false

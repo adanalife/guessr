@@ -6,7 +6,7 @@
 
 # The release tag the store version is built from; the TestFlight build for
 # that tag is what the version is attached to.
-version = "1.27.0"
+version = "1.45.0"
 
 [app]
 # "Guessr" alone belongs to another developer's app; the home-screen
@@ -46,9 +46,15 @@ The same five rounds for everyone, every day, so the leaderboard means something
 
 Footage is the developer's own, recorded while living on the road.
 """
-# The release notes. App Store Connect refuses them on an app's first
-# version; empty sends nothing.
-whats_new = ""
+# The release notes, printed in full by `task asc:listing` before anything is
+# written. App Store Connect refuses them on an app's first version and
+# requires them on every later one; empty sends nothing.
+whats_new = """
+• Optimized for iPad and iPhone Duo: the whole clip shows, and the map tucks into the corner until you need it.
+• Turn your iPhone sideways for a full-screen clip, with the map a tap away.
+• Settings now shows which version of the app you have.
+• Various bug fixes and UI improvements.
+"""
 
 [review]
 contact_first_name = "Dana"
@@ -58,20 +64,38 @@ A Dana Life: Guessr is a daily geography guessing game for casual players and fa
 
 SETUP: no login, credentials or setup are needed. On first launch the app picks a random leaderboard name and keeps it in the Keychain; there is no sign-up, so there is no account to create or delete. Play tab: watch the clip, tap the map to place a pin, submit the guess, and the answer and points appear on the map. Five rounds a day, with new rounds at midnight UTC. Settings tab: Generate new name, daily reminders (icon badge and notification), appearance, imperial/metric units, Privacy Policy, and "Playing on another device?". That option shows a temporary code that links the app to the web version at guessr.dana.lol, so a player keeps one name and score. It is optional.
 
+APP CLIP: opening https://guessr.dana.lol/ (in Safari, Messages, or from a QR code) on a device without the app launches the App Clip, which plays the same five daily rounds with no install. Installing the full app afterwards keeps the clip's player and plays.
+
 GAME CENTER: if the device is signed in to Game Center, the app signs in automatically. Scores and achievements are submitted by our server (App Store Connect API), never by the app, after each recorded guess.
 
-EXTERNAL SERVICES: our own API on Cloudflare Workers, with Cloudflare D1 (rounds and scores) and Cloudflare R2 (the video clips); Apple Game Center; Apple MapKit (the guessing map); Sentry (crash and error diagnostics; session replays have text and images masked). The app has no payments, ads, AI services or third-party sign-in.
+EXTERNAL SERVICES: our own API on Cloudflare Workers, with Cloudflare D1 (rounds and scores) and Cloudflare R2 (the video clips); Apple Game Center; Apple MapKit (the guessing map); Sentry (crash and error diagnostics, and a count of each step of the day's game with no player identifier; session replays have text and images masked). The app has no payments, ads, AI services or third-party sign-in.
 
 REGIONS: the app works the same in every region. Everyone gets the same five daily rounds. The interface is available in English, French, Spanish, Russian and Czech.
 
 CONTENT: all video is the developer's own footage, and the app is not in a regulated industry.
 """
 
+# External TestFlight testing: `task ios:beta:setup` reads App Store Connect
+# back and plans the difference; `-- --apply` writes it. The review contact is
+# the [review] table's. `feedback_email`, if set (store.local.toml is the place),
+# replaces the review contact email as the address testers send feedback to.
+[beta]
+# The external group. Testers in it get every build that passes Beta App Review.
+group = "Testers"
+# How many people the public link admits before it stops working.
+public_link_limit = 100
+description = """
+Pre-release builds of A Dana Life: Guessr, the daily dashcam geography game. The rounds and the leaderboard are the real ones, so a day played here counts. Use the TestFlight app's Send Beta Feedback (or take a screenshot) to report anything that looks wrong.
+"""
+# What TestFlight lists under each build to launch its App Clip from, title to
+# URL; `task ios:release` registers them on the build it uploads.
+clip_invocations = { "Play today" = "https://guessr.dana.lol/", "Shared result" = "https://guessr.dana.lol/?from=share" }
+
 # The age-rating declaration, attribute for attribute as App Store Connect
 # names them (`task asc:listing` prints the current one). Content questions
 # take NONE, INFREQUENT_OR_MILD or FREQUENT_OR_INTENSE; the rest are yes/no.
-# messagingAndChat and userGeneratedContent turn true with the Chat tab, which
-# the App Store build leaves out (see TWITCH in Guessr.xcconfig).
+# messagingAndChat and userGeneratedContent turn true with the Watch tab's chat,
+# which the App Store build leaves out (see TWITCH and WATCH in Guessr.xcconfig).
 [age_rating]
 advertising = false
 ageAssurance = false
@@ -99,9 +123,24 @@ violenceRealistic = "NONE"
 violenceRealisticProlongedGraphicOrSadistic = "NONE"
 ageRatingOverrideV2 = "NONE"
 
+# The App Clip's default experience: the card iOS shows before the clip opens,
+# from Safari's banner, a link in Messages or a QR code. It belongs to the
+# store version, so `task asc:listing` creates it on each new one.
+[app_clip]
+# At most 56 characters, under the app's name on the card.
+subtitle = "Watch a dashcam clip and guess where it was filmed."
+# The card's button: OPEN, VIEW or PLAY.
+action = "PLAY"
+# 1800x1200 PNG, rendered by `task appclip:image`; uploaded wherever App Store
+# Connect holds a different one.
+header_image = "app/.build/appclip/header.png"
+
 [screenshots]
 # Directory of PNGs per display type; `task ios:screenshots` fills it.
 dir = "app/.build/screenshots"
 # App Store Connect display type -> subdirectory.
 APP_IPHONE_67 = "iphone"
+# Not in Apple's published API spec yet, but App Store Connect accepts it;
+# the set badges the product page as optimized for iPhone Duo.
+APP_IPHONE_DUO = "duo"
 APP_IPAD_PRO_3GEN_129 = "ipad"

@@ -416,8 +416,12 @@ shows it beside the QR code. `POST /api/link/claim {code, from}` takes the code
 (single-use: it is deleted as it is read), runs the same merge with `from` as
 the mover, and answers `{player_id, moved}` — the id the claiming device plays as
 from then on. `POST /api/link/preview {code, from}` is the same lookup without
-the merge — `{to: {name, points}, from: {name, points}}`, all-time — so a device
-can say whose player it is about to become before it claims. This is the one
+the merge — `{to: {name, points, days, last}, from: {…}, overlap}`, all-time,
+where `days` counts distinct dates played, `last` is the latest (or `null`), and
+`overlap` is how many of `from`'s plays the merge would drop because `to`
+already answered that round — so a device can say whose player it is about to
+become before it claims. `{to, from}` in place of the code previews a direct
+link the same way. This is the one
 place a player id leaves the server, and only to the device holding a code its
 owner just drew. The `link_codes` table holds
 nothing else, and a row is gone once claimed or once the next issue or claim
@@ -437,9 +441,17 @@ has no path out of the browser holding it.
 
 ### The boards
 
-`GET /api/leaderboard?board=daily|monthly` returns `{board, period, rows}`, rows
+`GET /api/leaderboard?board=daily|monthly` returns `{board, period, rows, prev}`, rows
 being `[name, points]` pairs, best first. Ten of them, since the overlay renders
 five and the extra leaves room to filter without a second request.
+
+`prev`, parallel to `rows`, is each player's position on the board before:
+the day before for a daily board, and for the running month the same month
+without its newest closed day or anything still open. `0` marks a player who
+wasn't on it, and the key is left out when there is no earlier board to compare
+against (nobody played the day before, a finished month, or a month's first
+days). Players are matched by id, and the earlier board is read deeper than ten
+rows, so someone just off yesterday's top ten reads as moved rather than new.
 
 The **daily** board is the most recently *closed* date, never one still filling.
 Three dates are open at once, so "today" isn't a single answer, and the
@@ -514,6 +526,16 @@ here, so the console that renders these boards addresses a player the only way
 it can, as the row it is looking at. Being under `/admin/` it takes the same
 Twitch login as everything else there: a bearer token the console and tempomat
 already hold.
+
+The same route also reads and writes the owner's two other marks on a player:
+`private_name`, a label for the console to show in place of the drawn name, and
+`starred`. A write sets only the fields its body carries. Both are private like
+the note, so a friend can read as "Phil" on the console while the board and the
+overlay still say whatever they drew. `/admin/board-marks?board=` (with the
+same optional `date` or `month`) returns every row of a board as
+`[label, private_name, starred]`, for relabelling a public board without
+handing out an id. The label is there so a caller can check it against the
+public row before trusting the position.
 
 One thing this does *not* buy outright: the round sets published before scoring
 moved server-side carried their coordinates in `rounds.json`, and that file is in
@@ -634,8 +656,8 @@ The native iOS app lives in [`app/`](app/README.md), with its own build notes.
 from one fragment per PR, so every PR adds one:
 
 ```sh
-task changelog:add TYPE=new     # writes changelog.d/+<branch>-<hex>.new.md — open it and write the line
-task changelog:preview          # what the next release will say
+task changelog:add TYPE=new MSG="…"  # writes changelog.d/+<branch>-<hex>.new.md
+task changelog:preview                 # what the next release will say
 ```
 
 Types are `new`, `changed`, `fixed`, `behind` (behind the scenes) and `summary`
@@ -736,7 +758,9 @@ a pin in the wrong place is caught before a real day is made of it. Past dates
 read the same way, which is how a finished day gets looked at again. The page
 that shows it is not in this repo: the tripbot console and tempomat render the
 day — five clips in order, each answer on a street-zoom map — and call this
-route for it.
+route for it. `/admin/month?month=YYYY-MM` is the overview above it: every date
+of the month with a schedule or plays, whether it is pending, open or closed,
+its review mark, how many played, and — once closed — who won.
 
 **It is behind a login.** The Worker gates everything under `/admin/` before
 routing, so a caller who is not admitted learns nothing about which admin paths

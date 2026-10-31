@@ -37,4 +37,14 @@ with tempfile.TemporaryDirectory() as tmp:
     kept, dropped = drop_burned(SCORED, burned_slugs(f))
     assert len(kept) == 4 and dropped == 0, (kept, dropped)
 
-print("ok: burned clips stay out of the pool, whole-clip, comments ignored")
+    # A clip back from its replay window offers its other moments, never the
+    # one that aired: same slug, same second is the same image.
+    moments = [
+        {"slug": "cooled", "ts": 12.5, "median_km": 5, "mean_cos": 0.14},
+        {"slug": "cooled", "ts": 40.0, "median_km": 9, "mean_cos": 0.12},
+    ]
+    f.write_text("# ever scheduled\nclips/cooled-012500.mp4\n")
+    kept, dropped = drop_burned(moments, set(), burned_slugs(f))
+    assert [r["ts"] for r in kept] == [40.0] and dropped == 1, (kept, dropped)
+
+print("ok: burned clips and aired moments stay out of the pool, comments ignored")

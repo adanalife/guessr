@@ -4,7 +4,7 @@
 # know the PR number when branching, so scaffold a "+" placeholder (towncrier's
 # issue-less convention) and let CI number it:
 #
-#   task changelog:add TYPE=new          # writes changelog.d/+<branch>-<hex>.<type>.md
+#   task changelog:add TYPE=new MSG="…"  # writes changelog.d/+<branch>-<hex>.<type>.md
 #   task changelog:preview               # see the pending notes
 #   task changelog:build VERSION=0.9.0   # collate into CHANGELOG.md
 #

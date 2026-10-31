@@ -93,7 +93,8 @@ async def main() -> None:
     status, headers, raw = await call(app, "GET", f"/api/day?date={TODAY}")
     assert status == 200, (status, raw)
     assert headers["content-type"] == "application/json", headers
-    assert headers["cache-control"] == "public, max-age=86400", headers
+    # Today is open, so its five can still change and it is not cached.
+    assert headers["cache-control"] == "no-store", headers
     assert len(json.loads(raw)["rounds"]) == 5, raw
 
     status, headers, raw = await call(app, "POST", "/api/score", b"not json")

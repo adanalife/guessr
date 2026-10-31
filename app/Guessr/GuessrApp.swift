@@ -9,8 +9,23 @@ struct GuessrApp: App {
     private let client = GuessrClient()
     /// State rather than a constant because a link code swaps it for the player
     /// the code joined; every change goes back to the Keychain.
-    @State private var player = KeychainPlayerStore().current()
+    @State private var player = KeychainPlayerStore().current(orAdopt: GroupPlayerStore().load())
     @State private var tab = GuessrApp.firstTab
+    /// Bumped when the App Clip's plays land on this player, so Play loads
+    /// the day again with any rounds the clip played today.
+    @State private var clipFolds = 0
+    /// A link-a-device QR code scanned into the app that the server couldn't
+    /// look up, held while the plain question asks.
+    @State private var link: DeviceLink?
+    /// A scanned code the server could look up, held while the comparison
+    /// sheet asks; `link` is then the plain question for one it couldn't.
+    @State private var comparing: (link: DeviceLink, preview: LinkPreview)?
+    /// Set by a join from the sheet that failed, and shown once the sheet has
+    /// gone, since an alert can't present over it from here.
+    @State private var sheetJoinFailed = false
+    /// The name a scanned code goes by when it is this device's own player.
+    @State private var alreadyAs: String?
+    @State private var linkFailed = false
     /// A tab something outside the view asked for, such as the Siri guess
     /// sending a signed-out player to Settings; taken once, then cleared.
     @AppStorage(GuessrApp.openTabKey) private var openTab = ""
@@ -28,18 +43,27 @@ struct GuessrApp: App {
         WindowGroup {
             TabView(selection: $tab) {
                 Tab("Play", systemImage: "mappin.and.ellipse", value: "Play") {
-                    NavigationStack { PlayView(player: $player).viewingAsBanner() }
+                    NavigationStack {
+                        PlayView(player: $player) { score, progress in
+                            if progress.played.count == 1 { Task { await Reminder.refreshBadge() } }
+                            // Off the reveal's path: the server reads the standing
+                            // off its own table, so this carries nothing the reveal
+                            // waits on.
+                            if score.recorded { Task { await gameCenter.sync(player, with: client) } }
+                        }
+                        .id(clipFolds)
+                        .viewingAsBanner()
+                    }
                 }
                 if account.seesBoards {
                     Tab("Boards", systemImage: "list.number", value: "Boards") { NavigationStack { TodayView(alias: player.alias).viewingAsBanner() } }
                 }
-                // Chat hangs off the Twitch login, so the tab shows only while
-                // a login is signed in; Settings is where a player signs in.
-                // Settings always has the reminder, and hides only its Twitch
-                // section in a build without a Twitch client id.
-                if account.showsChat {
-                    Tab("Chat", systemImage: "bubble.left.and.bubble.right", value: "Chat") { ChatTab() }
-                }
+                // Settings is where a player signs in. It always has the
+                // reminder, and hides only its Twitch section in a build
+                // without a Twitch client id.
+                #if WATCH
+                    Tab("Watch", systemImage: "play.rectangle", value: "Watch") { WatchTab() }
+                #endif
                 Tab("Settings", systemImage: "gear", value: "Settings") {
                     NavigationStack { SettingsView(player: $player).viewingAsBanner() }
                 }
@@ -50,16 +74,18 @@ struct GuessrApp: App {
             .environment(account)
             .environment(gameCenter)
             .task { gameCenter.start { await gameCenter.sync(player, with: client) } }
-            // A sign-in opens Chat, the tab it brings, on every device: left to
-            // itself, the iPad's tab bar keeps Settings selected as Chat
-            // appears ahead of it.
-            // A sign-out while on Chat, a "View as" that drops the boards, or a
-            // `-tab` launch naming a hidden tab lands on Play rather than on a
-            // tab that isn't there.
-            .onChange(of: account.showsChat, initial: true) { showed, shows in
-                if shows, !showed { tab = "Chat" }
-                if !shows, tab == "Chat" { tab = "Play" }
-            }
+            .task { await foldInClip() }
+            #if DEBUG
+                // `-linkPreview 1` opens the comparison sheet on sample players,
+                // for a screenshot without scanning a code.
+                .task {
+                    if UserDefaults.standard.bool(forKey: "linkPreview") {
+                        comparing = (DeviceLink(id: "sample", name: "Patient Delta"), .sample)
+                    }
+                }
+            #endif
+            // A "View as" that drops the boards, or a `-tab` launch naming a
+            // hidden tab, lands on Play rather than on a tab that isn't there.
             .onChange(of: account.seesBoards, initial: true) { _, sees in
                 if !sees, tab == "Boards" { tab = "Play" }
             }
@@ -69,10 +95,120 @@ struct GuessrApp: App {
                 openTab = ""
             }
             .onChange(of: player) { _, joined in players.save(joined) }
+            // The website's QR code, which iOS hands here instead of Safari when
+            // the app is installed. Behind a question, never on arrival alone:
+            // a URL that silently rewrites who you are is a URL anyone can send.
+            // Linking keeps each device's own alias, so this device's player
+            // can go by another name on the web; that code still says so
+            // rather than nothing.
+            .onOpenURL { opened($0, via: "url") }
+            // A camera scan of a guessr.dana.lol code can arrive as an App Clip
+            // invocation, which reaches an installed full app as a web
+            // browsing activity rather than an opened URL.
+            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                if let url = activity.webpageURL { opened(url, via: "activity") }
+            }
+            .sheet(
+                isPresented: Binding(get: { comparing != nil }, set: { if !$0 { comparing = nil } }),
+                onDismiss: {
+                    if sheetJoinFailed { (sheetJoinFailed, linkFailed) = (false, true) }
+                }
+            ) {
+                if let comparing {
+                    LinkCompareView(
+                        preview: comparing.preview, alias: player.alias, codeHeading: String(localized: "Scanned code")
+                    ) {
+                        let joined = await join(comparing.link)
+                        sheetJoinFailed = !joined
+                        return joined
+                    }
+                }
+            }
+            .alert(
+                link.map { Text("Play as \($0.name ?? String(localized: "your other device"))?") } ?? Text(verbatim: ""),
+                isPresented: Binding(get: { link != nil }, set: { if !$0 { link = nil } }), presenting: link
+            ) { opened in
+                Button("Join") { Task { linkFailed = !(await join(opened)) } }
+                Button("Cancel", role: .cancel) {}
+            } message: { opened in
+                Text("This device's plays will be merged with \(opened.name ?? String(localized: "your other device")).")
+            }
+            .alert(
+                alreadyAs.map { Text("Already playing as \($0)") } ?? Text(verbatim: ""),
+                isPresented: Binding(get: { alreadyAs != nil }, set: { if !$0 { alreadyAs = nil } }), presenting: alreadyAs
+            ) { _ in
+                Button("OK", role: .cancel) {}
+            }
+            .alert("Could not link the devices just now.", isPresented: $linkFailed) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Scan the code again to retry.")
+            }
             .task(id: account.session?.userID) { await account.checkModerates() }
             .onChange(of: scenePhase, initial: true) { _, phase in
                 if phase == .active { Task { await Reminder.refreshBadge() } }
             }
+            // Midnight with the app open: the new day is unplayed.
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
+                Task { await Reminder.refreshBadge() }
+            }
+        }
+    }
+
+    /// A guessr.dana.lol URL handed to the app, by either route iOS uses.
+    private func opened(_ url: URL, via route: String) {
+        let link = DeviceLink(url)
+        Telemetry.linkOpened(url, via: route, read: link != nil)
+        guard let link else { return }
+        guard link.id != player.id else {
+            alreadyAs = link.name ?? player.alias
+            return
+        }
+        Task { await ask(link) }
+    }
+
+    /// Looks the scanned player up before asking, so the sheet can set both
+    /// players side by side. A failed look still asks, with only the name the
+    /// code carries.
+    private func ask(_ opened: DeviceLink) async {
+        do {
+            comparing = (opened, try await client.previewLink(opened, from: player))
+        } catch {
+            Telemetry.requestFailed("link-preview", error: error)
+            link = opened
+        }
+    }
+
+    /// Joins the website's player: the merge runs first, and the id is adopted
+    /// only once it has, so a failure leaves this device's plays where they are.
+    /// Answers whether it joined.
+    private func join(_ link: DeviceLink) async -> Bool {
+        do {
+            _ = try await client.link(link, from: player)
+            // Today's rounds are the joined player's now, as the server holds them.
+            Saved.progress = nil
+            player = Player(id: link.id, alias: player.alias)
+            tab = "Play"
+            return true
+        } catch {
+            Telemetry.requestFailed("link", error: error)
+            return false
+        }
+    }
+
+    /// Moves the App Clip's plays onto this device's player when the Keychain
+    /// already held one, the merge a link runs, keeping this player's id and
+    /// alias. The clip's player leaves the app group only once the merge has
+    /// run, so a failure is retried on the next launch.
+    private func foldInClip() async {
+        let group = GroupPlayerStore()
+        guard let clip = group.handedOver(besides: player) else { return }
+        do {
+            let moved = try await client.link(DeviceLink(id: player.id), from: clip)
+            group.clear()
+            if moved > 0 { clipFolds += 1 }
+        } catch {
+            Telemetry.requestFailed("clip-link", error: error)
         }
     }
 
@@ -93,13 +229,16 @@ final class Account {
     let auth: TwitchAuth
     /// Supplied by the build; empty makes nobody the owner.
     let ownerID: String
-    /// The Twitch channel the Chat tab talks in, supplied per configuration.
+    /// The Twitch channel the chat talks in, supplied per configuration.
     let channel: String
     private let store: any SessionStore
 
     /// The channel's chat for the signed-in login, made the first time the
-    /// Chat tab opens and kept until sign-out, so switching tabs keeps the log.
+    /// chat opens and kept until sign-out, so switching tabs keeps the log.
     private(set) var chat: TwitchChat?
+    /// The channel's chat read with no login, for a viewer who hasn't signed
+    /// in; dropped once they do.
+    private(set) var lurk: TwitchLurk?
     /// The ids of the lines the chat opened with from last time, which the
     /// log draws dimmed under a rule.
     private(set) var earlierChat: Set<String> = []
@@ -110,7 +249,7 @@ final class Account {
     private var modLogin: Task<Void, Never>?
     /// The token exchange in flight; see `refreshIfNeeded()`.
     private var refreshing: Task<Void, Never>?
-    /// Chatters whose lines this device keeps off the Chat tab: Twitch user id
+    /// Chatters whose lines this device keeps out of the chat: Twitch user id
     /// to the display name Settings lists them by. The viewer's own
     /// moderation: it changes nothing on Twitch. A list from before names
     /// were kept shows each chatter by id.
@@ -126,7 +265,7 @@ final class Account {
             auth = TwitchAuth(clientID: bundle.object(forInfoDictionaryKey: "GuessrTwitchClientID") as? String ?? "")
         #else
             // No client id is no Twitch login: Settings hides its Twitch
-            // section and the Chat tab never appears.
+            // section, and the Watch tab has no chat.
             auth = TwitchAuth(clientID: "")
         #endif
         ownerID = bundle.object(forInfoDictionaryKey: "GuessrOwnerTwitchID") as? String ?? ""
@@ -164,8 +303,15 @@ final class Account {
     /// Whether we moderate the channel — really, or for the length of a look.
     var isMod: Bool { viewingAs.map { $0 == "mod" } ?? moderates }
 
-    /// Whether the Chat tab is there: a Twitch build with a login signed in.
-    var showsChat: Bool { auth.isConfigured && session != nil }
+    /// Whether the Watch tab carries chat: a Twitch build, signed in or not —
+    /// signed out reads it anonymously.
+    var showsChat: Bool {
+        #if TWITCH
+            !channel.isEmpty
+        #else
+            false
+        #endif
+    }
 
     /// The boards are for the channel's staff; a player sees their own day.
     var seesBoards: Bool { isOwner || isMod }
@@ -184,8 +330,9 @@ final class Account {
         chat?.session = fresh
     }
 
-    /// Refreshes a login close to expiry. A refused refresh means the login is
-    /// gone, so it is dropped rather than retried.
+    /// Refreshes a login close to expiry, or takes up the one the Siri guess
+    /// already refreshed. A refused refresh means the login is gone, so it is
+    /// dropped rather than retried.
     ///
     /// One exchange at a time, shared by every caller: a launch onto the Chat
     /// tab asks twice at once (the root's mod check and the tab's chat), and
@@ -197,13 +344,11 @@ final class Account {
         guard let old = session, old.expiresSoon else { return }
         let exchange = Task {
             defer { refreshing = nil }
-            do {
-                let fresh = try await auth.refresh(old)
-                // A sign-out, or another login, while the exchange ran wins.
-                if session?.refreshToken == old.refreshToken { adopt(fresh) }
-            } catch is TwitchAuthError {
-                if session?.refreshToken == old.refreshToken { signOut() }
-            } catch {}
+            let renewed: TwitchSession?
+            do { renewed = try await auth.renew(old, keptIn: store) } catch { return }  // a transport failure retries next time
+            // A sign-out, or another login, while the exchange ran wins.
+            guard session?.refreshToken == old.refreshToken else { return }
+            if let renewed { adopt(renewed) } else { signOut() }
         }
         refreshing = exchange
         await exchange.value
@@ -230,6 +375,14 @@ final class Account {
         if self.session?.userID == session.userID { moderates = answer }
     }
 
+    /// Reads the channel's chat anonymously, or keeps the reading it has.
+    func openLurk() {
+        guard lurk == nil, session == nil, !channel.isEmpty else { return }
+        let fresh = TwitchLurk(channel: channel)
+        fresh.start()
+        lurk = fresh
+    }
+
     /// Connects the signed-in login to the channel's chat, or keeps the
     /// connection it already has, then asks whether it moderates there.
     /// The package never refreshes a token, so this is where it happens: on
@@ -248,6 +401,8 @@ final class Account {
             fresh.beforeConnect = { [weak self] in await self?.refreshIfNeeded() }
             fresh.start()
             chat = fresh
+            lurk?.stop()
+            lurk = nil
         }
         // A failed lookup reads as no, so it is asked again on the next visit.
         if !moderates, let chat { moderates = await chat.helix.moderates() }

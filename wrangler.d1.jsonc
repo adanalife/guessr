@@ -9,7 +9,8 @@
 // Pages project itself (declared in infra's terraform). This name is invisible to
 // them.
 //
-// WHY A CONFIG FILE AT ALL, when the seed tasks never needed one: `wrangler d1 execute` resolves a bare database name against the API, so
+// Migrations need a config file and seeds do not: `wrangler d1 execute`
+// resolves a bare database name against the API, so
 // `answers:*:push` and `rounds:stage:push` pass a name and no config. `wrangler d1
 // migrations` does not — with no config it fails "No configuration file found",
 // and with a config naming a database but giving no id it fails "missing a

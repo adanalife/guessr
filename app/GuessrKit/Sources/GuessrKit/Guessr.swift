@@ -226,6 +226,21 @@ extension Guessr {
         ["http-client-error", String(status), url.path()]
     }
 
+    /// Whether a failure is the device having no connection at all — airplane
+    /// mode, Wi-Fi off, cellular data off for the app — rather than anything
+    /// the server or the network did. AVPlayer wraps the URL error it failed
+    /// on, so the underlying error counts too.
+    public static func isOffline(_ error: any Error) -> Bool {
+        let offline: Set<Int> = [
+            URLError.notConnectedToInternet.rawValue,
+            URLError.dataNotAllowed.rawValue,
+            URLError.internationalRoamingOff.rawValue,
+        ]
+        let error = error as NSError
+        if error.domain == NSURLErrorDomain, offline.contains(error.code) { return true }
+        return (error.userInfo[NSUnderlyingErrorKey] as? NSError).map(isOffline) ?? false
+    }
+
     private static func platform() async -> String {
         #if os(iOS)
             if ProcessInfo.processInfo.isiOSAppOnMac { return "macOS" }

@@ -9,8 +9,9 @@ struct GuessError: Error, CustomLocalizedStringResourceConvertible {
 }
 
 /// `!guess <state>` in the channel's Twitch chat, as the signed-in viewer —
-/// the same line they could type in the Chat tab. Runs with the app closed: it
-/// reads the login the app keeps and posts once, with no chat connection.
+/// the same line they could type in the Watch tab's chat. Runs with the app
+/// closed: it reads the login the app keeps and posts once, with no chat
+/// connection.
 struct GuessStateIntent: AppIntent {
     static let title: LocalizedStringResource = "Guess the State"
     static let description = IntentDescription("Guess which state the van is in, as !guess in Twitch chat.")

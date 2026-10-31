@@ -80,7 +80,10 @@ jobs:
   # app/GuessrKit/.tool-versions matches tempomat's core pin on purpose,
   # rather than tracking the latest release.
   kit-linux:
-    runs-on: ubuntu-latest
+    # shortcut: pinned to 24.04, because swift.org's Linux toolchain that mise
+    # installs links libxml2.so.2, which ubuntu-26.04 (ubuntu-latest since
+    # 2026-10-27) doesn't ship; unpin once Swift publishes a 26.04 build.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
       run:

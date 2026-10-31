@@ -69,7 +69,7 @@ jobs:
         with:
           node-version-file: .tool-versions
           package-manager-cache: false
-      - uses: astral-sh/setup-uv@v10.2.0 # no floating major tag published
+      - uses: astral-sh/setup-uv@v10.3.0 # no floating major tag published
         with:
           enable-cache: false
       - name: Deploy the Python Worker (production)

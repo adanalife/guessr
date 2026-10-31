@@ -2,6 +2,21 @@
 // line is drawn in, and a line's context menu. Each takes primitives rather
 // than a chat line, so an app with a line type of its own draws with them too.
 // Guarded so the rest of the package still builds where SwiftUI doesn't exist.
+
+/// One row of a `UserCard`'s details: a label and its value, already
+/// formatted by the app that knows what it means. Outside the SwiftUI guard,
+/// so an app's model can build the rows on Linux too.
+public struct UserFact: Hashable, Identifiable, Sendable {
+    public var label: String
+    public var value: String
+    public var id: String { label }
+
+    public init(_ label: String, _ value: String) {
+        self.label = label
+        self.value = value
+    }
+}
+
 #if canImport(SwiftUI)
     import SwiftUI
 
@@ -77,6 +92,40 @@
                 .padding(.horizontal, 5).padding(.vertical, 1)
                 .background(color.opacity(0.2), in: Capsule())
                 .foregroundStyle(color)
+        }
+    }
+
+    /// A viewer's command and the bot's answer, as one quiet line: who asked,
+    /// what they asked, and as much of the answer as fits. An app draws it in
+    /// a button that opens the answer in full, at which point this line drops
+    /// the preview and the chevron turns down.
+    public struct ChatExchangeRow: View {
+        public var name: String
+        /// The asker's name color; nil reads secondary.
+        public var nameColor: Color?
+        public var command: String
+        /// The newest answer, nil while the bot hasn't said anything yet.
+        public var answer: String?
+        public var open: Bool
+        public init(name: String, nameColor: Color? = nil, command: String, answer: String?, open: Bool) {
+            (self.name, self.nameColor, self.command, self.answer, self.open) = (name, nameColor, command, answer, open)
+        }
+        public var body: some View {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Image(systemName: open ? "chevron.down" : "chevron.right")
+                    .font(.caption2.bold())
+                    .foregroundStyle(.tertiary)
+                    .opacity(answer == nil ? 0 : 1)
+                    .accessibilityHidden(true)
+                Text(name).foregroundStyle(nameColor ?? .secondary)
+                Text(command).monospaced().foregroundStyle(.secondary)
+                if !open, let answer {
+                    Text("→ \(answer)").foregroundStyle(.tertiary)
+                }
+            }
+            .font(.caption)
+            .lineLimit(1)
+            .accessibilityElement(children: .combine)
         }
     }
 
@@ -187,7 +236,8 @@
         private var why: String? { reason.isEmpty ? nil : reason }
 
         public func body(content: Content) -> some View {
-            #if os(tvOS)
+            // The TV has no pointer for a menu and the watch no room for one.
+            #if os(tvOS) || os(watchOS)
                 content
             #else
                 // Viewers chat in several languages. The system sheet translates
@@ -268,19 +318,27 @@
     /// their lines' text from the log, oldest first — the ring, not an API, so
     /// it is only what this device saw. `load` reads the profile; until it
     /// answers, or if it fails, the card shows the name it was opened with.
+    /// `details` reads what the app knows of the chatter beyond Twitch — its
+    /// own stats, say — drawn as label/value rows under the name.
     public struct UserCard: View {
         var displayName: String
         var login: String
         var recent: [String]
         var load: () async -> TwitchUser?
+        var details: () async -> [UserFact]
         @State private var user: TwitchUser?
         @State private var avatar: Image?
+        @State private var facts: [UserFact] = []
 
-        public init(displayName: String, login: String, recent: [String], load: @escaping () async -> TwitchUser?) {
+        public init(
+            displayName: String, login: String, recent: [String], load: @escaping () async -> TwitchUser?,
+            details: @escaping () async -> [UserFact] = { [] }
+        ) {
             self.displayName = displayName
             self.login = login
             self.recent = recent
             self.load = load
+            self.details = details
         }
 
         public var body: some View {
@@ -307,6 +365,17 @@
                             .accessibilityLabel(String(localized: "Open \(displayName) on Twitch", bundle: .module))
                     }
                 }
+                if !facts.isEmpty {
+                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
+                        ForEach(facts) { fact in
+                            GridRow {
+                                Text(fact.label).foregroundStyle(.secondary)
+                                Text(fact.value).monospacedDigit()
+                            }
+                        }
+                    }
+                    .font(.subheadline)
+                }
                 if !recent.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Recent messages", bundle: .module).font(.caption.bold()).foregroundStyle(.secondary)
@@ -324,6 +393,7 @@
                 user = await load()
                 if let url = user?.profileImage { avatar = await remoteImage(url, scale: 1) }
             }
+            .task { facts = await details() }
         }
     }
 #endif

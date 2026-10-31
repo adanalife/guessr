@@ -94,6 +94,62 @@ async def test_batch_is_one_transaction() -> None:
     assert await owned(db, PHONE) == [("a.jpg", 100)], "the batch half-applied"
 
 
+async def marks(db, player) -> dict | None:
+    return await db.fetchone(
+        "SELECT alias, note, private_name, starred FROM players WHERE player_id = ?",
+        player,
+    )
+
+
+async def test_link_keeps_marks() -> None:
+    """The owner's alias, note, name and star follow a player onto the id they
+    link into, by either route -- they are how a friend stays recognizable."""
+    friend = {"alias": "Patient Delta", "note": "met at the meetup",
+              "private_name": "Sam", "starred": 1}  # fmt: skip
+
+    async def marked(target_row=None):
+        db = await plays([(PHONE, "a.jpg", 100), (DESKTOP, "b.jpg", 300)])
+        await db.execute(
+            "INSERT INTO players (player_id, alias, note, private_name, starred) VALUES (?, ?, ?, ?, ?)",
+            PHONE, *friend.values(),
+        )  # fmt: skip
+        if target_row:
+            await db.execute(
+                "INSERT INTO players (player_id, alias, note, private_name, starred) VALUES (?, ?, ?, ?, ?)",
+                DESKTOP, *target_row.values(),
+            )  # fmt: skip
+        return db
+
+    # The mover carries the marks and the target has none: all of them move.
+    db = await marked()
+    await link(db, {"from": PHONE, "to": DESKTOP})
+    assert await marks(db, DESKTOP) == friend
+    assert await marks(db, PHONE) is None, "the mover's marks were left behind"
+
+    db = await marked()
+    _, issued = await issue_code(db, {"player_id": DESKTOP})
+    await claim(db, {"code": issued["code"], "from": PHONE})
+    assert await marks(db, DESKTOP) == friend, "a claim dropped the marks"
+    assert await marks(db, PHONE) is None
+
+    # Both carry marks: the target's stand, the mover's fill its gaps, and a star
+    # on either side survives.
+    db = await marked({"alias": "Lucky Overpass", "note": None,
+                       "private_name": None, "starred": 0})  # fmt: skip
+    await link(db, {"from": PHONE, "to": DESKTOP})
+    assert await marks(db, DESKTOP) == {
+        "alias": "Lucky Overpass",
+        "note": "met at the meetup",
+        "private_name": "Sam",
+        "starred": 1,
+    }
+
+    # Linking into yourself touches nothing.
+    db = await marked()
+    await link(db, {"from": PHONE, "to": PHONE})
+    assert await marks(db, PHONE) == friend
+
+
 async def codes(db) -> int:
     return len(await db.fetchall("SELECT code FROM link_codes"))
 
@@ -190,8 +246,19 @@ async def test_preview() -> None:
     assert await preview(db, {"code": issued["code"].lower(), "from": PHONE}) == (
         200,
         {
-            "to": {"name": "Patient Delta", "points": 350},
-            "from": {"name": "anonymous", "points": 100},
+            "to": {
+                "name": "Patient Delta",
+                "points": 350,
+                "days": 1,
+                "last": "2026-08-02",
+            },
+            "from": {
+                "name": "anonymous",
+                "points": 100,
+                "days": 1,
+                "last": "2026-08-02",
+            },
+            "overlap": 0,
         },
     )
     assert await codes(db) == 1, "a preview consumed the code"
@@ -200,15 +267,88 @@ async def test_preview() -> None:
     assert await preview(db, {"code": issued["code"], "from": "nobody"}) == (
         200,
         {
-            "to": {"name": "Patient Delta", "points": 350},
-            "from": {"name": "anonymous", "points": 0},
+            "to": {
+                "name": "Patient Delta",
+                "points": 350,
+                "days": 1,
+                "last": "2026-08-02",
+            },
+            "from": {"name": "anonymous", "points": 0, "days": 0, "last": None},
+            "overlap": 0,
         },
     ), "a device with no plays has no standing"
     assert (await claim(db, {"code": issued["code"], "from": PHONE}))[0] == 200
 
 
+async def test_preview_by_id() -> None:
+    """Both ids instead of a code, and the overlap a merge would drop."""
+    # PHONE and DESKTOP both answered a.jpg on 08-02, so that play is the one
+    # the merge would drop. PHONE's b.jpg on 08-02 and its a.jpg on 08-03 are
+    # different (date, image) pairs and would move.
+    db = await plays(
+        [(PHONE, "a.jpg", 100), (PHONE, "b.jpg", 200), (DESKTOP, "a.jpg", 10)]
+    )
+    await db.execute(
+        "INSERT INTO plays (date, player_id, image, km, points) VALUES ('2026-08-03', ?, 'a.jpg', 1.0, 5)",
+        PHONE,
+    )
+    merge = {"to": DESKTOP, "from": PHONE}
+    assert await preview(db, merge) == (
+        200,
+        {
+            "to": {"name": "anonymous", "points": 10, "days": 1, "last": "2026-08-02"},
+            "from": {
+                "name": "anonymous",
+                "points": 305,
+                "days": 2,
+                "last": "2026-08-03",
+            },
+            "overlap": 1,
+        },
+    )
+    # The count is exactly what the merge then drops.
+    _, issued = await issue_code(db, {"player_id": DESKTOP})
+    assert (await preview(db, {"code": issued["code"], "from": PHONE}))[1][
+        "overlap"
+    ] == 1
+    assert await link(db, merge) == (200, {"moved": 2})
+    assert len(await owned(db, DESKTOP)) == 3, "overlap disagreed with the merge"
+
+    db = await plays([(PHONE, "a.jpg", 100)])
+    same = await preview(db, {"to": PHONE, "from": PHONE})
+    standing = {"name": "anonymous", "points": 100, "days": 1, "last": "2026-08-02"}
+    assert same == (200, {"to": standing, "from": standing, "overlap": 0}), same
+    assert await preview(db, {"to": STRANGER, "from": PHONE}) == (
+        200,
+        {
+            "to": {"name": "anonymous", "points": 0, "days": 0, "last": None},
+            "from": standing,
+            "overlap": 0,
+        },
+    ), "a player with no plays has no standing"
+    assert len(await owned(db, PHONE)) == 1, "a preview merged"
+
+    for bad in (
+        {"to": DESKTOP},
+        {"to": "", "from": PHONE},
+        {"to": DESKTOP, "from": 1},
+        {"to": "x" * 65, "from": PHONE},
+        {"to": None, "from": PHONE},
+    ):
+        assert await preview(db, bad) == (
+            400,
+            {"error": "expected {code, from} or {to, from}"},
+        ), bad
+    assert await preview(db, {"from": PHONE}) == (
+        400,
+        {"error": "expected {code, from}"},
+    )
+
+
 asyncio.run(test_link())
+asyncio.run(test_link_keeps_marks())
 asyncio.run(test_preview())
+asyncio.run(test_preview_by_id())
 asyncio.run(test_batch_is_one_transaction())
 asyncio.run(test_link_codes())
 print("ok: the Python /api/link and link codes match the contract the .mjs tests hold")

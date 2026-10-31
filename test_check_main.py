@@ -156,6 +156,22 @@ def main() -> None:
                 f"carries {leak} in the served manifest",
             )
 
+        # The gate has to shut under `python -O` too, which strips `assert`.
+        leaky = rounds()
+        leaky[0]["lat"] = 40.0
+        optimized = subprocess.run(
+            [
+                sys.executable,
+                "-O",
+                str(Path(check.__file__)),
+                str(build(root, "leak-O", leaky)),
+            ],
+            capture_output=True,
+        )
+        assert optimized.returncode != 0, (
+            "check.py passes a leaking set under python -O"
+        )
+
         # A manifest too short to draw a game from, or empty entirely.
         rejects(build(root, "empty", []), "is empty")
         rejects(
