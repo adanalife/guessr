@@ -652,7 +652,7 @@ private final class Rig {
     let log = [
         line("cmd", from: "kate", "!location"),
         line("hi", from: "sam", "hello"),
-        line("ans", from: "tripbot4000", "Niagara Falls, New York", replying: "cmd"),
+        line("reply", from: "tripbot4000", "Niagara Falls, New York", replying: "cmd"),
         line("re", from: "sam", "nice", replying: "cmd"),
         // A bot's reply to a chatter who asked it nothing stays a line.
         line("q", from: "sam", "tripbot are you there"),
@@ -661,9 +661,9 @@ private final class Rig {
     let ids = { (rows: [ThreadedLine<ChatLine>]) in rows.map { "\($0.nested ? ">" : "")\($0.id)" } }
     let closed = log.threaded(open: [])
     #expect(ids(closed) == ["cmd", ">re", "hi", "q", ">bot"])
-    #expect(closed[0].answers.map(\.id) == ["ans"])
+    #expect(closed[0].answers.map(\.id) == ["reply"])
     #expect(closed.dropFirst().map(\.answers.count) == [0, 0, 0, 0])
     let opened = log.threaded(open: ["cmd"])
-    #expect(ids(opened) == ["cmd", ">ans", ">re", "hi", "q", ">bot"])
-    #expect(opened[0].answers.map(\.id) == ["ans"])
+    #expect(ids(opened) == ["cmd", ">reply", ">re", "hi", "q", ">bot"])
+    #expect(opened[0].answers.map(\.id) == ["reply"])
 }
