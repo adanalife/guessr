@@ -798,6 +798,14 @@ def notes():
         by_id[top]
     )
     error(post("a board note that is not a string is refused", 400, q, {"note": 5}))
+    error(
+        post(
+            "a board note for a rank that moved is refused",
+            409,
+            q,
+            {"note": "x", "expect_name": "Somebody Else"},
+        )
+    )
     post("a board row's name saves", 200, q, {"private_name": "Phil", "starred": True})
     marks = get(
         "the board's marks read",
