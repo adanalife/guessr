@@ -265,13 +265,26 @@ async def board_note(db, who, params, now=None) -> tuple[int, dict, dict]:
 
 async def set_board_note(db, who, params, body, now=None) -> tuple[int, dict, dict]:
     """POST /admin/board-note, same query, any of {note, private_name, starred}.
-    Answers in the read's shape."""
+    Answers in the read's shape.
+
+    `expect_name`, when sent, is the name the caller saw at that rank, and the
+    write lands only if the rank still names it: a running board reorders, and
+    a mark meant for one player must not land on whoever moved into the row."""
     refused, found = await _board_row(db, who, params, now)
     if refused:
         return refused
     b = body if isinstance(body, dict) else {}
     if problem := marks_problem(b):
         return 400, {"error": problem}, NO_STORE
+    expect = b.get("expect_name")
+    if expect is not None and not isinstance(expect, str):
+        return 400, {"error": "expect_name must be a string"}, NO_STORE
+    if expect is not None and expect != (found["row"]["name"] or PLACEHOLDER):
+        return (
+            409,
+            {"error": f"rank {found['rank']} no longer names {expect}"},
+            NO_STORE,
+        )
     player_id = found["row"]["player_id"]
     await save_marks(db, player_id, b)
     marks, handle = await read_marks(db, player_id), await read_handle(db, player_id)
