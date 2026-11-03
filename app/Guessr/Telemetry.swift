@@ -1,6 +1,7 @@
 import GuessrKit
 import MetricKit
 import Sentry
+import os
 
 /// Sentry for the app: crashes, hangs, a span per request (URLSession is
 /// auto-instrumented), structured logs and a replay of the moments before an
@@ -79,12 +80,13 @@ enum Telemetry {
         case shared
     }
 
-    /// One step of play, recorded three ways. The round it names becomes the
+    /// One step of play, recorded four ways. The round it names becomes the
     /// scope's `round.*` tags, so any error or crash after it says which date,
     /// round and clip the player was on. A breadcrumb puts the step in the
     /// trail under that report. And a `game.<step>` log line, so where players
     /// stop between loading a day and sharing it can be counted from the log
-    /// search. Nothing here names the player.
+    /// search. And the bare step name in the device's own log, which
+    /// `scripts/ios-screenshots.sh` waits on. Nothing here names the player.
     static func step(_ step: Step, date: String, round: Int? = nil, clip: String? = nil, data: [String: Any] = [:]) {
         var fields = data
         fields["date"] = date
@@ -100,7 +102,10 @@ enum Telemetry {
         crumb.data = fields
         SentrySDK.addBreadcrumb(crumb)
         SentrySDK.logger.info("game.\(step.rawValue)", attributes: fields)
+        gameLog.notice("game.\(step.rawValue, privacy: .public)")
     }
+
+    private static let gameLog = os.Logger(subsystem: "lol.dana.guessr", category: "game")
 
     /// A URL iOS handed the app, and whether it read as a device link. Only
     /// the fragment's keys travel: its values are a player id and an alias.

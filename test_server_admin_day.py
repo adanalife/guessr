@@ -311,6 +311,9 @@ async def test_month() -> None:
             (date, player, img(date, i), points, handle),
         )
     d.conn.execute("INSERT INTO day_reviews (date) VALUES (?)", (pending,))
+    d.conn.execute(
+        "INSERT INTO players (player_id, private_name) VALUES ('aaa', 'Alice')"
+    )
     assert (await month(d, OWNER, {"month": "2026-13"}, NOW))[0] == 400
     status, body, headers = await month(d, OWNER, {"month": "2026-08"}, NOW)
     assert (status, headers["cache-control"], body["month"]) == (
@@ -321,7 +324,11 @@ async def test_month() -> None:
     days = {x["date"]: x for x in body["days"]}
     assert list(days) == [PAST, OPEN, pending], list(days)
     assert days[PAST]["status"] == "closed" and days[PAST]["players"] == 3
-    assert days[PAST]["winner"] == {"name": "al", "points": 9000}, days[PAST]
+    assert days[PAST]["winner"] == {
+        "name": "al",
+        "private_name": "Alice",
+        "points": 9000,
+    }, days[PAST]
     assert days[OPEN]["status"] == "open" and days[OPEN]["players"] == 1
     assert days[OPEN]["winner"] is None, "an open date named a winner"
     assert days[pending]["status"] == "pending" and days[pending]["rounds"] == 5

@@ -273,6 +273,25 @@ async def test_board_note() -> None:
     assert note_of(d, REGULAR) == "monthly regular"
 
 
+async def test_board_note_expect_name() -> None:
+    # The write lands only while the rank still names who the caller saw there.
+    d = seeded()
+    top = (await board_note(d, OWNER, {"rank": "1"}, NOW))[1]["name"]
+    status, body, headers = await set_board_note(
+        d, OWNER, {"rank": "1"}, {"note": "moved", "expect_name": "Someone Else"}, NOW
+    )
+    assert (status, headers["cache-control"]) == (409, "no-store"), body
+    assert rows(d, "SELECT COUNT(*) FROM players")[0][0] == 0, "a 409 still wrote"
+    status, _, _ = await set_board_note(
+        d, OWNER, {"rank": "1"}, {"note": "x", "expect_name": 3}, NOW
+    )
+    assert status == 400
+    status, body, _ = await set_board_note(
+        d, OWNER, {"rank": "1"}, {"note": "still here", "expect_name": top}, NOW
+    )
+    assert (status, body["note"]) == (200, "still here"), body
+
+
 async def test_board_note_refusals() -> None:
     d = seeded()
     # A rank past the board names nobody and must not fall through to the last row.
@@ -350,6 +369,7 @@ async def main() -> None:
     await test_plays()
     test_group()
     await test_board_note()
+    await test_board_note_expect_name()
     await test_board_note_refusals()
     await test_marks()
 
