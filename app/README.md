@@ -212,10 +212,11 @@ demo_account_password = "…"
 ```
 
 `task ios:screenshots` takes the screenshots: it builds for the simulator,
-then on an iPhone 18 Pro Max, an iPhone Duo (it opens DeviceHub and stops for you to unfold it) and a 13-inch iPad Pro launches the Debug build
+then on an iPhone 18 Pro Max, an iPhone Duo (unfolded by `scripts/vendor/hinge`, which posts the event DeviceHub's hinge slider sends) and a 13-inch iPad Pro launches the Debug build
 with its launch arguments (`-tab`, `-autoplay 1`) and captures a
-round, its reveal and Settings, with Apple's 9:41 status bar. The
-Debug build plays stage, so the round is staging's.
+round, its reveal and Settings, with Apple's 9:41 status bar, unattended. The
+Debug build plays stage, so the round is staging's. `ONLY="ipad duo"` takes
+just those devices.
 
 Two things the API does not do, and the dashboard does: the App Privacy
 labels (they must agree with `Guessr/PrivacyInfo.xcprivacy`), and the
