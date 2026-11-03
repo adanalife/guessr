@@ -1,0 +1,6 @@
+hinge_helper.m is artemnovichkov/hinge v0.3.0's skills/hinge/scripts/hinge_helper.m,
+byte for byte, under the MIT license beside it:
+https://github.com/artemnovichkov/hinge/blob/v0.3.0/skills/hinge/scripts/hinge_helper.m
+
+scripts/ios-screenshots.sh compiles it for the simulator and runs it in the iPhone Duo
+to unfold it: simctl has no hinge command.
