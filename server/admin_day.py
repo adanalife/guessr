@@ -49,15 +49,18 @@ FROZEN = "{} is frozen: it has been played or has closed"
 
 # A month at a glance: every scheduled date with its round count and review mark,
 # and every (date, player) total for the plays in it, in the daily board's own
-# order -- so a date's first row is its winner.
+# order -- so a date's first row is its winner. The winner carries the owner's
+# private name for them, as the boards do on the owner's surfaces.
 MONTH_DAYS = f"""SELECT d.date, COUNT(*) AS rounds, v.reviewed_at
                   FROM round_days d
                   LEFT JOIN day_reviews v ON v.date = d.date
                  WHERE d.date {in_month("?1")}
                  GROUP BY d.date"""
 MONTH_TOTALS = f"""SELECT p.date, p.player_id, SUM(p.points) AS points,
-                         {name_expr("p.player_id")} AS name
+                         {name_expr("p.player_id")} AS name,
+                         n.private_name
                     FROM plays p
+                    LEFT JOIN players n ON n.player_id = p.player_id
                    WHERE p.date {in_month("?1")}
                    GROUP BY p.date, p.player_id
                    ORDER BY p.date, points DESC, p.player_id"""
@@ -140,7 +143,11 @@ async def month(db, who, params, now=None) -> tuple[int, dict, dict]:
         # An open date's standings still reorder, so it names nobody -- the
         # daily board refuses it for the same reason.
         if day["winner"] is None and t["date"] <= closed:
-            day["winner"] = {"name": t["name"] or PLACEHOLDER, "points": t["points"]}
+            day["winner"] = {
+                "name": t["name"] or PLACEHOLDER,
+                "private_name": t["private_name"],
+                "points": t["points"],
+            }
     for day in days.values():
         day["status"] = (
             "closed"
