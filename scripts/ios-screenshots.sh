@@ -13,6 +13,18 @@ APP=.build/DerivedData/Build/Products/Debug-iphonesimulator/Guessr.app
 BUNDLE=lol.dana.guessr
 [ -d "$APP" ] || { echo "no simulator build at $APP -- run: task ios:build" >&2; exit 1; }
 
+# scripts/vendor/hinge (MIT), built for the simulator into .build.
+hinge_helper() {
+    local bin=.build/hinge_helper
+    if [ ! -x "$bin" ] || [ ../scripts/vendor/hinge/hinge_helper.m -nt "$bin" ]; then
+        xcrun -sdk iphonesimulator clang -arch arm64 -mios-simulator-version-min=17.0 -O2 -fobjc-arc \
+            -o "$bin" ../scripts/vendor/hinge/hinge_helper.m \
+            -framework IOKit -framework CoreFoundation -framework Foundation -framework CoreMotion
+        codesign -f -s - "$bin" >/dev/null 2>&1
+    fi
+    echo "$PWD/$bin"
+}
+
 udid() { xcrun simctl list devices available -j | jq -r --arg n "$1" '.devices[][] | select(.name == $n) | .udid' | head -1; }
 
 # What a shot waits for: the app's own game steps (Telemetry.step), and
@@ -59,10 +71,11 @@ for spec in "iPhone 18 Pro Max:iphone" "iPhone Duo:duo" "iPad Pro 13-inch (M5):i
     xcrun simctl boot "$id" 2>/dev/null || true
     xcrun simctl bootstatus "$id" -b >/dev/null
     if [ "$leaf" = duo ]; then
-        # The Duo boots folded and simctl cannot unfold it, so its inner display
-        # stays black until someone unfolds it in DeviceHub, Xcode's simulator app.
-        open "$(xcode-select -p)/../Applications/DeviceHub.app"
-        read -rp "  unfold the iPhone Duo in DeviceHub, then press Return " </dev/tty
+        # The Duo boots folded, and simctl captures its inner display, which is
+        # black until it unfolds. simctl has no hinge command, so the vendored
+        # helper posts the event DeviceHub's hinge slider sends from inside the
+        # simulator, and waits up to 5 s for CoreMotion to report it flat.
+        xcrun simctl spawn "$id" "$(hinge_helper)" set 180 5
     fi
     # Apple's own screenshot status bar: full signal, full battery, 9:41.
     xcrun simctl status_bar "$id" override --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 \
@@ -77,10 +90,11 @@ for spec in "iPhone 18 Pro Max:iphone" "iPhone Duo:duo" "iPad Pro 13-inch (M5):i
     # guesses after 5 s and holds the reveal for 6, shot once the guess lands
     # and the map has flown to the answer; then Settings, which has no step.
     # The reveal has no floor: it holds for 6 s, and a retake past it would
-    # catch the next round.
+    # catch the next round. Settings is static, so it can retake past a blank
+    # frame (~145 KB undrawn on the Duo, ~230 KB drawn on the iPad).
     shoot "$id" "$dir" 01-round "new playback state: Playing" 2 1000000 -tab Play
     shoot "$id" "$dir" 02-reveal game.guessed 3 0 -tab Play -autoplay 1
-    shoot "$id" "$dir" 03-settings "" 6 0 -tab Settings
+    shoot "$id" "$dir" 03-settings "" 4 190000 -tab Settings
     xcrun simctl terminate "$id" "$BUNDLE" 2>/dev/null || true
     xcrun simctl status_bar "$id" clear
 done
