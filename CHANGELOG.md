@@ -4,6 +4,17 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.46.0 — 2026-11-03
+
+### Behind the scenes
+
+- A replayed day is only ever one whose every round has its answer, so a replay can always be scored. ([#521](https://github.com/adanalife/guessr/pull/521))
+- The App Store screenshots include an unfolded iPhone Duo, so the product page shows the optimized-for-iPhone-Duo badge. ([#523](https://github.com/adanalife/guessr/pull/523))
+- The App Store listing submits 1.45.0. ([#523](https://github.com/adanalife/guessr/pull/523))
+- The screenshot run opens DeviceHub, Xcode 27.1's simulator app, and waits for the iPhone Duo to be unfolded there. ([#524](https://github.com/adanalife/guessr/pull/524))
+- The admin month view names each closed date's winner with the owner's private name for them, beside the drawn one. ([#529](https://github.com/adanalife/guessr/pull/529))
+- A board-row note, star or private name sent with expect_name is refused 409 when that rank no longer names that player. ([#530](https://github.com/adanalife/guessr/pull/530))
+
 ## v1.45.0 — 2026-10-28
 
 ### New
