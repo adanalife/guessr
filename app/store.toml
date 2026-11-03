@@ -36,7 +36,7 @@ Five dashcam clips a day from one long road trip across the United States. Watch
 
 The same five rounds for everyone, every day, so the leaderboard means something. Play against the regulars of the A Dana Life livestream, or just against yesterday's you.
 
-• A new day of rounds every midnight UTC
+• A new day of rounds at your local midnight
 • Points by distance, and the answer shown on the map after every guess
 • Game Center leaderboards for lifetime and this week, with eight achievements
 • A daily reminder and an icon badge while today's rounds are waiting
@@ -62,7 +62,7 @@ demo_account_required = false
 notes = """
 A Dana Life: Guessr is a daily geography guessing game for casual players and fans of geography puzzles (GeoGuessr-style). Every day it serves the same five short dashcam clips to every player, all filmed by the developer on a road trip across the United States. The player drops a pin where they think each clip was filmed and scores up to 5,000 points based on distance. It also works as a companion to the A Dana Life livestream, whose regular viewers play the same daily rounds.
 
-SETUP: no login, credentials or setup are needed. On first launch the app picks a random leaderboard name and keeps it in the Keychain; there is no sign-up, so there is no account to create or delete. Play tab: watch the clip, tap the map to place a pin, submit the guess, and the answer and points appear on the map. Five rounds a day, with new rounds at midnight UTC. Settings tab: Generate new name, daily reminders (icon badge and notification), appearance, imperial/metric units, Privacy Policy, and "Playing on another device?". That option shows a temporary code that links the app to the web version at guessr.dana.lol, so a player keeps one name and score. It is optional.
+SETUP: no login, credentials or setup are needed. On first launch the app picks a random leaderboard name and keeps it in the Keychain; there is no sign-up, so there is no account to create or delete. Play tab: watch the clip, tap the map to place a pin, submit the guess, and the answer and points appear on the map. Five rounds a day, with new rounds at the player's local midnight. Settings tab: Generate new name, daily reminders (icon badge and notification), appearance, imperial/metric units, Privacy Policy, and "Playing on another device?". That option shows a temporary code that links the app to the web version at guessr.dana.lol, so a player keeps one name and score. It is optional.
 
 APP CLIP: opening https://guessr.dana.lol/ (in Safari, Messages, or from a QR code) on a device without the app launches the App Clip, which plays the same five daily rounds with no install. Installing the full app afterwards keeps the clip's player and plays.
 
