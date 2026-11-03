@@ -15,18 +15,43 @@ BUNDLE=lol.dana.guessr
 
 udid() { xcrun simctl list devices available -j | jq -r --arg n "$1" '.devices[][] | select(.name == $n) | .udid' | head -1; }
 
-shoot() { # shoot <udid> <dir> <name> <seconds to wait> <launch args...>
-    local id=$1 dir=$2 name=$3 wait=$4; shift 4
+# What a shot waits for: the app's own game steps (Telemetry.step), and
+# AVPlayer saying the clip is on screen. A fixed sleep raced both, and lost on
+# a cold first launch, which leaves the home screen or a black frame. Even
+# after the clip plays, the first launch after an install can take seconds
+# more to draw: a black frame is ~120 KB and one with video in it is over a
+# megabyte, so a shot with a floor retakes until it clears it.
+SIGNALS='(subsystem == "lol.dana.guessr" AND category == "game") OR (process == "Guessr" AND eventMessage CONTAINS "new playback state: Playing")'
+
+shoot() { # shoot <udid> <dir> <name> <log line to wait for, or ""> <seconds to settle after it> <min bytes> <launch args...>
+    local id=$1 dir=$2 name=$3 line=$4 settle=$5 floor=$6; shift 6
+    local log waited=0 stream tries=0
+    log=$(mktemp)
     xcrun simctl terminate "$id" "$BUNDLE" 2>/dev/null || true
+    xcrun simctl spawn "$id" log stream --style compact --predicate "$SIGNALS" >"$log" 2>/dev/null &
+    stream=$!
     xcrun simctl launch "$id" "$BUNDLE" "$@" >/dev/null
-    sleep "$wait"
-    xcrun simctl io "$id" screenshot "$dir/$name.png" >/dev/null
+    while [ -n "$line" ] && ! grep -q "$line" "$log"; do
+        if [ $((waited += 1)) -gt 180 ]; then
+            kill "$stream"; rm -f "$log"
+            echo "  $name: no '$line' from the app in 90 s" >&2; return 1
+        fi
+        sleep 0.5
+    done
+    kill "$stream"; rm -f "$log"
+    sleep "$settle"
+    until xcrun simctl io "$id" screenshot "$dir/$name.png" >/dev/null 2>&1 &&
+        [ "$(stat -f %z "$dir/$name.png")" -ge "$floor" ]; do
+        [ $((tries += 1)) -lt 30 ] || { echo "  $name: still blank after 30 s" >&2; return 1; }
+        sleep 1
+    done
     echo "  $dir/$name.png"
 }
 
-# <simulator>:<dir>:<seconds from the autoplay launch to its reveal>
-for spec in "iPhone 18 Pro Max:iphone:10" "iPhone Duo:duo:10" "iPad Pro 13-inch (M5):ipad:16"; do
-    IFS=: read -r sim leaf reveal <<<"$spec"; dir=.build/screenshots/$leaf
+# <simulator>:<dir>. ONLY="ipad duo" shoots just those dirs.
+for spec in "iPhone 18 Pro Max:iphone" "iPhone Duo:duo" "iPad Pro 13-inch (M5):ipad"; do
+    IFS=: read -r sim leaf <<<"$spec"; dir=.build/screenshots/$leaf
+    [ -z "${ONLY:-}" ] || [[ " $ONLY " == *" $leaf "* ]] || continue
     id=$(udid "$sim")
     [ -n "$id" ] || { echo "no simulator named '$sim' -- xcrun simctl list devices available" >&2; exit 1; }
     echo "$sim ($id)"
@@ -48,15 +73,14 @@ for spec in "iPhone 18 Pro Max:iphone:10" "iPhone Duo:duo:10" "iPad Pro 13-inch 
     xcrun simctl uninstall "$id" "$BUNDLE" 2>/dev/null || true
     xcrun simctl keychain "$id" reset >/dev/null
     xcrun simctl install "$id" "$APP"
-    # The round once its clip has loaded from stage (a cold first launch on
-    # the iPad takes over ten seconds); then a second, warm launch with
-    # autoplay, which guesses after 5 s and holds the reveal for 6. The
-    # iPhone shows its reveal by 10 s; the iPad is still scoring at 12 and
-    # shows it by 16. The iPad simulator loads unevenly:
-    # look at every frame before uploading, and rerun if one is still loading.
-    shoot "$id" "$dir" 01-round 18 -tab Play
-    shoot "$id" "$dir" 02-reveal "$reveal" -tab Play -autoplay 1
-    shoot "$id" "$dir" 03-settings 6 -tab Settings
+    # The round once its clip plays; then a warm launch with autoplay, which
+    # guesses after 5 s and holds the reveal for 6, shot once the guess lands
+    # and the map has flown to the answer; then Settings, which has no step.
+    # The reveal has no floor: it holds for 6 s, and a retake past it would
+    # catch the next round.
+    shoot "$id" "$dir" 01-round "new playback state: Playing" 2 1000000 -tab Play
+    shoot "$id" "$dir" 02-reveal game.guessed 3 0 -tab Play -autoplay 1
+    shoot "$id" "$dir" 03-settings "" 6 0 -tab Settings
     xcrun simctl terminate "$id" "$BUNDLE" 2>/dev/null || true
     xcrun simctl status_bar "$id" clear
 done
