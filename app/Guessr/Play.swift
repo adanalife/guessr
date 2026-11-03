@@ -668,7 +668,7 @@ extension LinkPreview.Standing {
     }
 #endif
 
-/// The finished day: every round on the map, the total, and the text to share it.
+/// The finished day: the total, the text to share it, and every round on the map.
 struct DayResultView: View {
     let progress: DayProgress
     @State private var copied = false
@@ -691,22 +691,6 @@ struct DayResultView: View {
 
     var body: some View {
         List {
-            Section {
-                Map(selection: $replaying) {
-                    ForEach(Array(progress.played.enumerated()), id: \.offset) { i, r in
-                        Marker("\(i + 1)", coordinate: r.score.answer.location).tint(.green).tag(r.image)
-                        MapPolyline(coordinates: [r.guess.location, r.score.answer.location])
-                            .stroke(.green, lineWidth: 1.5)
-                        Annotation("", coordinate: r.guess.location, anchor: .center) {
-                            Circle().fill(Color.ink).frame(width: 8, height: 8)
-                        }
-                    }
-                }
-                .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
-                .background(Color.paper)
-                .frame(height: 280)
-                .listRowInsets(EdgeInsets())
-            }
             Section {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("You have completed today's game").font(.caption).foregroundStyle(.secondary)
@@ -746,8 +730,27 @@ struct DayResultView: View {
                     Text(Self.playAgain(from: context.date)).foregroundStyle(.secondary)
                 }
             }
+            Section {
+                Map(selection: $replaying) {
+                    ForEach(Array(progress.played.enumerated()), id: \.offset) { i, r in
+                        Marker("\(i + 1)", coordinate: r.score.answer.location).tint(.green).tag(r.image)
+                        MapPolyline(coordinates: [r.guess.location, r.score.answer.location])
+                            .stroke(.green, lineWidth: 1.5)
+                        Annotation("", coordinate: r.guess.location, anchor: .center) {
+                            Circle().fill(Color.ink).frame(width: 8, height: 8)
+                        }
+                    }
+                }
+                .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
+                .background(Color.paper)
+                .frame(height: 280)
+                .listRowInsets(EdgeInsets())
+            }
         }
         .readableWidth(title: "Guessr", logo: true)
+        // The total and the share text are the page: an inline title keeps them
+        // above the fold, with the map of the rounds below.
+        .navigationBarTitleDisplayMode(.inline)
         .paper()
         .sheet(isPresented: Binding(get: { replaying != nil }, set: { if !$0 { replaying = nil } })) {
             if let round = progress.played.first(where: { $0.image == replaying }) {
