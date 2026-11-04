@@ -180,6 +180,14 @@ async def test_reject() -> None:
     assert (await post(d, {"date": OPEN, "image": img(OPEN, 2)}))[0] == 200, (
         "an open day nobody has played is frozen"
     )
+    # The tail is frozen too: with no surplus, a reject on an open day would
+    # otherwise unschedule the next one, which UTC+14 may already be playing.
+    tomorrow = "2026-08-06"
+    d = seeded((OPEN, tomorrow))
+    played(d, tomorrow, 1)
+    status, body, _ = await post(d, {"date": OPEN, "image": img(OPEN, 2)})
+    assert status == 409 and "frozen" in body["error"], (status, body)
+    assert len(schedule(d, tomorrow)) == 5 and status_of(d, img(OPEN, 2)) == "scheduled"
 
     assert (await post(seeded(), {"date": DAY1, "image": img(DAY2, 1)}))[0] == 404
 
