@@ -346,8 +346,13 @@ final class Account {
             defer { refreshing = nil }
             let renewed: TwitchSession?
             do { renewed = try await auth.renew(old, keptIn: store) } catch { return }  // a transport failure retries next time
-            // A sign-out, or another login, while the exchange ran wins.
-            guard session?.refreshToken == old.refreshToken else { return }
+            // A sign-out, or another login, while the exchange ran wins. `renew`
+            // has already saved or cleared the store for the old login, so put
+            // back what this process holds now, or a sign-out returns on relaunch.
+            guard session?.refreshToken == old.refreshToken else {
+                if let session { store.save(session) } else { store.clear() }
+                return
+            }
             if let renewed { adopt(renewed) } else { signOut() }
         }
         refreshing = exchange
