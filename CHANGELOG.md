@@ -4,6 +4,29 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.47.0 — 2026-11-04
+
+### Changed
+
+- The finished day's total and share text sit at the top of the page under a compact title, with the map of the rounds below them. ([#536](https://github.com/adanalife/guessr/pull/536))
+
+### Fixed
+
+- Throwing out a round can no longer take the next day's rounds while someone is already playing that day. ([#538](https://github.com/adanalife/guessr/pull/538))
+- Signing out of Twitch in the app sticks, even if the app was renewing the login at that moment. ([#539](https://github.com/adanalife/guessr/pull/539))
+- A guess sent just before midnight no longer counts as a round of the next day in the app. ([#541](https://github.com/adanalife/guessr/pull/541))
+- The app's privacy manifest now declares the storage it shares with the App Clip. ([#542](https://github.com/adanalife/guessr/pull/542))
+- A date at the far ends of the calendar gets a clear error instead of a server failure. ([#543](https://github.com/adanalife/guessr/pull/543))
+
+### Behind the scenes
+
+- A test keeps the Game Center leaderboard and achievement IDs the same in the server, the App Store Connect setup script and the achievement-image renderer. ([#527](https://github.com/adanalife/guessr/pull/527))
+- CI: the weekly spelling sweep passes again — a chat test no longer uses `ans` as a line ID, which codespell 2.4 reads as a misspelling. ([#528](https://github.com/adanalife/guessr/pull/528))
+- The App Store listing submits 1.46.0. ([#532](https://github.com/adanalife/guessr/pull/532))
+- The App Store screenshots wait for the app to draw each screen, and Settings shows the release's version. ([#533](https://github.com/adanalife/guessr/pull/533))
+- The CI steps that mint the automation app's token identify the app by its client ID, the input the token action recommends. ([#537](https://github.com/adanalife/guessr/pull/537))
+- The app no longer reads the hidden-chatter list early test builds saved. ([#540](https://github.com/adanalife/guessr/pull/540))
+
 ## v1.46.0 — 2026-11-03
 
 ### Behind the scenes
