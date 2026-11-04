@@ -82,13 +82,15 @@
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
 		<!-- UserDefaults holds the day in progress, the settings and the chat
-		     tail; nothing in it leaves the device. -->
+		     tail; nothing in it leaves the device. The player identity sits in
+		     the app group's defaults, shared with the App Clip (1C8F.1). -->
 		<dict>
 			<key>NSPrivacyAccessedAPIType</key>
 			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
 			<key>NSPrivacyAccessedAPITypeReasons</key>
 			<array>
 				<string>CA92.1</string>
+				<string>1C8F.1</string>
 			</array>
 		</dict>
 	</array>
