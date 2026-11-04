@@ -66,7 +66,16 @@ async def test_day() -> None:
     assert (await get(date="2020-01-01"))[0] == 404, (
         "an unscheduled past date is 404, not 403"
     )
-    for bad in (None, "", "2026-8-1", "yesterday", "2026-08-01T00:00", "2026-02-31"):
+    for bad in (
+        None,
+        "",
+        "2026-8-1",
+        "yesterday",
+        "2026-08-01T00:00",
+        "2026-02-31",
+        "0001-01-01",
+        "9999-12-31",
+    ):
         assert (await get(date=bad))[0] == 400, bad
     assert (await get())[0] == 400
 

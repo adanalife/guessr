@@ -116,10 +116,12 @@ def is_calendar_date(value) -> bool:
     if not isinstance(value, str) or not DATE.fullmatch(value):
         return False
     try:
-        dt.date.fromisoformat(value)
+        year = dt.date.fromisoformat(value).year
     except ValueError:
         return False
-    return True
+    # Every route does day arithmetic on the date, which overflows at either end
+    # of the calendar; this game has no dates anywhere near them.
+    return 2000 <= year <= 2999
 
 
 def parse_play(body) -> dict | None:

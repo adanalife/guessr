@@ -227,7 +227,14 @@ async def test_handler() -> None:
         ({"board": "daily", "date": "2026-08-21"}, "date has not closed yet"),
         *(
             ({"board": "daily", "date": x}, "date must be YYYY-MM-DD")
-            for x in ("2026-8-1", "2026-08", "yesterday", "2026-02-31", "")
+            for x in (
+                "2026-8-1",
+                "2026-08",
+                "yesterday",
+                "2026-02-31",
+                "",
+                "0001-01-01",
+            )
         ),
         (
             {"board": "monthly", "date": "2020-01-01"},

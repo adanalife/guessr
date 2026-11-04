@@ -121,6 +121,7 @@ for bad in [
     {**play, "date": "2026-01-32"},
     {**play, "date": "2026-02-31"},
     {**play, "date": "2026-02-29"},
+    {**play, "date": "9999-12-31"},
     {**play, "date": "01-08-2026"},
     {**play, "date": "2026-08-01T00:00:00Z"},
     {**play, "date": "2026-08-01\n"},  # re.match's $ would let this through
