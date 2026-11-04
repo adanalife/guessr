@@ -167,7 +167,7 @@ async def test_guesses() -> None:
 
     for q, error in [
         ({"date": TODAY}, "date has not closed yet"),
-        ({"date": "9999-01-01"}, "date has not closed yet"),
+        ({"date": "2999-01-01"}, "date has not closed yet"),
         ({"date": "2026-2-3"}, "date must be YYYY-MM-DD"),
         ({"date": "2026-02-31"}, "date must be YYYY-MM-DD"),
         ({"board": "monthly", "date": EARLIER}, "date applies to the daily board only"),
