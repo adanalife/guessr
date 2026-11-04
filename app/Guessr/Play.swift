@@ -397,11 +397,15 @@ struct PlayView: View {
         scoring = true
         defer { scoring = false }
         let at = Coordinate(lat: pin.latitude, lng: pin.longitude)
+        let playedOn = progress.date
         do {
             // A round this player already guessed comes back with the score on
             // record, so a lost save cannot buy a better one.
             let score = try await client.score(
-                image: image, guess: at, date: progress.date, player: player, elapsed: .now - roundShown)
+                image: image, guess: at, date: playedOn, player: player, elapsed: .now - roundShown)
+            // Midnight turned the day over while this was in flight: the play is
+            // recorded server-side, and today's progress is not where it belongs.
+            guard progress.date == playedOn else { return }
             progress.played.append(PlayedRound(image: image, guess: at, score: score))
             Saved.progress = progress
             Telemetry.step(
@@ -414,11 +418,13 @@ struct PlayView: View {
                 (revealed, message, camera) = (true, nil, .region(Self.fit(at, score.answer)))
             }
         } catch let error as GuessrError where error.isFinal {
+            guard progress.date == playedOn else { return }
             // Refused, so retrying gets the same answer: say what the server said.
             day = nil
             message = error.localizedDescription
         } catch {
             Telemetry.requestFailed("score", error: error)
+            guard progress.date == playedOn else { return }
             message = String(localized: "Could not reach the scorer. Try that guess again.")
         }
     }
