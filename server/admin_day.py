@@ -202,6 +202,9 @@ async def reject(db, who, body, clip_exists=None, now=None) -> tuple[int, dict, 
                 },
                 NO_STORE,
             )
+        # The tail can be open, and played, in the earliest timezones.
+        if await _frozen(db, tail, now):
+            return 409, {"error": FROZEN.format(tail)}, NO_STORE
         unscheduled = tail
         replacement = (await db.fetchall(TAIL_ROUNDS, unscheduled))[0]
         writes += [
