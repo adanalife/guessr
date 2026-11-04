@@ -251,11 +251,9 @@ final class Account {
     private var refreshing: Task<Void, Never>?
     /// Chatters whose lines this device keeps out of the chat: Twitch user id
     /// to the display name Settings lists them by. The viewer's own
-    /// moderation: it changes nothing on Twitch. A list from before names
-    /// were kept shows each chatter by id.
+    /// moderation: it changes nothing on Twitch.
     var hiddenChatters: [String: String] =
-        UserDefaults.standard.dictionary(forKey: "hidden-chatter-names") as? [String: String]
-        ?? Dictionary(uniqueKeysWithValues: (UserDefaults.standard.stringArray(forKey: "hidden-chatters") ?? []).map { ($0, $0) })
+        UserDefaults.standard.dictionary(forKey: "hidden-chatter-names") as? [String: String] ?? [:]
     {
         didSet { UserDefaults.standard.set(hiddenChatters, forKey: "hidden-chatter-names") }
     }
