@@ -23,6 +23,11 @@ packages:
   Sentry:
     url: https://github.com/getsentry/sentry-cocoa
     from: 9.29.0
+  # Chat emote art: one decoded-image cache shared by every chat line and the
+  # emote picker. The app's alone — GuessrKit stays dependency-free for Linux.
+  Nuke:
+    url: https://github.com/kean/Nuke
+    from: 13.2.2
   # Private: the owner's console controls. A build without access to it (a
   # fork, say) deletes this block and the matching dependency below, and the
   # console tier compiles out.
@@ -84,6 +89,9 @@ targets:
       # Sentry-Dynamic rather than the static `Sentry`: only the dynamic
       # xcframework ships dSYMs, so the SDK's own frames symbolicate
       # (getsentry/sentry-cocoa#4068).
+      - package: Nuke
+      - package: Nuke
+        product: NukeUI
       - package: Sentry
         product: Sentry-Dynamic
       # - package: TempomatConsole

@@ -1,6 +1,15 @@
 {
-  "originHash" : "c88d647f5e034256a1419ef7fbe1f12a116ccc599b6bc8fa5bf65b8430ba43e2",
+  "originHash" : "8eebf24c568c7390f4da853b0ad23effbf66825451e2241c4204038160b45ba5",
   "pins" : [
+    {
+      "identity" : "nuke",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kean/Nuke",
+      "state" : {
+        "revision" : "67493b99728ad1fc9fdaa3c7c8269e27a8a5e89b",
+        "version" : "13.2.2"
+      }
+    },
     {
       "identity" : "sentry-cocoa",
       "kind" : "remoteSourceControl",
