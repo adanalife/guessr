@@ -154,12 +154,6 @@ public struct UserFact: Hashable, Identifiable, Sendable {
         URL(string: "https://static-cdn.jtvnw.net/emoticons/v2/\(id)/default/dark/2.0")
     }
 
-    // ponytail: URLSession's cache is the only cache.
-    public func emoteImage(_ id: String) async -> Image? {
-        guard let url = emoteURL(id) else { return nil }
-        return await remoteImage(url, scale: 2)
-    }
-
     /// Art off the network at a known scale — the chat log's emotes and its
     /// badges are both CDN assets drawn inline at about a line of text.
     public func remoteImage(_ url: URL, scale: CGFloat) async -> Image? {

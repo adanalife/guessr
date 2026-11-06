@@ -1,4 +1,6 @@
 import GuessrKit
+import Nuke
+import NukeUI
 import SwiftUI
 
 /// The channel's chat, under the Watch tab's player: the signed-in login's,
@@ -259,8 +261,12 @@ struct ChatLog: View {
                         let head = text.isEmpty || text.hasSuffix(" ") ? text : text + " "
                         text = head + emote.name + " "
                     } label: {
-                        AsyncImage(url: emoteURL(emote.id)) { $0.resizable().scaledToFit() } placeholder: {
-                            Text(emote.name).font(.caption2).lineLimit(1).minimumScaleFactor(0.5)
+                        LazyImage(request: EmoteArt.request(emote.id)) { state in
+                            if let image = state.image {
+                                image.resizable().scaledToFit()
+                            } else {
+                                Text(emote.name).font(.caption2).lineLimit(1).minimumScaleFactor(0.5)
+                            }
                         }
                         .frame(width: 32, height: 32)
                     }
@@ -486,8 +492,9 @@ struct ChatLineView: View {
     /// Starts a reply to this line in the composer.
     var reply: () -> Void
     @State private var showingCard = false
-    /// Emote art that has arrived, by the id Twitch named it with.
-    @State private var emotes: [String: Image] = [:]
+    /// Emote art fetched since this line first drew, by the id Twitch named
+    /// it with. Art already in `EmoteArt`'s cache never lands here.
+    @State private var emotes: [String: CGImage] = [:]
 
     var body: some View {
         // A button, so the row highlights under the finger, a slide off it
@@ -611,19 +618,40 @@ struct ChatLineView: View {
     }
 
     /// The words, with any emote whose art has arrived drawn in place of its
-    /// name. Until then — and if the fetch fails — the name shows, which is
-    /// what the chatter typed.
+    /// name, and read aloud as that name. Until then — and if the fetch fails —
+    /// the name shows, which is what the chatter typed.
     private var words: Text {
         line.fragments.reduce(Text("")) { text, fragment in
-            if case .emote(let id, _) = fragment, let art = emotes[id] { return Text("\(text)\(art)") }
+            if case .emote(let id, _) = fragment, let art = emotes[id] ?? EmoteArt.cached(id) {
+                // The 2.0 asset at 2x lands at about a line of text.
+                return Text("\(text)\(Image(art, scale: 2, label: Text(fragment.text)))")
+            }
             return Text("\(text)\(fragment.text)")
         }
     }
 
     private func loadEmotes() async {
-        for case .emote(let id, _) in line.fragments where emotes[id] == nil {
-            if let art = await emoteImage(id) { emotes[id] = art }
+        for case .emote(let id, _) in line.fragments where emotes[id] == nil && EmoteArt.cached(id) == nil {
+            if let art = await EmoteArt.load(id) { emotes[id] = art }
         }
+    }
+}
+
+/// Emote art through Nuke's shared pipeline: fetched and decoded once per
+/// launch and shared by every line and the picker, so a popular emote is a
+/// memory hit — drawn on a line's first frame — rather than a fetch and decode
+/// each time its row scrolls back into view.
+enum EmoteArt {
+    static func request(_ id: String) -> ImageRequest { ImageRequest(url: emoteURL(id)) }
+
+    /// The art if it is already decoded in memory, without waiting.
+    static func cached(_ id: String) -> CGImage? { ImagePipeline.shared.cache[request(id)]?.image.cgImage }
+
+    // ponytail: the first frame — an animated emote's GIF holds still, because
+    // art inlined in a `Text` can't animate. Playing it means drawing the line
+    // as a flow of views rather than one wrapping `Text`.
+    static func load(_ id: String) async -> CGImage? {
+        try? await ImagePipeline.shared.image(for: request(id)).cgImage
     }
 }
 
