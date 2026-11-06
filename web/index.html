@@ -271,12 +271,12 @@
               font: 700 12px/18px ui-sans-serif, system-ui, sans-serif; }
   footer { display: flex; align-items: center; gap: .6rem; padding: .6rem 1rem;
            border-top: 1px solid var(--color-border); min-height: 3.2rem; flex-wrap: wrap; }
-  /* Disabled for want of a pin, but it is also the instruction for getting one,
-     and the shared disabled styling made that instruction the faintest thing on
-     the page. Text at full contrast in a dashed outline reads as both halves of
-     what it is: not pressable yet, and the place the round gets played from. */
-  #go:disabled { color: var(--color-text); border-style: dashed;
-                 border-color: var(--color-muted); }
+  /* Before a pin (.nopin) the button is the instruction for getting one, and
+     pressing it drops one at random; while scoring it is disabled. Both read as
+     not-yet-the-guess: text at full contrast in a dashed outline, the place the
+     round gets played from without looking like the press that spends it. */
+  #go:disabled, #go.nopin { background: transparent; color: var(--color-text); border-style: dashed;
+                            border-color: var(--color-muted); }
   /* Place random drives #go, so it is up on exactly the tiers that get it and
      only while there is a round to spend it on -- a finished game, or a daily
      already played, both leave #go hidden. Expressed as a sibling selector
@@ -855,6 +855,7 @@ map.on('click', e => {
   if (guess) map.removeLayer(guess);
   guess = L.marker(e.latlng).addTo(map);
   go.disabled = false;
+  go.classList.remove('nopin');
   go.textContent = t('Guess');
 });
 
@@ -870,7 +871,11 @@ function startRound() {
   clearMarks();
   if (guess) { map.removeLayer(guess); guess = null; }
   go.hidden = false;
-  go.disabled = true;
+  // Pressable before a pin exists: a press drops one at a random spot on land
+  // (dropRandomPin) and the button turns into Guess, so a pin that wasn't
+  // aimed still takes a second, deliberate press to spend the round.
+  go.disabled = false;
+  go.classList.add('nopin');
   go.textContent = t('Drop a pin to guess');
   go.dataset.phase = 'guess';
   // After the layout, not before: the fit has to be against the box the map
@@ -1267,8 +1272,28 @@ async function showFinished(saved) {
     { score: scoreLine(saved.results, saved.total) });
 }
 
+// Spots well inside the lower 48, hand-picked rather than drawn from
+// US_BOUNDS: a uniform point in that box is often ocean, Canada or Mexico,
+// which reads as a bug when the game placed it. Spread across the regions so
+// the pin is a nudge to drag, not a hint.
+const LAND_SPOTS = [
+  [47.0, -120.5], [44.0, -121.3], [40.8, -119.0], [37.3, -120.5], [34.6, -117.0],
+  [43.6, -114.0], [39.3, -111.7], [35.0, -111.7], [45.8, -108.5], [41.1, -107.5],
+  [38.8, -104.8], [34.5, -106.0], [47.0, -100.0], [41.5, -99.7], [38.5, -98.5],
+  [31.5, -99.0], [35.5, -97.5], [44.9, -93.3], [41.9, -93.0], [38.5, -92.5],
+  [34.8, -92.3], [31.0, -92.0], [43.0, -89.5], [40.0, -89.0], [39.8, -86.2],
+  [42.7, -84.6], [36.2, -86.8], [32.8, -89.5], [33.0, -83.6], [28.2, -81.6],
+  [35.5, -79.5], [37.5, -78.5], [40.5, -77.5], [42.8, -75.5], [44.0, -72.6],
+  [45.2, -69.2], [40.2, -82.8], [37.7, -84.5],
+];
+
+function dropRandomPin() {
+  const [lat, lng] = LAND_SPOTS[Math.floor(Math.random() * LAND_SPOTS.length)];
+  map.fire('click', { latlng: L.latLng(lat, lng) });
+}
+
 go.addEventListener('click', () => {
-  if (go.dataset.phase === 'guess') return reveal();
+  if (go.dataset.phase === 'guess') return guess ? reveal() : dropRandomPin();
   if (idx + 1 < game.length) { idx++; startRound(); }
   else newGame(mode);
 });
