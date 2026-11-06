@@ -4,6 +4,12 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.48.0 — 2026-11-06
+
+### Changed
+
+- Chat emotes come from one shared image cache, so an emote you've already seen draws straight away when its line scrolls back or you open the emote picker, and VoiceOver reads it as its name. ([#545](https://github.com/adanalife/guessr/pull/545))
+
 ## v1.47.0 — 2026-11-04
 
 ### Changed
