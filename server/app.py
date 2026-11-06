@@ -48,6 +48,7 @@ from server import (
     leaderboard,
     link,
     progress,
+    wrapped,
 )
 from server import live, rules, score
 from server.admin_auth import caller, refusal
@@ -92,6 +93,7 @@ ROUTES = [
         ),
     ),
     ("/api/progress", "POST", lambda r: progress.progress(r.db, r.body)),
+    ("/api/wrapped", "POST", lambda r: wrapped.wrapped(r.db, r.body)),
     (
         "/api/gamecenter",
         "POST",
