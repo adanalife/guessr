@@ -99,7 +99,7 @@ enum Telemetry {
         }
         let crumb = Breadcrumb(level: .info, category: "game")
         crumb.message = step.rawValue
-        crumb.data = fields
+        for (key, value) in fields { crumb.setData(value: value, key: key) }
         SentrySDK.addBreadcrumb(crumb)
         SentrySDK.logger.info("game.\(step.rawValue)", attributes: fields)
         gameLog.notice("game.\(step.rawValue, privacy: .public)")
@@ -116,7 +116,7 @@ enum Telemetry {
         ]
         let crumb = Breadcrumb(level: .info, category: "link")
         crumb.message = "opened"
-        crumb.data = fields
+        for (key, value) in fields { crumb.setData(value: value, key: key) }
         SentrySDK.addBreadcrumb(crumb)
         SentrySDK.logger.info("link.opened", attributes: fields)
     }
