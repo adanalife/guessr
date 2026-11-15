@@ -94,8 +94,8 @@ enum Telemetry {
         if let clip { fields["clip"] = clip }
         SentrySDK.configureScope { scope in
             scope.setTag(value: date, key: "round.date")
-            if let round { scope.setTag(value: String(round), key: "round.index") }
-            if let clip { scope.setTag(value: clip, key: "round.clip") }
+            if let round { scope.setTag(value: String(round), key: "round.index") } else { scope.removeTag(key: "round.index") }
+            if let clip { scope.setTag(value: clip, key: "round.clip") } else { scope.removeTag(key: "round.clip") }
         }
         let crumb = Breadcrumb(level: .info, category: "game")
         crumb.message = step.rawValue
