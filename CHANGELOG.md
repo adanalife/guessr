@@ -4,6 +4,12 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.48.1 — 2026-11-15
+
+### Behind the scenes
+
+- The app clears its round and clip Sentry tags on a step with no round, so an error after the day turns over is not filed under yesterday's clip. ([#549](https://github.com/adanalife/guessr/pull/549))
+
 ## v1.48.0 — 2026-11-06
 
 ### Changed
