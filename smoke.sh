@@ -11,9 +11,11 @@
 # comes back "unknown round" on a deploy that looked green. And a missing table
 # from an unapplied migration surfaces here as a 500 rather than on the stream.
 #
-# Read-only by construction: a practice guess (no date) is scored and never
-# recorded, and the rejections all return before the write path. So this leaves
-# nothing behind in the database it runs against, production included.
+# Read-only unless SMOKE_PLAYER_ID is set: a practice guess (no date) is scored
+# and never recorded, and the rejections all return before the write path. So a
+# plain run leaves nothing behind in the database it runs against, production
+# included. With the id set it also plays today's game as that player, which is
+# five rows in `plays` and a line on the day's board.
 set -euo pipefail
 
 BASE="${1:?usage: smoke.sh <base-url>}"
@@ -432,4 +434,35 @@ if ! grep -qE '"videoId":"[A-Za-z0-9_-]{11}"' <<<"$out"; then
   fi
   echo "::warning::/api/live has no video id: the feed answered $feed. The end-of-game"
   echo "::warning::board falls back to its link, which is the designed degradation."
+fi
+
+# Today's game, played for real, where a player id is supplied -- the one part of
+# this script that writes, and so the one part that is opt-in. Every check above
+# reads; a player's daily guess is an insert into `plays`, and a database that
+# reads perfectly can still refuse that.
+#
+# One fixed id, held as a secret by the workflow that sets it, because the id is
+# the only credential the game has: a published one would let anyone play the
+# day first and choose what the board shows for it. A fixed id is also what makes
+# a re-run harmless -- the first write wins, so the second is answered from the
+# row already there.
+#
+# streak_date is read back out of `plays` after the write, so today's date on
+# the fifth answer says all five rounds are on record, not merely accepted.
+#
+# Last, so the play doubles as the run's verdict: every check above exits on
+# failure, which makes a game on record today mean the whole run was green. The
+# pin is always exactly 40, -100, a point no hand lands on, and that is how
+# anything reading `plays` tells these games from a person's without holding
+# the id.
+if [ -n "${SMOKE_PLAYER_ID:-}" ]; then
+  for round in $(jq -r '.rounds[].image' <<<"$day"); do
+    expect "daily guess is recorded" 200 post "$(jq -nc --arg image "$round" \
+      --arg date "$today" --arg id "$SMOKE_PLAYER_ID" \
+      '{image: $image, lat: 40, lng: -100, date: $date, player_id: $id}')"
+    grep -q '"recorded":true' <<<"$out" || { echo "::error::daily guess at $round was not recorded"; exit 1; }
+  done
+  finished=$(head -1 <<<"$out" | jq -r .streak_date)
+  [ "$finished" = "$today" ] || { echo "::error::played all $rounds rounds of $today, and the last finished day on record is '$finished'"; exit 1; }
+  echo "ok: today's game is on record as finished -> $today"
 fi

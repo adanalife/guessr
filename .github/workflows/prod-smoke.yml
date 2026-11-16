@@ -1,0 +1,67 @@
+name: prod-smoke
+# Play production once a day, so a game that stopped working says so.
+#
+# release.yml smoke-tests production at the moment of a deploy, and most of what
+# breaks a live game happens between deploys: the schedule running out of dates,
+# a round whose clip never reached R2, a binding or a secret changed in the
+# dashboard. Those are all green in every workflow that only runs on a push.
+#
+# It plays today's game as a real player too, which is the half a read cannot
+# prove: five guesses written to the production database and read back. That
+# player is on the day's board like any other, at a score nobody has to beat —
+# every guess is the same pin in the middle of the country.
+on:
+  schedule:
+    # 07:37 UTC. After the guessr-rounds top-up (Mondays 06:00 UTC, ~25 min), so
+    # a horizon that was about to lapse is judged after its refill, and off the
+    # hour, where scheduled runs queue longest.
+    - cron: '37 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      # smoke.sh walks the deployed page's module graph with node, and measures
+      # the served clip with ffprobe, which the runner image does not carry.
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .tool-versions
+          package-manager-cache: false
+      - uses: AnimMouse/setup-ffmpeg@v1
+
+      # The custom domain rather than pages.dev: it is the address players use,
+      # and with no deploy in flight there is no stale build to race. No
+      # web/version.json is stamped, so smoke.sh pins no build and judges
+      # whatever production is serving.
+      #
+      # The player id is a secret because it is the only credential the game
+      # has, and this file is public. Unset, smoke.sh would quietly skip the
+      # write and go green on the read-only half, so that is refused here.
+      - name: Smoke-test production
+        env:
+          SMOKE_PLAYER_ID: ${{ secrets.SMOKE_PLAYER_ID }}
+        run: |
+          : "${SMOKE_PLAYER_ID:?the SMOKE_PLAYER_ID secret is not set}"
+          ./smoke.sh https://guessr.dana.lol
+
+      # A red cron is an entry in a list nobody is watching at 07:37.
+      # continue-on-error keeps a dead webhook out of the job's status.
+      - name: Alert Discord on failure
+        if: failure()
+        continue-on-error: true
+        uses: Ilshidur/action-discord@0.4.0
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_ALERTS }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          # Points at the log rather than naming a cause: the run says which
+          # assertion failed, and one red run can also be the runner's network.
+          args: "guessr: the daily production smoke test failed — the live game may not be playable. {{ RUN_URL }}"
