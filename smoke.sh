@@ -447,6 +447,11 @@ fi
 # a re-run harmless -- the first write wins, so the second is answered from the
 # row already there.
 #
+# The handle is what a page sends: a name drawn from the wordlist, without which
+# the play is on the boards as "anonymous". Always the same one, so the row is
+# recognizable; the server drops a name the lists could not have produced, so a
+# word retired from them turns this player anonymous rather than failing the run.
+#
 # streak_date is read back out of `plays` after the write, so today's date on
 # the fifth answer says all five rounds are on record, not merely accepted.
 #
@@ -459,7 +464,7 @@ if [ -n "${SMOKE_PLAYER_ID:-}" ]; then
   for round in $(jq -r '.rounds[].image' <<<"$day"); do
     expect "daily guess is recorded" 200 post "$(jq -nc --arg image "$round" \
       --arg date "$today" --arg id "$SMOKE_PLAYER_ID" \
-      '{image: $image, lat: 40, lng: -100, date: $date, player_id: $id}')"
+      '{image: $image, lat: 40, lng: -100, date: $date, player_id: $id, handle: "Patient Lookout"}')"
     grep -q '"recorded":true' <<<"$out" || { echo "::error::daily guess at $round was not recorded"; exit 1; }
   done
   finished=$(head -1 <<<"$out" | jq -r .streak_date)
