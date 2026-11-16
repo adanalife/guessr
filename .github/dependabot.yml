@@ -20,8 +20,9 @@ updates:
   #   schedule        is weekly on Monday 13:00 UTC, so a week's bumps arrive as
   #                   one batch to review rather than trickling in daily.
   #
-  # Keeps the workflow action pins current; the repo has no package manifest
-  # (the scripts are stdlib-only), so there is no second ecosystem to watch.
+  # The app's Swift dependencies (Nuke, sentry-cocoa) are declared in
+  # app/project.yml for XcodeGen, which Dependabot cannot read, and the root
+  # Package.swift has no external dependencies, so Swift has no entry here.
   #
   # Every ecosystem batches into one weekly PR, majors included, and a second
   # group per ecosystem catches security updates, which Dependabot otherwise
@@ -58,4 +59,25 @@ updates:
       - skip-changelog
     cooldown:
       default-days: 7
+    rebase-strategy: disabled
+  - package-ecosystem: uv
+    directory: /api
+    schedule:
+      interval: weekly
+      day: monday
+      time: "13:00"
+    groups:
+      python:
+        patterns:
+          - "*"
+      python-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    labels:
+      - dependencies
+      - python
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
     rebase-strategy: disabled
