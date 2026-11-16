@@ -326,31 +326,6 @@ grep -q '"recorded":false' <<<"$out" || { echo "::error::practice guess was reco
 # was committed, so undated is refused for any round whose day is not over.
 expect "an undated guess at today's round is refused" 403 post "{\"image\":\"$image\",\"lat\":40,\"lng\":-100}"
 
-# Today's game, played for real, where a player id is supplied -- the one part of
-# this script that writes, and so the one part that is opt-in. Every check above
-# reads; a player's daily guess is an insert into `plays`, and a database that
-# reads perfectly can still refuse that.
-#
-# One fixed id, held as a secret by the workflow that sets it, because the id is
-# the only credential the game has: a published one would let anyone play the
-# day first and choose what the board shows for it. A fixed id is also what makes
-# a re-run harmless -- the first write wins, so the second is answered from the
-# row already there.
-#
-# streak_date is read back out of `plays` after the write, so today's date on
-# the fifth answer says all five rounds are on record, not merely accepted.
-if [ -n "${SMOKE_PLAYER_ID:-}" ]; then
-  for round in $(jq -r '.rounds[].image' <<<"$day"); do
-    expect "daily guess is recorded" 200 post "$(jq -nc --arg image "$round" \
-      --arg date "$today" --arg id "$SMOKE_PLAYER_ID" \
-      '{image: $image, lat: 40, lng: -100, date: $date, player_id: $id}')"
-    grep -q '"recorded":true' <<<"$out" || { echo "::error::daily guess at $round was not recorded"; exit 1; }
-  done
-  finished=$(head -1 <<<"$out" | jq -r .streak_date)
-  [ "$finished" = "$today" ] || { echo "::error::played all $rounds rounds of $today, and the last finished day on record is '$finished'"; exit 1; }
-  echo "ok: today's game is on record as finished -> $today"
-fi
-
 # A round nobody has answers for.
 expect "unknown round is refused" 404 post '{"image":"clips/not-a-real-round.mp4","lat":40,"lng":-100}'
 
@@ -459,4 +434,35 @@ if ! grep -qE '"videoId":"[A-Za-z0-9_-]{11}"' <<<"$out"; then
   fi
   echo "::warning::/api/live has no video id: the feed answered $feed. The end-of-game"
   echo "::warning::board falls back to its link, which is the designed degradation."
+fi
+
+# Today's game, played for real, where a player id is supplied -- the one part of
+# this script that writes, and so the one part that is opt-in. Every check above
+# reads; a player's daily guess is an insert into `plays`, and a database that
+# reads perfectly can still refuse that.
+#
+# One fixed id, held as a secret by the workflow that sets it, because the id is
+# the only credential the game has: a published one would let anyone play the
+# day first and choose what the board shows for it. A fixed id is also what makes
+# a re-run harmless -- the first write wins, so the second is answered from the
+# row already there.
+#
+# streak_date is read back out of `plays` after the write, so today's date on
+# the fifth answer says all five rounds are on record, not merely accepted.
+#
+# Last, so the play doubles as the run's verdict: every check above exits on
+# failure, which makes a game on record today mean the whole run was green. The
+# pin is always exactly 40, -100, a point no hand lands on, and that is how
+# anything reading `plays` tells these games from a person's without holding
+# the id.
+if [ -n "${SMOKE_PLAYER_ID:-}" ]; then
+  for round in $(jq -r '.rounds[].image' <<<"$day"); do
+    expect "daily guess is recorded" 200 post "$(jq -nc --arg image "$round" \
+      --arg date "$today" --arg id "$SMOKE_PLAYER_ID" \
+      '{image: $image, lat: 40, lng: -100, date: $date, player_id: $id}')"
+    grep -q '"recorded":true' <<<"$out" || { echo "::error::daily guess at $round was not recorded"; exit 1; }
+  done
+  finished=$(head -1 <<<"$out" | jq -r .streak_date)
+  [ "$finished" = "$today" ] || { echo "::error::played all $rounds rounds of $today, and the last finished day on record is '$finished'"; exit 1; }
+  echo "ok: today's game is on record as finished -> $today"
 fi
