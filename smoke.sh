@@ -464,7 +464,7 @@ if [ -n "${SMOKE_PLAYER_ID:-}" ]; then
   for round in $(jq -r '.rounds[].image' <<<"$day"); do
     expect "daily guess is recorded" 200 post "$(jq -nc --arg image "$round" \
       --arg date "$today" --arg id "$SMOKE_PLAYER_ID" \
-      '{image: $image, lat: 40, lng: -100, date: $date, player_id: $id, handle: "Patient Lookout"}')"
+      '{image: $image, lat: 40, lng: -100, date: $date, player_id: $id, handle: "Midnight Lookout"}')"
     grep -q '"recorded":true' <<<"$out" || { echo "::error::daily guess at $round was not recorded"; exit 1; }
   done
   finished=$(head -1 <<<"$out" | jq -r .streak_date)
