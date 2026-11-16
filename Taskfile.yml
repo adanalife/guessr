@@ -522,8 +522,8 @@ tasks:
 
   smoke:
     desc: "Check a deployed tier is actually playable: task smoke -- <base-url>.
-      Read-only, so it is safe against production — and the thing to run by hand
-      after an answers push"
+      Read-only unless SMOKE_PLAYER_ID is set, so it is safe against production —
+      and the thing to run by hand after an answers push"
     cmds:
       - ./smoke.sh {{.CLI_ARGS}}
 

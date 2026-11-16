@@ -6,8 +6,10 @@ name: prod-smoke
 # a round whose clip never reached R2, a binding or a secret changed in the
 # dashboard. Those are all green in every workflow that only runs on a push.
 #
-# smoke.sh is read-only by construction — a practice guess is scored and never
-# recorded — so this leaves nothing behind in the production database.
+# It plays today's game as a real player too, which is the half a read cannot
+# prove: five guesses written to the production database and read back. That
+# player is on the day's board like any other, at a score nobody has to beat —
+# every guess is the same pin in the middle of the country.
 on:
   schedule:
     # 07:37 UTC. After the guessr-rounds top-up (Mondays 06:00 UTC, ~25 min), so
@@ -39,8 +41,16 @@ jobs:
       # and with no deploy in flight there is no stale build to race. No
       # web/version.json is stamped, so smoke.sh pins no build and judges
       # whatever production is serving.
+      #
+      # The player id is a secret because it is the only credential the game
+      # has, and this file is public. Unset, smoke.sh would quietly skip the
+      # write and go green on the read-only half, so that is refused here.
       - name: Smoke-test production
-        run: ./smoke.sh https://guessr.dana.lol
+        env:
+          SMOKE_PLAYER_ID: ${{ secrets.SMOKE_PLAYER_ID }}
+        run: |
+          : "${SMOKE_PLAYER_ID:?the SMOKE_PLAYER_ID secret is not set}"
+          ./smoke.sh https://guessr.dana.lol
 
       # A red cron is an entry in a list nobody is watching at 07:37.
       # continue-on-error keeps a dead webhook out of the job's status.
