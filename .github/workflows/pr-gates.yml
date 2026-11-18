@@ -14,10 +14,14 @@ on:
     # `edited` re-runs the title check when a title is fixed; `labeled` /
     # `unlabeled` the same for the skip-changelog escape hatch.
     types: [opened, edited, reopened, synchronize, labeled, unlabeled]
+  # Main pushes run `tests` alone, for the coverage figure it posts.
+  push:
+    branches: [main]
 
+# Never cancelled on main, so every push gets to post its figure.
 concurrency:
-  group: pr-gates-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: pr-gates-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # What the shared gates job reads: the checkout, the PR (title check) and GHCR
 # (the pinned-tag check). Without a block every job here would get the repo's
@@ -29,6 +33,7 @@ permissions:
 
 jobs:
   gates:
+    if: github.event_name == 'pull_request'
     # `statuses: write` is for the per-gate commit statuses gates posts on the
     # PR head; only this job gets it.
     permissions:
@@ -49,6 +54,10 @@ jobs:
         scripts/number-fragment-test.sh
 
   tests:
+    # `statuses: write` for the coverage figure below; only this job posts it.
+    permissions:
+      contents: read
+      statuses: write
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -104,10 +113,25 @@ jobs:
       # step above.
       #
       # Under uv for the one dependency the server tests need, Starlette, which
-      # api/pyproject.toml declares and api/uv.lock pins.
+      # api/pyproject.toml declares and api/uv.lock pins. Each file runs under
+      # coverage, the test files themselves left out of the figure.
       - uses: astral-sh/setup-uv@v10.3.3 # no floating major tag published
       - name: Python tests
-        run: for f in test_*.py; do echo "== $f"; uv run --project api python "$f" || exit 1; done
+        run: for f in test_*.py; do echo "== $f"; uv run --project api coverage run -p --omit='test_*.py' "$f" || exit 1; done
+
+      # The Python suite's total as a `coverage` commit status on each main
+      # push, which is where the console's main-CI row reads every repo's
+      # figure from. The node tests aren't measured.
+      - name: Post the coverage figure
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          uv run --project api coverage combine -q
+          figure="$(uv run --project api coverage report --format=total --precision=1)%"
+          echo "## Coverage: $figure" >> "$GITHUB_STEP_SUMMARY"
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            -f state=success -f context=coverage -f description="$figure"
 
       # wrangler tracks applied migrations by filename, so two files sharing a
       # number both apply and nothing breaks -- but the order between them is

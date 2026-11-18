@@ -18,4 +18,4 @@ dependencies = ["starlette"]
 [dependency-groups]
 # workers-py is `pywrangler`, which vendors the runtime SDK into python_modules/
 # for a deploy; the `workers` module is not built into the runtime.
-dev = ["workers-py", "workers-runtime-sdk", "uvicorn"]
+dev = ["workers-py", "workers-runtime-sdk", "uvicorn", "coverage>=7.17.3"]
