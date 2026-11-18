@@ -81,6 +81,27 @@ async def test_progress() -> None:
     _, nobody = await progress(db, {"date": DATE, "player_id": "stranger"})
     assert nobody["rounds"] == [], "a stranger sees plays"
 
+    # A replayed date has no round_days, so played_at is the only order. Inserted
+    # in neither image nor played order, so neither the key nor rowid sorts them.
+    replay = "2026-07-01"
+    for img, at in (
+        ("2.mp4", "2026-07-01 10:00:02"),
+        ("3.mp4", "2026-07-01 10:00:00"),
+        ("1.mp4", "2026-07-01 10:00:01"),
+    ):
+        await db.execute(
+            "INSERT INTO plays (date, player_id, image, km, points, played_at)"
+            " VALUES (?, ?, ?, 1, 1, ?)",
+            replay,
+            PHONE,
+            img,
+            at,
+        )
+    _, replayed = await progress(db, {"date": replay, "player_id": PHONE})
+    assert [r["image"] for r in replayed["rounds"]] == ["3.mp4", "1.mp4", "2.mp4"], (
+        replayed
+    )
+
 
 async def test_streak() -> None:
     db = Sqlite().migrate()

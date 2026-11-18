@@ -12,7 +12,8 @@ from server import rules
 
 # In the order the day dealt them, so a client can walk its own round list and
 # stop at the first one missing. LEFT JOIN on the schedule: a play whose round
-# was swapped out keeps its row, last.
+# was swapped out keeps its row, last. A replayed date has no schedule, so its
+# plays come back in the order they were played.
 PLAYED = """
   SELECT p.image, p.km, p.points, p.guess_lat, p.guess_lng,
          a.lat, a.lng, a.state, a.filmed
@@ -20,7 +21,7 @@ PLAYED = """
     JOIN answers a ON a.image = p.image
     LEFT JOIN round_days rd ON rd.date = p.date AND rd.image = p.image
    WHERE p.date = ? AND p.player_id = ?
-   ORDER BY rd.position IS NULL, rd.position"""
+   ORDER BY rd.position IS NULL, rd.position, p.played_at"""
 
 
 async def progress(db, body) -> tuple[int, dict]:

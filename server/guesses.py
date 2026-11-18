@@ -43,7 +43,7 @@ _GUESSES = """
     LEFT JOIN round_days rd ON rd.date = p.date AND rd.image = p.image
     LEFT JOIN answers a ON a.image = p.image
    WHERE p.player_id = ?2 AND p.date {span}
-   ORDER BY p.date, rd.position"""
+   ORDER BY p.date, rd.position, p.played_at"""
 DAILY_GUESSES = _GUESSES.format(span="= ?1")
 MONTHLY_GUESSES = _GUESSES.format(span=in_month("?1"))
 
