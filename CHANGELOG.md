@@ -4,6 +4,15 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.49.0 — 2026-11-18
+
+### Behind the scenes
+
+- The app sets Sentry breadcrumb data key by key, ahead of the SDK making the whole-dictionary setter read-only. ([#547](https://github.com/adanalife/guessr/pull/547))
+- The live game is now checked once a day, so a day with no playable game gets noticed without waiting for a player to report it. ([#555](https://github.com/adanalife/guessr/pull/555))
+- The daily check of the live game now plays under a name, so it reads as a player on the boards rather than as anonymous. ([#556](https://github.com/adanalife/guessr/pull/556))
+- The chat's long-press menu can open a chatter's profile, for apps built on the shared chat code that show one. ([#557](https://github.com/adanalife/guessr/pull/557))
+
 ## v1.48.1 — 2026-11-15
 
 ### Behind the scenes
