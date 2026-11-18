@@ -292,6 +292,19 @@ final class MemoryPlayerStore: PlayerStore, @unchecked Sendable {
     UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
 }
 
+@Test func theGroupStoreLetsGoOfAPlayerOnlyOnceAnotherStoreHoldsIt() {
+    let suite = "lol.dana.guessr.tests.\(UUID().uuidString)"
+    let group = GroupPlayerStore(suite: suite)
+    let clips = Player(id: "clip", alias: "Clip Player")
+    group.save(clips)
+    group.clear(ifAdoptedIn: MemoryPlayerStore())
+    group.clear(ifAdoptedIn: MemoryPlayerStore(Player(id: "kept", alias: "Kept Player")))
+    #expect(group.load() == clips)
+    group.clear(ifAdoptedIn: MemoryPlayerStore(clips))
+    #expect(group.load() == nil)
+    UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
+}
+
 @Test func theWebsitesLinkCodeNamesThePlayerAndTheirName() {
     // What web/link.js writes: URLSearchParams, so a space is a `+`.
     let link = DeviceLink(URL(string: "https://guessr.dana.lol/#link=5d2c8e1a-9b3f-4c7d-a6e0-1f2b3c4d5e6f&name=Patient+Delta")!)
