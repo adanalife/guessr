@@ -377,6 +377,8 @@
            can still find their own. -->
       <p><label><span data-i18n>Language</span>
         <select id="lang"><option value="" data-i18n>Auto</option></select></label></p>
+      <p><label><span data-i18n>Units</span>
+        <select id="units"><option value="mi" data-i18n>Imperial</option><option value="km" data-i18n>Metric</option></select></label></p>
       <!-- Both halves are stamped in at deploy time, so the whole line stays
            hidden until version.json says something. The reset is for the
            testing tiers: the intro, the About dot and the daily record are all
@@ -500,7 +502,7 @@ import {
   seen,
 } from './storage.js';
 import { fitScale, fitView, panView, zoomAbout } from './zoom.js';
-import { LANG_KEY, LANGUAGES, NAMES, t, translatePage } from './i18n.js';
+import { formatDistance, LANG_KEY, LANGUAGES, NAMES, pickUnits, t, translatePage, UNITS_KEY } from './i18n.js';
 
 // Before anything below reads or writes the page's words.
 translatePage();
@@ -522,6 +524,27 @@ translatePage();
       /* storage refused: nothing to remember the choice in */
     }
     location.reload();
+  });
+}
+
+let units;
+{
+  const picker = document.getElementById('units');
+  let saved = null;
+  try {
+    saved = localStorage.getItem(UNITS_KEY);
+  } catch {
+    /* nothing saved: the browser's locale picks */
+  }
+  units = picker.value = pickUnits(navigator.languages ?? [], saved);
+  // Takes effect from the next reveal.
+  picker.addEventListener('change', () => {
+    units = picker.value;
+    try {
+      localStorage.setItem(UNITS_KEY, units);
+    } catch {
+      /* storage refused: the choice lasts this visit */
+    }
   });
 }
 
@@ -946,9 +969,8 @@ async function reveal() {
   const last = idx + 1 >= game.length;
   if (!last) map.fitBounds(line.getBounds(), { padding: [50, 50], maxZoom: 9 });
 
-  const miles = Math.round(km * 0.621371);
-  result.innerHTML = t('<b>{state}</b>, {filmed} — you were off by <b>{miles} mi</b> for <b>{pts}</b> points.', {
-    state: scored.state, filmed: scored.filmed, miles: miles.toLocaleString(), pts: pts.toLocaleString(),
+  result.innerHTML = t('<b>{state}</b>, {filmed} — you were off by <b>{distance}</b> for <b>{pts}</b> points.', {
+    state: scored.state, filmed: scored.filmed, distance: formatDistance(km, units), pts: pts.toLocaleString(),
   });
 
   go.disabled = false;

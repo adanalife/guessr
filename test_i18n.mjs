@@ -6,7 +6,7 @@
 // and nothing errors. This is the only thing that notices.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { LANGUAGES, STRINGS, pickLanguage } from './web/i18n.js';
+import { formatDistance, LANGUAGES, STRINGS, pickLanguage, pickUnits } from './web/i18n.js';
 
 const page = readFileSync('web/index.html', 'utf8');
 const squash = s => s.replace(/\s+/g, ' ').trim();
@@ -59,3 +59,20 @@ assert.equal(pickLanguage(['fr'], '', 'en'), 'en');
 assert.equal(pickLanguage(['fr'], '?lang=ru', 'cs'), 'ru');
 assert.equal(pickLanguage(['fr'], '', 'xx'), 'fr');
 console.log('ok: the language comes from the browser, and ?lang= overrides it');
+
+// Miles where the locale drives in them, kilometers elsewhere; a saved choice wins.
+assert.equal(pickUnits(['en-US']), 'mi');
+assert.equal(pickUnits(['en']), 'mi');
+assert.equal(pickUnits(['en-GB']), 'mi');
+assert.equal(pickUnits(['en-AU']), 'km');
+assert.equal(pickUnits(['fr']), 'km');
+assert.equal(pickUnits([]), 'mi');
+assert.equal(pickUnits(['not a tag']), 'mi');
+assert.equal(pickUnits(['fr'], 'mi'), 'mi');
+assert.equal(pickUnits(['en-US'], 'km'), 'km');
+assert.equal(pickUnits(['fr'], 'xx'), 'km');
+assert.equal(formatDistance(100, 'mi', 'en'), '62 mi');
+assert.equal(formatDistance(1234.6, 'km', 'en'), '1,235 km');
+assert.equal(formatDistance(0.4, 'km', 'en'), '0 km');
+assert.equal(formatDistance(100, 'km', 'ru'), '100 км');
+console.log('ok: units default by locale, a saved choice wins, and distances format in either');
