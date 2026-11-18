@@ -159,6 +159,13 @@ public struct GroupPlayerStore: PlayerStore {
     public func clear() {
         UserDefaults(suiteName: suite)?.removeObject(forKey: key)
     }
+
+    /// Clears the clip's player once `store` holds the same id, the full app
+    /// having adopted it. Until that store reads it back, the group's copy is
+    /// what the next launch adopts again instead of minting a new player.
+    public func clear(ifAdoptedIn store: some PlayerStore) {
+        if let held = load(), held.id == store.load()?.id { clear() }
+    }
 }
 
 extension PlayerStore {

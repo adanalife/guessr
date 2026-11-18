@@ -202,6 +202,7 @@ struct GuessrApp: App {
     /// run, so a failure is retried on the next launch.
     private func foldInClip() async {
         let group = GroupPlayerStore()
+        group.clear(ifAdoptedIn: players)
         guard let clip = group.handedOver(besides: player) else { return }
         do {
             let moved = try await client.link(DeviceLink(id: player.id), from: clip)
