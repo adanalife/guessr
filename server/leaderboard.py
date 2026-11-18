@@ -89,6 +89,14 @@ PREV_ROWS = 1000
 PREV_DAILY = query("= ?", named=False)
 PREV_MONTHLY = query(in_month("?1") + " AND p.date < ?2", named=False)
 
+# A previous board reads closed dates only, which no play can land on; a link
+# merge moving a player's plays is the one write that reorders it, and a minute
+# late is the same staleness the response's own max-age already allows. Keyed
+# on the query and its arguments, so a new cutoff is a new entry.
+# shortcut: per-isolate cache, each isolate pays one aggregate per window; move to the Cache API if board traffic outgrows that
+PREV_TTL = dt.timedelta(seconds=60)
+PREV_CACHE: dict[tuple, tuple[dt.datetime, list[dict]]] = {}
+
 # The newest date anyone played, at or before a cutoff. plays_by_date_points
 # makes it a seek.
 LATEST_PLAYED = "SELECT MAX(date) AS date FROM plays WHERE date <= ?"
@@ -205,10 +213,19 @@ async def previous(db, board: str, period: str, now=None) -> dict[str, int]:
     never moves, so it has none; empty means there is nothing to compare."""
     if board == "daily":
         day = (dt.date.fromisoformat(period) - dt.timedelta(days=1)).isoformat()
-        results = await db.fetchall(PREV_DAILY, day, PREV_ROWS)
+        read = (PREV_DAILY, day, PREV_ROWS)
     elif period == rules.month_of(now):
         cutoff = rules.last_closed_date(now)
-        results = await db.fetchall(PREV_MONTHLY, period, cutoff, PREV_ROWS)
+        read = (PREV_MONTHLY, period, cutoff, PREV_ROWS)
     else:
         return {}
+    at = now or dt.datetime.now(dt.UTC)
+    hit = PREV_CACHE.get(read)
+    if hit and at - hit[0] < PREV_TTL:
+        results = hit[1]
+    else:
+        for key in [k for k, (t, _) in PREV_CACHE.items() if at - t >= PREV_TTL]:
+            del PREV_CACHE[key]
+        results = await db.fetchall(*read)
+        PREV_CACHE[read] = (at, results)
     return {r["player_id"]: i for i, r in enumerate(results, 1)}
