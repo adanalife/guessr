@@ -73,3 +73,12 @@ button.secondary:hover {
   color: var(--color-text);
   border-color: var(--color-text);
 }
+
+/* A press answers the finger at once: a slight shrink, or a dim where the
+   reader has asked for less motion. */
+button { transition: transform 100ms ease-out; }
+button:active:not(:disabled) { transform: scale(.97); }
+@media (prefers-reduced-motion: reduce) {
+  button { transition: none; }
+  button:active:not(:disabled) { transform: none; opacity: .75; }
+}
