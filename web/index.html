@@ -490,7 +490,7 @@
      reads and the one the server enforces (server/rules.py) have to agree. The classic scripts above run first, so Leaflet's `L`
      is in place by the time this executes. -->
 <script type="module">
-import { ROUNDS_PER_GAME, dailyState, dateForDay, effectiveDay } from './daily.js';
+import { ROUNDS_PER_GAME, dailyFromProgress, dailyState, dateForDay, effectiveDay } from './daily.js';
 import { aliasFrom, isAlias } from './alias.js';
 import { linkUrl, parseLink } from './link.js';
 import { request } from './request.js';
@@ -1496,11 +1496,34 @@ el('claim').addEventListener('submit', async event => {
   if (!await askLink(await peek.json(), t('Entered code'))) return;
   const res = await post('api/link/claim');
   if (!res?.ok) return refused(res);
-  localStorage.setItem(PLAYER_KEY, (await res.json()).player_id);
+  const to = (await res.json()).player_id;
+  localStorage.setItem(PLAYER_KEY, to);
+  await adoptDaily(to);
   // Reloaded for the reason adoptLink() gives: everything on screen was drawn
   // for a player who no longer plays here.
   location.reload();
 });
+
+// Today's rounds as the merged player holds them, saved over this browser's own
+// before the reload. Where both devices played a round the server keeps the
+// adopted id's play, so without this the page would show and share a day the
+// player no longer has. A failed fetch, or nothing played there today, leaves
+// the save as it is: dropping it instead would hand the day out to play again.
+async function adoptDaily(player) {
+  try {
+    const day = today();
+    const date = dateForDay(day);
+    const res = await request('api/progress', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ date, player_id: player }),
+    });
+    if (!res.ok) return;
+    const { rounds: rows } = await res.json();
+    const record = dailyFromProgress(rows, await loadRounds(`date=${date}`), day);
+    if (record) saveDaily(record);
+  } catch { /* keep the save already here */ }
+}
 
 // Asks whether to merge, from a /api/link/preview answer: the two players side
 // by side, then a button for each. Resolves true only on the merge button;
@@ -1593,6 +1616,7 @@ async function adoptLink() {
 
   localStorage.setItem(PLAYER_KEY, to);
   if (isAlias(name)) alias(name);
+  await adoptDaily(to);
   // Reloaded rather than patched in place: a day may be part-played under the
   // old id, and everything on screen was drawn for a player who no longer plays
   // here.
