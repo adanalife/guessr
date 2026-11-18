@@ -118,3 +118,32 @@ export function dailyState(saved, day, roundsPerGame) {
   if (!saved || saved.day !== day) return 'unplayed';
   return saved.results.length >= roundsPerGame ? 'finished' : 'unfinished';
 }
+
+// The stored daily record for a day as the server holds it, from /api/progress
+// rows and the day's own round list. Walks the rounds in the order the day deals
+// them and stops at the first one with no play, so the record is positional
+// whatever order the rows arrive in, a partial day resumes at its next round,
+// and a play whose round was swapped out of the day is left behind.
+//
+// Null when nothing lines up -- the caller keeps whatever save it already has.
+// Guesses are left off when any row lacks its coordinates, which is the shape
+// of a save from before guesses were kept: the board still draws, without lines.
+export function dailyFromProgress(rows, rounds, day) {
+  const byImage = new Map((rows || []).map(row => [row.image, row]));
+  const played = [];
+  for (const { image } of rounds || []) {
+    if (!byImage.has(image)) break;
+    played.push(byImage.get(image));
+  }
+  if (!played.length) return null;
+  const record = {
+    day,
+    results: played.map(r => r.points),
+    total: played.reduce((sum, r) => sum + r.points, 0),
+    truths: played.map(({ lat, lng, state, filmed }) => ({ lat, lng, state, filmed })),
+  };
+  if (played.every(r => r.guess_lat != null && r.guess_lng != null)) {
+    record.guesses = played.map(r => [r.guess_lat, r.guess_lng]);
+  }
+  return record;
+}

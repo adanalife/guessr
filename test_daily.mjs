@@ -11,7 +11,7 @@
 // make_rounds.py's schedule() and are covered by test_schedule.py.
 import assert from 'node:assert';
 import {
-  dailyState, dateForDay, dayNumber,
+  dailyFromProgress, dailyState, dateForDay, dayNumber,
   effectiveDay, isOpen, lastClosedDate, monthOf, playWindow,
 } from './web/daily.js';
 
@@ -149,6 +149,39 @@ assert.strictEqual(dailyState(flew, effectiveDay(flew, new Date(2026, 7, 12)), 5
 // And a first-ever visit has no record to clamp to.
 assert.strictEqual(effectiveDay(null, new Date(2026, 7, 1)), dayNumber(new Date(2026, 7, 1)));
 
+// A merged player's day, rebuilt from /api/progress rows into the record the
+// page resumes, shows and shares from. Positional against the day's own round
+// list, so the rows' order is never trusted.
+const dealt = ['a', 'b', 'c', 'd', 'e'].map(image => ({ image }));
+const row = (image, points) => ({
+  image, km: 10, points, guess_lat: 40, guess_lng: -100,
+  lat: 41, lng: -101, state: 'Kansas', filmed: '2019',
+});
+const full = dailyFromProgress(['a', 'b', 'c', 'd', 'e'].map((im, i) => row(im, i + 1)), dealt, 9);
+assert.deepStrictEqual(full.results, [1, 2, 3, 4, 5]);
+assert.strictEqual(full.total, 15);
+assert.deepStrictEqual(full.guesses[0], [40, -100]);
+assert.deepStrictEqual(full.truths[0], { lat: 41, lng: -101, state: 'Kansas', filmed: '2019' });
+assert.strictEqual(dailyState(full, 9, 5), 'finished', 'a full merged day did not read as finished');
+// A partial day resumes at the round after its last play.
+const partial = dailyFromProgress([row('a', 7), row('b', 8)], dealt, 9);
+assert.deepStrictEqual(partial.results, [7, 8]);
+assert.strictEqual(dailyState(partial, 9, 5), 'unfinished');
+// Out of order, and with a swapped-out round sorting anywhere: the record
+// follows the deal, and the stranger is left behind.
+const shuffled = dailyFromProgress([row('c', 3), row('gone', 99), row('a', 1), row('b', 2)], dealt, 9);
+assert.deepStrictEqual(shuffled.results, [1, 2, 3], 'rows were not put in the day\'s order');
+assert.strictEqual(shuffled.total, 6);
+// A gap stops the walk: nothing after an unplayed round can be resumed into.
+assert.deepStrictEqual(dailyFromProgress([row('a', 1), row('c', 3)], dealt, 9).results, [1]);
+// Missing guess coordinates leave the guesses off rather than inventing them.
+assert.ok(!('guesses' in dailyFromProgress([{ ...row('a', 1), guess_lat: null }], dealt, 9)));
+// Nothing played, or nothing to read: no record, so the caller keeps its save.
+assert.strictEqual(dailyFromProgress([], dealt, 9), null);
+assert.strictEqual(dailyFromProgress(undefined, dealt, 9), null);
+assert.strictEqual(dailyFromProgress([row('a', 1)], [], 9), null);
+
+console.log('ok: a merged day saves in the deal\'s order, and nothing replaces a save');
 console.log('ok: a partial day resumes, a played-out day stays played out');
 console.log('ok: the day number only moves forwards, whatever the clock does');
 console.log('ok: every day number maps to the calendar date it came from');
