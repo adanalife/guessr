@@ -887,7 +887,9 @@ function clearMarks() { marks.forEach(m => { map.removeLayer(m); }); marks = [];
 map.on('click', e => {
   if (go.dataset.phase !== 'guess') return;
   if (guess) map.removeLayer(guess);
-  guess = L.marker(e.latlng).addTo(map);
+  // Draggable so a guess can be nudged in place; reveal() reads the marker's
+  // position at submit and locks it for the rest of the round.
+  guess = L.marker(e.latlng, { draggable: true }).addTo(map);
   go.disabled = false;
   go.textContent = t('Guess');
 });
@@ -927,6 +929,7 @@ async function reveal() {
   // Off the guess phase for the duration, so a map click mid-flight can't move
   // the pin out from under the answer being scored.
   go.dataset.phase = 'scoring';
+  guess.dragging.disable();
   const at = guess.getLatLng();
   const elapsedMs = Math.round(performance.now() - roundStart);
 
@@ -946,6 +949,7 @@ async function reveal() {
     // Back to guessing with the pin still where it was -- losing a round to a
     // dropped request would be worse than the retry.
     go.dataset.phase = 'guess';
+    guess.dragging.enable();
     go.disabled = false;
     go.textContent = t('Guess');
     result.textContent = t('Could not reach the scorer. Try that guess again.');
