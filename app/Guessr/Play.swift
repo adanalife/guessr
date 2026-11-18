@@ -405,11 +405,14 @@ struct PlayView: View {
         defer { scoring = false }
         let at = Coordinate(lat: pin.latitude, lng: pin.longitude)
         let playedOn = progress.date
+        // Thinking time stops at the tap: the request and telemetry share it,
+        // and neither counts the network round trip.
+        let elapsed = ContinuousClock.now - roundShown
         do {
             // A round this player already guessed comes back with the score on
             // record, so a lost save cannot buy a better one.
             let score = try await client.score(
-                image: image, guess: at, date: playedOn, player: player, elapsed: .now - roundShown)
+                image: image, guess: at, date: playedOn, player: player, elapsed: elapsed)
             // Midnight turned the day over while this was in flight: the play is
             // recorded server-side, and today's progress is not where it belongs.
             guard progress.date == playedOn else { return }
@@ -417,7 +420,7 @@ struct PlayView: View {
             Saved.progress = progress
             Telemetry.step(
                 .guessed, date: progress.date, round: progress.played.count, clip: image,
-                data: ["points": score.points, "seconds": Int((ContinuousClock.now - roundShown).components.seconds)])
+                data: ["points": score.points, "seconds": Int(elapsed.components.seconds)])
             scored(score, progress)
             // The map travels from the guess out to the answer, and the reveal
             // grows in around it, rather than cutting to both.
