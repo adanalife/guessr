@@ -200,6 +200,7 @@ public struct UserFact: Hashable, Identifiable, Sendable {
         var warn: ((String) -> Void)?
         var hide: (() -> Void)?
         var report: URL?
+        var profile: (() -> Void)?
         @Environment(\.openURL) private var openURL
         /// Whether the system translation sheet is up for this line.
         @State private var translating = false
@@ -209,12 +210,12 @@ public struct UserFact: Hashable, Identifiable, Sendable {
         @State private var reason = ""
 
         /// `translatable` is the text the Translate item offers, nil for none;
-        /// `name` is who the ban confirmation names; `reply`, when given,
-        /// heads the menu.
+        /// `name` is who the ban confirmation names; `profile`, when given,
+        /// heads the menu as the way to the chatter's card, then `reply`.
         public init(
             translatable: String?, name: String, delete: (() -> Void)?, ban: ((Int, String?) -> Void)?,
             reply: (() -> Void)? = nil, warn: ((String) -> Void)? = nil,
-            hide: (() -> Void)? = nil, report: URL? = nil
+            hide: (() -> Void)? = nil, report: URL? = nil, profile: (() -> Void)? = nil
         ) {
             self.translatable = translatable
             self.name = name
@@ -224,6 +225,7 @@ public struct UserFact: Hashable, Identifiable, Sendable {
             self.warn = warn
             self.hide = hide
             self.report = report
+            self.profile = profile
         }
 
         /// The typed reason, nil when the field was left blank.
@@ -242,6 +244,9 @@ public struct UserFact: Hashable, Identifiable, Sendable {
                 // time palls.
                 content
                     .contextMenu {
+                        if let profile {
+                            Button(String(localized: "View profile", bundle: .module), systemImage: "person.crop.circle", action: profile)
+                        }
                         if let reply {
                             Button(String(localized: "Reply", bundle: .module), systemImage: "arrowshape.turn.up.left", action: reply)
                         }
