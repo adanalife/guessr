@@ -49,7 +49,8 @@ PLAYERS = f"""
 # `answers` is an inner join because 0004 made plays.image reference it.
 # `round_days` is a LEFT JOIN because old plays sit on images never scheduled
 # under their date, and they are the games somebody is most likely asking about.
-# Ordered so grouping is one pass and rounds arrive in the order they were dealt.
+# Ordered so grouping is one pass and rounds arrive in the order they were dealt,
+# or, on a replayed date with no schedule, the order they were played.
 PLAYS = f"""
   SELECT p.player_id,
          {name_expr("p.player_id")} AS name,
@@ -61,7 +62,7 @@ PLAYS = f"""
     LEFT JOIN players n ON n.player_id = p.player_id
     LEFT JOIN round_days d ON d.date = p.date AND d.image = p.image
    WHERE p.date = ?
-   ORDER BY p.player_id, d.position
+   ORDER BY p.player_id, d.position, p.played_at
    LIMIT ?"""
 
 ROUND_FIELDS = (
