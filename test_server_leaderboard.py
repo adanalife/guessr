@@ -13,8 +13,10 @@ from server.db import Sqlite
 from server.leaderboard import (
     DAILY,
     MONTHLY,
+    PREV_CACHE,
     PREV_DAILY,
     PREV_MONTHLY,
+    PREV_TTL,
     label,
     leaderboard,
 )
@@ -26,7 +28,9 @@ MONTH = "2026-08"
 
 def db(rows) -> Sqlite:
     """rows: (date, player, image, points, handle[, played_at]). played_at is a
-    plain string, so a test can hand-place rows in time."""
+    plain string, so a test can hand-place rows in time. A new database starts
+    with no cached previous board, so every test reads its own."""
+    PREV_CACHE.clear()
     d = Sqlite().migrate()
     for image in {r[2] for r in rows} | {"a.jpg"}:
         d.conn.execute(
@@ -365,9 +369,43 @@ async def test_prev() -> None:
     assert "prev" not in (await leaderboard(fresh, {"board": "monthly"}, NOW))[1]
 
 
+async def test_prev_cache() -> None:
+    """A previous board is read once per window and reread after it, while the
+    served board is read on every request."""
+    d = db(
+        [
+            ("2026-08-15", "p1", "a.jpg", 900, "Lucky Overpass"),
+            (DAY, "p2", "a.jpg", 400, "Winding Valley"),
+        ]
+    )
+    reads = []
+    fetchall = d.fetchall
+
+    async def counted(sql, *args):
+        reads.append(sql)
+        return await fetchall(sql, *args)
+
+    d.fetchall = counted
+
+    async def get(now):
+        reads.clear()
+        body = (await leaderboard(d, {"board": "monthly"}, now))[1]
+        return body["prev"], reads.count(MONTHLY), reads.count(PREV_MONTHLY)
+
+    assert await get(NOW) == ([1, 0], 1, 1)
+    within = NOW + PREV_TTL - dt.timedelta(seconds=1)
+    assert await get(within) == ([1, 0], 1, 0)
+    # A link merge folds p1 into p2 inside the window: served late, then reread.
+    # p2 now leads with p1's plays, and the cached board has only p1 on it.
+    d.conn.execute("UPDATE plays SET player_id = 'p2' WHERE player_id = 'p1'")
+    assert await get(within) == ([0], 1, 0)
+    assert await get(NOW + PREV_TTL) == ([1], 1, 1)
+
+
 test_names()
 test_ranking()
 test_label()
 asyncio.run(test_handler())
 asyncio.run(test_prev())
+asyncio.run(test_prev_cache())
 print("ok: the Python /api/leaderboard matches the contract test_leaderboard.mjs holds")
