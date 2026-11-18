@@ -307,6 +307,11 @@
        at once, which is the order the numbered badges imply. */
     #sheet .live { order: -1; }
   }
+  /* Leaflet's zoom (buttons, scroll, double-click) snaps instead of scaling.
+     Its own 250ms timer ends the zoom, so nothing waits on a transitionend. */
+  @media (prefers-reduced-motion: reduce) {
+    .leaflet-zoom-anim .leaflet-zoom-animated { transition: none; }
+  }
 </style>
 </head>
 <body>
@@ -615,6 +620,12 @@ async function scoreGuess(image, latlng, date, elapsedMs) {
 }
 
 const map = L.map('map', { worldCopyJump: false });
+// Read at each animation rather than once, so a changed OS setting applies
+// without a reload.
+const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Leaflet reads `inertia` when a drag ends, so the glide after a fling follows
+// the setting too.
+map.on('dragstart', () => { map.options.inertia = !calm(); });
 const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18, attribution: '&copy; OpenStreetMap'
 }).addTo(map);
@@ -944,7 +955,7 @@ async function reveal() {
   // Not on the last round: finish() replaces this view with the whole board a
   // moment later, and this animation would land after that fit and undo it.
   const last = idx + 1 >= game.length;
-  if (!last) map.fitBounds(line.getBounds(), { padding: [50, 50], maxZoom: 9 });
+  if (!last) map.fitBounds(line.getBounds(), { padding: [50, 50], maxZoom: 9, animate: !calm() });
 
   const miles = Math.round(km * 0.621371);
   result.innerHTML = t('<b>{state}</b>, {filmed} — you were off by <b>{miles} mi</b> for <b>{pts}</b> points.', {
