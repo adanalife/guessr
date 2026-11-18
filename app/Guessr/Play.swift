@@ -343,20 +343,23 @@ struct PlayView: View {
         progress = DayProgress.resume(Saved.progress, on: date)
         do {
             let loaded = try await client.day(date)
-            day = loaded
             // A day begun on another device, or under a player this one just
             // joined, carries on from where it got to. Best effort: a miss here
-            // only means starting from what this device remembers.
+            // only means starting from what this device remembers. Seeded
+            // before `day` is set, so the first round shown is the right one.
             if progress.played.count < loaded.rounds.count,
                 let recorded = try? await client.progress(on: date, for: player)
             {
                 progress = progress.seeded(from: recorded, in: loaded)
                 Saved.progress = progress
             }
+            day = loaded
             Telemetry.step(
                 .dayLoaded, date: progress.date,
                 data: ["rounds": loaded.rounds.count, "played": progress.played.count])
         } catch {
+            // A new player or date cancels this load; the next one reports.
+            guard !Task.isCancelled else { return }
             Telemetry.requestFailed("day", error: error)
             // The server says why — nothing scheduled, or a date not yet open.
             message = (error as? GuessrError)?.errorDescription ?? String(localized: "Could not reach the rounds")
