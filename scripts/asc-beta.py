@@ -33,8 +33,6 @@ import tomllib
 import urllib.error
 import urllib.request
 
-import jwt
-
 API = "https://api.appstoreconnect.apple.com/v1"
 BUNDLE_ID = "lol.dana.guessr"
 LOCALE = "en-US"
@@ -50,6 +48,8 @@ REVIEW_FIELDS = {
 
 def call(method: str, path: str, body: dict | None = None) -> dict:
     """One call, with a fresh ten-minute token so `ship` can't outlive one."""
+    import jwt  # here, so the tests import this file without the script's deps
+
     now = int(time.time())
     auth = jwt.encode(
         {
@@ -77,6 +77,16 @@ def call(method: str, path: str, body: dict | None = None) -> dict:
 
 def get(path: str) -> list[dict] | dict | None:
     return call("GET", path).get("data")
+
+
+def changed(want: dict, have: dict) -> dict:
+    """The fields of `want` that `have` differs on. ASC may report an unset
+    text field as null where the TOML says "", which is no difference."""
+    return {
+        k: v
+        for k, v in want.items()
+        if have.get(k) != v and not (v == "" and have.get(k) is None)
+    }
 
 
 def resource(kind: str, attributes: dict, relationships: dict) -> dict:
@@ -163,7 +173,7 @@ def setup(apply: bool) -> int:
         )
     else:
         have = locs[LOCALE]["attributes"]
-        diff = {k: v for k, v in want.items() if have.get(k) != v}
+        diff = changed(want, have)
         if diff:
             plan(
                 f"set beta description fields {', '.join(diff)}",
@@ -193,7 +203,7 @@ def setup(apply: bool) -> int:
         print(
             f"beta review contact missing from app/store.local.toml [review]: {', '.join(missing)}"
         )
-    diff = {k: v for k, v in want.items() if detail["attributes"].get(k) != v}
+    diff = changed(want, detail["attributes"])
     if diff:
         plan(
             f"set beta review details {', '.join(diff)}",
@@ -232,7 +242,7 @@ def setup(apply: bool) -> int:
             ),
         )
     else:
-        diff = {k: v for k, v in want.items() if group["attributes"].get(k) != v}
+        diff = changed(want, group["attributes"])
         if diff:
             plan(
                 f"set group {beta['group']!r} {', '.join(f'{k}={v}' for k, v in diff.items())}",
