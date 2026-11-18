@@ -87,8 +87,13 @@ struct WatchTab: View {
 
     private func open() {
         guard showsPlayer else { return close() }
-        // Playback, or the silent switch mutes the page's audio.
-        try? AVAudioSession.sharedInstance().setCategory(.playback)
+        // Playback, or the silent switch mutes the page's audio; mixable, so
+        // opening the tab on a still-muted player leaves the viewer's music on.
+        // shortcut: unmuting happens inside the platform's cross-origin player,
+        // which tells the app nothing, so an unmuted stream mixes with other
+        // audio instead of interrupting it; a JS bridge to the embed APIs if
+        // that grates.
+        try? AVAudioSession.sharedInstance().setCategory(.playback, options: .mixWithOthers)
         try? AVAudioSession.sharedInstance().setActive(true)
         var configuration = WebPage.Configuration()
         // ponytail: there is no autoplay-without-a-tap knob here, so the
