@@ -45,6 +45,9 @@ export const STRINGS = {
     'Join': 'Rejoindre',
     'Language': 'Langue',
     'Auto': 'Auto',
+    'Units': 'Unités',
+    'Imperial': 'Impérial',
+    'Metric': 'Métrique',
     'Running': 'Version',
     'Reset saved state': 'Réinitialiser l\'état enregistré',
     'Dashcam footage ©&nbsp;A Dana Life, all rights reserved': 'Images de dashcam ©&nbsp;A Dana Life, tous droits réservés',
@@ -76,7 +79,7 @@ export const STRINGS = {
     'Practice rounds': 'Manches d\'entraînement',
     '{error}. Practice rounds still work.': '{error}. Les manches d\'entraînement fonctionnent toujours.',
     'Could not reach the scorer. Try that guess again.': 'Impossible de joindre le serveur de score. Réessayez cette réponse.',
-    '<b>{state}</b>, {filmed} — you were off by <b>{miles} mi</b> for <b>{pts}</b> points.': '<b>{state}</b>, {filmed} — vous étiez à <b>{miles} mi</b>, soit <b>{pts}</b> points.',
+    '<b>{state}</b>, {filmed} — you were off by <b>{distance}</b> for <b>{pts}</b> points.': '<b>{state}</b>, {filmed} — vous étiez à <b>{distance}</b>, soit <b>{pts}</b> points.',
     'Next round': 'Manche suivante',
     'Could not reach the rounds': 'Impossible de charger les manches',
     '<b>{n}</b> rounds — {daily}<b>{d} daily</b>, {practice}<b>{p} practice</b>. Each line runs from your guess to the truth.': '<b>{n}</b> manches — {daily}<b>{d} du jour</b>, {practice}<b>{p} d\'entraînement</b>. Chaque ligne va de votre réponse à la vraie position.',
@@ -138,6 +141,9 @@ export const STRINGS = {
     'Join': 'Unirse',
     'Language': 'Idioma',
     'Auto': 'Automático',
+    'Units': 'Unidades',
+    'Imperial': 'Imperial',
+    'Metric': 'Métrico',
     'Running': 'Versión',
     'Reset saved state': 'Restablecer el estado guardado',
     'Dashcam footage ©&nbsp;A Dana Life, all rights reserved': 'Imágenes de dashcam ©&nbsp;A Dana Life, todos los derechos reservados',
@@ -168,7 +174,7 @@ export const STRINGS = {
     'Practice rounds': 'Rondas de práctica',
     '{error}. Practice rounds still work.': '{error}. Las rondas de práctica siguen funcionando.',
     'Could not reach the scorer. Try that guess again.': 'No se pudo conectar con el servidor de puntuación. Repite esa respuesta.',
-    '<b>{state}</b>, {filmed} — you were off by <b>{miles} mi</b> for <b>{pts}</b> points.': '<b>{state}</b>, {filmed} — fallaste por <b>{miles} mi</b> y sumas <b>{pts}</b> puntos.',
+    '<b>{state}</b>, {filmed} — you were off by <b>{distance}</b> for <b>{pts}</b> points.': '<b>{state}</b>, {filmed} — fallaste por <b>{distance}</b> y sumas <b>{pts}</b> puntos.',
     'Next round': 'Siguiente ronda',
     'Could not reach the rounds': 'No se pudieron cargar las rondas',
     '<b>{n}</b> rounds — {daily}<b>{d} daily</b>, {practice}<b>{p} practice</b>. Each line runs from your guess to the truth.': '<b>{n}</b> rondas — {daily}<b>{d} diarias</b>, {practice}<b>{p} de práctica</b>. Cada línea va de tu respuesta al lugar real.',
@@ -230,6 +236,9 @@ export const STRINGS = {
     'Join': 'Присоединиться',
     'Language': 'Язык',
     'Auto': 'Авто',
+    'Units': 'Единицы',
+    'Imperial': 'Имперские',
+    'Metric': 'Метрические',
     'Running': 'Версия',
     'Reset saved state': 'Сбросить сохранённое состояние',
     'Dashcam footage ©&nbsp;A Dana Life, all rights reserved': 'Записи с видеорегистратора ©&nbsp;A Dana Life, все права защищены',
@@ -260,7 +269,7 @@ export const STRINGS = {
     'Practice rounds': 'Тренировочные раунды',
     '{error}. Practice rounds still work.': '{error}. Тренировочные раунды по-прежнему доступны.',
     'Could not reach the scorer. Try that guess again.': 'Не удалось связаться с сервером подсчёта. Попробуйте ответить ещё раз.',
-    '<b>{state}</b>, {filmed} — you were off by <b>{miles} mi</b> for <b>{pts}</b> points.': '<b>{state}</b>, {filmed} — промах на <b>{miles} миль</b>, <b>{pts}</b> очков.',
+    '<b>{state}</b>, {filmed} — you were off by <b>{distance}</b> for <b>{pts}</b> points.': '<b>{state}</b>, {filmed} — промах на <b>{distance}</b>, <b>{pts}</b> очков.',
     'Next round': 'Следующий раунд',
     'Could not reach the rounds': 'Не удалось загрузить раунды',
     '<b>{n}</b> rounds — {daily}<b>{d} daily</b>, {practice}<b>{p} practice</b>. Each line runs from your guess to the truth.': '<b>{n}</b> раундов — {daily}<b>{d} игры дня</b>, {practice}<b>{p} тренировки</b>. Каждая линия идёт от вашего ответа к настоящему месту.',
@@ -322,6 +331,9 @@ export const STRINGS = {
     'Join': 'Připojit',
     'Language': 'Jazyk',
     'Auto': 'Automaticky',
+    'Units': 'Jednotky',
+    'Imperial': 'Imperiální',
+    'Metric': 'Metrické',
     'Running': 'Verze',
     'Reset saved state': 'Smazat uložený stav',
     'Dashcam footage ©&nbsp;A Dana Life, all rights reserved': 'Záznam z palubní kamery ©&nbsp;A Dana Life, všechna práva vyhrazena',
@@ -352,7 +364,7 @@ export const STRINGS = {
     'Practice rounds': 'Tréninková kola',
     '{error}. Practice rounds still work.': '{error}. Tréninková kola fungují dál.',
     'Could not reach the scorer. Try that guess again.': 'Server pro skóre je nedostupný. Zkuste tip znovu.',
-    '<b>{state}</b>, {filmed} — you were off by <b>{miles} mi</b> for <b>{pts}</b> points.': '<b>{state}</b>, {filmed} — byli jste vedle o <b>{miles} mi</b>, za <b>{pts}</b> bodů.',
+    '<b>{state}</b>, {filmed} — you were off by <b>{distance}</b> for <b>{pts}</b> points.': '<b>{state}</b>, {filmed} — byli jste vedle o <b>{distance}</b>, za <b>{pts}</b> bodů.',
     'Next round': 'Další kolo',
     'Could not reach the rounds': 'Kola se nepodařilo načíst',
     '<b>{n}</b> rounds — {daily}<b>{d} daily</b>, {practice}<b>{p} practice</b>. Each line runs from your guess to the truth.': '<b>{n}</b> kol — {daily}<b>{d} denních</b>, {practice}<b>{p} tréninkových</b>. Každá čára vede od vašeho tipu ke skutečnému místu.',
@@ -396,6 +408,29 @@ export const LANGUAGES = Object.keys(STRINGS);
 
 // Each language's name in itself, for the About panel's picker.
 export const NAMES = { en: 'English', fr: 'Français', es: 'Español', ru: 'Русский', cs: 'Čeština' };
+
+// The localStorage key the Units picker saves 'mi' or 'km' under.
+export const UNITS_KEY = 'units';
+
+// A saved choice, else miles where the browser's first language implies a
+// region that signs its roads in miles, else kilometers.
+export function pickUnits(preferred, saved = null) {
+  if (saved === 'mi' || saved === 'km') return saved;
+  let region = 'US';
+  try {
+    region = new Intl.Locale(preferred[0] ?? 'en').maximize().region;
+  } catch {
+    /* an unparseable tag keeps the US default */
+  }
+  return ['US', 'GB', 'LR', 'MM'].includes(region) ? 'mi' : 'km';
+}
+
+// A distance in whole miles or kilometers, with the unit written the page's way.
+export function formatDistance(km, units, lang = LANG) {
+  const metric = units === 'km';
+  return new Intl.NumberFormat(lang, { style: 'unit', unit: metric ? 'kilometer' : 'mile', maximumFractionDigits: 0 })
+    .format(metric ? km : km * 0.621371);
+}
 
 // The localStorage key the picker saves a choice under; none saved is Auto.
 export const LANG_KEY = 'lang';
