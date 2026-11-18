@@ -28,6 +28,9 @@ struct PlayView: View {
     /// The corner map grown to a panel over a full-screen clip, up until the
     /// guess is scored.
     @State private var showingMap = false
+    /// The day whose finished result has been reported and offered, so a
+    /// return to the tab doesn't count it again.
+    @State private var resultShownFor: String?
     @Environment(\.horizontalSizeClass) private var sizeClass
     /// Compact on a phone held on its side, the one shape with no room to
     /// stack the clip over the map.
@@ -60,6 +63,10 @@ struct PlayView: View {
                 } else {
                     DayResultView(progress: progress)
                         .onAppear {
+                            // Once per day: a tab switch re-runs onAppear, and the
+                            // TabView keeps this view's state across it.
+                            guard resultShownFor != progress.date else { return }
+                            resultShownFor = progress.date
                             finished()
                             Telemetry.step(
                                 .resultShown, date: progress.date,
