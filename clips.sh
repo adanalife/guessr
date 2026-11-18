@@ -22,6 +22,11 @@
 set -euo pipefail
 
 BUCKET="${BUCKET:-adanalife-guessr-clips}"
+# Where in the bucket a push lands, and what it is served as. The defaults are a
+# round's clips; `task reveals:push` sets both for the "where you guessed" stills,
+# which share the bucket and the retry loop and nothing else.
+PREFIX="${PREFIX:-clips}"
+CONTENT_TYPE="${CONTENT_TYPE:-video/mp4}"
 # Which schedule `pull` fetches the media for. Staging by default: it is the tier
 # a generation run writes, so it is the one whose clips might not be here yet.
 DB="${DB:-adanalife-guessr-answers-staging}"
@@ -78,13 +83,13 @@ case "$verb" in
     # pushing it has spent half an hour generating what one blip would throw
     # away. Ten seconds and out -- an outage that survives three spaced attempts
     # fails the run, which is what the weekly cadence's failure budget is for.
-    # shellcheck disable=SC2016  # deliberate: $1/$2/$3 are the inner sh's own
+    # shellcheck disable=SC2016  # deliberate: $1..$4 are the inner sh's own
     # positional parameters, passed after the script, not this shell's.
     printf '%s\n' "$files" | tr '\n' '\0' \
       | xargs -0 -P "$JOBS" -I{} sh -c \
         'n=0
-         until npx wrangler r2 object put "$1/clips/$(basename "$2")" \
-                 --file "$2" --content-type video/mp4 --remote >/dev/null; do
+         until npx wrangler r2 object put "$1/$3/$(basename "$2")" \
+                 --file "$2" --content-type "$4" --remote >/dev/null; do
            n=$((n + 1))
            if [ "$n" -ge 3 ]; then
              echo "gave up on $(basename "$2") after $n attempts" >&2
@@ -93,8 +98,8 @@ case "$verb" in
            echo "attempt $n failed for $(basename "$2"), retrying" >&2
            sleep $((n * 5))
          done' \
-        sh "$BUCKET" {}
-    echo "ok: a round naming any of these clips can now be played"
+        sh "$BUCKET" {} "$PREFIX" "$CONTENT_TYPE"
+    echo "ok: $count objects under $PREFIX/ in $BUCKET"
     ;;
 
   pull)
