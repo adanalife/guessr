@@ -370,6 +370,18 @@ player just linked to, carries on from there. The id is a credential, so it
 travels in a POST body rather than a query string; the answers come back
 because the player already saw them at the reveal.
 
+### A player's month in numbers
+
+`POST /api/wrapped {player_id, period}` sums one player's month (`YYYY-MM`) or
+year (`YYYY`) — the read a recap card is drawn from:
+`{period, days, rounds, points, km, avg_km, bullseyes, best, worst, best_state,
+worst_state, rank, players}`. `best`/`worst` are the closest and furthest rounds
+(`{date, image, km, points, state}`); `best_state`/`worst_state` are by average
+distance over states with two rounds or more, and null unless two states
+qualify. `rank` is where the monthly board would place the player, summed the
+same way over a year, out of `players`. A period with no plays answers zeros
+and nulls, not an error. A POST, for the same reason as progress.
+
 ### Linking a second device
 
 An id per browser means a player who plays on a phone and a desktop is two
