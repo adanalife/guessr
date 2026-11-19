@@ -4,6 +4,40 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.50.0 — 2026-11-19
+
+### New
+
+- The About panel has a Units setting, so the distance on each round's reveal can read in kilometers; it starts from the browser's locale. ([#565](https://github.com/adanalife/guessr/pull/565))
+- `/api/near` lists the finished rounds shot closest to a point, nearest first, with the date each was dealt and how far off the field was on average. ([#577](https://github.com/adanalife/guessr/pull/577))
+- A stats dialog in the About panel ("Your stats"): games, streaks, averages, your best and worst, a histogram of how far off you land, and your points by round, by state and by month, read from the new `POST /api/stats`. ([#578](https://github.com/adanalife/guessr/pull/578))
+
+### Changed
+
+- The web game honors the Reduce Motion setting: the map jumps to each answer instead of gliding there, and zooming and flinging the map snap rather than animate. ([#564](https://github.com/adanalife/guessr/pull/564))
+- Every button gives a little press when you tap or click it. ([#572](https://github.com/adanalife/guessr/pull/572))
+- The guess pin on the map can be dragged to adjust it, until the guess is submitted. ([#573](https://github.com/adanalife/guessr/pull/573))
+- Web: Share opens the system share sheet where the browser has one, and copies to the clipboard where it does not. ([#579](https://github.com/adanalife/guessr/pull/579))
+
+### Fixed
+
+- Rounds replayed on a past date come back in the order they were played. ([#561](https://github.com/adanalife/guessr/pull/561))
+- The day's result is counted, and the App Clip's install offer shown, once per day rather than every time you return to the Play tab. ([#562](https://github.com/adanalife/guessr/pull/562))
+- The app opens a day you started on another device at the round you reached, instead of briefly showing round 1, and no longer shows a connection error when a load is interrupted. ([#566](https://github.com/adanalife/guessr/pull/566))
+- After linking a device, the page shows and shares the linked player's rounds for today instead of the ones this browser played. ([#568](https://github.com/adanalife/guessr/pull/568))
+- On a tablet or touch-screen laptop the map is a full pane beside the footage instead of a small corner map that grows only under a mouse. ([#575](https://github.com/adanalife/guessr/pull/575))
+- The answer pin and the line to it take the color of the round's score, the same color the round has on the end-of-game map, instead of always showing green. ([#576](https://github.com/adanalife/guessr/pull/576))
+
+### Behind the scenes
+
+- Every update now records how much of the game's server code its tests exercise. ([#559](https://github.com/adanalife/guessr/pull/559))
+- The TestFlight setup check treats empty beta review notes as already in place, so it reads clean instead of proposing the same change every run. ([#560](https://github.com/adanalife/guessr/pull/560))
+- Opening the in-app stream leaves music or podcasts already playing on your phone running while the player is muted. ([#563](https://github.com/adanalife/guessr/pull/563))
+- Guess timing in the app's analytics now matches the thinking time the game records, without the network wait. ([#567](https://github.com/adanalife/guessr/pull/567))
+- The monthly and daily leaderboards reuse the previous board's ranking for up to a minute instead of re-reading it on every request. ([#569](https://github.com/adanalife/guessr/pull/569))
+- The app lets go of the App Clip's copy of your player once it has taken that player as its own, so a later device link doesn't try to merge the clip's plays a second time. ([#570](https://github.com/adanalife/guessr/pull/570))
+- The owner can star and label a player on the day still being played, not only once it has closed. ([#574](https://github.com/adanalife/guessr/pull/574))
+
 ## v1.49.0 — 2026-11-18
 
 ### Behind the scenes
