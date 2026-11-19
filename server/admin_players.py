@@ -229,11 +229,15 @@ async def plays(db, who, params) -> tuple[int, dict, dict]:
 async def _board_row(db, who, params, now):
     """The row a board+rank names, resolved by the same at_rank() the public
     drilldown uses -- a second answer to "who is #2" would put a note on the
-    wrong person. Returns (refusal, None) or (None, found)."""
+    wrong person. Returns (refusal, None) or (None, found).
+
+    A date still open resolves too, in the order /admin/plays lists it (best
+    total first, player id breaking a tie): the owner reads that day's
+    standings there, and a row of them has to be markable."""
     if refused := refusal(who):
         return refused, None
     board = params.get("board") or "daily"
-    found = await at_rank(db, board, params, now)
+    found = await at_rank(db, board, params, now, open_ok=True)
     if "error" in found:
         return (found["status"], {"error": found["error"]}, NO_STORE), None
     return None, {**found, "board": board}

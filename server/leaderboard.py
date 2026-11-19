@@ -102,7 +102,9 @@ PREV_CACHE: dict[tuple, tuple[dt.datetime, list[dict]]] = {}
 LATEST_PLAYED = "SELECT MAX(date) AS date FROM plays WHERE date <= ?"
 
 
-def span(board: str, params, now=None) -> tuple[str | None, dict, str | None]:
+def span(
+    board: str, params, now=None, open_ok: bool = False
+) -> tuple[str | None, dict, str | None]:
     """Which span a request asks for, as (period, cache, error). Shared with
     /api/guesses so a drilldown resolves its rank against exactly the board the
     caller is looking at.
@@ -110,7 +112,10 @@ def span(board: str, params, now=None) -> tuple[str | None, dict, str | None]:
     A date at or past the close is refused rather than served: an open date's
     standings reorder while on screen, and refusing is the only way a caller can
     tell "not finished" from "nobody played" (a closed date with empty rows). A
-    month has no closing rule; only one that has not started is refused."""
+    month has no closing rule; only one that has not started is refused.
+
+    `open_ok` serves a daily date that has not closed, on a minute's cache. It is
+    for the owner's surfaces only, which already read an open date's plays."""
     date, month = params.get("date"), params.get("month")
 
     if board == "daily":
@@ -121,6 +126,8 @@ def span(board: str, params, now=None) -> tuple[str | None, dict, str | None]:
         if not rules.is_calendar_date(date):
             return None, CACHE, "date must be YYYY-MM-DD"
         if date > rules.last_closed_date(now):
+            if open_ok:
+                return date, CACHE, None
             return None, CACHE, "date has not closed yet"
         return date, DATED_CACHE, None
 
@@ -137,7 +144,7 @@ def span(board: str, params, now=None) -> tuple[str | None, dict, str | None]:
 
 
 async def served(
-    db, board: str, params, now=None
+    db, board: str, params, now=None, open_ok: bool = False
 ) -> tuple[str | None, dict, str | None]:
     """`span`, then the fallback: a request that names no period is asking for
     the newest board worth showing, so a default period nobody has played in
@@ -147,7 +154,7 @@ async def served(
 
     One query either way: the newest played date at or before the default
     period is the default period itself whenever that has plays."""
-    period, cache, error = span(board, params, now)
+    period, cache, error = span(board, params, now, open_ok)
     if error or params.get("date") is not None or params.get("month") is not None:
         return period, cache, error
     # "-31" sorts after every day of the month, and a date in the next month

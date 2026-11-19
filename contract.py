@@ -828,13 +828,19 @@ def notes():
             f"/admin/board-note?board=daily&date={FIRST}&rank=0",
         )
     )
-    error(
-        get(
-            "a board note on an open date is refused",
-            400,
-            f"/admin/board-note?board=daily&date={TODAY}&rank=1",
-        )
+    # An open date resolves for the owner, in the order the plays view lists it.
+    leader = get("today's plays read", 200, f"/admin/plays?date={TODAY}").json[
+        "players"
+    ][0]
+    r = get(
+        "a board note on an open date reads",
+        200,
+        f"/admin/board-note?board=daily&date={TODAY}&rank=1",
     )
+    assert (r.json["period"], r.json["name"]) == (
+        str(TODAY),
+        leader["name"] or "anonymous",
+    ), (r.json, leader)
 
 
 def review():
