@@ -1340,6 +1340,16 @@ el('rando').addEventListener('click', () => {
 
 shareBtn.addEventListener('click', async () => {
   const text = shareText(gameDay, results, total);
+  // The system share sheet where the browser has one, as the app does. Desktop
+  // Firefox has none, and a sheet that fails to open falls through to the copy.
+  if (navigator.share) {
+    try {
+      return await navigator.share({ text });
+    } catch (e) {
+      // Dismissing the sheet is an answer, not a failure.
+      if (e.name === 'AbortError') return;
+    }
+  }
   try {
     await navigator.clipboard.writeText(text);
     shareBtn.textContent = t('Copied');
