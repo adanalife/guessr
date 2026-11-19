@@ -301,13 +301,14 @@ async def board_marks(db, who, params, now=None) -> tuple[int, dict, dict]:
     with the owner's marks on it, as [label, private_name, starred], so a
     surface showing the public board can relabel and star it. The label is
     there to be matched against the public row: a running board can reorder
-    between two reads, and a mark must not slide onto the row below."""
+    between two reads, and a mark must not slide onto the row below. A date
+    still open is served, as it is for a single row's note."""
     if refused := refusal(who):
         return refused
     board = params.get("board") or "daily"
     if board not in ("daily", "monthly"):
         return 400, {"error": "board must be daily or monthly"}, NO_STORE
-    period, _, error = await served(db, board, params, now)
+    period, _, error = await served(db, board, params, now, open_ok=True)
     if error:
         return 400, {"error": error}, NO_STORE
     results, names = await standings(db, board, period)

@@ -318,6 +318,11 @@ async def test_board_note_open_date() -> None:
     )
     assert (status, body["starred"]) == (200, True), body
     assert rows(d, "SELECT player_id FROM players WHERE starred")[0][0] == REGULAR
+    marks = (await board_marks(d, OWNER, {"date": today}, NOW))[1]
+    assert (marks["period"], marks["rows"][0]) == (
+        today,
+        ["Amber Basin", None, True],
+    ), marks
     assert (await guesses(d, {"date": today, "rank": "1"}, NOW))[0] == 400
 
 
