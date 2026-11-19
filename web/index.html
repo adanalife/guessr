@@ -972,8 +972,10 @@ async function reveal() {
   el('score').textContent = total.toLocaleString();
   if (mode === 'daily') saveProgress();
 
-  const pin = L.circleMarker(truth, { radius: 8, color: '#4ade80', fillOpacity: .9 }).addTo(map);
-  const line = L.polyline([at, truth], { color: '#4ade80', dashArray: '5 6' }).addTo(map);
+  // The round's band color, matching its square and the end-of-game board.
+  const { colour } = bandFor(pts);
+  const pin = L.circleMarker(truth, { radius: 8, color: colour, fillOpacity: .9 }).addTo(map);
+  const line = L.polyline([at, truth], { color: colour, dashArray: '5 6' }).addTo(map);
   marks.push(pin, line);
   // The answer is on the map now, so stop making the player hover to read it.
   // Before the fit rather than after: growing the box afterwards would leave the
