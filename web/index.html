@@ -243,13 +243,18 @@
      revealed, when the map becomes the thing worth reading. `minimap` comes off
      entirely for the end-of-game board and the all-time map, which want the
      opposite treatment.
-     Only above 800px: a phone has no hover, and a tap on the map is a guess, so
-     the narrow layout keeps its two stacked panes.
+     Only above 800px and only where the primary pointer can hover: on a phone,
+     a tablet or a touch-screen laptop a tap on the map is a guess, and a corner
+     map that grows only on hover is a tiny target that then resizes under the
+     pin it just placed. Those keep the two panes side by side, or stacked on a
+     narrow screen. (hover: hover) alone rather than adding (pointer: fine):
+     hover is the capability the minimap depends on, and a hybrid laptop
+     reports its trackpad there either way.
      The size change is a snap, not a transition: Leaflet reads its container
      size synchronously, so anything fitting bounds right after a layout change
      would frame the country for a width the box is still animating away from —
      and an animated grow re-tiles the map on every frame of it. */
-  @media (min-width: 801px) {
+  @media (min-width: 801px) and (hover: hover) {
     main.minimap { grid-template-columns: 1fr; }
     main.minimap #mapwrap { position: absolute; right: 1rem; bottom: 1rem; z-index: 500;
                             width: 22rem; height: 15rem;
@@ -689,7 +694,8 @@ const pane = el('pane'), go = el('go'), result = el('result');
 const shareBtn = el('share'), practiceBtn = el('practice'), historyBtn = el('history');
 
 // Which of the two panes is dominant, as a pair of classes the stylesheet reads
-// (see the min-width: 801px block). `wide` only means anything with `minimap`.
+// (see the min-width: 801px and hover block). `wide` only means anything with
+// `minimap`, and `minimap` only where the stylesheet's media query holds.
 const layout = document.querySelector('main');
 const setLayout = (minimap, wide = false) => {
   layout.classList.toggle('minimap', minimap);
