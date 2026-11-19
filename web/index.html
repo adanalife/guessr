@@ -122,17 +122,17 @@
   /* A native <dialog> for the intro: showModal() brings the backdrop, the
      focus trap and Escape-to-dismiss with it, and none of that is worth
      re-implementing for one panel. */
-  #welcome, #linkask { border: 1px solid var(--color-border); border-radius: 10px;
+  #welcome, #linkask, #stats { border: 1px solid var(--color-border); border-radius: 10px;
              background: var(--color-panel);
              color: var(--color-text); font: inherit; padding: 1.5rem;
              width: min(28rem, calc(100vw - 2rem));
              box-shadow: 0 20px 50px rgba(0, 0, 0, .35); }
-  #welcome::backdrop, #linkask::backdrop { background: rgba(0, 0, 0, .7); }
+  #welcome::backdrop, #linkask::backdrop, #stats::backdrop { background: rgba(0, 0, 0, .7); }
   /* Italic and unbolded, the way the blog sets a heading. */
-  #welcome h2, #linkask h2 { margin: 0 0 .8rem; font-size: 1.4rem; font-style: italic;
+  #welcome h2, #linkask h2, #stats h2 { margin: 0 0 .8rem; font-size: 1.4rem; font-style: italic;
                 font-weight: 400; line-height: 1.15; }
-  #welcome p, #linkask p { margin: .5rem 0; }
-  #welcome .actions { display: flex; gap: .6rem; margin-top: 1.1rem; }
+  #welcome p, #linkask p, #stats p { margin: .5rem 0; }
+  #welcome .actions, #stats .actions { display: flex; gap: .6rem; margin-top: 1.1rem; }
   #linkask table { width: 100%; border-collapse: collapse; margin: .8rem 0;
                    font-variant-numeric: tabular-nums; }
   #linkask th, #linkask td { text-align: left; padding: .3rem .6rem .3rem 0;
@@ -142,6 +142,21 @@
   #linkask tbody th { color: var(--color-muted); font-weight: 400; }
   #linkask .actions { display: flex; flex-direction: column; gap: .6rem; margin-top: 1rem; }
   #linkmerge { color: var(--color-muted); font-size: .9em; text-align: center; }
+  /* Taller than the screen on a phone once a few months are on record, so it
+     scrolls inside itself rather than off the top. */
+  #stats { max-height: calc(100dvh - 2rem); overflow-y: auto; }
+  #stats h3 { margin: 1.2rem 0 .4rem; font-size: 1rem; font-weight: 600; }
+  #statstiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+                gap: .7rem; margin: 0; }
+  #statstiles dt { color: var(--color-muted); font-size: .8em; }
+  #statstiles dd { margin: 0; font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+  /* A bar is a grid row: label, the bar itself sized as a share of its
+     column, and the number it stands for. */
+  #stats .bar { display: grid; grid-template-columns: 8.5rem 1fr 3.5rem; gap: .5rem;
+                align-items: center; margin: .25rem 0; font-variant-numeric: tabular-nums; }
+  #stats .bar i { height: .7rem; min-width: 1px; justify-self: start; border-radius: 2px;
+                  background: var(--color-accent); }
+  #stats .n { text-align: right; }
   main { flex: 1; position: relative; display: grid;
          grid-template-columns: 1fr 1fr; min-height: 0; }
   /* touch-action: none so a pinch zooms the frame instead of the page. Leaflet
@@ -357,7 +372,8 @@
              from the other device is the whole mechanism. -->
         <button type="button" id="link" class="secondary"
           title="Show a code that adds another device's scores to yours" data-i18n
-          data-i18n-attr="title">Link a device</button></p>
+          data-i18n-attr="title">Link a device</button>
+        <button type="button" id="statsopen" class="secondary" data-i18n>Your stats</button></p>
       <!-- An anchor around it, so the id is reachable by anyone who can't scan a
            picture: a screen reader announces a link, and a phone that has the
            panel open can follow it directly. Following it on the device that
@@ -424,6 +440,27 @@
     <button type="button" id="linkyes"></button>
     <p id="linkmerge"></p>
     <button type="button" id="linkno" class="secondary" autofocus></button>
+  </div>
+</dialog>
+<!-- The player's record, as /api/stats boils it down. Filled each time it
+     opens, so a game finished a minute ago is already in it. -->
+<dialog id="stats">
+  <h2 data-i18n>Your stats</h2>
+  <p id="statsnote"></p>
+  <div id="statsbody" hidden>
+    <dl id="statstiles"></dl>
+    <p id="statsbest"></p>
+    <h3 data-i18n>How far off you land</h3>
+    <div id="statsmisses"></div>
+    <h3 data-i18n>Average points by round</h3>
+    <div id="statsrounds"></div>
+    <h3 id="statsstateshead" data-i18n>States that fool you</h3>
+    <div id="statsstates"></div>
+    <h3 data-i18n>By month</h3>
+    <div id="statsmonths"></div>
+  </div>
+  <div class="actions">
+    <button type="button" id="statsclose" class="secondary" autofocus data-i18n>Close</button>
   </div>
 </dialog>
 <main>
@@ -1708,6 +1745,96 @@ el('welcomemore').addEventListener('click', e => {
   welcome.close();
   about.open = true;
 });
+
+// The player's record. One POST each time the dialog opens; every number is
+// the server's, drawn here in the page's language and units.
+const statsDialog = el('stats');
+// State names and dates are the game's own data, escaped all the same: they
+// are the only strings here that did not come out of this file.
+const esc = s => String(s).replace(/[&<>"]/g, c => `&#${c.charCodeAt(0)};`);
+// Rows of [label, size, text], each bar a share of `max`.
+const bars = (rows, max) => rows.map(([label, size, text]) =>
+  `<div class="bar"><span>${label}</span><i style="width:${max ? Math.round(100 * size / max) : 0}%"></i><span class="n">${text}</span></div>`).join('');
+// A histogram edge is set in miles, so in kilometers it is cut to two figures
+// for the label: "under 80 km" rather than "under 81 km".
+const twoFigures = v => { const m = 10 ** (Math.floor(Math.log10(v)) - 1); return Math.floor(v / m) * m; };
+
+function drawStats(s) {
+  const num = v => v.toLocaleString();
+  const dist = km => formatDistance(km, units);
+  const where = r => esc(r.state || r.date);
+  const edge = km => dist(units === 'km' ? twoFigures(km) : km);
+  // The server counts back from the last finished day; whether that run is
+  // still going is this side's call, since only it knows the player's today.
+  const yesterday = new Date(Date.now() - 864e5).toLocaleDateString('en-CA');
+  const streak = s.streak_date >= yesterday ? s.streak : 0;
+  const tiles = [
+    [t('Games'), num(s.games)],
+    [t('Rounds'), num(s.rounds)],
+    [t('Points'), num(s.points)],
+    [t('Streak'), num(streak)],
+    [t('Longest streak'), num(s.longest)],
+    [t('Average round'), num(s.avg_round)],
+    // Nothing to average until a day has all five.
+    ...(s.avg_game == null ? [] : [[t('Average game'), num(s.avg_game)]]),
+    [t('Median miss'), dist(s.median_km)],
+  ];
+  el('statstiles').innerHTML = tiles.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+  el('statsbest').innerHTML = [
+    s.best_game && t('Best game: <b>{pts}</b> on {date}', { pts: num(s.best_game.points), date: esc(s.best_game.date) }),
+    t('Closest guess: <b>{distance}</b> ({where})', { distance: dist(s.best_round.km), where: where(s.best_round) }),
+    t('Farthest: <b>{distance}</b> ({where})', { distance: dist(s.worst_round.km), where: where(s.worst_round) }),
+  ].filter(Boolean).join('<br>');
+  // One bucket under each edge, and a last one for everything past them all.
+  const edges = s.miss_edges_km;
+  el('statsmisses').innerHTML = bars(s.misses.map((count, i) => [
+    i < edges.length
+      ? t('under {distance}', { distance: edge(edges[i]) })
+      : t('{distance} or more', { distance: edge(edges.at(-1)) }),
+    count, num(count),
+  ]), Math.max(...s.misses));
+  // Average points, each against the most any of them reached.
+  const points = rows => bars(rows.map(([label, n]) => [esc(label), n, num(n)]), Math.max(...rows.map(r => r[1]), 0));
+  el('statsrounds').innerHTML = points(s.by_position.map(p => [p.position, p.points]));
+  // The server sends every state hardest first; five of them is the list.
+  const hardest = s.by_state.slice(0, 5);
+  el('statsstateshead').hidden = !hardest.length;
+  el('statsstates').innerHTML = points(hardest.map(x => [x.state, x.points]));
+  el('statsmonths').innerHTML = points([...s.months].reverse().map(m => [m.month, m.points]));
+}
+
+el('statsopen').addEventListener('click', async e => {
+  // The same guard welcomemore needs: the document-level handler would see a
+  // click outside the About panel and fold it under the dialog.
+  e.stopPropagation();
+  const note = el('statsnote');
+  el('statsbody').hidden = true;
+  note.hidden = false;
+  note.textContent = t('Loading…');
+  statsDialog.showModal();
+  const id = playerId();
+  try {
+    // A browser that has never scored has no id, and nothing on record.
+    const res = id && await request('api/stats', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ player_id: id }),
+    });
+    if (res && !res.ok) throw new Error(res.status);
+    const s = res ? await res.json() : { rounds: 0 };
+    if (!s.rounds) {
+      note.textContent = t('No games on record yet. Play today\'s five and come back.');
+      return;
+    }
+    drawStats(s);
+    note.hidden = true;
+    el('statsbody').hidden = false;
+  } catch {
+    note.textContent = t('Could not load your stats.');
+  }
+});
+el('statsclose').addEventListener('click', () => statsDialog.close());
+statsDialog.addEventListener('click', e => { if (e.target === statsDialog) statsDialog.close(); });
 
 // `saved` resumes an unfinished daily. The draw is the same five rounds for the
 // day either way, so resuming needs only the scores and guesses already banked
