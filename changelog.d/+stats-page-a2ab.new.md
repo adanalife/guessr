@@ -1,0 +1,1 @@
+A stats dialog in the About panel ("Your stats"): games, streaks, averages, your best and worst, a histogram of how far off you land, and your points by round, by state and by month, read from the new `POST /api/stats`.
