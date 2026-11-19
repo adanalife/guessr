@@ -292,6 +292,40 @@ async def test_board_note_expect_name() -> None:
     assert (status, body["note"]) == (200, "still here"), body
 
 
+async def test_board_note_open_date() -> None:
+    # A date still open resolves for the owner, in the plays view's order, and
+    # stays refused on the public drilldown.
+    d = seeded()
+    today = NOW.date().isoformat()
+    for player, points, handle in (
+        (THIRD, 900, "Dusty Ford"),
+        (REGULAR, 4000, "Amber Basin"),
+    ):
+        d.conn.execute(
+            "INSERT INTO plays (date, player_id, image, km, points, handle, played_at, "
+            "guess_lat, guess_lng) VALUES (?, ?, ?, 10.0, ?, ?, '2026-08-04 11:00:00', 40.0, -121.0)",
+            (today, player, IMAGES[0], points, handle),
+        )
+    listed = (await plays(d, OWNER, {"date": today}))[1]["players"]
+    for rank, player in enumerate(listed, 1):
+        q = {"date": today, "rank": str(rank)}
+        status, body, _ = await board_note(d, OWNER, q, NOW)
+        assert (status, body["period"], body["name"]) == (200, today, player["name"]), (
+            body
+        )
+    status, body, _ = await set_board_note(
+        d, OWNER, {"date": today, "rank": "1"}, {"starred": True}, NOW
+    )
+    assert (status, body["starred"]) == (200, True), body
+    assert rows(d, "SELECT player_id FROM players WHERE starred")[0][0] == REGULAR
+    marks = (await board_marks(d, OWNER, {"date": today}, NOW))[1]
+    assert (marks["period"], marks["rows"][0]) == (
+        today,
+        ["Amber Basin", None, True],
+    ), marks
+    assert (await guesses(d, {"date": today, "rank": "1"}, NOW))[0] == 400
+
+
 async def test_board_note_refusals() -> None:
     d = seeded()
     # A rank past the board names nobody and must not fall through to the last row.
@@ -370,6 +404,7 @@ async def main() -> None:
     test_group()
     await test_board_note()
     await test_board_note_expect_name()
+    await test_board_note_open_date()
     await test_board_note_refusals()
     await test_marks()
 

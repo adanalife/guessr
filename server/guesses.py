@@ -48,7 +48,7 @@ DAILY_GUESSES = _GUESSES.format(span="= ?1")
 MONTHLY_GUESSES = _GUESSES.format(span=in_month("?1"))
 
 
-async def at_rank(db, board: str, params, now=None) -> dict:
+async def at_rank(db, board: str, params, now=None, open_ok: bool = False) -> dict:
     """Which player a board row names, as {row, rank, period, cache} -- or
     {error, status, cache} for a request no board can answer. Kept apart because
     the admin note surface resolves a player exactly this way: two copies of "the
@@ -60,7 +60,7 @@ async def at_rank(db, board: str, params, now=None) -> dict:
     if not 1 <= rank <= ROWS:
         return {"error": f"rank must be 1..{ROWS}", "status": 400}
 
-    period, cache, error = await served(db, board, params, now)
+    period, cache, error = await served(db, board, params, now, open_ok)
     if error:
         return {"error": error, "status": 400}
 
