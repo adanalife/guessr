@@ -227,7 +227,7 @@ map tiles rather than on the page.
 
 `server/` holds the endpoints, as one Starlette app (`server/app.py`) that the
 Python Worker in `api/` serves: `/api/day`, `/api/score`, `/api/leaderboard`,
-`/api/guesses`, `/api/live`, `/api/link`, everything under `/admin/`, and the
+`/api/guesses`, `/api/near`, `/api/live`, `/api/link`, everything under `/admin/`, and the
 clips under `/clips/`. The Pages project in front of it keeps one Function,
 `functions/_middleware.js`, which hands those three prefixes to the Worker
 through the project's `API` service binding and leaves the static site to Pages.

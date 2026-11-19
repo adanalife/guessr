@@ -47,6 +47,7 @@ from server import (
     guesses,
     leaderboard,
     link,
+    near,
     progress,
 )
 from server import live, rules, score, stats
@@ -84,6 +85,7 @@ ROUTES = [
     ("/api/guesses", "GET", lambda r: guesses.guesses(r.db, r.params)),
     ("/api/leaderboard", "GET", lambda r: leaderboard.leaderboard(r.db, r.params)),
     ("/api/live", "GET", lambda r: live.live(r.fetch)),
+    ("/api/near", "GET", lambda r: near.near(r.db, r.params)),
     (
         "/api/score",
         "POST",
