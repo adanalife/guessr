@@ -370,6 +370,18 @@ player just linked to, carries on from there. The id is a credential, so it
 travels in a POST body rather than a query string; the answers come back
 because the player already saw them at the reveal.
 
+### A player's stats
+
+`POST /api/stats {player_id}` answers that player's whole record as the numbers
+the page's stats dialog draws: totals (`rounds`, `games`, `finished` days,
+`points`, `first` date), the current `streak` and the `longest`, `avg_round`,
+`avg_game`, `median_km`, the `best_game`, the `best_round` and `worst_round`, a
+histogram of misses (`misses`, one count per bucket under each of
+`miss_edges_km` and one past the last), and average points `by_state` (hardest
+first), `by_position` and per month (`months`). A player with no plays gets
+`{rounds: 0}`. One read of the player's plays, summed in Python; a POST for the
+same reason `/api/progress` is.
+
 ### Linking a second device
 
 An id per browser means a player who plays on a phone and a desktop is two

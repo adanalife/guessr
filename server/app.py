@@ -49,7 +49,7 @@ from server import (
     link,
     progress,
 )
-from server import live, rules, score
+from server import live, rules, score, stats
 from server.admin_auth import caller, refusal
 
 
@@ -92,6 +92,7 @@ ROUTES = [
         ),
     ),
     ("/api/progress", "POST", lambda r: progress.progress(r.db, r.body)),
+    ("/api/stats", "POST", lambda r: stats.stats(r.db, r.body)),
     (
         "/api/gamecenter",
         "POST",
