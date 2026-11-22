@@ -218,7 +218,7 @@ async def test_handler() -> None:
     for b in ("weekly", "Daily", "MONTHLY", "all", "daily' OR 1=1"):
         assert (await get(board=b))[:2] == (
             400,
-            {"error": "board must be daily or monthly"},
+            {"error": "board must be daily, monthly or best"},
         ), b
 
     status, body, headers = await get(board="daily", date="2020-01-01")
@@ -402,10 +402,41 @@ async def test_prev_cache() -> None:
     assert await get(NOW + PREV_TTL) == ([1], 1, 1)
 
 
+async def test_best() -> None:
+    d = db(
+        [
+            (DAY, "p1", "a.jpg", 100, "Amber Basin"),
+            (DAY, "p1", "b.jpg", 300, "Amber Basin"),
+            ("2026-08-15", "p1", "a.jpg", 500, "Amber Basin"),
+            ("2026-08-15", "p2", "a.jpg", 250, "Amber Basin"),
+            ("2026-08-14", "p3", "a.jpg", 50, None),
+            # Today is still open, so its total does not place yet.
+            ("2026-08-20", "p2", "a.jpg", 9000, "Amber Basin"),
+        ]
+    )
+    status, body, _ = await leaderboard(d, {"board": "best"}, NOW)
+    assert status == 200
+    # Same player twice keeps one name; a different player wearing it is numbered.
+    assert body == {
+        "board": "best",
+        "period": "all",
+        "rows": [
+            ["Amber Basin (1)", 500],
+            ["Amber Basin (1)", 400],
+            ["Amber Basin (2)", 250],
+            ["anonymous", 50],
+        ],
+        "dates": ["2026-08-15", DAY, "2026-08-15", "2026-08-14"],
+    }, body
+    for q in ({"date": DAY}, {"month": MONTH}):
+        assert (await leaderboard(d, {"board": "best", **q}, NOW))[0] == 400, q
+
+
 test_names()
 test_ranking()
 test_label()
 asyncio.run(test_handler())
 asyncio.run(test_prev())
 asyncio.run(test_prev_cache())
+asyncio.run(test_best())
 print("ok: the Python /api/leaderboard matches the contract test_leaderboard.mjs holds")

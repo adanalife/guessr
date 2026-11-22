@@ -1,5 +1,5 @@
 """GET /api/leaderboard?board=daily[&date=YYYY-MM-DD] | board=monthly[&month=YYYY-MM]
--- the boards, for the Twitch overlay to render.
+| board=best -- the boards, for the Twitch overlay to render.
 
 A read the stream pulls rather than a write the game pushes: the cluster tripbot
 runs in has no inbound path, and a leaderboard is not a reason to open one.
@@ -79,6 +79,20 @@ def query(span: str, named: bool = True) -> str:
 
 DAILY = query("= ?")
 MONTHLY = query(in_month("?1"))
+
+# The best single days ever played: one row per player per closed date, so a
+# player can hold several places. Open dates are left out for the same reason
+# the daily board refuses them -- their totals still move.
+BEST = f"""
+  SELECT p.player_id,
+         p.date,
+         SUM(p.points) AS points,
+         {name_expr("p.player_id")} AS name
+    FROM plays p
+   WHERE p.date <= ?
+   GROUP BY p.date, p.player_id
+   ORDER BY points DESC, p.date, p.player_id
+   LIMIT ?"""
 
 # The board each row's `prev` rank is read from: the day before, or the running
 # month without its newest closed day and anything still open. Deep enough that
@@ -195,10 +209,34 @@ async def standings(db, board: str, period: str) -> tuple[list[dict], list[str]]
     return results, label([r["name"] or PLACEHOLDER for r in results])
 
 
+async def best(db, now=None) -> tuple[int, dict, dict]:
+    """The best-days board: `rows` as on the other boards, plus `dates`, parallel
+    to it, naming the day each total was played. Players are numbered apart by id,
+    not by row, since one player can fill several rows."""
+    results = await db.fetchall(BEST, rules.last_closed_date(now), ROWS)
+    ids = list(dict.fromkeys(r["player_id"] for r in results))
+    first = {r["player_id"]: r["name"] for r in reversed(results)}
+    names = dict(zip(ids, label([first[i] or PLACEHOLDER for i in ids]), strict=True))
+    return (
+        200,
+        {
+            "board": "best",
+            "period": "all",
+            "rows": [[names[r["player_id"]], r["points"]] for r in results],
+            "dates": [r["date"] for r in results],
+        },
+        CACHE,
+    )
+
+
 async def leaderboard(db, params, now=None) -> tuple[int, dict, dict]:
     board = params.get("board") or "daily"
+    if board == "best":
+        if params.get("date") is not None or params.get("month") is not None:
+            return 400, {"error": "the best board takes no date or month"}, CACHE
+        return await best(db, now)
     if board not in ("daily", "monthly"):
-        return 400, {"error": "board must be daily or monthly"}, CACHE
+        return 400, {"error": "board must be daily, monthly or best"}, CACHE
 
     period, cache, error = await served(db, board, params, now)
     if error:
