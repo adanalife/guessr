@@ -456,6 +456,10 @@ has no path out of the browser holding it.
 being `[name, points]` pairs, best first. Ten of them, since the overlay renders
 five and the extra leaves room to filter without a second request.
 
+`board=best` is the best single days ever played, closed dates only: one row
+per player per date (so a player can hold several), with `dates` parallel to
+`rows` naming the day of each total, and no `prev`.
+
 `prev`, parallel to `rows`, is each player's position on the board before:
 the day before for a daily board, and for the running month the same month
 without its newest closed day or anything still open. `0` marks a player who

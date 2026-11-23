@@ -428,6 +428,11 @@ def leaderboard():
         ).json["period"]
         == MONTH
     )
+    best = get("the best-days board reads", 200, "/api/leaderboard?board=best")
+    assert best.json["board"] == "best" and best.json["rows"], best.json
+    assert len(best.json["dates"]) == len(best.json["rows"]), best.json
+    assert b"player_id" not in best.raw, best.raw
+
     # A player id is a write credential, so no board carries one.
     assert b"player_id" not in r.raw and PHONE.encode() not in r.raw, r.raw
 
