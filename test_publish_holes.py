@@ -52,8 +52,8 @@ def main():
         assert rules.play_window(before)[0] <= now, now.isoformat()
     print(f"ok: the first unopened date matches the opening rule at {31 * 24} hours")
 
-    # Monday 06:00 UTC: 10-19 is still open (until 12:00), 10-20 is open, 10-21
-    # opens at 10:00.
+    # 06:00 UTC, the top-up's hour: 10-19 is still open (until 12:00), 10-20
+    # is open, 10-21 opens at 10:00.
     first = unopened_at(dt.datetime(2026, 10, 20, 6, tzinfo=dt.UTC))
     assert first == "2026-10-21"
     full = [{"date": f"2026-10-{d}", "n": 5} for d in (20, 21, 22)]
