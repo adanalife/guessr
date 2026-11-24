@@ -14,7 +14,7 @@ mkdir -p "$OUT"
 PAPER='#fffff8'
 INK='#111111'
 
-# The mark from web/favicon.svg, as make-app-icon.sh takes it, centred on its
+# The mark from web/favicon.svg, as make-app-icon.sh takes it, centered on its
 # drawn bounds at (cx, cy) and scaled to fill `size` pixels.
 pin() { # cx cy size
   local glyph scale
