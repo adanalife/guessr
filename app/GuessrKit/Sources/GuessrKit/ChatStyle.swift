@@ -39,9 +39,12 @@ public func isChatBot(_ login: String) -> Bool { builtinBots.contains(login.lowe
 
 /// Whether `text` is a chat command: `!` and then a name, which is how every
 /// channel bot reads one. A lone `!` or `!!!` is a chatter being emphatic.
+/// `! state` (a phone's autocorrect) and `¡state` (a Spanish keyboard) count:
+/// tripbot runs both.
 public func isChatCommand(_ text: String) -> Bool {
     let rest = text.drop { $0.isWhitespace }
-    guard rest.first == "!", let next = rest.dropFirst().first else { return false }
+    guard rest.first == "!" || rest.first == "¡",
+          let next = rest.dropFirst().drop(while: { $0.isWhitespace }).first else { return false }
     return next.isLetter || next.isNumber
 }
 
