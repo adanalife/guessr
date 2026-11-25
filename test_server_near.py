@@ -46,6 +46,8 @@ def seeded() -> Sqlite:
         (DAY, "p2", "la.mp4", 4.0, 4000),
         (DAY, "p1", "sf.mp4", 250.0, 900),
         (TODAY, "p1", "open.mp4", 3.3, 4500),
+        # The same clip replayed under another date is not that round's field.
+        (EARLIER, "p3", "la.mp4", 900.0, 100),
     ]:
         c.execute(
             "INSERT INTO plays (date, player_id, image, km, points) VALUES (?, ?, ?, ?, ?)",

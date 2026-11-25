@@ -400,6 +400,10 @@ async def test_prev_cache() -> None:
     d.conn.execute("UPDATE plays SET player_id = 'p2' WHERE player_id = 'p1'")
     assert await get(within) == ([0], 1, 0)
     assert await get(NOW + PREV_TTL) == ([1], 1, 1)
+    # A board nobody asks for again does not stay: the next read past its
+    # minute, of any board, drops it.
+    await leaderboard(d, {"board": "daily"}, NOW + 2 * PREV_TTL)
+    assert [key[0] for key in PREV_CACHE] == [PREV_DAILY], list(PREV_CACHE)
 
 
 async def test_best() -> None:
