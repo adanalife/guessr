@@ -7,7 +7,7 @@ nobody else's plays are in any of them.
 import asyncio
 
 from server.db import Sqlite
-from server.stats import MISS_EDGES_KM, stats
+from server.stats import MISS_EDGES_KM, stats, summary
 
 ME, OTHER = "me-id", "other-id"
 D1, D2, D3 = "2026-08-01", "2026-08-02", "2026-09-10"
@@ -121,5 +121,34 @@ async def test_stats() -> None:
     assert (s["streak"], s["streak_date"]) == (0, None), s
 
 
+def test_summary() -> None:
+    """The cuts one finished day cannot tell apart: which of two finished days
+    is the best, a miss landing exactly on a bucket's edge, and two states level
+    on points."""
+
+    def day(date, points, km=10.0, states=("NV", "AZ", "NV", "AZ", "NV")):
+        return [
+            {"date": date, "km": km, "points": points, "state": s, "position": i}
+            for i, s in enumerate(states, 1)
+        ]
+
+    low, high = day("2026-08-01", 1000), day("2026-08-03", 3000)
+    for rows in (low + high, high + low):
+        s = summary(rows)
+        assert s["best_game"] == {"date": "2026-08-03", "points": 15000}, s
+        assert (s["finished"], s["avg_game"], s["longest"]) == (2, 10000, 1), s
+        # Level on points, so the name decides, whichever was played first.
+        assert [x["state"] for x in s["by_state"]] == ["AZ", "NV"], s
+
+    # "under 5 mi" stops short of five miles: a miss on an edge is in the bucket
+    # past it, and one past the last edge is in the last.
+    edges = [{**low[0], "km": km} for km in MISS_EDGES_KM]
+    assert summary(edges)["misses"] == [0, 1, 1, 1, 1, 1], summary(edges)["misses"]
+    below = [{**low[0], "km": MISS_EDGES_KM[0] - 0.001}]
+    assert summary(below)["misses"] == [1, 0, 0, 0, 0, 0]
+
+
 asyncio.run(test_stats())
+test_summary()
 print("ok: /api/stats sums one player's plays, and only theirs")
+print("ok: best day, bucket edges and level states come out the same in any order")

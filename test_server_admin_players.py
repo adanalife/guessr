@@ -290,6 +290,19 @@ async def test_board_note_expect_name() -> None:
         d, OWNER, {"rank": "1"}, {"note": "still here", "expect_name": top}, NOW
     )
     assert (status, body["note"]) == (200, "still here"), body
+    # A player with no name is on the board as "anonymous", so that is the name
+    # a caller saw and sends back.
+    d.conn.execute(
+        "INSERT INTO plays (date, player_id, image, km, points, played_at) "
+        "VALUES (?, 'player-nameless', ?, 10.0, 4900, '2026-08-03 12:00:00')",
+        (DAY, IMAGES[2]),
+    )
+    seen = (await board_note(d, OWNER, {"rank": "1"}, NOW))[1]["name"]
+    status, body, _ = await set_board_note(
+        d, OWNER, {"rank": "1"}, {"note": "no name", "expect_name": seen}, NOW
+    )
+    assert (seen, status, body["note"]) == ("anonymous", 200, "no name"), body
+    assert note_of(d, "player-nameless") == "no name"
 
 
 async def test_board_note_open_date() -> None:

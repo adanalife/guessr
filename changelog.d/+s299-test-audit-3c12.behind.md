@@ -1,0 +1,1 @@
+More tests hold the stats page, the nearby-rounds list and a linked device's saved day to the edge cases: a replayed clip, a guess exactly on a distance bucket's edge, a nameless player, and a round saved without its guess.

@@ -176,6 +176,9 @@ assert.strictEqual(shuffled.total, 6);
 assert.deepStrictEqual(dailyFromProgress([row('a', 1), row('c', 3)], dealt, 9).results, [1]);
 // Missing guess coordinates leave the guesses off rather than inventing them.
 assert.ok(!('guesses' in dailyFromProgress([{ ...row('a', 1), guess_lat: null }], dealt, 9)));
+// One row short of one coordinate is enough: a guesses list shorter than the
+// results would draw each line to the wrong round.
+assert.ok(!('guesses' in dailyFromProgress([row('a', 1), { ...row('b', 2), guess_lng: null }], dealt, 9)));
 // Nothing played, or nothing to read: no record, so the caller keeps its save.
 assert.strictEqual(dailyFromProgress([], dealt, 9), null);
 assert.strictEqual(dailyFromProgress(undefined, dealt, 9), null);
