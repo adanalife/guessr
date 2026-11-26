@@ -4,6 +4,17 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.51.0 — 2026-11-25
+
+### Fixed
+
+- A chat command typed as `! state` or `¡state` folds with the bot's answer like any other command. ([#582](https://github.com/adanalife/guessr/pull/582))
+
+### Behind the scenes
+
+- The game now keeps a record of the best single days anyone has played, ready for the stream to show off. ([#580](https://github.com/adanalife/guessr/pull/580))
+- More tests hold the stats page, the nearby-rounds list and a linked device's saved day to the edge cases: a replayed clip, a guess exactly on a distance bucket's edge, a nameless player, and a round saved without its guess. ([#584](https://github.com/adanalife/guessr/pull/584))
+
 ## v1.50.0 — 2026-11-19
 
 ### New
