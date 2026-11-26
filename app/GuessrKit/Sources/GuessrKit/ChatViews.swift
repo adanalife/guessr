@@ -123,8 +123,10 @@ public struct UserFact: Hashable, Identifiable, Sendable {
                     Text("→ \(answer)").foregroundStyle(.tertiary)
                 }
             }
-            .font(.caption)
-            .lineLimit(1)
+            // Folded, the row is a quiet one-liner; open, it reads at the chat's
+            // own size, like the bot's answer drawn under it.
+            .font(open ? nil : .caption)
+            .lineLimit(open ? nil : 1)
             .accessibilityElement(children: .combine)
         }
     }
