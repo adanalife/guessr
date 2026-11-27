@@ -374,12 +374,12 @@ for host in $hosts; do
   done
 done
 
-# Both boards read. A 500 here is an unapplied migration.
+# Every board reads. A 500 here is an unapplied migration.
 #
 # The shape assertion is not belt-and-braces: Pages serves the static site for a
 # path no Worker claims, so a missing endpoint answers 200 with the game's HTML
 # and a status-only check sails past it.
-for board in daily monthly; do
+for board in daily monthly best; do
   out=$(call "$BASE/api/leaderboard?board=$board")
   check "$board board reads" 200 "$(tail -1 <<<"$out")" "$(head -1 <<<"$out")"
   grep -q '"rows"' <<<"$out" || { echo "::error::$board board had no rows key"; exit 1; }
