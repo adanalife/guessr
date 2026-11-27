@@ -1,0 +1,1 @@
+`GET /admin/upcoming` lists every round still ahead in the schedule, most distinctive (`mean_cos`) first, from the last closed date on. It is owner-only like the rest of `/admin/`, and it feeds the console's openers tiles.
