@@ -4,6 +4,16 @@ What changed in the game, release by release. Newest first.
 
 <!-- towncrier release notes start -->
 
+## v1.51.1 — 2026-11-27
+
+### Fixed
+
+- An opened bot command in the chat reads at the chat's own font size, so the asker's name matches the bot's answer under it. ([#585](https://github.com/adanalife/guessr/pull/585))
+
+### Behind the scenes
+
+- The smoke test reads the best-days board again, now that a release carries it. ([#586](https://github.com/adanalife/guessr/pull/586))
+
 ## v1.51.0 — 2026-11-25
 
 ### Fixed
